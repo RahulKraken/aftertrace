@@ -1,5 +1,6 @@
 const KEY = "aftertrace-resolved"
-const SEED = [4]
+// Nothing is resolved until the user resolves it. The e2e suite seeds its own state.
+const SEED: number[] = []
 
 function read(): number[] {
   if (typeof window === "undefined") return SEED

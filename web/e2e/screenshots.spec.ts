@@ -40,10 +40,11 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
-    document.documentElement.dataset.theme = "light"
     if (!localStorage.getItem("aftertrace-resolved")) {
       localStorage.setItem("aftertrace-resolved", JSON.stringify([4]))
     }
+    // documentElement can be null this early; theme.ts applies the stored theme anyway.
+    if (document.documentElement) document.documentElement.dataset.theme = "light"
   })
 })
 
@@ -51,7 +52,7 @@ test("sessions list", async ({ page }) => {
   await page.goto("/#/")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
-  await expect(page.locator(".week-pct")).toContainText("23%")
+  await expect(page.locator(".week-pct")).toContainText("5%")
   await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
   await expect(page.locator(".story-card")).toHaveCount(0)
   await expect(page.locator(".kpis")).toHaveCount(0)

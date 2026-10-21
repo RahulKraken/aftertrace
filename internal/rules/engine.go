@@ -107,7 +107,7 @@ func RunAll(db *sql.DB) []Finding {
 		return []Finding{{RuleID: "engine", RuleTitle: "rules", Pillar: "config", Severity: "error",
 			Headline: "failed to load rules: " + err.Error(), Evidence: []Evidence{}, Sessions: []string{}}}
 	}
-	var out []Finding
+	out := []Finding{}
 	for _, r := range rs {
 		fs, err := run(db, r)
 		if err != nil {
@@ -147,7 +147,7 @@ func run(db *sql.DB, r Rule) ([]Finding, error) {
 	for i, c := range cols {
 		idx[c] = i
 	}
-	var out []Finding
+	out := []Finding{}
 	for rows.Next() {
 		raw := make([]any, len(cols))
 		ptrs := make([]any, len(cols))

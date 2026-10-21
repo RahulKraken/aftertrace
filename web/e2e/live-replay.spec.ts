@@ -14,7 +14,7 @@ test("live replay at 4x", async ({ page }) => {
   mkdirSync(outDir, { recursive: true })
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
-    document.documentElement.dataset.theme = "light"
+    if (document.documentElement) document.documentElement.dataset.theme = "light"
   })
   await page.goto(`/#/trace/${HERO_TRACE}?replay=1`)
   await expect(page.locator(".wf")).toBeVisible()

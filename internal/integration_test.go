@@ -314,6 +314,8 @@ func TestRedactDropsContentAndEmail(t *testing.T) {
 					StartTimeUnixNano: 1, EndTimeUnixNano: 2,
 					Attributes: []*commonpb.KeyValue{
 						kv("session.id", "s1"),
+						kv("user.id", "hashed-user"),
+						kv("organization.id", "org-uuid"),
 						kv("user_prompt", "secret prompt"),
 						kv("user_prompt_length", int64(12)),
 					},
@@ -336,6 +338,11 @@ func TestRedactDropsContentAndEmail(t *testing.T) {
 	}
 	if _, ok := m["user.email"]; ok {
 		t.Fatal("email on span attrs")
+	}
+	for _, k := range []string{"user.id", "organization.id"} {
+		if _, ok := m[k]; ok {
+			t.Fatalf("%s on span attrs", k)
+		}
 	}
 	var res string
 	if err := st.DB.QueryRow(`SELECT resource::VARCHAR FROM spans`).Scan(&res); err != nil {
@@ -483,5 +490,51 @@ func TestRedactList(t *testing.T) {
 	}
 	if m["model"] != "m" {
 		t.Fatal("model")
+	}
+}
+
+// Claude Code 2.1.153 does not put tool_use_id on claude_code.tool spans, and the
+// blocked_on_user span says decision=unknown in non-interactive runs. The
+// tool_decision event, linked to the wait span by span context, has both.
+func TestToolsViewJoinsDecisionEventBySpanContext(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	spans := []store.Span{
+		{TraceID: "t1", SpanID: "tool", ParentSpanID: "turn", Name: "claude_code.tool", StartNS: 1, EndNS: 10,
+			SessionID: "s1", Attrs: map[string]any{"tool_name": "Bash", "full_command": "npm test"}},
+		{TraceID: "t1", SpanID: "wait", ParentSpanID: "tool", Name: "claude_code.tool.blocked_on_user", StartNS: 1, EndNS: 5,
+			SessionID: "s1", Attrs: map[string]any{"decision": "unknown", "source": "unknown"}},
+	}
+	evs := []store.Event{{TsNS: 5, Name: "tool_decision", SessionID: "s1", TraceID: "t1", SpanID: "wait", ToolUseID: "toolu_1",
+		Attrs: map[string]any{"decision": "accept", "source": "user_temporary", "tool_use_id": "toolu_1"}}}
+	if err := st.Insert(spans, nil, evs, nil); err != nil {
+		t.Fatal(err)
+	}
+	var tuid, decision, source string
+	if err := st.DB.QueryRow(`SELECT tool_use_id, decision, decision_source FROM tools`).Scan(&tuid, &decision, &source); err != nil {
+		t.Fatal(err)
+	}
+	if tuid != "toolu_1" || decision != "accept" || source != "user_temporary" {
+		t.Fatalf("tools view: tool_use_id=%q decision=%q source=%q", tuid, decision, source)
+	}
+}
+
+// A fresh store has no findings. The UI calls .filter on the response, so it
+// must be [] and never null.
+func TestFindingsEmptyStoreIsEmptyArray(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "e.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	b, err := json.Marshal(rules.RunAll(st.DB))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "[]" {
+		t.Fatalf("findings on empty store: %s", b)
 	}
 }
