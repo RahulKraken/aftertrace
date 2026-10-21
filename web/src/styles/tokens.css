@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --bg-recessed: #f2f2f3;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --ink: #0a0a0a;
+  --ink-2: #171717;
+  --mute: #737373;
+  --faint: #a3a3a3;
+  --line: #ebebeb;
+  --line-2: #e5e5e5;
+  --sel: #f4f4f5;
+  --sel-strong: #ececee;
+  --shadow: none;
+  --shadow-pane: none;
+  --shadow-toast: 0 12px 40px color-mix(in oklab, var(--ink) 14%, transparent);
+  --radius: 8px;
+  --top: 48px;
+  --pane: 400px;
+  --labw: 32%;
+  --row: 32px;
+  --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
+  --display: var(--sans);
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+
+  --hue-model: #2563eb;
+  --hue-model-soft: #bfdbfe;
+  --hue-tool: #12b76a;
+  --hue-tool-soft: #bbf7d0;
+  --hue-agent: #7c3aed;
+  --hue-agent-soft: #ddd6fe;
+  --hue-skill: #c026d3;
+  --hue-mcp: #0891b2;
+  --hue-hook: #0ea5e9;
+  --hue-file: #059669;
+  --hue-bash: #0d9488;
+  --hue-web: #3b82f6;
+  --hue-wait: #f5a524;
+  --hue-wait-bg: #fff7ed;
+  --hue-retry: #ef4444;
+  --hue-turn: #a1a1aa;
+  --hue-ok: #16a34a;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-recessed: #111111;
+  --surface: #141414;
+  --surface-2: #1a1a1a;
+  --ink: #fafafa;
+  --ink-2: #e5e5e5;
+  --mute: #a3a3a3;
+  --faint: #737373;
+  --line: #262626;
+  --line-2: #2e2e2e;
+  --sel: #1c1c1c;
+  --sel-strong: #262626;
+
+  --hue-model: #60a5fa;
+  --hue-model-soft: #1e3a5f;
+  --hue-tool: #34d399;
+  --hue-tool-soft: #14532d;
+  --hue-agent: #a78bfa;
+  --hue-agent-soft: #3b0764;
+  --hue-skill: #e879f9;
+  --hue-mcp: #22d3ee;
+  --hue-hook: #38bdf8;
+  --hue-file: #34d399;
+  --hue-bash: #2dd4bf;
+  --hue-web: #93c5fd;
+  --hue-wait: #fbbf24;
+  --hue-wait-bg: #3f2a0a;
+  --hue-retry: #f87171;
+  --hue-turn: #737373;
+  --hue-ok: #4ade80;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

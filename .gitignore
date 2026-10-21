@@ -1,0 +1,9 @@
+/aftertrace
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+/data/
+# Vite writes web/dist. Stub index.html is tracked so go:embed compiles
+# without Node. Built assets stay untracked and are embedded from disk.
+web/dist/**
+!web/dist/index.html

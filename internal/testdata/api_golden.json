@@ -1,0 +1,16 @@
+{
+  "session_count": 6,
+  "rule_ids": [
+    "retry.exhausted",
+    "permission.allow_rule_candidate",
+    "retry.waste",
+    "tool.repeated_errors",
+    "hook.overhead",
+    "skill.cost",
+    "mcp.large_results",
+    "cache.drop_after_compaction",
+    "plugin.skills_unused",
+    "model.switch_cache_rebuild"
+  ],
+  "cost_models": 3
+}

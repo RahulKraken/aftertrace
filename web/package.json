@@ -1,0 +1,34 @@
+{
+  "name": "aftertrace-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:embed": "VITE_USE_MOCK=0 tsc -b && VITE_USE_MOCK=0 vite build",
+    "lint": "oxlint src",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "screenshots": "playwright test"
+  },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "motion": "^14.5.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "wouter": "^3.13.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.88.0",
+    "playwright": "^1.64.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4"
+  },
+  "description": "Aftertrace web UI — static profiler for Claude Code traces"
+}

@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  go:
+    name: Go (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # DuckDB links through CGO. CGO_ENABLED=0 does not compile.
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+      # Builds against the committed stub web/dist/index.html (no Node).
+      - run: go build -o aftertrace ./cmd/aftertrace
+
+  web:
+    name: Web UI + embedded binary
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+      # Overwrites the tracked stub web/dist/index.html. That is expected on a
+      # throwaway runner; nothing here commits it.
+      - name: Build embedded UI
+        working-directory: web
+        run: npm run build:embed
+      - name: Build binary with embedded UI
+        run: go build -o aftertrace ./cmd/aftertrace
+      - name: Check the UI bundle is embedded
+        run: |
+          bundle=$(basename "$(ls web/dist/assets/index-*.js | head -n1)")
+          test -n "$bundle"
+          grep -aqF "dist/assets/$bundle" aftertrace
+          echo "embedded $bundle"
+
+  e2e:
+    name: Playwright e2e (mock UI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Playwright
+        working-directory: web
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
+          retention-days: 7

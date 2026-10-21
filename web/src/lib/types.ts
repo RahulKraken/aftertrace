@@ -1,0 +1,203 @@
+export type Breakdown = {
+  model: number
+  tool: number
+  permission_wait: number
+  retry: number
+  hook: number
+  other: number
+}
+
+export type Session = {
+  session_id: string
+  start_ns: number
+  end_ns: number
+  turns: number
+  turn_ms: number
+  repo: string | null
+  entrypoint: string | null
+  cost_usd: number | null
+  tokens: number | null
+  cache_hit: number | null
+  models: string[]
+  errors: number
+  retried: number
+  agents: string[]
+  breakdown: Breakdown | null
+  findings: number
+}
+
+export type Turn = {
+  trace_id: string
+  span_id: string
+  start_ns: number
+  duration_ms: number
+  seq: number
+  cost_usd: number | null
+  requests: number
+  models: string[]
+  tools: number
+  breakdown: Breakdown | null
+}
+
+export type SessionDetail = {
+  session: Session
+  turns: Turn[]
+}
+
+export type SpanJoined = {
+  cost_usd?: number | null
+  "skill.name"?: string | null
+  "agent.name"?: string | null
+  "mcp_server.name"?: string | null
+  query_source?: string | null
+}
+
+export type Span = {
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  start_ns: number
+  end_ns: number
+  duration_ms: number
+  is_error: boolean
+  status_message?: string | null
+  attrs: Record<string, unknown>
+  critical?: boolean
+  joined?: SpanJoined | null
+  retry_end_ns?: number | null
+  findings?: number[]
+}
+
+export type SpanEvent = {
+  span_id: string
+  name: string
+  time_ns: number
+  attrs: Record<string, unknown>
+}
+
+export type TraceEvent = {
+  name: string
+  ts_ns: number
+  tool_use_id?: string | null
+  request_id?: string | null
+  attrs: Record<string, unknown>
+}
+
+export type Trace = {
+  trace_id: string
+  session_id: string
+  spans: Span[]
+  span_events: SpanEvent[]
+  events: TraceEvent[]
+  breakdown: Breakdown | null
+  prev: string | null
+  next: string | null
+  turn_index: number
+  turn_count: number
+}
+
+export type Evidence = {
+  trace_id: string
+  span_id: string
+  label: string
+}
+
+export type Finding = {
+  id: number
+  rule_id: string
+  rule_title?: string
+  pillar: string
+  severity: "high" | "medium" | "low" | "error"
+  headline: string
+  impact_value: number
+  impact_unit: string
+  detail: string
+  recommendation: string
+  evidence: Evidence[]
+  sessions: string[]
+}
+
+export type Field = { key: string; kind: "num" | "str" }
+
+export type CostTable = {
+  dim: string
+  columns: string[]
+  rows: unknown[][]
+  note: string
+}
+
+export type QuerySpec = {
+  agg: string
+  field: string
+  where: { field: string; op: string; value?: string }[]
+  group_by: string[]
+  order: "asc" | "desc"
+  limit: number
+  from_ns?: number
+  to_ns?: number
+}
+
+export type QueryResult = {
+  sql: string
+  params: unknown[]
+  table: { groups: (string | null)[]; value: number | null; n: number }[]
+  series: { groups: (string | null)[]; points: [number, number | null][] }[]
+  step_ns: number
+  lo: number | null
+  hi: number | null
+  error?: string
+}
+
+export type TraceHit = {
+  trace_id: string
+  span_id: string
+  matches: number
+  max_ms: number
+  session_id: string | null
+  start_ns: number | null
+  turn_ms: number | null
+  repo: string | null
+}
+
+export type SqlResult = {
+  columns: string[]
+  rows: unknown[][]
+  error?: string
+}
+
+export type AskResult = {
+  answer: string
+  sql: string | null
+  result: SqlResult | null
+  evidence: Record<string, unknown>[]
+  builder?: QuerySpec | null
+}
+
+export type AskSuggestions = {
+  agent: string
+  questions: string[]
+  schema: string
+}
+
+export type Range = { lo: number; hi: number }
+
+export type SpanKind =
+  | "turn"
+  | "model"
+  | "tool"
+  | "wait"
+  | "run"
+  | "hook"
+  | "agent"
+  | "span"
+
+export type ToolFamily =
+  | "bash"
+  | "read"
+  | "edit"
+  | "search"
+  | "web"
+  | "skill"
+  | "mcp"
+  | "agent"
+  | "other"

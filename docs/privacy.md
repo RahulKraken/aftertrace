@@ -1,0 +1,88 @@
+# Privacy
+
+Aftertrace is local-first. The process never opens a network connection of its own. The only sockets are the ones you bind for OTLP and the UI.
+
+## What is redacted by default
+
+At ingest, `internal/redact` deletes keys from every span, span event, log record, and metric data point, including resource attributes.
+
+Content keys, dropped unless `--store-content`:
+
+```
+user_prompt
+prompt
+prompt_text
+response
+tool_input
+tool.output
+new_context
+body
+```
+
+Those names are the ones Claude Code uses for prompt text, responses, tool input, tool output, detailed-beta context, and raw API bodies. See [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage).
+
+Identity keys, **always** dropped, including with `--store-content`:
+
+```
+user.email
+user.account_uuid
+user.account_id
+```
+
+`user_prompt_length` and other non-content attributes are kept. Claude Code still has to send an attribute for Aftertrace to store it. Prompt text is off at the source unless you set `OTEL_LOG_USER_PROMPTS=1`; see [claude-code-setup.md](claude-code-setup.md#opting-into-content).
+
+`OTEL_LOG_TOOL_DETAILS=1` is a separate gate. It sends Bash commands, file paths, and skill / MCP names. Those keys are **not** in the lists above, so Aftertrace stores them. That is why findings can name `Bash(npm test:*)`.
+
+## `--store-content`
+
+`aftertrace serve --store-content` and `aftertrace import --store-content` keep the content keys. Identity keys still go. The serve log line is:
+
+```
+redact=on store_content=false  (no telemetry)
+```
+
+`store_content=true` only after you pass the flag.
+
+Two gates, both default off: Claude Code does not emit content, and Aftertrace deletes the keys if they arrive anyway.
+
+## Localhost-only binding
+
+`--listen` defaults to `127.0.0.1`. OTLP gRPC, OTLP HTTP, and the UI all bind that host. Nothing on the LAN can reach the receivers unless you pass `--listen 0.0.0.0`.
+
+There is no TLS and no auth. Team mode on a shared host is a private network decision, not a Aftertrace feature.
+
+## No telemetry, no phone-home
+
+The binary does not check for updates, crash-report, or send usage. The Ask endpoint is a stub: it runs no model and sends nothing off the machine. `POST /api/sql` is read-only and sandboxed.
+
+## SQL sandbox
+
+The Query page's raw SQL box runs your SQL on the store, so it is locked to the store. DuckDB is opened with external access off and its configuration locked: no reading files (`read_text('/etc/hosts')` fails), no writing files, no `ATTACH`, no extension `INSTALL` or `LOAD`, no network. Aftertrace checks that the statement is a single `SELECT` and runs it in a transaction that is rolled back. That matters most with `--listen 0.0.0.0`, where anyone who can reach the UI port can send SQL. Details: [api.md](api.md#raw-sql).
+
+## Where the DB lives
+
+Default file: `$HOME/.aftertrace/aftertrace.duckdb`. Override with `--db`. Alongside it DuckDB writes a write-ahead log, `*.duckdb.wal`.
+
+After `./aftertrace serve --db ./data/aftertrace.duckdb`:
+
+```
+./data/aftertrace.duckdb
+./data/aftertrace.duckdb.wal
+```
+
+One process at a time. A second `serve`, `demo`, or `import` on the same path fails with a conflicting lock.
+
+## How to delete it
+
+Stop `aftertrace`. Remove the DuckDB file and its WAL.
+
+```bash
+# default path
+rm -f "$HOME/.aftertrace/aftertrace.duckdb" "$HOME/.aftertrace/aftertrace.duckdb.wal"
+rmdir "$HOME/.aftertrace" 2>/dev/null || true
+
+# if you used the quickstart path
+rm -f ./data/aftertrace.duckdb ./data/aftertrace.duckdb.wal
+```
+
+That is the whole store. There is no remote copy.
