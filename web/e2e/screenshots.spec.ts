@@ -40,10 +40,11 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
-    document.documentElement.dataset.theme = "light"
     if (!localStorage.getItem("aftertrace-resolved")) {
       localStorage.setItem("aftertrace-resolved", JSON.stringify([4]))
     }
+    // documentElement can be null this early; theme.ts applies the stored theme anyway.
+    if (document.documentElement) document.documentElement.dataset.theme = "light"
   })
 })
 

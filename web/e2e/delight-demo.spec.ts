@@ -7,7 +7,7 @@ test.use({
 test("delight demo under 30s", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
-    document.documentElement.dataset.theme = "light"
+    if (document.documentElement) document.documentElement.dataset.theme = "light"
     localStorage.setItem("aftertrace-resolved", JSON.stringify([4]))
   })
 
