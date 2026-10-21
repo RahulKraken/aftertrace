@@ -16,19 +16,26 @@ SELECT s.trace_id, s.span_id, s.parent_span_id, s.session_id, s.start_ns, s.end_
 FROM spans s LEFT JOIN events e ON e.name='api_request' AND e.request_id = a(s.attrs,'request_id')
 WHERE s.name='claude_code.llm_request';
 
--- one row per tool call: tool span + permission wait + execution + tool_use_id
+-- one row per tool call: tool span + permission wait + execution + tool_use_id.
+-- Claude Code does not put tool_use_id on the tool span. The tool_decision event
+-- carries it, linked by span context to the blocked_on_user child. The wait span's
+-- decision and source read "unknown" in non-interactive runs, so fall back to the event.
 CREATE OR REPLACE VIEW tools AS
 SELECT t.trace_id, t.span_id, t.session_id, t.start_ns, t.end_ns, t.duration_ms,
-  a(t.attrs,'tool_name') AS tool_name, a(t.attrs,'tool_use_id') AS tool_use_id, a(t.attrs,'agent_id') AS agent_id,
+  a(t.attrs,'tool_name') AS tool_name, coalesce(a(t.attrs,'tool_use_id'), d.tool_use_id) AS tool_use_id, a(t.attrs,'agent_id') AS agent_id,
   a(t.attrs,'bash_argv0') AS bash_argv0, a(t.attrs,'bash_command_class') AS bash_command_class,
   a(t.attrs,'full_command') AS full_command, a(t.attrs,'skill_name') AS skill_name,
   a(t.attrs,'subagent_type') AS subagent_type, n(t.attrs,'result_tokens') AS result_tokens,
-  b.span_id AS wait_span_id, b.duration_ms AS wait_ms, a(b.attrs,'decision') AS decision, a(b.attrs,'source') AS decision_source,
+  b.span_id AS wait_span_id, b.duration_ms AS wait_ms,
+  CASE WHEN coalesce(a(b.attrs,'decision'),'unknown')='unknown' THEN coalesce(a(d.attrs,'decision'), a(b.attrs,'decision')) ELSE a(b.attrs,'decision') END AS decision,
+  CASE WHEN coalesce(a(b.attrs,'source'),'unknown')='unknown' THEN coalesce(a(d.attrs,'source'), a(b.attrs,'source')) ELSE a(b.attrs,'source') END AS decision_source,
   x.span_id AS exec_span_id, x.duration_ms AS exec_ms, a(x.attrs,'success') AS success, a(x.attrs,'error_class') AS error_class,
   a(t.attrs,'vcs.repository.name') AS repo
 FROM spans t
 LEFT JOIN spans b ON b.parent_span_id=t.span_id AND b.trace_id=t.trace_id AND b.name='claude_code.tool.blocked_on_user'
 LEFT JOIN spans x ON x.parent_span_id=t.span_id AND x.trace_id=t.trace_id AND x.name='claude_code.tool.execution'
+LEFT JOIN events d ON d.name='tool_decision' AND (
+  (d.trace_id=t.trace_id AND d.span_id=b.span_id) OR d.tool_use_id=a(t.attrs,'tool_use_id'))
 WHERE t.name='claude_code.tool';
 
 -- query dataset: every span, with api_request attributes merged for llm_request spans

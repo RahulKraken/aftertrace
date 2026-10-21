@@ -35,7 +35,7 @@ export function SessionsPage() {
 
   return (
     <div className="page">
-      <WeekLine />
+      <WeekLine rows={rows} />
       <table className="grid">
         <thead>
           <tr>
@@ -73,8 +73,17 @@ export function SessionsPage() {
   )
 }
 
-function WeekLine() {
-  const { waitPct, savedMin } = weekStory()
+function WeekLine({ rows }: { rows: Session[] }) {
+  const { waitPct, sessions, costUsd, thisWeek } = weekStory(rows)
+  const span = thisWeek ? "this week" : "your latest week"
+  if (waitPct < 1) {
+    return (
+      <h1 className="story-line week-line">
+        {sessions} {sessions === 1 ? "session" : "sessions"} {span}, {usd(costUsd)}, and almost no time waiting on
+        approvals.
+      </h1>
+    )
+  }
   return (
     <h1 className="story-line week-line">
       You spent{" "}
@@ -82,7 +91,7 @@ function WeekLine() {
         {waitPct}%
         <i className="week-pct-mark" aria-hidden="true" />
       </span>{" "}
-      of this week waiting on approvals, and saved {savedMin} min.
+      of {span} waiting on approvals.
     </h1>
   )
 }

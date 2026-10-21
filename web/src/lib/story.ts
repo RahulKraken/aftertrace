@@ -43,50 +43,34 @@ export function turnStory(t: Trace): string {
   return `Turn ${t.turn_index} of ${t.turn_count} · ${dur(tot)} of wall clock.`
 }
 
-export type WeekPoint = {
-  day: string
-  wait_s: number
-  saved_s: number
-  cost: number
-  cache_hit: number
-}
+const WEEK_NS = 7 * 24 * 3600 * 1e9
 
-export type WeekStoryData = {
-  headline: string
-  saved: string
-  cost: string
-  cache: string
-  savedDelta: string
-  costDelta: string
-  cacheDelta: string
-  series: WeekPoint[]
-}
-
-export function weekStory(): { waitPct: number; savedMin: number } {
-  return { waitPct: 23, savedMin: 11 }
-}
-
-export function weekLine(): string {
-  const { waitPct, savedMin } = weekStory()
-  return `You spent ${waitPct}% of this week waiting on approvals, and saved ${savedMin} min.`
-}
-
-export const WEEK: WeekStoryData = {
-  headline: "A quieter week once the git-commit allow rule landed.",
-  saved: "11 min",
-  cost: "$21.81",
-  cache: "93%",
-  savedDelta: "after one allow rule",
-  costDelta: "−12% vs prior week",
-  cacheDelta: "87% → 93%",
-  series: [
-    { day: "14 Oct", wait_s: 89, saved_s: 0, cost: 8.85, cache_hit: 0.93 },
-    { day: "15 Oct", wait_s: 23, saved_s: 0, cost: 4.98, cache_hit: 0.85 },
-    { day: "16 Oct", wait_s: 36, saved_s: 0, cost: 9.1, cache_hit: 0.95 },
-    { day: "17 Oct", wait_s: 12, saved_s: 180, cost: 8.35, cache_hit: 0.87 },
-    { day: "18 Oct", wait_s: 0, saved_s: 420, cost: 6.48, cache_hit: 0.93 },
-    { day: "19 Oct", wait_s: 0, saved_s: 660, cost: 0.05, cache_hit: 0.72 },
-  ],
+// Share of turn time spent waiting on permission prompts, over the 7 days
+// ending at the newest session. Anchoring on the data, not the clock, keeps
+// the number stable for old imports and for fixtures.
+export function weekStory(rows: Session[], now = Date.now()): {
+  waitPct: number
+  sessions: number
+  costUsd: number
+  thisWeek: boolean
+} {
+  if (!rows.length) return { waitPct: 0, sessions: 0, costUsd: 0, thisWeek: false }
+  const anchor = Math.max(...rows.map((r) => r.start_ns))
+  const week = rows.filter((r) => r.start_ns >= anchor - WEEK_NS)
+  let wait = 0
+  let turn = 0
+  let cost = 0
+  for (const r of week) {
+    wait += r.breakdown?.permission_wait || 0
+    turn += r.turn_ms || 0
+    cost += r.cost_usd || 0
+  }
+  return {
+    waitPct: turn > 0 ? Math.round((100 * wait) / turn) : 0,
+    sessions: week.length,
+    costUsd: cost,
+    thisWeek: now * 1e6 - anchor < WEEK_NS,
+  }
 }
 
 export function mixShare(bd: Breakdown | null | undefined): number[] {

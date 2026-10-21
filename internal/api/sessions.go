@@ -195,6 +195,30 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 	}
 	rows.Close()
 
+	// Claude Code links tool_use_id and the permission decision through the
+	// tool_decision event, not the spans. The tools view resolves both.
+	toolUse := map[string]string{}
+	waitDecision := map[string][2]string{}
+	tr, err := db.Query(`SELECT span_id, coalesce(tool_use_id,''), coalesce(wait_span_id,''), coalesce(decision,''), coalesce(decision_source,'')
+		FROM tools WHERE trace_id=?`, tid)
+	if err != nil {
+		return nil, err
+	}
+	for tr.Next() {
+		var sid, tuid, wait, dec, src string
+		if err := tr.Scan(&sid, &tuid, &wait, &dec, &src); err != nil {
+			tr.Close()
+			return nil, err
+		}
+		if tuid != "" {
+			toolUse[sid] = tuid
+		}
+		if wait != "" && dec != "" {
+			waitDecision[wait] = [2]string{dec, src}
+		}
+	}
+	tr.Close()
+
 	sevs := []map[string]any{}
 	sr, err := db.Query(`SELECT span_id, name, time_ns, attrs::VARCHAR FROM span_events WHERE trace_id=? ORDER BY time_ns`, tid)
 	if err != nil {
@@ -238,6 +262,17 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 		}
 		if j, ok := joined[sp.SpanID]; ok {
 			sp.Joined = j
+		}
+		if tuid, ok := toolUse[sp.SpanID]; ok && sp.Attrs["tool_use_id"] == nil {
+			sp.Attrs["tool_use_id"] = tuid
+		}
+		if d, ok := waitDecision[sp.SpanID]; ok {
+			if v, _ := sp.Attrs["decision"].(string); v == "" || v == "unknown" {
+				sp.Attrs["decision"] = d[0]
+			}
+			if v, _ := sp.Attrs["source"].(string); (v == "" || v == "unknown") && d[1] != "" {
+				sp.Attrs["source"] = d[1]
+			}
 		}
 		sp.RetryEndNS = analysis.RetryEnd(db, tid, sp.SpanID)
 		if ids := spanFindings[sp.SpanID]; len(ids) > 0 {

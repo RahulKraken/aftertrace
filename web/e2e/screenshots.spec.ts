@@ -51,7 +51,7 @@ test("sessions list", async ({ page }) => {
   await page.goto("/#/")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
-  await expect(page.locator(".week-pct")).toContainText("23%")
+  await expect(page.locator(".week-pct")).toContainText("5%")
   await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
   await expect(page.locator(".story-card")).toHaveCount(0)
   await expect(page.locator(".kpis")).toHaveCount(0)
