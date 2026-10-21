@@ -50,7 +50,67 @@ func SpanRows(db *sql.DB, traceID string) ([]Span, error) {
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return withPendingRoot(out), nil
+}
+
+// InProgressAttr marks the stand-in root of a turn that is still running.
+const InProgressAttr = "aftertrace.in_progress"
+
+// Claude Code ends claude_code.interaction, and exports it, only when the turn
+// finishes. Until then every span points at a parent that has not arrived.
+// Stand in for it so a running turn has a root, a time axis and a breakdown.
+// Children of a tool that is still running also arrive before their parent;
+// hang those under the stand-in until the real parent shows up.
+func withPendingRoot(spans []Span) []Span {
+	if len(spans) == 0 || interaction(spans) != nil {
+		return spans
+	}
+	have := make(map[string]bool, len(spans))
+	for _, s := range spans {
+		have[s.SpanID] = true
+	}
+	refs := map[string]int{}
+	start, end := spans[0].StartNS, spans[0].EndNS
+	for _, s := range spans {
+		if s.ParentSpanID != "" && !have[s.ParentSpanID] {
+			refs[s.ParentSpanID]++
+		}
+		start = min(start, s.StartNS)
+		end = max(end, s.EndNS)
+	}
+	missing, best := "", 0
+	for id, n := range refs {
+		if n > best || (n == best && id < missing) {
+			missing, best = id, n
+		}
+	}
+	if missing == "" {
+		return spans
+	}
+	root := Span{
+		SpanID:     missing,
+		Name:       "claude_code.interaction",
+		StartNS:    start,
+		EndNS:      end,
+		DurationMS: float64(end-start) / 1e6,
+		Attrs:      map[string]any{InProgressAttr: true},
+	}
+	for i := range spans {
+		p := spans[i].ParentSpanID
+		if p == "" || have[p] {
+			continue
+		}
+		if p != missing {
+			spans[i].ParentSpanID = missing
+		}
+		if v, ok := spans[i].Attrs["session.id"]; ok && root.Attrs["session.id"] == nil {
+			root.Attrs["session.id"] = v
+		}
+	}
+	return append([]Span{root}, spans...)
 }
 
 func RetryEnd(db *sql.DB, traceID, spanID string) *int64 {

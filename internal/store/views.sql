@@ -43,3 +43,23 @@ CREATE OR REPLACE VIEW q_spans AS
 SELECT s.*, e.attrs AS event_attrs, n(e.attrs,'cost_usd') AS cost_usd
 FROM spans s LEFT JOIN events e ON e.name='api_request' AND s.name='claude_code.llm_request'
   AND e.request_id = a(s.attrs,'request_id');
+
+-- one row per turn. A running turn has no claude_code.interaction span yet
+-- (Claude Code exports it when the turn ends). Its root is the missing parent
+-- that most spans point at; children of a still-running tool point at another
+-- missing parent for a while.
+CREATE OR REPLACE VIEW turn_roots AS
+SELECT trace_id, span_id, session_id, start_ns, end_ns, duration_ms, attrs, false AS in_progress
+FROM spans WHERE name='claude_code.interaction'
+UNION ALL
+SELECT o.trace_id, arg_max(o.parent_id, o.n), any_value(o.session_id), t.st, t.en, (t.en - t.st) / 1e6, NULL::JSON, true
+FROM (
+  SELECT s.trace_id, s.parent_span_id AS parent_id, count(*) AS n, any_value(s.session_id) AS session_id
+  FROM spans s
+  WHERE coalesce(s.parent_span_id, '') <> ''
+    AND NOT EXISTS (SELECT 1 FROM spans i WHERE i.trace_id = s.trace_id AND i.name = 'claude_code.interaction')
+    AND NOT EXISTS (SELECT 1 FROM spans p WHERE p.trace_id = s.trace_id AND p.span_id = s.parent_span_id)
+  GROUP BY 1, 2
+) o
+JOIN (SELECT trace_id, min(start_ns) AS st, max(end_ns) AS en FROM spans GROUP BY 1) t USING (trace_id)
+GROUP BY o.trace_id, t.st, t.en;

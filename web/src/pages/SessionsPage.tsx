@@ -16,6 +16,13 @@ export function SessionsPage() {
     api.sessions().then(setRows).catch((e: Error) => setErr(e.message))
   }, [])
 
+  const running = Boolean(rows?.some((r) => r.running))
+  useEffect(() => {
+    if (!running) return
+    const t = window.setInterval(() => api.sessions().then(setRows).catch(() => {}), 5000)
+    return () => window.clearInterval(t)
+  }, [running])
+
   if (err) {
     return (
       <div className="page">
@@ -40,7 +47,7 @@ export function SessionsPage() {
         <thead>
           <tr>
             <th>Started</th>
-            <th>Repo</th>
+            <th>Session</th>
             <th className="r">Time</th>
             <th className="r">Cost</th>
             <th className="r">Findings</th>
@@ -54,11 +61,14 @@ export function SessionsPage() {
                 <td className="num">
                   <span className="date">{t.date}</span>
                   {t.time}
+                  {s.running ? <span className="run-pill">running</span> : null}
                 </td>
                 <td>
                   <span className="repo-shape">
                     <MiniWaterfall bd={s.breakdown} turns={s.turns} />
-                    {s.repo || ""}
+                    <span className="prompt-cell" title={s.title || undefined}>
+                      {s.title || s.repo || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
+                    </span>
                   </span>
                 </td>
                 <td className="num r">{dur(s.turn_ms)}</td>

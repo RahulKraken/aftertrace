@@ -52,9 +52,13 @@ Errors are `{ "error": "..." }` with HTTP 400.
     "hook": 0,
     "other": 10
   },
-  "findings": 2
+  "findings": 2,
+  "title": "Fix the flaky login test",
+  "running": false
 }
 ```
+
+`title` is the session's first prompt, cut to 200 characters. It is `null` unless prompt text is captured (`OTEL_LOG_USER_PROMPTS=1` and `aftertrace serve --store-content`). `running` is true while a turn in the session is still in progress (see below).
 
 `breakdown` is wall-clock ms painted per turn (waiting on you, retry waste, model, tool run, hooks, other). Overlaps count once.
 
@@ -71,9 +75,16 @@ Errors are `{ "error": "..." }` with HTTP 400.
   "requests": 3,
   "models": ["claude-sonnet-5"],
   "tools": 4,
-  "breakdown": { "model": 400, "tool": 300, "permission_wait": 0, "retry": 0, "hook": 0, "other": 10 }
+  "breakdown": { "model": 400, "tool": 300, "permission_wait": 0, "retry": 0, "hook": 0, "other": 10 },
+  "prompt": "Fix the flaky login test",
+  "in_progress": false,
+  "running": false
 }
 ```
+
+`prompt` is the text typed for that turn, or `null` when prompts are not captured.
+
+Claude Code exports `claude_code.interaction` when a turn ends. Until then the turn has `in_progress: true`, its spans point at a parent that has not arrived, and Aftertrace stands in for that root. `running` is `in_progress` with spans in the last 5 minutes; an `in_progress` turn that stopped receiving spans is incomplete (Claude Code exited mid-turn).
 
 ## Trace (waterfall)
 
@@ -83,6 +94,9 @@ Errors are `{ "error": "..." }` with HTTP 400.
 - `span_events` — `{span_id, name, time_ns, attrs}`
 - `events` — log records on this trace `{name, ts_ns, tool_use_id, request_id, attrs}`
 - `breakdown`, `prev`, `next`, `turn_index`, `turn_count`, `session_id`
+- `in_progress` — the turn has not ended. `spans[0]` is a stand-in `claude_code.interaction` with `attrs["aftertrace.in_progress"] = true`, spanning the spans received so far.
+
+With content captured, prompt and response text is in `events` (`user_prompt.prompt`, `assistant_response.response`, `tool_result.tool_input`) and tool output is in `span_events` (`tool.output` with `output`).
 
 Join keys used throughout: `session.id`, `prompt.id`, `request_id`, `tool_use_id`, `trace_id`, `span_id`.
 

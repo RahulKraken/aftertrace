@@ -80,7 +80,7 @@ test("waterfall hover popover", async ({ page }) => {
   const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "opus" }) }).first()
   await model.hover()
   await expect(page.locator(".span-pop")).toBeVisible()
-  await expect(page.locator(".span-pop")).toContainText("content hidden")
+  await expect(page.locator(".span-pop")).not.toContainText("content hidden")
   await expect(page.locator(".span-pop")).toContainText("Duration")
   await shot(page, "waterfall-hover", "light", true)
   await model.hover()

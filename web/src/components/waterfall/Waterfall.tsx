@@ -23,6 +23,7 @@ import {
   type SpanNode,
 } from "../../lib/span"
 import { turnStory } from "../../lib/story"
+import { indexContent, snippet, type ContentIndex } from "../../lib/content"
 import type { Finding, Trace } from "../../lib/types"
 import { useReplay } from "../../hooks/useReplay"
 import { barClass, glyphClass, SpanIcon } from "../SpanIcon"
@@ -32,6 +33,46 @@ import { SpanPopover } from "./SpanPopover"
 import { TREE_DEPTH, TREE_PAD, TreeConnectors } from "./TreeConnectors"
 
 const ROW = 32
+const PANE_KEY = "aftertrace-pane-w"
+const LAB_KEY = "aftertrace-lab-w"
+const PANE_MIN = 320
+const LAB_MIN = 180
+// The waterfall keeps at least this much room when the pane grows.
+const MAIN_MIN = 420
+
+function readPx(key: string, fallback: number | null): number | null {
+  try {
+    const v = Number(window.localStorage.getItem(key))
+    return Number.isFinite(v) && v > 0 ? v : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writePx(key: string, v: number | null) {
+  try {
+    if (v == null) window.localStorage.removeItem(key)
+    else window.localStorage.setItem(key, String(Math.round(v)))
+  } catch {
+    // Storage can be blocked. Width just resets next time.
+  }
+}
+
+// Pointer drag with body-level cursor and no text selection while it runs.
+function startDrag(e: React.PointerEvent, onMove: (dx: number) => void, onEnd: () => void) {
+  e.preventDefault()
+  const x0 = e.clientX
+  document.body.classList.add("is-col-resize")
+  const move = (ev: PointerEvent) => onMove(ev.clientX - x0)
+  const up = () => {
+    document.body.classList.remove("is-col-resize")
+    window.removeEventListener("pointermove", move)
+    window.removeEventListener("pointerup", up)
+    onEnd()
+  }
+  window.addEventListener("pointermove", move)
+  window.addEventListener("pointerup", up)
+}
 export type MetricMode = "time" | "cost"
 
 export function Waterfall({
@@ -76,7 +117,10 @@ export function Waterfall({
   const [scrollTop, setScrollTop] = useState(0)
   const [trackW, setTrackW] = useState(0)
   const [labW, setLabW] = useState(0)
-  const [paneW, setPaneW] = useState(560)
+  const [paneW, setPaneW] = useState(() => readPx(PANE_KEY, 520) as number)
+  const [labPx, setLabPx] = useState<number | null>(() => readPx(LAB_KEY, null))
+  const wfRef = useRef<HTMLDivElement>(null)
+  const content = useMemo(() => indexContent(trace), [trace])
   const [view, setView] = useState<{ lo: number; hi: number } | null>(null)
   const [brush, setBrush] = useState<{ a: number; b: number } | null>(null)
   const [flash, setFlash] = useState(false)
@@ -88,7 +132,13 @@ export function Waterfall({
   const hi = live ? liveHi : (view?.hi ?? t1)
   const total = Math.max((hi - lo) / 1e6, 1)
 
+  // Reset when a different trace or span is requested. A running trace is
+  // re-fetched every few seconds; that must not wipe selection or expansion.
+  const resetKey = `${trace.trace_id}:${initialSpan || ""}:${mark?.spanId || ""}`
+  const lastReset = useRef(resetKey)
   useEffect(() => {
+    if (lastReset.current === resetKey) return
+    lastReset.current = resetKey
     const c = defaultCollapsed(root)
     const open = [initialSpan, mark?.spanId].filter(Boolean) as string[]
     for (const id of open) {
@@ -104,7 +154,7 @@ export function Waterfall({
       setFlash(true)
       window.setTimeout(() => setFlash(false), 900)
     }
-  }, [trace.trace_id, initialSpan, root, byId, mark?.spanId])
+  }, [resetKey, initialSpan, root, byId, mark?.spanId])
 
   const rows = useMemo(() => visibleRows(root, collapsed, live ? nowNs : Number.POSITIVE_INFINITY), [root, collapsed, live, nowNs])
   const selected = byId.get(sel) || root
@@ -242,7 +292,11 @@ export function Waterfall({
   const playPct = live ? xOf(nowNs) : null
 
   return (
-    <div className={`wf ${paneOpen ? "has-pane" : ""} ${live ? "is-live" : ""}`}>
+    <div
+      ref={wfRef}
+      className={`wf ${paneOpen ? "has-pane" : ""} ${live ? "is-live" : ""}`}
+      style={labPx ? ({ ["--labw" as string]: `${labPx}px` } as React.CSSProperties) : undefined}
+    >
       <div className="wf-main">
         <div className="wf-head">
           <div className="crumbs">
@@ -252,9 +306,9 @@ export function Waterfall({
             </Link>{" "}
             › Turn {trace.turn_index} of {trace.turn_count}
             <span className="spacer" />
-            <span className={`live-badge ${live ? "is-live" : "is-done"}`}>
-              {live ? <i className="live-dot" /> : null}
-              {live ? "Live" : "Done"}
+            <span className={`live-badge ${live || trace.in_progress ? "is-live" : "is-done"}`}>
+              {live || trace.in_progress ? <i className="live-dot" /> : null}
+              {live ? "Live" : trace.in_progress ? "Running" : "Done"}
             </span>
             <button type="button" className="replay-btn" onClick={restart} hidden={live}>
               Replay
@@ -279,7 +333,24 @@ export function Waterfall({
           </h1>
           <div className="wf-sum">
             {dur(live ? nowMs : root.duration_ms)} · {usd(sumCost)} · {calls} calls
-            {errors > 0 ? <span className="sum-err"> · {errors} error{errors === 1 ? "" : "s"}</span> : null}
+            {errors > 0 ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  className="sum-err"
+                  title="Jump to the next error"
+                  onClick={() => {
+                    const errs = trace.spans.filter((x) => x.is_error).sort((a, b) => a.start_ns - b.start_ns)
+                    const cur = errs.findIndex((x) => x.span_id === sel)
+                    const next = errs[(cur + 1) % errs.length]
+                    if (next) jumpTo(next.span_id)
+                  }}
+                >
+                  {errors} error{errors === 1 ? "" : "s"}
+                </button>
+              </>
+            ) : null}
           </div>
           {showMinimap && (
           <div className="minimap" title="Scrub the turn. Double-click to reset zoom.">
@@ -355,6 +426,28 @@ export function Waterfall({
             setHoverId(null)
           }}
         >
+          <div
+            className="lab-resizer"
+            title="Drag to resize. Double-click to reset."
+            onDoubleClick={() => {
+              setLabPx(null)
+              writePx(LAB_KEY, null)
+            }}
+            onPointerDown={(e) => {
+              const main = bodyRef.current?.getBoundingClientRect()
+              if (!main) return
+              const w0 = labW || main.width * 0.32
+              let last = w0
+              startDrag(
+                e,
+                (dx) => {
+                  last = Math.max(LAB_MIN, Math.min(main.width - 200, w0 + dx))
+                  setLabPx(last)
+                },
+                () => writePx(LAB_KEY, last),
+              )
+            }}
+          />
           <div className="ruler">
             <div className="lab" ref={labRef}>
               <IconLegend />
@@ -462,6 +555,7 @@ export function Waterfall({
                     trackW={trackW}
                     nowNs={live ? nowNs : null}
                     metric={metric}
+                    content={content}
                     mark={mark && markHost === span.span_id ? mark.label : null}
                     markLeft={
                       mark && markHost === span.span_id && byId.get(mark.spanId)
@@ -481,7 +575,8 @@ export function Waterfall({
             </motion.div>
           </div>
           <SpanPopover
-            span={hoverSpan || null}
+            content={content}
+            span={hoverSpan && !(paneOpen && hoverSpan.span_id === sel) ? hoverSpan : null}
             running={Boolean(hoverSpan && live && hoverSpan.end_ns > nowNs)}
             top={hoverRow >= 0 ? 24 + hoverRow * ROW - scrollTop + ROW + 2 : 0}
             left={(labW || 280) + 12}
@@ -489,22 +584,36 @@ export function Waterfall({
         </div>
       </div>
       {paneOpen && (
-        <div className="pane-col" style={{ flexBasis: paneW }}>
+        <div className="pane-col" style={{ width: paneW }}>
           <div
             className="pane-resizer"
+            title="Drag to resize. Double-click to reset."
+            onDoubleClick={() => {
+              setPaneW(520)
+              writePx(PANE_KEY, null)
+            }}
             onPointerDown={(e) => {
-              const startX = e.clientX
-              const startW = paneW
-              const move = (ev: PointerEvent) => setPaneW(Math.max(320, Math.min(720, startW - (ev.clientX - startX))))
-              const up = () => {
-                window.removeEventListener("pointermove", move)
-                window.removeEventListener("pointerup", up)
-              }
-              window.addEventListener("pointermove", move)
-              window.addEventListener("pointerup", up)
+              const total = wfRef.current?.getBoundingClientRect().width || window.innerWidth
+              const w0 = paneW
+              let last = w0
+              startDrag(
+                e,
+                (dx) => {
+                  last = Math.max(PANE_MIN, Math.min(total - MAIN_MIN, w0 - dx))
+                  setPaneW(last)
+                },
+                () => writePx(PANE_KEY, last),
+              )
             }}
           />
-          <DetailPane node={selected} trace={trace} findings={findings} onSelect={(id) => setSel(id)} />
+          <DetailPane
+            node={selected}
+            trace={trace}
+            findings={findings}
+            content={content}
+            onSelect={(id) => setSel(id)}
+            onClose={() => setPaneOpen(false)}
+          />
         </div>
       )}
     </div>
@@ -545,6 +654,7 @@ function Row({
   trackW,
   nowNs,
   metric,
+  content,
   mark,
   markLeft,
   onToggle,
@@ -563,6 +673,7 @@ function Row({
   trackW: number
   nowNs: number | null
   metric: MetricMode
+  content: ContentIndex
   mark: string | null
   markLeft: string | null
   onToggle: () => void
@@ -571,14 +682,25 @@ function Row({
   onMark: () => void
 }) {
   const k = spanKind(span)
-  const { name, target } = labelOf(span)
+  const label = labelOf(span)
+  const name = label.name
+  // A turn reads better as what you asked than as "153 chars".
+  const target = k === "turn" && content.prompt ? snippet(content.prompt, 120) : label.target
   const kids = span.kids.length
   const ro = collapsed && kids ? rollup(span) : null
   const endNs = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
   const L = xOf(span.start_ns)
   const W = Math.max(xOf(endNs) - L, 0)
   const wait = waitChild(span)
-  const err = hasError(span)
+  // Red means this span failed, or the wait/run step folded into its bar did.
+  // A failure further down shows as a dot on the collapsed row, not a red turn.
+  const err =
+    span.is_error ||
+    span.kids.some((c) => {
+      const ck = spanKind(c)
+      return (ck === "run" || ck === "wait") && c.is_error
+    })
+  const hiddenErr = !err && collapsed && hasError(span)
   const a = span.attrs
   const attempt = Number(a.attempt || 0)
   const box = barBox(L, W, trackW)
@@ -649,6 +771,7 @@ function Row({
             </motion.span>
           ) : null}
         </AnimatePresence>
+        {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
         <span className="met">{met}</span>
       </div>
       <div className="trk">

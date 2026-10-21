@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react"
+import { X } from "lucide-react"
+import { contentFor, snippet, type ContentIndex } from "../../lib/content"
+import { ContentBlock } from "./ContentBlock"
 import { CAT_LABEL, CATS, dur, pct, tok, usd } from "../../lib/format"
 import { labelOf, rollup, runChild, spanKind, waitChild, type SpanNode } from "../../lib/span"
 import type { Finding, SpanKind, Trace } from "../../lib/types"
@@ -10,12 +13,16 @@ export function DetailPane({
   node,
   trace,
   findings,
+  content,
   onSelect,
+  onClose,
 }: {
   node: SpanNode
   trace: Trace
   findings: Finding[]
+  content: ContentIndex
   onSelect: (id: string) => void
+  onClose: () => void
 }) {
   const k = spanKind(node)
   const { name, target } = labelOf(node)
@@ -32,19 +39,29 @@ export function DetailPane({
           e.name,
         )),
   )
+  const io = contentFor(node, content)
+  const hasIO = k === "turn" || k === "model" || k === "tool" || k === "agent"
   return (
     <aside className="pane accent" id="pane" style={{ ["--pane-hue" as string]: hueVar(node), flex: 1, width: "100%" }}>
       <h2>
         <span className={`glyph ${glyphClass(node)}`}>
           <SpanIcon span={node} />
         </span>
-        {name}
+        <span className="pane-title">{name}</span>
         <span className="mono mute" style={{ fontWeight: 400 }}>
           {dur(node.duration_ms)}
         </span>
+        <span className="spacer" />
+        <button type="button" className="icon-btn pane-close" onClick={onClose} aria-label="Close panel" title="Close (Esc)">
+          <X size={15} />
+        </button>
       </h2>
       <div className="sub" style={{ marginTop: 4 }}>
-        {target}
+        {target ? (
+          <span className="pane-target" title={target}>
+            {target}
+          </span>
+        ) : null}
         {parent ? (
           <>
             {" · "}
@@ -61,12 +78,23 @@ export function DetailPane({
         <div className="h">Metrics</div>
         <Metrics node={node} />
       </div>
-      <div className="sec">
-        <div className="h">Input</div>
-        <div className="content-hidden">content hidden</div>
-        <div className="h" style={{ marginTop: 10 }}>Output</div>
-        <div className="content-hidden">content hidden</div>
-      </div>
+      {hasIO && (
+        <div className="sec">
+          <ContentBlock
+            key={`${node.span_id}:in`}
+            label={io.inputLabel}
+            content={io.input}
+            note={io.inputNote || (content.any ? "not captured for this span" : undefined)}
+          />
+          <ContentBlock
+            key={`${node.span_id}:out`}
+            label={io.outputLabel}
+            content={io.output}
+            note={content.any ? "not captured for this span" : undefined}
+          />
+        </div>
+      )}
+      {k === "turn" && content.any && <Transcript root={node} content={content} onSelect={onSelect} />}
       {k === "turn" && trace.breakdown && <Mix bd={trace.breakdown} />}
       {cited.length > 0 && (
         <div className="sec">
@@ -88,10 +116,13 @@ export function DetailPane({
         <div className="sec">
           <div className="h">Joined events</div>
           {related.map((e, i) => (
-            <div className="mono" key={i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-              <span>{e.name}</span>
-              <span className="mute">{e.tool_use_id ? "tool_use_id" : e.request_id ? "request_id" : "trace"}</span>
-            </div>
+            <details className="jev" key={`${e.name}:${e.ts_ns}:${i}`}>
+              <summary className="mono">
+                <span>{e.name}</span>
+                <span className="mute">{e.tool_use_id ? "tool_use_id" : e.request_id ? "request_id" : "trace"}</span>
+              </summary>
+              <pre>{JSON.stringify(e.attrs, null, 2)}</pre>
+            </details>
           ))}
         </div>
       )}
@@ -102,9 +133,12 @@ export function DetailPane({
           <pre>{JSON.stringify({ ...node, kids: undefined }, null, 2)}</pre>
         </details>
       </div>
-      <div className="note" style={{ marginTop: 14 }}>
-        Prompt and response text are redacted at the source. Aftertrace never stores them.
-      </div>
+      {!content.any && (
+        <div className="note" style={{ marginTop: 14 }}>
+          Prompt, response and tool content are not captured. Set OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES and
+          OTEL_LOG_TOOL_CONTENT in Claude Code, and run aftertrace serve --store-content.
+        </div>
+      )}
       {k === "agent" && (
         <div className="note" style={{ marginTop: 8 }}>
           {rollup(node).n} spans in this subagent · {usd(rollup(node).cost)}
@@ -350,7 +384,7 @@ function Metrics({ node }: { node: SpanNode }) {
   } else if (k === "turn") {
     push("duration", dur(node.duration_ms))
     push("cost", usd(rollup(node).cost))
-    push("prompt", `${a.user_prompt_length} chars`)
+    push("prompt", a.user_prompt_length != null ? `${a.user_prompt_length} chars` : "")
     push("sequence", a["interaction.sequence"])
   } else {
     push("duration", dur(node.duration_ms))
@@ -375,6 +409,56 @@ function Metrics({ node }: { node: SpanNode }) {
           <div className="v">{v}</div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// The turn as a conversation: prompt, then every model reply and tool call in
+// start order, subagents included. Each line selects its span.
+function Transcript({ root, content, onSelect }: { root: SpanNode; content: ContentIndex; onSelect: (id: string) => void }) {
+  const items: { span: SpanNode; depth: number }[] = []
+  const walk = (n: SpanNode, depth: number) => {
+    for (const kid of [...n.kids].sort((x, y) => x.start_ns - y.start_ns)) {
+      const kk = spanKind(kid)
+      if (kk === "model" || kk === "tool" || kk === "agent") items.push({ span: kid, depth })
+      if (kk === "agent" || kk === "turn") walk(kid, depth + 1)
+    }
+  }
+  walk(root, 0)
+  return (
+    <div className="sec">
+      <div className="h">Transcript</div>
+      <div className="tx">
+        {content.prompt && (
+          <div className="tx-item tx-user">
+            <div className="tx-who">You</div>
+            <div className="tx-text">{content.prompt.text}</div>
+          </div>
+        )}
+        {items.map(({ span, depth }) => {
+          const kk = spanKind(span)
+          const io = contentFor(span, content)
+          if (kk === "model") {
+            if (!io.output) return null
+            return (
+              <button type="button" key={span.span_id} className="tx-item tx-model" style={{ marginLeft: depth * 14 }} onClick={() => onSelect(span.span_id)}>
+                <div className="tx-who">{labelOf(span).name}</div>
+                <div className="tx-text">{io.output.text}</div>
+              </button>
+            )
+          }
+          const { name, target } = labelOf(span)
+          return (
+            <button type="button" key={span.span_id} className="tx-item tx-tool" style={{ marginLeft: depth * 14 }} onClick={() => onSelect(span.span_id)}>
+              <div className="tx-who">
+                {name} <span className="mute">{dur(span.duration_ms)}</span>
+              </div>
+              <div className="tx-text mono">{snippet(io.input, 400) || target}</div>
+              {io.output && <div className="tx-out mono">{snippet(io.output, 300)}</div>}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
