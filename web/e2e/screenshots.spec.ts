@@ -54,7 +54,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
     if (!localStorage.getItem("aftertrace-resolved")) {
-      localStorage.setItem("aftertrace-resolved", JSON.stringify([4]))
+      localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"]))
     }
     // documentElement can be null this early; theme.ts applies the stored theme anyway.
     if (document.documentElement) document.documentElement.dataset.theme = "light"
@@ -234,7 +234,7 @@ test("findings", async ({ page }) => {
 
 async function openPermissionWin(page: Page) {
   await page.goto("/#/findings")
-  await page.evaluate(() => localStorage.setItem("aftertrace-resolved", JSON.stringify([4])))
+  await page.evaluate(() => localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"])))
   await page.reload()
   await expect(page.locator(".frow.hero")).toContainText("permission prompts")
   await page.locator(".frow.hero .fix-btn").click()
