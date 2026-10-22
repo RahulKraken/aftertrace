@@ -1,5 +1,7 @@
 # Point Claude Code at Aftertrace
 
+> [What happens to what Claude Code sends, with a figure →](how-it-works/receive.md)
+
 The quickest way: run `aftertrace serve`, open http://127.0.0.1:7311 and go to **Connect**. It shows the settings block below with your server's real endpoints, has a button that copies it as a prompt Claude Code can apply for you, and confirms on the same page when the first data arrives. This page explains every variable in that block.
 
 Variable names in this page are taken from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart `claude`.

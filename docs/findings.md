@@ -1,5 +1,7 @@
 # Findings
 
+> [How findings are made, with a figure →](how-it-works/findings.md)
+
 Each finding is one row from a SQL file in [`rules/`](../rules/). The engine embeds a copy of those files from [`internal/rules/files/`](../internal/rules/files/). They must be identical (`go test ./internal/rules` checks that).
 
 A finding always has a severity (`high` / `medium` / `low`), a headline, an impact (number + unit), a detail, a recommendation, evidence `{trace_id, span_id, label}`, and session ids. Evidence chips in the UI open the waterfall on that span.

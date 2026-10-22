@@ -10,7 +10,9 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8")
 function goList(src, name) {
   const m = src.match(new RegExp(`var ${name} = \\[\\]string\\{([\\s\\S]*?)\\n\\}`))
   if (!m) throw new Error(`model: ${name} not found`)
-  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1])
+  // Comments can quote key names too; only the list's own strings count.
+  const body = m[1].replace(/\/\/.*$/gm, "")
+  return [...body.matchAll(/"([^"]+)"/g)].map((x) => x[1])
 }
 
 function flagDefault(src, name) {
@@ -27,7 +29,7 @@ const views = read("internal/store/views.sql")
 export const MODEL = {
   ports: { grpc: flagDefault(main, "grpc-port"), http: flagDefault(main, "http-port"), ui: flagDefault(main, "ui-port") },
   identityKeys: goList(redact, "IdentityKeys"),
-  contentKeys: [...new Set(goList(redact, "ContentKeys"))],
+  contentKeys: goList(redact, "ContentKeys"),
   contentPrefixes: goList(redact, "ContentPrefixes"),
   tables: [...schema.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]),
   views: [...views.matchAll(/CREATE OR REPLACE VIEW (\w+)/g)].map((m) => m[1]),

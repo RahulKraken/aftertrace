@@ -1,0 +1,76 @@
+/* Fig 7. Colour is the subject: what leaves in indigo, SQL in teal, errors in red, the answer in amber. */
+.iso { --fig-model: #6359e0; --fig-tool: #14998e; --fig-wait: #e29a2e; --fig-error: #d9534f; --fig-glass: #f3f2ff; --fig-glass-ink: #b9b4f2; }
+.iso[data-theme="dark"] { --fig-model: #9a92f4; --fig-tool: #3fc0b2; --fig-wait: #f0b45a; --fig-error: #ef7d78; --fig-glass: #1d1b33; --fig-glass-ink: #4a4588; }
+
+.fx-stage { position: relative; outline: none; touch-action: pan-y; cursor: default; }
+.fx-stage > svg, .fx-stage > canvas { display: block; width: 100%; height: auto; }
+.fx-stage > .fx-layer { position: absolute; inset: 0; height: 100% !important; pointer-events: none; }
+.iso[data-theme="dark"] .fx-gl { mix-blend-mode: screen; }
+.fx-stage:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fig-model) 35%, transparent); border-radius: 10px; }
+
+/* Lamps: dim at rest, bright while their part is working. */
+.fig-lamp { fill: var(--fig-model); opacity: 0.35; transition: opacity 260ms ease, fill 260ms ease; }
+.fig-lamp[data-hue="tool"] { fill: var(--fig-tool); }
+.fig-lamp[data-hue="wait"] { fill: var(--fig-wait); }
+.fig-lamp[data-hue="error"] { fill: var(--fig-error); }
+.fig-lamp[data-on] { opacity: 1; }
+
+/* The terminal's glass: the question always, the answer once it lands. */
+.fig-glass { fill: var(--fig-glass); }
+.fig-glass-edge { fill: none; stroke: var(--anatomy-lo); stroke-width: 0.6; }
+.fig-text { stroke: var(--fig-glass-ink); stroke-width: 1.4; stroke-linecap: round; }
+.fig-q { stroke: var(--fig-model); opacity: 0.55; }
+.fig-bar { fill: var(--fig-model); }
+.fig-bar[data-hue="tool"] { fill: var(--fig-tool); }
+.fig-answer { opacity: 0; transition: opacity 600ms ease; }
+.fig-answer[data-on] { opacity: 1; }
+
+/* The step dial. */
+.fig-tick { stroke: var(--anatomy-mid); stroke-width: 0.7; stroke-linecap: round; }
+.fig-tick-end { stroke: var(--fig-error); stroke-width: 0.9; }
+.fig-needle { stroke: var(--anatomy-hi); stroke-width: 0.9; stroke-linecap: round; }
+.fig-hub { fill: var(--anatomy-hi); }
+
+/* The model's typing on its paper: rows appear while it writes. */
+.fig-type { stroke: var(--anatomy-lo); stroke-width: 1.2; stroke-linecap: round; opacity: 0; transition: opacity 180ms ease; }
+.fig-type[data-on] { opacity: 1; }
+
+/* Earlier answers stay printed on the paper. */
+.fig-printed { stroke: var(--anatomy-lo); stroke-width: 1.2; stroke-linecap: round; }
+
+/* Two-state parts: the padlock. */
+[data-state="off"] > .st-on, [data-state="on"] > .st-off { display: none; }
+
+/* Pointing at a part lays a soft pool of colour on the bench under it. */
+.fig-spot { fill: var(--fig-model); opacity: 0; filter: blur(10px); transition: opacity 420ms ease; }
+.fx-stage[data-focus="screen"] [data-spot="screen"],
+.fx-stage[data-focus="store"] [data-spot="store"],
+.fx-stage[data-focus="stamp"] [data-spot="stamp"],
+.fx-stage[data-focus="cutter"] [data-spot="cutter"],
+.fx-stage[data-focus="steps"] [data-spot="steps"],
+.fx-stage[data-focus="gate"] [data-spot="gate"],
+.fx-stage[data-focus="model"] [data-spot="model"] { opacity: 0.16; }
+.iso[data-theme="dark"] .fx-stage[data-focus="screen"] [data-spot="screen"],
+.iso[data-theme="dark"] .fx-stage[data-focus="store"] [data-spot="store"],
+.iso[data-theme="dark"] .fx-stage[data-focus="stamp"] [data-spot="stamp"],
+.iso[data-theme="dark"] .fx-stage[data-focus="cutter"] [data-spot="cutter"],
+.iso[data-theme="dark"] .fx-stage[data-focus="steps"] [data-spot="steps"],
+.iso[data-theme="dark"] .fx-stage[data-focus="gate"] [data-spot="gate"],
+.iso[data-theme="dark"] .fx-stage[data-focus="model"] [data-spot="model"] { opacity: 0.32; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-spot, .fig-lamp, .fig-answer, .fig-type { transition: none; }
+}
+
+/* Phones: the drawing a little larger inside its card, and the readout wraps. */
+@media (max-width: 560px) {
+  .fx-stage { width: 116%; margin-left: -8%; }
+  .iso-plate { overflow: hidden; }
+  .iso-plate-corner[data-corner="hint"] { display: none; }
+  .iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 92%; left: 0; }
+}
+
+/* Embedded in a docs page: no page margins, and the docs page shows through. */
+html[data-embed] body { background: transparent; display: flow-root; }
+html[data-embed] .iso-page { width: 100%; margin: 0; padding: 0 1px; display: flow-root; }
+html:has(body[data-theme="light"]) { color-scheme: light; }

@@ -1,5 +1,7 @@
 # Privacy
 
+> [How redaction works, with a figure →](how-it-works/redaction.md)
+
 Aftertrace is local-first. The process never opens a network connection of its own. The only sockets are the ones you bind for OTLP and the UI.
 
 ## What is redacted by default

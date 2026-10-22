@@ -15,7 +15,7 @@
 <header class="top">
   <a class="brand" href="index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#e29a2e"/></svg><span>aftertrace</span></a>
   <nav class="top-links">
-    <a href="docs/install.html">Docs</a>
+    <a href="docs/how-it-works.html">Docs</a>
     <a href="demo/">Live demo</a>
     <a href="https://github.com/RahulKraken/aftertrace">GitHub</a>
   </nav>
@@ -28,7 +28,7 @@
     <p class="lede">See what Claude Code, your agents and the apps you build with LLMs actually did: how long you waited, what it cost, and the one change worth making next. One binary on your machine. Your data never leaves it.</p>
     <div class="cta">
       <a class="btn" href="demo/">Try the live demo</a>
-      <a class="btn ghost" href="docs/install.html">Read the docs</a>
+      <a class="btn ghost" href="docs/how-it-works.html">See how it works</a>
     </div>
     <div class="install" role="group" aria-label="Install command">
       <code id="cmd">curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code>
@@ -96,6 +96,15 @@
     <figure class="shot"><picture><source srcset="assets/shots/recap-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/recap-light.png" alt="The weekly recap with its receipt." loading="lazy" /></picture></figure>
   </section>
 
+  <section class="band how">
+    <h2>How it works</h2>
+    <p class="band-sub">One binary, three ports, one file. Point at a part to read it; click it to see that part up close.</p>
+    <div class="figure-embed" data-figure="system">
+      <iframe class="fig-light" src="figures/system.html" title="Fig 1, How Aftertrace works: sources feed the receivers, redaction drops private fields, rows land in one DuckDB file, SQL rules turn them into findings, and the UI reads the same file. Ask is locked unless you turn it on." loading="lazy"></iframe>
+      <iframe class="fig-dark" src="figures/system-dark.html" title="Fig 1, How Aftertrace works" loading="lazy"></iframe>
+    </div>
+  </section>
+
   <section class="band privacy">
     <h2>Local-first, by construction.</h2>
     <div class="ps">
@@ -136,10 +145,21 @@
 
 <footer class="foot">
   <div class="brand"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#e29a2e"/></svg><span>aftertrace</span></div>
-  <div class="foot-links"><a href="docs/install.html">Docs</a><a href="demo/">Demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/LICENSE">Apache-2.0</a></div>
+  <div class="foot-links"><a href="docs/how-it-works.html">Docs</a><a href="demo/">Demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/LICENSE">Apache-2.0</a></div>
   <div class="foot-note">Not affiliated with Anthropic. Claude is a trademark of Anthropic.</div>
 </footer>
 <script>
+  // The figure sizes its own frame, and a click on a station opens that part's docs page.
+  addEventListener("message", (e) => {
+    const d = e.data
+    if (!d || !d.figure) return
+    for (const f of document.querySelectorAll(".figure-embed iframe")) {
+      if (f.contentWindow !== e.source) continue
+      if (d.height) f.style.height = d.height + "px"
+      if (d.open && /^[\w/-]+$/.test(d.open)) location.href = "docs/" + d.open + ".html"
+    }
+  })
+
   document.querySelectorAll("[data-copy]").forEach((b) => {
     b.addEventListener("click", async () => {
       const t = document.getElementById(b.dataset.copy).textContent

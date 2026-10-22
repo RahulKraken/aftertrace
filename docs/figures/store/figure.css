@@ -1,0 +1,54 @@
+/* Fig 4. Colour is the subject here: each signal keeps the hue the app uses for it. */
+.iso { --fig-model: #6359e0; --fig-tool: #14998e; --fig-wait: #e29a2e; --fig-glass: #f3f2ff; --fig-glass-on: #dedbff; }
+.iso[data-theme="dark"] { --fig-model: #9a92f4; --fig-tool: #3fc0b2; --fig-wait: #f0b45a; --fig-glass: #1d1b33; --fig-glass-on: #2e2a5c; }
+
+.fx-stage { position: relative; outline: none; touch-action: pan-y; cursor: default; }
+.fx-stage > svg, .fx-stage > canvas { display: block; width: 100%; height: auto; }
+.fx-stage > .fx-layer { position: absolute; inset: 0; height: 100% !important; pointer-events: none; }
+.iso[data-theme="dark"] .fx-gl { mix-blend-mode: screen; }
+.fx-stage:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fig-model) 35%, transparent); border-radius: 10px; }
+
+/* Lamps: a dot in its signal's hue, dim at rest, bright when a batch is filed. */
+.fig-lamp { fill: var(--fig-model); opacity: 0.35; transition: opacity 260ms ease; }
+.fig-lamp[data-hue="tool"] { fill: var(--fig-tool); }
+.fig-lamp[data-hue="wait"] { fill: var(--fig-wait); }
+.fig-lamp[data-on] { opacity: 1; }
+
+/* The glass in each reading frame; it takes a tint while that view is read. */
+.fig-glass { fill: var(--fig-glass); transition: fill 360ms ease; }
+.fig-glass[data-on] { fill: var(--fig-glass-on); }
+.fig-glass-edge { fill: none; stroke: var(--anatomy-lo); stroke-width: 0.6; }
+
+/* Two-state parts: the writer's key. */
+[data-state="off"] > .st-on, [data-state="on"] > .st-off { display: none; }
+
+/* Pointing at a part lays a soft pool of colour on the base under it. */
+.fig-spot { fill: var(--fig-model); opacity: 0; filter: blur(10px); transition: opacity 420ms ease; }
+.fig-spot[data-on] { opacity: 0.16; }
+.iso[data-theme="dark"] .fig-spot[data-on] { opacity: 0.32; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-spot, .fig-lamp, .fig-glass { transition: none; }
+}
+
+/* Phones: the drawing a little larger inside its card, and the readout wraps. */
+@media (max-width: 560px) {
+  .fx-stage { width: 116%; margin-left: -8%; }
+  .iso-plate { overflow: hidden; }
+  .iso-plate-corner[data-corner="hint"] { display: none; }
+  .iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 92%; left: 0; }
+}
+
+/* Embedded in a docs page: no page margins, and the docs page shows through. */
+html[data-embed] body { background: transparent; display: flow-root; }
+html[data-embed] .iso-page { width: 100%; margin: 0; padding: 0 1px; display: flow-root; }
+html:has(body[data-theme="light"]) { color-scheme: light; }
+
+/* A view lights the tables it reads: a wash over the drawer front, or over the price box. */
+.fig-glow { fill: var(--fig-model); opacity: 0; filter: blur(3px); transition: opacity 420ms ease; pointer-events: none; }
+.fig-glow[data-hue="tool"] { fill: var(--fig-tool); }
+.fig-glow[data-hue="wait"] { fill: var(--fig-wait); }
+.fig-glow[data-on] { opacity: 0.22; }
+.iso[data-theme="dark"] .fig-glow[data-on] { opacity: 0.38; }
+.fig-glow[data-flash]:not([data-on]) { opacity: 0.14; }
+.iso[data-theme="dark"] .fig-glow[data-flash]:not([data-on]) { opacity: 0.26; }

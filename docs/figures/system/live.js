@@ -43,18 +43,31 @@ function pause() {
   clearTimeout(idle);
   idle = setTimeout(() => { touring = !still.matches; }, 5000);
 }
-stage.addEventListener("pointermove", (e) => {
+// Each station has its own page in the docs; inside the docs a click opens it.
+const PAGES = { sources: "receive", receive: "receive", redact: "redaction", store: "store", rules: "findings", ui: "turn", ask: "ask" };
+const embedded = window.parent !== window;
+const open = (id) => window.parent.postMessage({ figure: "system", open: "how-it-works/" + PAGES[id] }, "*");
+const hitAt = (e) => {
   const r = svg.getBoundingClientRect();
   const pt = [((e.clientX - r.left) / r.width) * D.W, ((e.clientY - r.top) / r.height) * D.H];
   // The last station in the list wins where hulls overlap (the carriage sits on the cabinet).
   let hit = null;
   for (const s of D.stations) if (inside(pt, s.hull)) hit = s.id;
+  return hit;
+};
+stage.addEventListener("pointermove", (e) => {
+  const hit = hitAt(e);
+  if (embedded) stage.style.cursor = hit ? "pointer" : "";
   if (hit) { pause(); setFocus(hit); }
 });
 stage.addEventListener("pointerleave", () => pause());
-stage.addEventListener("click", () => {
-  if (focus === "redact") toggle("content");
-  else if (focus === "ask") toggle("ask");
+stage.addEventListener("click", (e) => {
+  const hit = hitAt(e);
+  if (!hit) return;
+  if (embedded) return open(hit);
+  pause(); setFocus(hit);
+  if (hit === "redact") toggle("content");
+  else if (hit === "ask") toggle("ask");
 });
 stage.addEventListener("keydown", (e) => {
   const ids = D.stationIds;
@@ -63,6 +76,7 @@ stage.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft" || e.key === "ArrowUp") setFocus(ids[(i + ids.length - 1) % ids.length]);
   else if (e.key === "c" || e.key === "C") toggle("content");
   else if (e.key === "a" || e.key === "A") toggle("ask");
+  else if (e.key === "Enter" && embedded && focus) return open(focus);
   else return;
   e.preventDefault();
   pause();

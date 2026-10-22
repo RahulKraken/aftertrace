@@ -1,0 +1,64 @@
+/* Fig 3. Colour is the subject: each kind of key keeps one hue. */
+.iso { --fig-content: #6359e0; --fig-tool: #14998e; --fig-identity: #d9534f; --fig-kept: #85827d; --fig-glass: #f3f2ff; }
+.iso[data-theme="dark"] { --fig-content: #9a92f4; --fig-tool: #3fc0b2; --fig-identity: #ed736b; --fig-kept: #dbd9d1; --fig-glass: #1d1b33; }
+
+.fx-stage { position: relative; outline: none; touch-action: pan-y; cursor: default; }
+.fx-stage > svg, .fx-stage > canvas { display: block; width: 100%; height: auto; }
+.fx-stage > .fx-layer { position: absolute; inset: 0; height: 100% !important; pointer-events: none; }
+.iso[data-theme="dark"] .fx-gl { mix-blend-mode: screen; }
+.fx-stage:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fig-content) 35%, transparent); border-radius: 10px; }
+
+/* A slot cut through the deck: dark, with its edge drawn. */
+.fig-hole { fill: color-mix(in oklab, var(--anatomy-lo) 75%, var(--anatomy-paper)); }
+
+/* Lamps: dim at rest, bright while on. */
+.fig-lamp { fill: var(--fig-kept); opacity: 0.3; transition: opacity 260ms ease; }
+.fig-lamp[data-hue="content"] { fill: var(--fig-content); }
+.fig-lamp[data-hue="tool"] { fill: var(--fig-tool); }
+.fig-lamp[data-on] { opacity: 1; }
+
+/* Each drawer's window shows how full it is, in the colour of what fell in. */
+.fig-glass { fill: var(--fig-glass); }
+.fig-glass-edge { fill: none; stroke: var(--anatomy-lo); stroke-width: 0.6; }
+.fig-fill { fill: var(--fig-identity); transform-box: fill-box; transform-origin: left center; transform: scaleX(0); transition: transform 420ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fig-fill[data-hue="content"] { fill: var(--fig-content); }
+
+/* Two-state parts: the valve handles. */
+[data-state="off"] > .st-on, [data-state="on"] > .st-off { display: none; }
+
+/* Pointing at a part lays a soft pool of colour on the bench under it. */
+.fig-spot { fill: var(--fig-content); opacity: 0; filter: blur(10px); transition: opacity 420ms ease; }
+.fig-spot[data-spot="tools"] { fill: var(--fig-tool); }
+.fig-spot[data-spot="identity"] { fill: var(--fig-identity); }
+.fig-spot[data-spot="store"], .fig-spot[data-spot="deck"], .fig-spot[data-spot="capped"] { fill: var(--fig-kept); }
+.fx-stage[data-focus="prompts"] [data-spot="prompts"],
+.fx-stage[data-focus="tools"] [data-spot="tools"],
+.fx-stage[data-focus="capped"] [data-spot="capped"],
+.fx-stage[data-focus="deck"] [data-spot="deck"],
+.fx-stage[data-focus="identity"] [data-spot="identity"],
+.fx-stage[data-focus="content"] [data-spot="content"],
+.fx-stage[data-focus="store"] [data-spot="store"] { opacity: 0.16; }
+.iso[data-theme="dark"] .fx-stage[data-focus="prompts"] [data-spot="prompts"],
+.iso[data-theme="dark"] .fx-stage[data-focus="tools"] [data-spot="tools"],
+.iso[data-theme="dark"] .fx-stage[data-focus="capped"] [data-spot="capped"],
+.iso[data-theme="dark"] .fx-stage[data-focus="deck"] [data-spot="deck"],
+.iso[data-theme="dark"] .fx-stage[data-focus="identity"] [data-spot="identity"],
+.iso[data-theme="dark"] .fx-stage[data-focus="content"] [data-spot="content"],
+.iso[data-theme="dark"] .fx-stage[data-focus="store"] [data-spot="store"] { opacity: 0.3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-spot, .fig-lamp, .fig-fill { transition: none; }
+}
+
+/* Phones: the drawing a little larger inside its card, and the readout wraps. */
+@media (max-width: 560px) {
+  .fx-stage { width: 116%; margin-left: -8%; }
+  .iso-plate { overflow: hidden; }
+  .iso-plate-corner[data-corner="hint"] { display: none; }
+  .iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 92%; left: 0; }
+}
+
+/* Embedded in a docs page: no page margins, and the docs page shows through. */
+html[data-embed] body { background: transparent; display: flow-root; }
+html[data-embed] .iso-page { width: 100%; margin: 0; padding: 0 1px; display: flow-root; }
+html:has(body[data-theme="light"]) { color-scheme: light; }
