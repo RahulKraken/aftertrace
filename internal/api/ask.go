@@ -28,9 +28,7 @@ func (s *Server) getAskSuggestions(w http.ResponseWriter, r *http.Request) {
 	if s.Ask != nil {
 		agent = s.Ask.Model + " via the Anthropic API. Sends the schema and query results (long strings cut), never raw traces."
 	}
-	s.Store.Mu.Lock()
 	schema := schemaText(s.db())
-	s.Store.Mu.Unlock()
 	s.json(w, map[string]any{"agent": agent, "enabled": s.Ask != nil, "questions": askQuestions, "schema": schema}, 200)
 }
 
@@ -53,12 +51,8 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request) {
 		}, 200)
 		return
 	}
-	s.Store.Mu.Lock()
 	schema := schemaText(s.db())
-	s.Store.Mu.Unlock()
 	run := func(q string) (*query.SQLResult, error) {
-		s.Store.Mu.Lock()
-		defer s.Store.Mu.Unlock()
 		return query.RunSQL(s.db(), q, 500)
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
@@ -68,9 +62,7 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request) {
 		s.err(w, err, 502)
 		return
 	}
-	s.Store.Mu.Lock()
 	ev := evidenceFor(s.db(), res.TraceIDs)
-	s.Store.Mu.Unlock()
 	var sqlText any
 	if res.SQL != "" {
 		sqlText = res.SQL
