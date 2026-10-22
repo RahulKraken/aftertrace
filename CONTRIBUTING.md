@@ -1,6 +1,6 @@
 # Contributing
 
-PRs target `main`. There is no LICENSE file yet (License: TBD). Do not add one.
+PRs target `main`. Aftertrace is licensed under [Apache-2.0](LICENSE); by contributing you agree your contribution is licensed the same way.
 
 Do not commit real traces, emails, or filesystem paths. Synthetic data only (`aftertrace demo`, `internal/demo`, `web/src/mock/fixtures`).
 
@@ -62,6 +62,6 @@ If the rule should fire on `aftertrace demo`, add a scenario in `internal/demo` 
 - New flags: `docs/cli.md` and `aftertrace <cmd> -h` agree.
 - New env vars: names copied from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage), not invented.
 - Docs use relative links. Commands in fenced blocks have been run.
-- No LICENSE file. No real user data. No badges for things that do not exist.
+- No real user data. No badges for things that do not exist.
 
 User-facing docs live in `docs/` and [README.md](README.md). `docs/spec.md` is the product spec, not a getting-started guide. JSON API: [docs/api.md](docs/api.md).

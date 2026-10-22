@@ -29,6 +29,7 @@ user.account_uuid
 user.account_id
 user.id
 organization.id
+process.owner
 ```
 
 `user_prompt_length` and other non-content attributes are kept. Claude Code still has to send an attribute for Aftertrace to store it. Prompt text is off at the source unless you set `OTEL_LOG_USER_PROMPTS=1`; see [claude-code-setup.md](claude-code-setup.md#opting-into-content).

@@ -145,5 +145,5 @@ Prompt or response content analysis. Hosted or multi-tenant service. Alerting an
 
 1. Name: Aftertrace (renamed from Saight). Domain not chosen yet. The repo `RahulKraken/aftertrace` exists, and PRs target `main`.
 2. Stack, see `stack.md`.
-3. License: MIT or Apache-2.0. Apache-2.0 adds a patent grant. Either is permissive.
+3. License: Apache-2.0 (decided 2026-10-22).
 4. Whether Ask ships in the MVP or right after.

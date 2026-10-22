@@ -317,6 +317,7 @@ func TestRedactDropsContentAndEmail(t *testing.T) {
 						kv("session.id", "s1"),
 						kv("user.id", "hashed-user"),
 						kv("organization.id", "org-uuid"),
+						kv("process.owner", "someone"),
 						kv("user_prompt", "secret prompt"),
 						kv("user_prompt_length", int64(12)),
 					},
@@ -340,7 +341,7 @@ func TestRedactDropsContentAndEmail(t *testing.T) {
 	if _, ok := m["user.email"]; ok {
 		t.Fatal("email on span attrs")
 	}
-	for _, k := range []string{"user.id", "organization.id"} {
+	for _, k := range []string{"user.id", "organization.id", "process.owner"} {
 		if _, ok := m[k]; ok {
 			t.Fatalf("%s on span attrs", k)
 		}

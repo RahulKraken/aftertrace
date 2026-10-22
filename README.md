@@ -126,4 +126,4 @@ Early and pre-release. Aftertrace is built against Claude Code's documented tele
 
 ## License
 
-TBD.
+[Apache-2.0](LICENSE).
