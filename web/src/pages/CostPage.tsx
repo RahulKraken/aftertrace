@@ -76,6 +76,8 @@ function ShareCell({ v }: { v: unknown }) {
 
 export function CostPage() {
   const [dim, setDim] = useState("model")
+  // One row lit across the ribbon and the table (mapping: same thing, same highlight).
+  const [hot, setHot] = useState<number | null>(null)
   const [d, setD] = useState<CostTable | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -100,6 +102,7 @@ export function CostPage() {
           <div className="err-next">Pick another dimension, or reload. Cost is read from api_request events.</div>
         </div>
       )}
+      {d && <ShareRibbon d={d} hot={hot} onHot={setHot} />}
       {d && (
         <table className="grid">
           <thead>
@@ -119,7 +122,7 @@ export function CostPage() {
           </thead>
           <tbody className="stagger">
             {d.rows.map((r, i) => (
-              <tr key={i} style={{ cursor: "default" }}>
+              <tr key={i} style={{ cursor: "default" }} className={hot === i ? "is-hot" : hot != null ? "is-cool" : undefined} onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)}>
                 {r.map((v, j) => (
                   <td key={j} className={j ? "num r" : undefined}>
                     {d.columns[j] === "share" ? (
@@ -138,6 +141,41 @@ export function CostPage() {
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+const RIBBON = ["var(--hue-model)", "var(--hue-tool)", "var(--hue-wait)", "var(--hue-agent)", "var(--hue-mcp)", "var(--hue-skill)", "var(--hue-web)"]
+
+// The whole spend as one ribbon, each slice a row of the table below.
+function ShareRibbon({ d, hot, onHot }: { d: CostTable; hot: number | null; onHot: (i: number | null) => void }) {
+  const si = d.columns.indexOf("share")
+  const ci = d.columns.indexOf("cost_usd")
+  if (si < 0 || !d.rows.length) return null
+  const rows = d.rows.map((r, i) => ({ i, key: String(r[0] ?? "—"), share: Number(r[si]) || 0, cost: ci >= 0 ? Number(r[ci]) || 0 : 0 })).filter((r) => r.share > 0)
+  return (
+    <div className="ribbon" onMouseLeave={() => onHot(null)}>
+      <div className="ribbon-bar">
+        {rows.map((r, k) => (
+          <i
+            key={r.i}
+            className={hot === r.i ? "is-hot" : hot != null ? "is-cool" : undefined}
+            style={{ flexGrow: r.share, background: RIBBON[k % RIBBON.length], ["--i" as string]: k }}
+            onMouseEnter={() => onHot(r.i)}
+            title={`${r.key}: ${pct(r.share)}`}
+          />
+        ))}
+      </div>
+      <div className="ribbon-read">
+        {hot != null && rows.find((r) => r.i === hot) ? (
+          <>
+            <b>{rows.find((r) => r.i === hot)!.key}</b> · {pct(rows.find((r) => r.i === hot)!.share)} of spend
+            {ci >= 0 ? <> · {usd(rows.find((r) => r.i === hot)!.cost)}</> : null}
+          </>
+        ) : (
+          <span className="mute">Point at a slice or a row</span>
+        )}
+      </div>
     </div>
   )
 }

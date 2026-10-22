@@ -6,6 +6,7 @@ import { dur, usd, when } from "../lib/format"
 import type { Session } from "../lib/types"
 import { EmptyState } from "../components/EmptyState"
 import { MiniWaterfall } from "../components/MiniWaterfall"
+import { ActivityChart, dayKey } from "../components/ActivityChart"
 
 type Filter = "all" | "running" | "findings" | "errors"
 
@@ -31,6 +32,7 @@ export function SessionsPage() {
   const [err, setErr] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>("all")
   const [q, setQ] = useState("")
+  const [day, setDay] = useState<string | null>(null)
   const [, nav] = useLocation()
 
   useEffect(() => {
@@ -50,10 +52,11 @@ export function SessionsPage() {
     return (rows || []).filter(
       (s) =>
         f.test(s) &&
+        (!day || dayKey(s.start_ns) === day) &&
         (!needle ||
           [s.title, s.repo, s.session_id, ...(s.models || [])].some((v) => String(v || "").toLowerCase().includes(needle))),
     )
-  }, [rows, filter, q])
+  }, [rows, filter, q, day])
 
   // Day dividers (Today, Yesterday, then dates), computed once per list.
   const groups = useMemo(() => {
@@ -87,6 +90,7 @@ export function SessionsPage() {
     <div className="page sessions">
       <h1>Sessions</h1>
       <div className="sub">Every Claude Code session, titled by the first thing you asked. Agent SDK runs show up here too.</div>
+      <ActivityChart sessions={rows} day={day} onDay={setDay} />
       <div className="list-tools">
         <div className="seg" role="tablist" aria-label="Filter sessions">
           {FILTERS.map((f) => {

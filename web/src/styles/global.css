@@ -1658,3 +1658,36 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
 .verify-check::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--hue-ok); animation: ring 900ms var(--ease-out) 260ms both; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0; } }
 @keyframes ring { from { transform: scale(1); opacity: 0.7; } to { transform: scale(2.4); opacity: 0; } }
+
+/* Sessions: four weeks at a glance. Columns grow up in a wave; the hovered day reads out above. */
+.activity { margin: 18px 0 18px; padding: 14px 16px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-1); }
+.act-head { display: flex; align-items: baseline; gap: 12px; min-height: 20px; margin-bottom: 10px; font-size: 13px; }
+.act-title { font-weight: 600; letter-spacing: -0.01em; }
+.act-read { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.act-read b { font-weight: 600; }
+.act-clear { border: 0; background: color-mix(in oklab, var(--hue-model) 10%, transparent); color: var(--hue-model); font: 500 12.5px var(--sans); padding: 2px 9px; border-radius: 99px; }
+.act-cols { display: grid; grid-template-columns: repeat(28, minmax(0, 1fr)); gap: 4px; height: 88px; align-items: end; }
+.act-col { height: 100%; display: flex; align-items: flex-end; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 5px; }
+.act-col.is-empty { cursor: default; }
+.act-bar { position: relative; display: block; width: 100%; border-radius: 4px; overflow: hidden;
+  background: color-mix(in oklab, var(--hue-model) 70%, transparent); transform-origin: bottom; animation: col-in 700ms var(--ease-out) both; animation-delay: calc(150ms + var(--i, 0) * 18ms);
+  transition: background-color var(--dur-1) ease, opacity var(--dur-2) ease; }
+.act-col.is-empty .act-bar { background: var(--bg-recessed); }
+.act-wait { position: absolute; left: 0; right: 0; top: 0; display: block; background: var(--hue-wait); }
+@keyframes col-in { from { transform: scaleY(0); } }
+@media (hover: hover) and (pointer: fine) {
+  .act-col:hover .act-bar { background: var(--hue-model); }
+}
+.act-col.is-dim .act-bar { opacity: 0.3; }
+.act-col.is-on .act-bar { background: var(--hue-model); box-shadow: 0 0 0 2px color-mix(in oklab, var(--hue-model) 25%, transparent); }
+@media (max-width: 720px) { .act-cols { gap: 2px; height: 64px; } }
+
+/* Cost: the whole spend as one ribbon; a slice and its row light together. */
+.ribbon { margin: 16px 0 6px; }
+.ribbon-bar { display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden; background: var(--bg-recessed); }
+.ribbon-bar i { display: block; min-width: 3px; transform-origin: left center; animation: bar-in 700ms var(--ease-out) both; animation-delay: calc(150ms + var(--i, 0) * 60ms); transition: opacity var(--dur-2) ease; cursor: default; }
+.ribbon-bar i.is-cool { opacity: 0.3; }
+.ribbon-read { margin-top: 8px; min-height: 18px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.grid tr { transition: opacity var(--dur-2) ease, background-color var(--dur-1) ease; }
+.grid tr.is-cool { opacity: 0.5; }
+.grid tr.is-hot { background: color-mix(in oklab, var(--hue-model) 5%, transparent); }
