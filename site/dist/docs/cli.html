@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html" class="on" aria-current="page">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>CLI</h1>
+<p><code>aftertrace</code> has four commands: <code>serve</code>, <code>import</code>, <code>demo</code> and <code>version</code>. Unknown commands and a missing command print usage and exit 2.</p>
+<pre><code>Aftertrace — local profiler for Claude Code.
+
+Usage:
+  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
+  aftertrace import  [--db PATH] [--store-content] &lt;dir&gt;
+  aftertrace demo    [--db PATH]
+  aftertrace version
+</code></pre>
+<p><code>help</code>, <code>-h</code>, and <code>--help</code> print the same text. Each command also accepts <code>-h</code> for its flags. Go&#39;s flag package accepts both <code>-db</code> and <code>--db</code>.</p>
+<p>Default <code>--db</code> is <code>$HOME/.aftertrace/aftertrace.duckdb</code>. If <code>$HOME</code> cannot be resolved, it is <code>aftertrace.duckdb</code> in the current directory. The parent directory is created if needed.</p>
+<h2><code>aftertrace serve</code></h2>
+<p>Start the OTLP receivers and the UI / JSON API. Blocks until SIGINT or SIGTERM.</p>
+<pre><code>Usage of serve:
+  -ask
+    	answer English questions with Claude (sends schema and query results to the Anthropic API)
+  -db string
+    	DuckDB file (default &quot;$HOME/.aftertrace/aftertrace.duckdb&quot;)
+  -grpc-port int
+    	OTLP gRPC port (default 4317)
+  -http-port int
+    	OTLP HTTP port (default 4318)
+  -listen string
+    	bind address (use 0.0.0.0 for team mode) (default &quot;127.0.0.1&quot;)
+  -store-content
+    	keep prompt/response/tool content attributes
+  -ui-port int
+    	UI and JSON API port (default 7311)
+</code></pre>
+<pre><code class="language-bash">./aftertrace serve --db ./data/aftertrace.duckdb
+</code></pre>
+<pre><code>Aftertrace
+  db          ./data/aftertrace.duckdb  (493 spans)
+  OTLP gRPC   127.0.0.1:4317
+  OTLP HTTP   127.0.0.1:4318
+  UI / API    http://127.0.0.1:7311
+redact=on store_content=false  (no telemetry)
+ask=off
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--db</code></td>
+<td><code>$HOME/.aftertrace/aftertrace.duckdb</code></td>
+<td>DuckDB file. Exclusive lock; only one process.</td>
+</tr>
+<tr>
+<td><code>--listen</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Bind host for gRPC, HTTP, and UI. <code>0.0.0.0</code> accepts remote OTLP.</td>
+</tr>
+<tr>
+<td><code>--grpc-port</code></td>
+<td><code>4317</code></td>
+<td>OTLP gRPC (traces, logs, metrics).</td>
+</tr>
+<tr>
+<td><code>--http-port</code></td>
+<td><code>4318</code></td>
+<td>OTLP HTTP. <code>POST /v1/traces</code>, <code>/v1/logs</code>, <code>/v1/metrics</code>. JSON or protobuf.</td>
+</tr>
+<tr>
+<td><code>--ui-port</code></td>
+<td><code>7311</code></td>
+<td>UI and <code>/api</code>.</td>
+</tr>
+<tr>
+<td><code>--store-content</code></td>
+<td>off</td>
+<td>Keep the content keys in <a href="privacy.html">privacy.md</a>. Identity keys are still dropped.</td>
+</tr>
+<tr>
+<td><code>--ask</code></td>
+<td>off</td>
+<td>Turn on Ask on the Query page. Needs <code>ANTHROPIC_API_KEY</code>; exits 1 without it. <code>AFTERTRACE_ASK_MODEL</code> picks the model (default <code>claude-opus-5-5</code>). See <a href="privacy.html#ask">privacy.md</a>.</td>
+</tr>
+</tbody></table>
+<p>A bound port exits 1:</p>
+<pre><code>otlp grpc: listen tcp 127.0.0.1:4317: bind: address already in use
+</code></pre>
+<h2><code>aftertrace import</code></h2>
+<p>Read a collector file-exporter directory into DuckDB, then run every rule and print findings. Exits when it is done.</p>
+<pre><code>Usage of import:
+  -db string
+    	DuckDB file (default &quot;$HOME/.aftertrace/aftertrace.duckdb&quot;)
+  -store-content
+    	keep prompt/response/tool content attributes
+</code></pre>
+<p>Positional: exactly one directory. Missing dir or extra args exit 2 from the flag parser / usage line:</p>
+<pre><code>usage: aftertrace import [--db PATH] [--store-content] &lt;dir&gt;
+</code></pre>
+<p>A path that does not exist exits 1:</p>
+<pre><code>import: stat /tmp/does-not-exist-aftertrace: no such file or directory
+</code></pre>
+<pre><code class="language-bash">./aftertrace import --db ./data/aftertrace.duckdb /path/to/jsonl
+</code></pre>
+<p>Expected files, all optional if the directory exists: <code>traces.jsonl</code>, <code>logs.jsonl</code>, <code>metrics.jsonl</code>. Format: <a href="behind-a-collector.html#aftertrace-import">behind-a-collector.md</a>.</p>
+<p><code>--store-content</code> is the same ingest gate as on <code>serve</code>.</p>
+<h2><code>aftertrace demo</code></h2>
+<p>Generate six synthetic Claude Code sessions, import them, print counts and findings. No OTLP ports. <code>--store-content</code> is not a flag; demo ingest always redacts.</p>
+<pre><code>Usage of demo:
+  -db string
+    	DuckDB file (default &quot;$HOME/.aftertrace/aftertrace.duckdb&quot;)
+</code></pre>
+<pre><code class="language-bash">./aftertrace demo --db ./data/aftertrace.duckdb
+</code></pre>
+<pre><code>loaded 6 synthetic sessions into ./data/aftertrace.duckdb
+spans=493 span_events=169 events=549 metric_points=764  (aftertrace.synthetic=true)
+12 findings
+[high] retry.exhausted  An API request gave up after 11 attempts
+...
+run: aftertrace serve --db ./data/aftertrace.duckdb
+</code></pre>
+<p>Every record has resource attribute <code>aftertrace.synthetic=true</code>. The generator is <code>internal/demo</code>. All ten shipped rules fire on this data; the clean haiku session is left uncited.</p>
+<p>Demo and serve cannot share a DB at the same time:</p>
+<pre><code>open db: ... Could not set lock on file &quot;./data/aftertrace.duckdb&quot;: Conflicting lock is held ...
+</code></pre>
+<p>Stop <code>serve</code>, run <code>demo</code>, start <code>serve</code> again.</p>
+<p>There is no <code>init</code>, <code>purge</code>, or <code>version</code> command.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/cli.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

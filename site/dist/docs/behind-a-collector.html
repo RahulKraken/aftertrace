@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Behind an OpenTelemetry Collector · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html" class="on" aria-current="page">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Behind an OpenTelemetry Collector</h1>
+<p>If Claude Code already exports to an OpenTelemetry Collector, do not point it at Aftertrace directly. Keep the collector as the only OTLP endpoint Claude Code sees, and fan out to Aftertrace from there.</p>
+<p>Aftertrace&#39;s default ports are the same as a typical collector (<code>4317</code> gRPC, <code>4318</code> HTTP). One process can bind them. Move Aftertrace:</p>
+<pre><code class="language-bash">./aftertrace serve --db ./data/aftertrace.duckdb --grpc-port 14317 --http-port 14318 --ui-port 7311
+</code></pre>
+<p>Claude Code keeps talking to the collector on <code>4317</code> / <code>4318</code>. The collector&#39;s extra exporter talks to <code>127.0.0.1:14317</code>.</p>
+<h2>Fan-out</h2>
+<p>An <code>otlp</code> exporter (gRPC) with TLS off, next to whatever you already export to. <code>file/</code> writers are optional; they are how you later run <code>aftertrace import</code>.</p>
+<pre><code class="language-yaml">receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  otlp/aftertrace:
+    endpoint: 127.0.0.1:14317
+    tls:
+      insecure: true
+  file/traces:
+    path: /var/lib/aftertrace-import/traces.jsonl
+    format: json
+    append: true
+  file/logs:
+    path: /var/lib/aftertrace-import/logs.jsonl
+    format: json
+    append: true
+  file/metrics:
+    path: /var/lib/aftertrace-import/metrics.jsonl
+    format: json
+    append: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/aftertrace, file/traces]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp/aftertrace, file/logs]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp/aftertrace, file/metrics]
+</code></pre>
+<p>Notes that matter:</p>
+<ul>
+<li>The gRPC <code>otlp</code> exporter <code>endpoint</code> is <code>host:port</code>, no <code>http://</code>.</li>
+<li><code>tls.insecure: true</code> is required against Aftertrace. Aftertrace does not serve TLS.</li>
+<li><code>file</code> <code>format</code> must stay <code>json</code> (newline-delimited OTLP JSON). <code>proto</code> and <code>compression: zstd</code> are not what <code>aftertrace import</code> reads.</li>
+<li><code>append: true</code>. The file exporter defaults to truncate.</li>
+<li>Create <code>/var/lib/aftertrace-import</code> first, or set <code>create_directory: true</code> on each file exporter.</li>
+<li>Drop <code>file/*</code> from the pipelines if you only want live ingest.</li>
+</ul>
+<p>HTTP instead of gRPC into Aftertrace:</p>
+<pre><code class="language-yaml">exporters:
+  otlphttp/aftertrace:
+    endpoint: http://127.0.0.1:14318
+    tls:
+      insecure: true
+</code></pre>
+<p>Use <code>otlphttp/aftertrace</code> in the pipelines in place of <code>otlp/aftertrace</code>.</p>
+<h2><code>aftertrace import</code></h2>
+<p><code>aftertrace import</code> reads a directory of JSONL:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Payload</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>traces.jsonl</code></td>
+<td>One <code>ExportTraceServiceRequest</code> / <code>TracesData</code> JSON object per line (<code>resourceSpans</code>)</td>
+</tr>
+<tr>
+<td><code>logs.jsonl</code></td>
+<td>One <code>ExportLogsServiceRequest</code> / <code>LogsData</code> JSON object per line (<code>resourceLogs</code>)</td>
+</tr>
+<tr>
+<td><code>metrics.jsonl</code></td>
+<td>One <code>ExportMetricsServiceRequest</code> / <code>MetricsData</code> JSON object per line (<code>resourceMetrics</code>)</td>
+</tr>
+</tbody></table>
+<p>Missing files in an existing directory are skipped. A path that is not a directory is an error.</p>
+<pre><code class="language-bash">./aftertrace import --db /tmp/aftertrace-import.duckdb /tmp/aftertrace-import-test
+</code></pre>
+<p>That is the same parser <code>aftertrace demo</code> uses. Against a one-span synthetic <code>traces.jsonl</code> in that directory:</p>
+<pre><code>imported spans=1 span_events=0 events=0 metric_points=0
+</code></pre>
+<p><code>--store-content</code> has the same meaning as on <code>serve</code>. After import, Aftertrace runs every rule and prints findings to stdout.</p>
+<p>Live ingest (<code>serve</code>) and import share a DuckDB file. DuckDB takes an exclusive lock. Stop <code>serve</code> before <code>import</code> into the same <code>--db</code>, or import into another file.</p>
+<p>Claude Code env vars still belong on the collector&#39;s receivers, not on Aftertrace. See <a href="claude-code-setup.html">claude-code-setup.md</a>.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/behind-a-collector.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

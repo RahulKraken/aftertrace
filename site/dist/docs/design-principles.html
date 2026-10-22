@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aftertrace design principles · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html" class="on" aria-current="page">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Aftertrace design principles</h1>
+<p>Aftertrace is a local profiler. It should feel like a calm instrument, not a dashboard. Honeycomb’s waterfall is the centrepiece: clean rows, a shared time axis, one number on the row. Colour is a family, not decoration. Motion is feedback, never a trick. <code>prefers-reduced-motion</code> is a hard stop.</p>
+<p>Every change in <code>web/</code> should be traceable to a line below.</p>
+<h2>0. The attention budget (governs everything)</h2>
+<p>A rider has about ten units of grip, split between braking, turning and accelerating. Spend more than ten and the bike is gone. Every Aftertrace screen has the same ten units of user attention. Every element on screen spends some. Sometimes all ten go to one thing. Sometimes they are split on purpose. <strong>Never ask for more than ten.</strong></p>
+<p>Summoned UI (tooltips, ⌘K, the icon legend, a zoom minimap) costs <strong>0 until it appears</strong>. Quiet list chrome can share a small allocation; it must not grow a second focal point.</p>
+<p>If two things both look important, the budget is already blown. Cut one.</p>
+<h3>Waterfall — default (no span chosen)</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Waterfall bars</td>
+<td align="right">6</td>
+<td>This is the instrument. Time is the object. Pastel tints, tree on the left.</td>
+</tr>
+<tr>
+<td>Turn summary sentence</td>
+<td align="right">2</td>
+<td>English first: what this turn cost you.</td>
+</tr>
+<tr>
+<td>Header (crumbs, quiet totals, Time | Cost)</td>
+<td align="right">1</td>
+<td><code>3m 48s · $2.56 · 33 calls</code> — and <code>· 1 error</code> in red only when it happens. Not six KPI tiles.</td>
+</tr>
+<tr>
+<td>Detail panel</td>
+<td align="right">1</td>
+<td>Present but not claiming the page; closed until a span is chosen.</td>
+</tr>
+<tr>
+<td>Minimap</td>
+<td align="right">0</td>
+<td>Hidden until you zoom, or the turn has more than 50 spans.</td>
+</tr>
+<tr>
+<td>Hover popover, icon legend, ⌘K, crosshair</td>
+<td align="right">0</td>
+<td>Summoned on hover / key.</td>
+</tr>
+<tr>
+<td>Live playhead</td>
+<td align="right">0</td>
+<td>Only while spans are still arriving (or during mock replay).</td>
+</tr>
+</tbody></table>
+<h3>Waterfall — a span is selected</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Detail panel</td>
+<td align="right">5</td>
+<td>The question is now <em>this</em> span.</td>
+</tr>
+<tr>
+<td>Waterfall bars</td>
+<td align="right">4</td>
+<td>Context for the span; no longer the whole story.</td>
+</tr>
+<tr>
+<td>Header, sentence, the rest</td>
+<td align="right">1</td>
+<td>Orientation only.</td>
+</tr>
+<tr>
+<td>Minimap</td>
+<td align="right">0</td>
+<td>Still hidden unless zoomed or &gt;50 spans.</td>
+</tr>
+</tbody></table>
+<h3>Sessions</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One-line weekly story</td>
+<td align="right">7</td>
+<td>The week, in English. Not a dashboard.</td>
+</tr>
+<tr>
+<td>Sessions list</td>
+<td align="right">3</td>
+<td>Pick a session. Quiet columns, no KPI tile row.</td>
+</tr>
+</tbody></table>
+<h3>Session (one session)</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One-line session story</td>
+<td align="right">7</td>
+<td>What this session was.</td>
+</tr>
+<tr>
+<td>Turn list</td>
+<td align="right">3</td>
+<td>Pick a turn. No KPI tiles.</td>
+</tr>
+</tbody></table>
+<h3>Findings</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Top finding + Fix</td>
+<td align="right">10</td>
+<td>One change you can make. Everything else is a quiet list.</td>
+</tr>
+</tbody></table>
+<h3>Fix / win moment</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The number from the finding</td>
+<td align="right">10</td>
+<td>Prompts removed, minutes saved — a bottom-right toast over the still-visible list, then that finding marked resolved.</td>
+</tr>
+</tbody></table>
+<h3>Query</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Builder (or Ask / SQL)</td>
+<td align="right">6</td>
+<td>One way of asking.</td>
+</tr>
+<tr>
+<td>Result (chart <em>or</em> table)</td>
+<td align="right">4</td>
+<td>The answer. Traces wait until you click a point.</td>
+</tr>
+</tbody></table>
+<h3>Cost</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Table</td>
+<td align="right">8</td>
+<td>The breakdown <em>is</em> the page.</td>
+</tr>
+<tr>
+<td>Dimension switcher</td>
+<td align="right">2</td>
+<td>How you slice it.</td>
+</tr>
+</tbody></table>
+<h3>Empty</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th align="right">Units</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Setup recipe + copy</td>
+<td align="right">8</td>
+<td>The next action.</td>
+</tr>
+<tr>
+<td>Page heading</td>
+<td align="right">2</td>
+<td>Why the machine is quiet.</td>
+</tr>
+</tbody></table>
+<h2>Emotional Design</h2>
+<h3>Visceral — beautiful before you read</h3>
+<ol>
+<li><strong>Cool grey shell, white content.</strong> The page is <code>#f7f7f8</code> with pure white cards. No warm or yellow cast. Colour is reserved for span families, the wait hatch, and the win. Waterfall bars are pastel tints of the family hue (about 14% fill, 1px stronger edge); waiting-on-you stays crisp amber, the one warm element.
+<em>Aftertrace: tokens <code>--bg</code> <code>#f7f7f8</code>, <code>--surface</code> <code>#ffffff</code>; <code>.bar</code> via <code>--bar-hue</code>; <code>.ph-wait</code> as 90° orange bands.</em></li>
+<li><strong>One grotesk for everything.</strong> Inter, self-hosted as latin woff2 in <code>web/src/fonts/</code> (no CDN). Tabular numerals on numbers. Mono is only for IDs and code.
+<em>Aftertrace: <code>--sans: &quot;Inter&quot;</code> on headings, the weekly sentence, the win figure, and chrome.</em></li>
+<li><strong>Hairlines, not shadows.</strong> The docked pane and the hero finding are 1px borders and an 8px radius. KPI tiles are gone; they were a second focal point. The win toast is the exception: a soft shadow so it sits on the page instead of overlapping it.
+<em>Aftertrace: <code>--line</code> <code>#ebebeb</code>; <code>--shadow</code> none; <code>--shadow-toast</code> on <code>.win-face</code>; <code>--radius</code> 8px.</em></li>
+<li><strong>Every session has a shape.</strong> You should recognise a session the way you recognise a skyline — as quiet list chrome, not a competing column.
+<em>Aftertrace: a mini-waterfall glyph inline on the session row, painted from that session’s time mix.</em></li>
+</ol>
+<h3>Behavioral — pleasure through control</h3>
+<ol start="5">
+<li><strong>Brush to zoom, double-click to reset.</strong> Time is the object you hold.
+<em>Aftertrace: drag on the ruler (handles on the brush); double-click the ruler or minimap to return to the full turn.</em></li>
+<li><strong>A session minimap you can scrub — only when you need it.</strong> The whole turn stays in view while you inspect a slice.
+<em>Aftertrace: hidden until <code>view</code> is set or there are &gt;50 spans; the viewport rectangle is the thing you drag.</em></li>
+<li><strong>A crisp crosshair with a timestamp.</strong> Hover is a measurement, not a glow.
+<em>Aftertrace: 1px hairline + clock label on the ruler, summoned on hover (0 until then).</em></li>
+<li><strong>Evidence glides, it does not cut.</strong> Jumping from a finding lands on the span with context intact.
+<em>Aftertrace: ancestors expand, the row scrolls into place, the pane opens (selected budget), a one-shot highlight. Reduced motion skips the glide.</em></li>
+<li><strong>Skeletons shaped like the thing that is coming.</strong> Waiting should still look like a waterfall.
+<em>Aftertrace: <code>WaterfallSkeleton</code> — label column + staggered bars, not a spinner.</em></li>
+<li><strong>Every interaction answers within 100ms.</strong> Click, copy, filter, run, theme: a visible change on the same frame or the next. Collapse springs children away and fades in a <code>+N</code> pill; live replay stretches in-flight bars with the playhead.
+<em>Aftertrace: CSS transitions ≤ 140ms; the win stage appears on Fix; queries show a running state on the button. <code>useReplay</code> at 4× in mock (<code>?replay=1</code>). <code>prefers-reduced-motion</code> skips both.</em></li>
+<li><strong>⌘K / Ctrl-K is how you move.</strong> Pages, sessions, and findings are a command away.
+<em>Aftertrace: <code>CommandPalette</code> over the shell, summoned only; no header chip.</em></li>
+</ol>
+<h3>Reflective — meaning and self-image</h3>
+<ol start="12">
+<li><strong>Fix is a real act.</strong> A finding is not a lecture; it is a change you can copy.
+<em>Aftertrace: the top finding has <strong>Fix</strong> — the exact <code>settings.json</code> snippet or env.</em></li>
+<li><strong>Aftertrace remembers the win.</strong> After a fix, all ten units go to the number that finding earned, as a bottom-right toast with settle motion. The list stays visible underneath. About 1.5s later the toast goes, with that finding marked resolved.
+<em>Aftertrace: <code>WinStage</code> reads <code>fixFor(f).win</code> — for the npm-test allow rule, <strong>6</strong> prompts removed, <strong>1m 29s</strong> saved. Mock seeds finding id 4 as already resolved.</em></li>
+<li><strong>A sentence at the top of a session and a turn.</strong> The instrument speaks in English first.
+<em>Aftertrace: <code>sessionStory</code> / <code>turnStory</code> — e.g. “You spent 23% of this turn waiting on approvals.”</em></li>
+<li><strong>The sessions page tells a weekly story in one line.</strong> Not three tiles. The 23% carries one crisp orange underline, proportional to the value.
+<em>Aftertrace: <code>weekStory()</code> / <code>.week-pct</code> — “You spent 23% of this week waiting on approvals, and saved 11 min.”</em></li>
+</ol>
+<h2>The Design of Everyday Things</h2>
+<ol start="16">
+<li><strong>Signifiers and affordances.</strong> Hover is obvious. Carets look like carets. The pane divider shows <code>col-resize</code>. The brush has handles you can grab.
+<em>Aftertrace: <code>:hover</code> on rows/buttons; chevrons on collapsed rows; <code>.pane-resizer</code>; <code>.brush-handle</code>.</em></li>
+<li><strong>Mapping.</strong> Bar colour, row icon, and detail-pane header are one hue. The pane’s timing breakdown is a mini bar that mirrors the row’s segments.
+<em>Aftertrace: <code>hueVar(span)</code> on glyph, bar, and <code>.pane</code> accent; <code>Phases</code> in the pane reuses the same paint as the row.</em></li>
+<li><strong>Feedback.</strong> Every click, copy, filter, and run leaves a mark.
+<em>Aftertrace: win stage on Fix; buttons show <code>Copied</code> / <code>Running</code>; filters highlight; SQL errors sit on the card.</em></li>
+<li><strong>Conceptual model.</strong> Session → turn → span is named in the breadcrumb. The icon language is a legend on hover. The minimap draws the turn only when zoomed.
+<em>Aftertrace: crumbs <code>Sessions › {id} › Turn n</code>; <code>IconLegend</code> on the “span” label; minimap on demand.</em></li>
+<li><strong>Constraints.</strong> The query builder only offers attributes, operators, and values that exist.
+<em>Aftertrace: field list from <code>/api/fields</code>; operators by <code>num</code>/<code>str</code>; value autocomplete from <code>/api/field-values</code>.</em></li>
+<li><strong>Error prevention and recovery.</strong> Filters undo. SQL is read-only and says so. Errors say what to do next.
+<em>Aftertrace: undo on the builder (and ⌘Z); SQL banner; mock SQL errors append a next step.</em></li>
+<li><strong>Knowledge in the world.</strong> Units are printed. Effort and cache tokens explain themselves on hover. The empty state teaches the setup, with copy.
+<em>Aftertrace: <code>ms</code> / <code>$</code> on list columns; tooltips on <code>effort</code> and cache; empty-state copy buttons on <code>aftertrace init</code> and the settings snippet.</em></li>
+</ol>
+<h2>Cuts (do not spend budget on these)</h2>
+<ul>
+<li>Weekly KPI tiles and sparklines (<code>WeekStory</code> cards).</li>
+<li>A KPI row on Sessions or Session.</li>
+<li>Per-row session stories (the page already has the week sentence).</li>
+<li>A dedicated Shape column (the glyph sits in the list’s 3 units).</li>
+<li>Waterfall chips (model / tool / wait) — the sentence already said it.</li>
+<li>Waterfall request / cost subtitle next to the turn title.</li>
+<li>Six KPI tiles on the waterfall (Flo’s header). One quiet totals line instead.</li>
+<li>Two numbers on every waterfall row. Time | Cost picks the one number.</li>
+<li>A generic SLOWEST badge. The marker is the bottleneck finding, and a click is evidence.</li>
+<li>Always-on <code>j k ↵ esc</code> hint strip.</li>
+<li>⌘K chip and <code>127.0.0.1</code> tag in the header.</li>
+<li>Minimap in the default waterfall.</li>
+<li>Detail pane open by default (it opens when a span is chosen, or when a finding lands you on one).</li>
+<li>Findings win banner and a Wins group as a second focal point.</li>
+<li>Fix snippet / Fix button on every finding (only the top one).</li>
+<li>A copy toast on Fix (the win stage <em>is</em> the feedback).</li>
+<li>A blurred, dimmed-modal win overlay. The page stays visible; the win is a bottom-right toast.</li>
+<li>Mini-waterfall + split bar together on the session turn list (one quiet glyph).</li>
+</ul>
+<h2>Non-goals</h2>
+<p>No confetti. No extra inline numbers on waterfall rows. No permanent legend strip. No motion if the user asked the system not to move. Never more than ten units on one screen.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/design-principles.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Product brief · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+<link rel="stylesheet" href="../../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../../docs/install.html" class="on">Docs</a><a href="../../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../../docs/install.html">Install</a><a href="../../docs/claude-code-setup.html">Connect Claude Code</a><a href="../../docs/apps.html">Apps and agents</a><a href="../../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../../docs/findings.html">Findings</a><a href="../../docs/cli.html">CLI</a><a href="../../docs/privacy.html">Privacy</a><a href="../../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../../docs/writing-rules.html">Writing rules</a><a href="../../docs/api.html">JSON API</a><a href="../../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../../docs/product/brief.html" class="on" aria-current="page">Product brief</a><a href="../../docs/product/design.html">Design</a><a href="../../docs/design-principles.html">Design principles</a><a href="../../docs/spec.html">Spec</a><a href="../../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Product brief</h1>
+<p>Aftertrace is the flight recorder for your AI work. It shows, live and on your own machine, what your coding agents, your personal agents and the apps you build with LLMs are doing, where the time and money go, and the one change worth making next.</p>
+<p>This brief is the plan of record for v0.1. It is written for contributors as much as for the maintainer.</p>
+<h2>Who it is for</h2>
+<p><strong>The solo AI builder.</strong> One person who builds a lot with AI:</p>
+<ul>
+<li>runs Claude Code most of the day, often three or four sessions at once;</li>
+<li>ships side projects that call the Claude API (or OpenAI, or Gemini);</li>
+<li>has a personal agent or two on a schedule: a nightly summarizer, an Agent SDK script, an MCP server;</li>
+<li>pays for a plan and some API usage, and wants both to be worth it.</li>
+</ul>
+<p>They are not a platform team. They do not run evals, curate datasets or manage prompt versions. They want to know what happened, what it cost, and what to change, without standing up infrastructure.</p>
+<h2>The questions, ranked</h2>
+<p>From user research (Hacker News and GitHub threads, issue trackers of the tools below, and our own use). The first four are where Aftertrace leads.</p>
+<ol>
+<li><strong>Which of my running sessions needs me right now, and what is each one doing?</strong> Parallel sessions are normal. Nothing shows them side by side.</li>
+<li><strong>Where did my time go?</strong> Waiting on me (permission prompts), on tools (tests, builds), on the model, on retries. Every other tool counts tokens; time is the experience.</li>
+<li><strong>What did the agent actually do?</strong> The prompt, every model reply, every command and its output, in order. Trust and debugging both start here.</li>
+<li><strong>What one change saves the most, and did it work?</strong> A finding with a quantified impact, an action, and a ledger of what fixing it saved.</li>
+<li><strong>What ate my money?</strong> By session, project, model, skill, subagent, MCP server.</li>
+<li><strong>Is my plan worth it?</strong> API-equivalent value against what I pay. The number people share.</li>
+<li><strong>What do my own apps cost to run, per feature, and how fast are they?</strong></li>
+<li><strong>Did my nightly agent run, what did it cost, and why did it fail?</strong></li>
+<li><strong>Across every machine I use</strong>, not just this laptop, and for longer than the 30 days Claude Code keeps transcripts.</li>
+</ol>
+<p>We deliberately leave out evals, datasets, prompt registries, annotation queues, SLOs, RBAC and SSO. If one eval-like feature earns a place later it is &quot;re-run this turn on a cheaper model and compare&quot;.</p>
+<h2>Where we fit</h2>
+<p>Claude Code&#39;s <code>/usage</code> now attributes spend to skills, subagents and MCP servers and offers fixes. Transcript readers like ccusage and CodeBurn give fast cost breakdowns with zero setup. Team platforms (Langfuse, LangSmith, Braintrust, Phoenix) cover production LLM apps.</p>
+<p>Aftertrace is not a better cost table. It wins on what those cannot do:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Aftertrace</th>
+<th>Transcript readers</th>
+<th><code>/usage</code></th>
+<th>Team LLM platforms</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Time, not just tokens (waiting on you, tools, retries)</td>
+<td>Yes, from spans</td>
+<td>No</td>
+<td>Partly</td>
+<td>Latency only</td>
+</tr>
+<tr>
+<td>Live view of parallel sessions</td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Coding agents, your apps and personal agents in one place</td>
+<td>Yes, OTLP</td>
+<td>Coding agents</td>
+<td>Claude Code</td>
+<td>Apps</td>
+</tr>
+<tr>
+<td>History beyond 30 days, across machines</td>
+<td>Yes, push to one store</td>
+<td>One machine</td>
+<td>7 days</td>
+<td>Yes, hosted</td>
+</tr>
+<tr>
+<td>Setup</td>
+<td>One binary, one settings block</td>
+<td><code>npx</code></td>
+<td>Built in</td>
+<td>SDK plus a service</td>
+</tr>
+<tr>
+<td>Data leaves your machine</td>
+<td>Never (Ask is opt-in)</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+</tbody></table>
+<h2>What v0.1 ships</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>What it does</th>
+<th>Answers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Home</strong></td>
+<td>One sentence about your week, a strip of numbers, live lanes for running sessions, the top finding, recent work</td>
+<td>1, 2, 4, 6</td>
+</tr>
+<tr>
+<td><strong>Live lanes</strong></td>
+<td>One lane per running session: what it is doing, for how long, what it has cost, and when it has gone quiet</td>
+<td>1</td>
+</tr>
+<tr>
+<td><strong>Sessions and turns</strong></td>
+<td>Every session, titled by its first prompt; every turn, labelled by its prompt</td>
+<td>3, 5</td>
+</tr>
+<tr>
+<td><strong>Trace</strong></td>
+<td>Waterfall with a resizable inspector; a transcript of the turn; real input and output per span</td>
+<td>2, 3</td>
+</tr>
+<tr>
+<td><strong>Findings</strong></td>
+<td>Ranked by impact, each with evidence, a fix to copy, and a savings ledger once resolved</td>
+<td>4</td>
+</tr>
+<tr>
+<td><strong>Cost</strong></td>
+<td>Spend by model, skill, subagent, MCP server, tool, repo, source</td>
+<td>5</td>
+</tr>
+<tr>
+<td><strong>Apps</strong></td>
+<td>Your own services sending OpenTelemetry GenAI spans: calls, cost, latency, errors, per operation</td>
+<td>7, 8</td>
+</tr>
+<tr>
+<td><strong>Connect</strong></td>
+<td>One page per source with the snippet to copy, and live confirmation when the first span lands</td>
+<td>setup</td>
+</tr>
+<tr>
+<td><strong>Recap</strong></td>
+<td>A weekly receipt: hours of agent work, API-equivalent value against your plan, what fixes saved; copy as image</td>
+<td>6</td>
+</tr>
+<tr>
+<td><strong>Query and Ask</strong></td>
+<td>Builder, SQL, and plain-English questions answered with SQL (opt-in, sends only schema and rows)</td>
+<td>any</td>
+</tr>
+</tbody></table>
+<p>Later: quota and rate-limit forecasting, desktop notifications for runaway agents, a menu bar companion, Codex and Gemini CLI as first-class sources, authenticated multi-machine mode.</p>
+<h2>Measures of success</h2>
+<ul>
+<li>Time from install to first span on screen: under two minutes.</li>
+<li>The Home page answers &quot;what happened today&quot; without a click.</li>
+<li>At least one finding a week that a user acts on, and the ledger shows what it saved.</li>
+<li>People screenshot the recap.</li>
+</ul>
+<p>See <a href="design.html">design.md</a> for how it looks and behaves.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/product/brief.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

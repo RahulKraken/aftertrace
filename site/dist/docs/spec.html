@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aftertrace product spec · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html" class="on" aria-current="page">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Aftertrace product spec</h1>
+<p>Draft 1, 2026-10-21. Schema details and open questions live in <code>schema-notes.md</code>. Stack options live in <code>stack.md</code>.</p>
+<h2>Positioning</h2>
+<p>Aftertrace is a local profiler and advisor for Claude Code. It receives Claude Code&#39;s OpenTelemetry metrics, events and traces on your machine, stores them in DuckDB, and shows where each session spent its time and money. A rules engine turns patterns into findings, and every finding links to the spans behind it. You can query the data with a visual builder or ask a question in plain English. The Ask agent writes and runs read-only SQL against your local store and shows its query and evidence. Data stays on your machine. The Ask agent is opt-in, and it sends only the schema and aggregated results to the model you choose.</p>
+<h2>User and jobs</h2>
+<p>The user is a developer who runs Claude Code daily on their own machine, often with skills, subagents, MCP servers and hooks. Later, a team lead running Aftertrace behind a shared collector.</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What Aftertrace shows</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Why was that turn slow?</td>
+<td>Waterfall with wall clock split into model, tool run, waiting on you, retry waste and hooks</td>
+</tr>
+<tr>
+<td>Where does my money go?</td>
+<td>Cost by skill, subagent, MCP server, tool, model, effort and repo, with cache hit rate</td>
+</tr>
+<tr>
+<td>What should I change?</td>
+<td>Findings ranked by time or dollars, each with a concrete setting or habit change</td>
+</tr>
+<tr>
+<td>Did my change help?</td>
+<td>Query any metric over time, before and after</td>
+</tr>
+<tr>
+<td>Answer an ad hoc question fast</td>
+<td>Ask in English, get numbers, the SQL, and evidence traces</td>
+</tr>
+</tbody></table>
+<h2>Views</h2>
+<p>All views share one top bar: Sessions, Findings, Query, Cost. Rows are dense (24 to 30 px), numbers are monospace and right-aligned, and colour carries one meaning at a time. Amber means waiting on you. Rose means retry waste or error. Everything else is neutral.</p>
+<p><strong>Sessions.</strong> One row per <code>session.id</code>: start time, repo, agent flow (<code>main ▸ general-purpose ▸ code-reviewer</code>), turns, time in turns, a stacked &quot;where time went&quot; bar, cost, cache hit rate, models, retried requests, finding count. Column headers carry an aggregate (sum or p50). Facets on the left (later): repo, model, effort, permission mode, skill, subagent, MCP server, entrypoint. Click a row to open the session.</p>
+<p><strong>Session.</strong> KPI strip (turns, time, cost, tokens, cache hit, waiting on you), then one row per turn (<code>claude_code.interaction</code>) with its own split bar. Click a turn to open its waterfall.</p>
+<p><strong>Waterfall.</strong> The centrepiece. One trace is one turn.</p>
+<ul>
+<li>24 px rows. Label column (about 38%) holds tree guides, a caret with hidden-descendant count, a type glyph (turn, model, tool, subagent, wait, run, hook), the name, a muted target (<code>Bash · npm test</code>, <code>Read · src/app.ts</code>), and two right-aligned metrics: duration, then cost for model rows or result tokens for tool rows.</li>
+<li>Bars sit on a shared time axis with a sticky ruler. Compaction events show as vertical markers.</li>
+<li>Model bars split into phases: retry waste (rose, hatched), time to first token (light), streaming (solid).</li>
+<li>Tool bars split into &quot;blocked on you&quot; (amber, hatched) and run. The label reads <code>blocked 22.5s · run 18.1s</code>.</li>
+<li>The critical path draws in full colour. Everything else fades to about 45%. Permission waits never fade.</li>
+<li>Errors get a rose left border and bar outline, never a filled red bar. Retried requests show <code>×N</code> from <code>attempt</code>.</li>
+<li>Default expansion: model and tool rows visible, tool children (wait and run) collapsed into the tool bar&#39;s phases, subagent subtrees collapsible with a rollup (<code>21 spans · $0.19</code>).</li>
+<li>Header chips: <code>⏸ 22.5s waiting on you (23%)</code>, model, tool run, retry waste, hooks, compaction <code>491k→14k</code>. Prev and next turn buttons.</li>
+<li>Keyboard: ↑ ↓ move selection, ← → collapse and expand, <code>[</code> <code>]</code> previous and next turn.</li>
+<li>Detail pane, docked right at 420 px, metrics first: header with parent link, phase bar, metrics (tokens, cost, model, effort, attempt, skill, agent, MCP server, cache hit), child mix for turns, findings citing this span with impact, joined events (by <code>tool_use_id</code> or <code>request_id</code>), searchable attributes, raw span. Opening the pane never reflows the tree. A muted line says prompt and response text are redacted at the source.</li>
+<li>Later: minimap strip, idle-gap folding, self-time and cost lenses, auto-grouping of repeated siblings (<code>Read ×30</code>), whole-session waterfall.</li>
+</ul>
+<p><strong>Findings.</strong> Grouped by severity with a count. Each finding is one line with its quantified impact on the right (<code>1m 6s waited</code>, <code>$6.58</code>), a detail line, the recommendation, and evidence chips. Each chip opens the waterfall with that span selected and its ancestors expanded. Rule ID and pillar in muted text. Later: dismiss, snooze, &quot;new since last week&quot;, and a settings diff the user can copy.</p>
+<p><strong>Query.</strong> One view, three tabs over the same store.</p>
+<ul>
+<li><em>Builder.</em> VISUALIZE (COUNT, SUM, AVG, MIN, MAX, P50, P95, P99, HEATMAP) over a numeric field such as <code>duration_ms</code>, <code>ttft_ms</code>, <code>cost_usd</code>, <code>input_tokens</code>, <code>cache_read_tokens</code>, <code>result_tokens</code>. WHERE clauses on any span attribute or joined event attribute (<code>=</code>, <code>!=</code>, <code>&gt;</code>, <code>&lt;</code>, <code>contains</code>, <code>exists</code>). GROUP BY up to two attributes such as <code>skill.name</code>, <code>model</code>, <code>effort</code>, <code>tool_name</code>, <code>repo</code>. ORDER BY, LIMIT, and a time range. Results: a line chart (one series per top group, or a heatmap for HEATMAP) above a grouped table. Click a chart point, heatmap cell or table row to list the matching traces. Each trace opens the waterfall on the matching span. The compiled SQL is one click away.</li>
+<li><em>Ask.</em> A question box with suggested questions. The answer shows the numbers in a sentence, the SQL it ran, the result table, and evidence traces that open the waterfall. &quot;Edit as SQL&quot; and &quot;Open in builder&quot; carry the query over.</li>
+<li><em>SQL.</em> Raw read-only SQL with the schema in a side panel. Any <code>trace_id</code> column links to the waterfall.</li>
+</ul>
+<p><strong>Cost.</strong> A dimension switch (model, effort, skill, subagent, MCP server, tool, repo, query source) over one table: cost, share, requests, input, output, cache read, cache write, cache hit. Tools have no cost of their own, so the tool view shows calls, result tokens, run time and wait time. Later: spend over time split by the chosen dimension, and a per-request ledger that deep-links to spans.</p>
+<p><strong>First run.</strong> An empty state with three live checks: receiver listening, <code>~/.claude/settings.json</code> env set, first span received. Each check turns green as data arrives.</p>
+<h2>Ask agent</h2>
+<ul>
+<li><strong>Contract.</strong> <code>answer(question) -&gt; {answer, sql, result, evidence, builder?}</code>. One tool: <code>run_sql(sql)</code>, a read-only DuckDB executor. The agent gets an explicit schema (tables, views, macros, documented attribute names) in its system prompt. It may run several queries per question, capped (proposed: 6 queries, 500 rows each).</li>
+<li><strong>Read-only by construction.</strong> The DuckDB instance runs with external access disabled and configuration locked (a second <code>read_only</code> instance on the same file is refused by DuckDB). Only one statement per call, which DuckDB must parse as a <code>SELECT</code>, run in a rolled-back transaction. No file, network or extension access.</li>
+<li><strong>Evidence.</strong> The agent must return at least one query whose result has <code>trace_id</code> and <code>span_id</code> columns when the question concerns specific turns. The UI turns those into waterfall links. An answer without numbers from a query is rejected and retried once.</li>
+<li><strong>Off by default.</strong> Aftertrace works fully without it. Turning it on shows exactly what will be sent.</li>
+<li><strong>What leaves the machine.</strong> The schema, the question, and the results of the agent&#39;s own queries. Results are aggregates or IDs plus the documented metadata (model, durations, token counts, tool names, file paths and commands if the user enabled <code>OTEL_LOG_TOOL_DETAILS</code>). Prompt text, responses and tool content never reach the store, so they cannot reach the model. A setting strips <code>full_command</code>, <code>file_path</code> and <code>tool_parameters</code> from results before they are sent.</li>
+<li><strong>Model choice.</strong> Default: the user&#39;s own Anthropic API key (<code>ANTHROPIC_API_KEY</code>) or existing Claude auth if a supported path exists. Option: a local model through an OpenAI-compatible endpoint (Ollama, llama.cpp, LM Studio), which keeps everything on the machine. Aftertrace never ships or proxies a key.</li>
+<li><strong>Audit.</strong> Every question, every SQL statement, and the byte count sent are kept in a local log the user can read and clear.</li>
+<li><strong>Prototype.</strong> A canned agent behind the same interface answers four suggested questions with real SQL and makes no network calls, even when a key is present.</li>
+</ul>
+<h2>Rules engine</h2>
+<p>Each rule is one file: an ID, a pillar (bottleneck, cost, config), one or more SQL queries over the store, and a template that turns rows into findings. Every finding states an impact in seconds or dollars and lists evidence as <code>(trace_id, span_id, label)</code>. Rules declare the minimum Claude Code version and the env gates they need. Aftertrace skips a rule whose inputs are missing and says why. A failing rule shows an error finding and never blocks the others. Thresholds live in a user config.</p>
+<h3>Rules catalog</h3>
+<p>MVP marks the rules the prototype implements (10). Field names are from the docs.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Trigger</th>
+<th>Evidence</th>
+<th>Recommendation</th>
+<th>False-positive risk</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>permission.allow_rule_candidate</code> (MVP)</td>
+<td>≥3 <code>claude_code.tool.blocked_on_user</code> with <code>decision = accept</code> and <code>source</code> in (<code>user_temporary</code>, <code>user_permanent</code>) for the same pattern. Pattern: <code>Bash(&lt;first two words of full_command&gt;:*)</code>, else <code>Bash(&lt;bash_argv0&gt;:*)</code>, else <code>tool_name</code></td>
+<td>The wait spans</td>
+<td>Add the pattern to <code>permissions.allow</code> in <code>~/.claude/settings.json</code></td>
+<td>A command that should stay gated (<code>git push</code>, <code>rm</code>). Never suggest for <code>bash_command_class</code> in a risky set. Without <code>OTEL_LOG_TOOL_DETAILS</code>, patterns are coarse (<code>Bash(npm:*)</code>)</td>
+</tr>
+<tr>
+<td><code>retry.waste</code> (MVP)</td>
+<td><code>llm_request.attempt &gt; 1</code> and success</td>
+<td>The request spans. Waste is span start to last <code>gen_ai.request.attempt</code></td>
+<td>Usually server-side. Check status, consider a fallback model for long runs, check a proxy if errors cluster on one network</td>
+<td>Attempt event timing is inferred</td>
+</tr>
+<tr>
+<td><code>retry.exhausted</code> (MVP)</td>
+<td><code>api_retries_exhausted</code> event</td>
+<td>Failed <code>llm_request</code> span (status <code>ERROR</code>)</td>
+<td>Re-run. Raise <code>CLAUDE_CODE_MAX_RETRIES</code> or set <code>CLAUDE_CODE_RETRY_WATCHDOG</code> for unattended runs</td>
+<td><code>attempt</code> restarts after a streaming failure, so counts can understate</td>
+</tr>
+<tr>
+<td><code>cache.drop_after_compaction</code> (MVP)</td>
+<td>Successful <code>compaction</code>, then the next main-thread request&#39;s cache hit rate (<code>cache_read_tokens / (cache_read_tokens + cache_creation_tokens + input_tokens)</code>) is ≥30 points below the mean of the 5 before</td>
+<td>Compaction turn, the rewrite request</td>
+<td>Start fresh sessions at natural breakpoints, run <code>/compact</code> between tasks, push exploration into subagents</td>
+<td>Expected once per compaction. Escalate only on frequency (see <code>compaction.frequent</code>)</td>
+</tr>
+<tr>
+<td><code>model.switch_cache_rebuild</code> (MVP)</td>
+<td>Consecutive main-thread requests where <code>model</code> changes and <code>cache_read_tokens = 0</code></td>
+<td>The rebuild request</td>
+<td>Pick the model at session start, switch at <code>/clear</code>, or delegate the hard step to a subagent</td>
+<td>A deliberate switch for a hard task is fine. Low severity</td>
+</tr>
+<tr>
+<td><code>skill.cost</code> (MVP)</td>
+<td>Skill share of <code>cost_usd</code> (from <code>api_request.skill.name</code>) ≥25%, or ≥$1 per <code>skill_activated</code></td>
+<td>Top 5 requests by cost for the skill</td>
+<td>Try a lower <code>effort</code> or cheaper model for that skill and compare output</td>
+<td>Skills that do heavy work by design. Needs v2.1.273 and <code>OTEL_LOG_TOOL_DETAILS</code> for real names</td>
+</tr>
+<tr>
+<td><code>plugin.skills_unused</code> (MVP)</td>
+<td><code>plugin_loaded.skill_path_count &gt; 0</code> in ≥3 sessions and no <code>skill_activated</code> with that <code>plugin.name</code></td>
+<td>Session IDs</td>
+<td>Disable the plugin. Each loaded skill adds its description to context (inferred)</td>
+<td>Seasonal skills. <code>plugin.name</code> is <code>third-party</code> without the gate</td>
+</tr>
+<tr>
+<td><code>tool.repeated_errors</code> (MVP)</td>
+<td>≥2 <code>tool.execution</code> with <code>success = false</code> and the same <code>error_class</code> and target in one session</td>
+<td>The execution spans</td>
+<td>Fix the environment once and record it in <code>CLAUDE.md</code></td>
+<td>Test-driven loops where failures are the point</td>
+</tr>
+<tr>
+<td><code>hook.overhead</code> (MVP)</td>
+<td>Mean <code>hook_execution_complete.total_duration_ms</code> ≥1 s per <code>hook_name</code></td>
+<td>Turns with the hook</td>
+<td>Narrow the matcher, or move slow work to <code>PostToolUse</code></td>
+<td>Security hooks that must run. Report, never suggest removal</td>
+</tr>
+<tr>
+<td><code>mcp.large_results</code> (MVP)</td>
+<td><code>tool.result_tokens &gt; 10000</code> on an MCP tool (<code>tool_name</code> prefix <code>mcp__</code>, inferred)</td>
+<td>The tool spans. Impact: <code>cost_usd</code> of requests with that <code>mcp_server.name</code> and <code>mcp_tool.name</code></td>
+<td>Ask for narrower results, or call the server from a subagent</td>
+<td>Results the task needed</td>
+</tr>
+<tr>
+<td><code>compaction.frequent</code></td>
+<td>≥2 <code>compaction</code> with <code>trigger = auto</code> in one session, or <code>precompute_reuse</code> misses</td>
+<td>Compaction turns</td>
+<td>Split work into sessions. Delegate exploration</td>
+<td>Long sessions by design</td>
+</tr>
+<tr>
+<td><code>permission.reject_loop</code></td>
+<td>≥3 <code>tool_decision</code> with <code>decision = reject</code> for the same pattern</td>
+<td>Wait spans</td>
+<td>Add a <code>permissions.deny</code> rule so the model stops trying</td>
+<td>Rejections that were case by case</td>
+</tr>
+<tr>
+<td><code>permission.classifier_blocks</code></td>
+<td><code>tool_decision.classifier_verdict</code> in (<code>block</code>, <code>no_verdict</code>, <code>unavailable</code>) clustered by tool</td>
+<td>Decision events joined by <code>tool_use_id</code></td>
+<td>Add an explicit allow or deny rule for the pattern</td>
+<td>Needs v2.1.301</td>
+</tr>
+<tr>
+<td><code>effort.overkill</code></td>
+<td>Main-thread requests at <code>effort</code> <code>xhigh</code> or <code>max</code> where most have <code>stop_reason = tool_use</code> and <code>output_tokens</code> below a threshold</td>
+<td>The requests</td>
+<td>Try <code>high</code> for routine tool-calling work</td>
+<td>Hard reasoning steps that emit short tool calls. Low severity</td>
+</tr>
+<tr>
+<td><code>ttft.slow</code></td>
+<td>p95 <code>ttft_ms</code> per <code>model</code> and <code>effort</code> above the user&#39;s own baseline by 2×</td>
+<td>The slowest requests</td>
+<td>Usually load or a large context. Check context size and time of day</td>
+<td>Baseline needs a week of data</td>
+</tr>
+<tr>
+<td><code>output.truncated</code></td>
+<td><code>stop_reason = max_tokens</code></td>
+<td>The requests</td>
+<td>Ask for smaller steps, or raise the output limit if configurable</td>
+<td>Rare, but a cheap check</td>
+</tr>
+<tr>
+<td><code>subagent.context_bloat</code></td>
+<td><code>subagent_completed.total_tokens</code> high relative to <code>total_tool_uses</code>, or a subagent&#39;s requests read large uncached context</td>
+<td>The Agent tool span and its subtree</td>
+<td>Tighten the subagent prompt and tool list</td>
+<td>Join from event to span is inferred</td>
+</tr>
+<tr>
+<td><code>mcp.connection_failed</code></td>
+<td><code>mcp_server_connection.status = failed</code> repeatedly</td>
+<td>Session IDs</td>
+<td>Fix or remove the server config. Failed servers cost startup time</td>
+<td>Flaky network</td>
+</tr>
+<tr>
+<td><code>read.large_files</code></td>
+<td><code>Read</code> tool <code>result_tokens</code> above a threshold, repeated on the same <code>file_path</code></td>
+<td>Tool spans</td>
+<td>Read ranges, or add a summary file</td>
+<td>Needs the gate for <code>file_path</code></td>
+</tr>
+</tbody></table>
+<h2>Data model</h2>
+<p>DuckDB, one file under <code>~/.aftertrace/</code>. Raw tables keep every attribute as JSON so new Claude Code attributes never need a migration. Typed views do the joins.</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Grain</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>spans</code></td>
+<td>one per span</td>
+<td><code>trace_id</code>, <code>span_id</code> (primary key, dedupes retried deliveries), <code>parent_span_id</code>, <code>name</code>, <code>start_ns</code>, <code>end_ns</code>, <code>duration_ms</code>, <code>is_error</code>, <code>session_id</code>, <code>attrs</code> JSON, <code>resource</code> JSON</td>
+</tr>
+<tr>
+<td><code>span_events</code></td>
+<td>one per span event</td>
+<td><code>trace_id</code>, <code>span_id</code>, <code>name</code> (<code>gen_ai.request.attempt</code>, <code>tool.output</code>), <code>time_ns</code>, <code>attrs</code></td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>one per log record</td>
+<td><code>ts_ns</code>, <code>name</code>, <code>session_id</code>, <code>prompt_id</code>, <code>trace_id</code>, <code>span_id</code>, <code>request_id</code>, <code>tool_use_id</code>, <code>attrs</code>, <code>resource</code></td>
+</tr>
+<tr>
+<td><code>metric_points</code></td>
+<td>one per data point</td>
+<td><code>name</code>, <code>unit</code>, <code>ts_ns</code>, <code>value</code>, <code>session_id</code>, <code>attrs</code></td>
+</tr>
+<tr>
+<td><code>findings</code> (later, persisted)</td>
+<td>one per finding per run</td>
+<td><code>rule_id</code>, <code>fingerprint</code>, evidence list, first seen, dismissed</td>
+</tr>
+</tbody></table>
+<p>Views:</p>
+<ul>
+<li><code>llm</code>: <code>llm_request</code> span joined to <code>api_request</code> on <code>request_id</code>. Adds <code>cost_usd</code>, <code>skill.name</code>, <code>agent.name</code>, <code>mcp_server.name</code>, <code>mcp_tool.name</code>, <code>query_source</code>.</li>
+<li><code>tools</code>: <code>claude_code.tool</code> span joined to its <code>blocked_on_user</code> and <code>execution</code> children on <code>parent_span_id</code>, and to <code>tool_decision</code> and <code>tool_result</code> on <code>tool_use_id</code>.</li>
+<li><code>turns</code>: <code>claude_code.interaction</code> with the painted time split. Events join by trace ID, or by <code>prompt.id</code> when trace IDs are absent (metrics and events only).</li>
+<li><code>subagents</code>: Agent tool spans with their subtree (child spans carry <code>agent_id</code> and <code>parent_agent_id</code>), plus <code>subagent_completed</code>.</li>
+<li><code>q_spans</code>: every span with its joined event attributes, the query builder&#39;s dataset.</li>
+</ul>
+<p>Time split per turn: paint each instant of the interaction with the highest-priority active category (waiting on you, retry waste, model, tool run, hooks, other). Overlaps count once, so parallel tools and subagents don&#39;t double count. Hook time comes from <code>claude_code.hook</code> spans when present, else from <code>hook_execution_complete</code> events.</p>
+<p>Critical path per turn: walk back from the root&#39;s end, taking the child that ends last before the cursor, recursing into it, and moving the cursor to its start. On a tie, prefer real work over the <code>tool.execution</code> wrapper so subagent spans stay on the path.</p>
+<h2>Privacy model</h2>
+<ul>
+<li>Aftertrace binds to <code>127.0.0.1</code> only. No telemetry, no update check, no phone-home. A <code>--listen</code> flag is required to accept remote OTLP (team mode).</li>
+<li>Content is redacted at the source by default. Aftertrace recommends <code>OTEL_LOG_TOOL_DETAILS=1</code> because without it skill, agent and MCP names collapse to <code>custom</code>, and says plainly that it also records Bash commands and file paths. It never recommends <code>OTEL_LOG_USER_PROMPTS</code>, <code>OTEL_LOG_TOOL_CONTENT</code> or <code>OTEL_LOG_RAW_API_BODIES</code>.</li>
+<li>If content attributes arrive anyway (<code>user_prompt</code>, <code>prompt</code>, <code>prompt_text</code>, <code>response</code>, <code>tool_input</code>, <code>tool.output</code>, <code>new_context</code>, <code>body</code>), the receiver drops them before storage unless the user sets <code>store_content = true</code>.</li>
+<li><code>user.email</code> and account IDs are dropped at ingest by default.</li>
+<li>The Ask agent is the only path that can send data out. It is off by default, see &quot;Ask agent&quot;.</li>
+<li>Retention: a configurable window (default 30 days) and <code>aftertrace purge</code>.</li>
+</ul>
+<h2>Setup and onboarding</h2>
+<ol>
+<li><code>brew install aftertrace</code> or download one binary. <code>aftertrace</code> starts the receiver on <code>127.0.0.1:4317</code> (gRPC) and <code>:4318</code> (HTTP) and the UI on <code>127.0.0.1:7311</code>.</li>
+<li><code>aftertrace init</code> prints, and with consent merges, the <code>env</code> block into <code>~/.claude/settings.json</code>: <code>CLAUDE_CODE_ENABLE_TELEMETRY</code>, <code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA</code>, the three exporters, protocol, endpoint, <code>OTEL_LOG_TOOL_DETAILS</code>, <code>OTEL_METRICS_INCLUDE_VERSION</code>, <code>OTEL_METRICS_INCLUDE_ENTRYPOINT</code>, <code>OTEL_METRICS_INCLUDE_REPOSITORY</code>. It warns when managed settings exist, because they can redirect telemetry to a company collector.</li>
+<li>The first-run screen confirms the first span.</li>
+<li>Behind an existing collector: add an <code>otlp</code> exporter pointing at Aftertrace, or point <code>aftertrace import</code> at the file exporter&#39;s JSONL. Same parser either way.</li>
+</ol>
+<h2>Out of scope</h2>
+<p>Prompt or response content analysis. Hosted or multi-tenant service. Alerting and paging. Billing reconciliation (cost is Claude Code&#39;s estimate). Editing settings without confirmation. Non-Claude-Code agents. Claude API and Managed Agents traces in v1.</p>
+<h2>MVP and later</h2>
+<p><strong>MVP.</strong> Local OTLP receiver (gRPC and HTTP) and JSONL import. DuckDB store with dedupe and content dropping. Sessions, session, waterfall with detail pane, findings, cost by dimension, query builder (COUNT, SUM, AVG, percentiles, WHERE, GROUP BY, time range, line chart, table, click-through to traces), raw SQL. The 10 MVP rules. First-run checks. Ask agent behind an opt-in flag with the user&#39;s Anthropic key.</p>
+<p><strong>Later.</strong> Heatmap visualisation. Local model for Ask. Remaining rules. Facets on the session list. Minimap, idle folding, lenses, sibling grouping. Findings persistence, dismiss and trends. Before and after comparison for a settings change. Team mode behind a shared collector. Claude API and Managed Agents spans. Community rules registry.</p>
+<h2>Decisions for Rahul</h2>
+<ol>
+<li>Name: Aftertrace (renamed from Saight). Domain not chosen yet. The repo <code>RahulKraken/aftertrace</code> exists, and PRs target <code>main</code>.</li>
+<li>Stack, see <code>stack.md</code>.</li>
+<li>License: Apache-2.0 (decided 2026-10-22).</li>
+<li>Whether Ask ships in the MVP or right after.</li>
+</ol>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/spec.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

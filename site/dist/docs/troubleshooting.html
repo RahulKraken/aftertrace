@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Troubleshooting · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html" class="on" aria-current="page">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Troubleshooting</h1>
+<h2>No data showing up</h2>
+<p>Aftertrace is up (you can open <a href="http://127.0.0.1:7311">http://127.0.0.1:7311</a>) but Sessions is empty.</p>
+<ol>
+<li>Confirm the receivers. <code>aftertrace serve</code> logs <code>OTLP gRPC 127.0.0.1:4317</code> and <code>OTLP HTTP 127.0.0.1:4318</code>. If those ports failed to bind, serve exited.</li>
+<li>Confirm Claude Code env. The keys must live in <code>~/.claude/settings.json</code> or the shell, not in a repo <code>.claude/settings.json</code>. Claude Code ignores exporter variables there. See <a href="claude-code-setup.html">claude-code-setup.md</a>.</li>
+<li>Protocol must be set. Claude Code has no default <code>OTEL_EXPORTER_OTLP_PROTOCOL</code>. <code>grpc</code> goes to <code>:4317</code>. <code>http/protobuf</code> and <code>http/json</code> go to <code>:4318</code> with <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318</code> (no <code>/v1/traces</code> suffix).</li>
+<li>Traces need the beta flag. <code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> alone is metrics (and logs if enabled). Waterfalls need <code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1</code> and <code>OTEL_TRACES_EXPORTER=otlp</code>.</li>
+<li>Restart Claude Code after changing settings. Then send a prompt; metrics can take up to <code>OTEL_METRIC_EXPORT_INTERVAL</code> (default 60s).</li>
+<li>Check <code>/api/sessions</code>. An empty array <code>[]</code> means ingest has not stored a <code>session.id</code>.</li>
+<li><code>claude --debug-file /tmp/claude-otel.log</code>. Failures from your exporter are <code>[3P telemetry]</code>. <code>[Anthropic telemetry]</code> is unrelated.</li>
+<li>Managed settings can strip your endpoint. Detailed beta tracing (<code>ENABLE_BETA_TRACING_DETAILED</code> + <code>BETA_TRACING_ENDPOINT</code>) redirects logs and traces away from the OTLP exporters. Unset that pair.</li>
+<li>Behind a collector, Claude Code must still reach the collector, and the collector must export to Aftertrace&#39;s ports. <a href="behind-a-collector.html">behind-a-collector.md</a>.</li>
+</ol>
+<p>To prove the receivers without Claude Code, <code>aftertrace demo</code> or <code>aftertrace import &lt;dir&gt;</code> of synthetic JSONL. An OTLP client with the same <code>OTEL_EXPORTER_OTLP_*</code> values also works: <code>http/protobuf</code> to <code>http://127.0.0.1:4318</code> posted traces to <code>/v1/traces</code> and they showed up under <code>/api/sql</code>.</p>
+<h2>Port in use</h2>
+<pre><code>otlp grpc: listen tcp 127.0.0.1:4317: bind: address already in use
+</code></pre>
+<p>Something else (another <code>aftertrace serve</code>, a collector) holds 4317, 4318, or 7311. Pick other ports:</p>
+<pre><code class="language-bash">./aftertrace serve --db ./data/aftertrace.duckdb --grpc-port 14317 --http-port 14318 --ui-port 7312
+</code></pre>
+<p>Point Claude Code or the collector at the new gRPC/HTTP ports.</p>
+<h2>DuckDB lock</h2>
+<pre><code>open db: ... Could not set lock on file &quot;./data/aftertrace.duckdb&quot;: Conflicting lock is held in ... (PID ...)
+</code></pre>
+<p>Only one process opens a given DuckDB file. Stop the <code>serve</code> that holds it before <code>demo</code> or <code>import</code> on the same <code>--db</code>.</p>
+<h2><code>aftertrace import</code> path</h2>
+<p>A directory that does not exist exits 1:</p>
+<pre><code>import: stat /tmp/does-not-exist-aftertrace: no such file or directory
+</code></pre>
+<p>An existing empty directory imports zero rows and exits 0. Check that <code>traces.jsonl</code> / <code>logs.jsonl</code> / <code>metrics.jsonl</code> are in that directory, JSONL, uncompressed. <code>format: proto</code> and zstd from the file exporter will not parse.</p>
+<h2>CGO build errors</h2>
+<pre><code>imports github.com/duckdb/duckdb-go-bindings/lib/linux-amd64: build constraints exclude all Go files in ...
+</code></pre>
+<p><code>CGO_ENABLED</code> is 0, or there is no C compiler, or you cross-compiled. <code>go env CGO_ENABLED</code> must print <code>1</code>. Install a C toolchain (<a href="install.html">install.md</a>). Do not set <code>CGO_ENABLED=0</code>. Cross-compilation needs <code>CGO_ENABLED=1</code> and a <code>CC</code> for the target; the prebuilt DuckDB libs exist only for darwin/linux amd64+arm64 and windows-amd64.</p>
+<p>On macOS, <code>xcode-select --install</code>. On Debian/Ubuntu, <code>build-essential</code>. On Windows, MinGW-w64 gcc.</p>
+<h2>Empty UI (stub page)</h2>
+<p>The page says &quot;Aftertrace UI is not in this binary yet&quot; and links <code>/api/sessions</code>.</p>
+<p><code>web/dist/index.html</code> is a committed stub so <code>go test</code> compiles without Node. <code>go:embed</code> takes whatever is on disk at <code>go build</code>. You need:</p>
+<pre><code class="language-bash">cd web &amp;&amp; npm ci &amp;&amp; npm run build:embed &amp;&amp; cd ..
+go build -o aftertrace ./cmd/aftertrace
+</code></pre>
+<p><code>npm run build</code> (mocks on) is the wrong script for the binary. <code>build:embed</code> sets <code>VITE_USE_MOCK=0</code>. Rebuild after any UI change; embed is not live-reload.</p>
+<p><code>npm run dev</code> is a different loop: <a href="http://127.0.0.1:5173">http://127.0.0.1:5173</a> with mock fixtures, no Go process. <a href="https://github.com/RahulKraken/aftertrace/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+<h2>Findings missing after demo</h2>
+<p><code>aftertrace demo</code> prints them on stdout. The UI reads <code>/api/findings</code> from whatever <code>--db</code> <code>serve</code> opened. Serve the same path:</p>
+<pre><code class="language-bash">./aftertrace demo --db ./data/aftertrace.duckdb
+./aftertrace serve --db ./data/aftertrace.duckdb
+</code></pre>
+<p>Default <code>--db</code> is <code>$HOME/.aftertrace/aftertrace.duckdb</code>, not <code>./data/aftertrace.duckdb</code>.</p>
+<h2>Skill / MCP names are <code>custom</code></h2>
+<p>Set <code>OTEL_LOG_TOOL_DETAILS=1</code>. Without it Claude Code redacts those names. Aftertrace stores what it is sent.</p>
+<h2>Prompt text in the UI</h2>
+<p>It should not be there. If it is, you passed <code>--store-content</code> and Claude Code has <code>OTEL_LOG_USER_PROMPTS=1</code>. Drop the flag and ingest new data; existing rows stay until you delete the DB (<a href="privacy.html#how-to-delete-it">privacy.md</a>).</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/troubleshooting.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

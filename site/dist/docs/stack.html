@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stack options · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html" class="on" aria-current="page">Stack decision</a></div></aside>
+<main class="prose"><h1>Stack options</h1>
+<p>Rahul&#39;s decision. This compares three options for the real build. The prototype (Python, DuckDB, vanilla JS) is throwaway and is not a vote for any of them.</p>
+<p>Library facts verified 2026-10-21:</p>
+<ul>
+<li><strong>DuckDB Go binding.</strong> The current module is <code>github.com/duckdb/duckdb-go/v2</code> (this repo pins <code>v2.10506.0</code>, DuckDB <code>v1.5.6</code>). <code>github.com/marcboeker/go-duckdb</code> moved there at <code>v2.5.0</code> and is deprecated. CGO is required. Pre-built static libs cover macOS amd64/arm64, Linux amd64/arm64, and Windows amd64 via <code>duckdb-go-bindings</code>. Cross-compilation must set <code>CGO_ENABLED=1</code> and a matching <code>CC</code>; Go disables CGO when GOOS/GOARCH differ otherwise.</li>
+<li><strong>OTLP receive.</strong> The Collector&#39;s <code>otlpreceiver</code> pulls in the collector component graph (config, host, pdata, extensions) and current releases want a newer Go than this tree. Aftertrace uses <code>go.opentelemetry.io/proto/otlp</code> plus stdlib HTTP and <code>google.golang.org/grpc</code> handlers. Same protobuf/JSON as the file exporter, far less surface area.</li>
+</ul>
+<h2>What the build needs</h2>
+<ul>
+<li>One binary a user can <code>brew install</code> and run, with no Docker, Python or Node on the user&#39;s machine.</li>
+<li>An OTLP receiver for gRPC and HTTP (protobuf and JSON), plus import of the collector&#39;s file-exporter JSONL.</li>
+<li>Embedded DuckDB.</li>
+<li>A static web UI embedded in the binary.</li>
+<li>A rules format that people outside the core team can contribute to.</li>
+<li>An HTTP client for the opt-in Ask agent (Anthropic API, or a local OpenAI-compatible endpoint).</li>
+</ul>
+<h2>Key point: rules should be SQL, whatever the host language</h2>
+<p>Every rule in the spec is one or two SQL queries plus a message template. If a rule is a YAML or TOML file holding SQL and templates, contributors write SQL and never touch the host language. That makes the host choice mostly about the receiver, the binary and the UI. A language-specific escape hatch (a Go, Rust or TS function) can exist for the rare rule that SQL can&#39;t express.</p>
+<h2>Options</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>A. Go + DuckDB + embedded SPA</th>
+<th>B. Rust + DuckDB + embedded SPA</th>
+<th>C. TypeScript on Bun</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Single binary</td>
+<td>Yes. <code>go build</code> plus <code>embed.FS</code> for the UI. Cgo for DuckDB means per-platform builds (goreleaser with cross toolchains or native runners)</td>
+<td>Yes. <code>cargo build</code> with <code>duckdb</code> crate&#39;s <code>bundled</code> feature plus <code>rust-embed</code>. Per-platform builds, slow C++ compile</td>
+<td><code>bun build --compile</code> gives one file, but DuckDB&#39;s native addon must ship beside it or be extracted at runtime. Least proven path</td>
+</tr>
+<tr>
+<td>OTLP library maturity</td>
+<td>Best. The OpenTelemetry Collector is Go. <code>pdata</code> and the OTLP receiver code are the reference implementation, including the JSON encoding the file exporter writes</td>
+<td>Good. <code>opentelemetry-proto</code> crate with <code>tonic</code> (gRPC) and <code>prost</code>. You write the HTTP handlers yourself</td>
+<td>Fair. <code>@opentelemetry/otlp-transformer</code> and proto packages exist for sending. Receiving needs hand-rolled gRPC and protobuf decoding</td>
+</tr>
+<tr>
+<td>DuckDB bindings</td>
+<td><code>duckdb-go</code> (formerly <code>marcboeker/go-duckdb</code>), cgo, widely used, appender API for fast inserts</td>
+<td><code>duckdb-rs</code>, mature, appender API, bundled build</td>
+<td><code>@duckdb/node-api</code> (Neo). Works on Bun in most cases. Native addon packaging is the risk</td>
+</tr>
+<tr>
+<td>Contributor friendliness</td>
+<td>Good. Simple language, fast builds. Rules in SQL files</td>
+<td>Lower. Long compile times and a steeper language for drive-by PRs. Rules in SQL files help</td>
+<td>Highest familiarity for web developers. One language front to back</td>
+</tr>
+<tr>
+<td>UI</td>
+<td>Separate Vite + Preact or Solid app, built to static files and embedded</td>
+<td>Same</td>
+<td>Same app, same language as the server. Could share types with the API</td>
+</tr>
+<tr>
+<td>Ask agent</td>
+<td><code>anthropic-sdk-go</code> exists. Plain HTTP also works</td>
+<td>Plain HTTP with <code>reqwest</code>, no official SDK (check)</td>
+<td>Official TS SDK, most examples</td>
+</tr>
+<tr>
+<td>Binary size and memory</td>
+<td>Moderate (DuckDB dominates, roughly 30 to 60 MB)</td>
+<td>Similar</td>
+<td>Larger (Bun runtime plus DuckDB)</td>
+</tr>
+</tbody></table>
+<h2>Recommendation</h2>
+<p>Option A: Go receiver and API, embedded DuckDB, static Preact or Solid UI embedded in the binary, rules as SQL files. It gives the most mature OTLP receiving code (the collector&#39;s own), a single binary with a known release path, and a contributor story that rests on SQL rather than on Go.</p>
+<p>Choose C if you value one language and fastest UI iteration over distribution risk. Prove the <code>bun build --compile</code> plus DuckDB packaging on macOS arm64 and Linux x64 first. Choose B only if you want Rust for its own sake. It costs contributor reach and build time for little gain here.</p>
+<h2>Repo notes</h2>
+<p>The repo is <code>RahulKraken/aftertrace</code> and PRs target <code>main</code>.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/stack.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>

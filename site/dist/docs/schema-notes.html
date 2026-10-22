@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Schema notes · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html" class="on" aria-current="page">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Schema notes</h1>
+<p>What the docs say Claude Code emits, mapped to what Aftertrace needs. Sources, re-read on 2026-10-21:</p>
+<ul>
+<li>Claude Code monitoring: <a href="https://code.claude.com/docs/en/monitoring-usage">https://code.claude.com/docs/en/monitoring-usage</a></li>
+<li>Claude API OpenTelemetry: <a href="https://platform.claude.com/docs/en/manage-claude/opentelemetry">https://platform.claude.com/docs/en/manage-claude/opentelemetry</a></li>
+</ul>
+<p>Every span, attribute, metric and event name below appears in the Claude Code page unless marked <strong>inferred</strong>. The Claude API page covers a different producer (the SDK and the API itself, spans named <code>anthropic.*</code>). Aftertrace&#39;s MVP does not read it. See the last section.</p>
+<h2>Signals and switches</h2>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Switch</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Metrics</td>
+<td><code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code>, <code>OTEL_METRICS_EXPORTER=otlp</code></td>
+<td>delta temporality (<code>OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE</code>)</td>
+</tr>
+<tr>
+<td>Events (OTLP logs)</td>
+<td><code>OTEL_LOGS_EXPORTER=otlp</code></td>
+<td>5 s export interval</td>
+</tr>
+<tr>
+<td>Traces (beta)</td>
+<td><code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1</code>, <code>OTEL_TRACES_EXPORTER=otlp</code></td>
+<td>5 s export interval</td>
+</tr>
+<tr>
+<td>Hook spans</td>
+<td><code>ENABLE_BETA_TRACING_DETAILED=1</code> plus <code>BETA_TRACING_ENDPOINT</code>, and org allowlisting for interactive CLI</td>
+<td>off</td>
+</tr>
+</tbody></table>
+<p>Claude Code ignores the exporter variables in a repo&#39;s <code>.claude/settings.json</code>. They must go in <code>~/.claude/settings.json</code>, the shell, or managed settings. Managed settings can strip developer-set endpoints, which matters on a work laptop.</p>
+<h2>Span tree</h2>
+<pre><code class="language-text">claude_code.interaction                      one per user prompt, root of a trace
+├── claude_code.llm_request                  one per API request, retries included
+├── claude_code.hook                         detailed beta tracing only
+└── claude_code.tool
+    ├── claude_code.tool.blocked_on_user     permission wait
+    ├── claude_code.tool.execution           tool body
+    └── (Agent tool) subagent llm_request / tool spans, as siblings of tool.execution
+</code></pre>
+<p>Every span carries the standard attributes and <code>span.type</code>. <code>llm_request</code>, <code>tool.execution</code> and <code>hook</code> set status <code>ERROR</code> on failure. The others always end <code>UNSET</code>.</p>
+<h2>Attributes Aftertrace uses</h2>
+<p><strong><code>claude_code.interaction</code></strong>: <code>interaction.sequence</code>, <code>interaction.duration_ms</code>, <code>user_prompt_length</code>, <code>parent.source</code> (v2.1.268). <code>user_prompt</code> is <code>&lt;REDACTED&gt;</code> unless <code>OTEL_LOG_USER_PROMPTS=1</code>.</p>
+<p><strong><code>claude_code.llm_request</code></strong>: <code>model</code>, <code>effort</code> (v2.1.274), <code>speed</code>, <code>query_source_safe</code> (v2.1.268), <code>agent_id</code>, <code>parent_agent_id</code>, <code>llm_request.context</code>, <code>duration_ms</code> (includes retries), <code>ttft_ms</code>, <code>first_content_ms</code> (v2.1.268), <code>input_tokens</code> (excludes cache), <code>output_tokens</code>, <code>cache_read_tokens</code>, <code>cache_creation_tokens</code>, <code>request_id</code>, <code>client_request_id</code>, <code>attempt</code>, <code>success</code>, <code>status_code</code>, <code>error</code>, <code>error_class</code> (v2.1.268), <code>stop_reason</code>, <code>response.has_tool_call</code>. Span event <code>gen_ai.request.attempt</code> with <code>attempt</code> and <code>client_request_id</code>, one per attempt.</p>
+<p>There is no cost and no skill, plugin or MCP attribution on this span. Those live on the <code>api_request</code> event. Aftertrace joins them on <code>request_id</code>.</p>
+<p><strong><code>claude_code.tool</code></strong>: <code>tool_name</code>, <code>tool_name_safe</code> (v2.1.268), <code>tool_use_id</code>, <code>duration_ms</code> (wait plus execution), <code>result_tokens</code>, <code>agent_id</code>, <code>parent_agent_id</code>, <code>bash_command_class</code> and <code>bash_argv0</code> (v2.1.268). Gated by <code>OTEL_LOG_TOOL_DETAILS</code>: <code>file_path</code>, <code>full_command</code>, <code>skill_name</code>, <code>subagent_type</code>.</p>
+<p><strong><code>claude_code.tool.blocked_on_user</code></strong>: <code>duration_ms</code>, <code>decision</code> (<code>accept</code>, <code>reject</code>, <code>cancelled</code>), <code>source</code> (<code>config</code>, <code>hook</code>, <code>user_temporary</code>, <code>user_abort</code>, ...).</p>
+<p><strong><code>claude_code.tool.execution</code></strong>: <code>duration_ms</code>, <code>tool_use_id</code>, <code>success</code>, <code>error</code>, <code>error_class</code> (v2.1.268).</p>
+<p><strong><code>claude_code.hook</code></strong>: <code>hook_event</code>, <code>hook_name</code>, <code>num_hooks</code>, <code>duration_ms</code>, <code>num_success</code>, <code>num_blocking</code>, <code>num_non_blocking_error</code>, <code>num_cancelled</code>.</p>
+<h2>Events Aftertrace uses</h2>
+<p>All events carry the standard attributes plus <code>event.name</code>, <code>event.timestamp</code>, <code>event.sequence</code>, and <code>prompt.id</code>. A record emitted while an interaction is active carries that interaction span&#39;s trace and span IDs.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Fields used</th>
+<th>Join key</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>claude_code.user_prompt</code></td>
+<td><code>prompt_length</code>, <code>command_name</code>, <code>command_source</code></td>
+<td><code>prompt.id</code>, trace ID</td>
+</tr>
+<tr>
+<td><code>claude_code.api_request</code></td>
+<td><code>cost_usd</code>, <code>cost_usd_micros</code>, tokens, <code>query_source</code>, <code>effort</code>, <code>agent.name</code>, <code>skill.name</code>, <code>plugin.name</code>, <code>mcp_server.name</code>, <code>mcp_tool.name</code></td>
+<td><code>request_id</code> to <code>llm_request</code></td>
+</tr>
+<tr>
+<td><code>claude_code.api_error</code></td>
+<td><code>error</code>, <code>status_code</code>, <code>attempt</code>, <code>client_request_id</code></td>
+<td><code>client_request_id</code> (no <code>request_id</code> on timeouts)</td>
+</tr>
+<tr>
+<td><code>claude_code.api_retries_exhausted</code></td>
+<td><code>total_attempts</code>, <code>total_retry_duration_ms</code>, <code>status_code</code></td>
+<td>trace ID, <code>session.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.api_refusal</code></td>
+<td><code>server_fallback_hop</code>, <code>has_category</code></td>
+<td><code>request_id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.tool_decision</code></td>
+<td><code>decision</code>, <code>source</code>, <code>tool_source</code>, <code>permission_mode</code> and <code>classifier_verdict</code> (v2.1.301), <code>tool_parameters</code> (gated)</td>
+<td><code>tool_use_id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.tool_result</code></td>
+<td><code>success</code>, <code>duration_ms</code>, <code>error_type</code>, <code>decision_source</code>, <code>tool_result_size_bytes</code>, <code>mcp_server_scope</code>, <code>tool_parameters</code> (gated)</td>
+<td><code>tool_use_id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.skill_activated</code></td>
+<td><code>skill.name</code>, <code>invocation_trigger</code>, <code>skill.source</code>, <code>plugin.name</code></td>
+<td><code>prompt.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.subagent_completed</code></td>
+<td><code>agent_type</code>, <code>total_tool_uses</code>, <code>duration_ms</code>, <code>total_tokens</code> (final request only), <code>model</code>, <code>final_model</code>, <code>model_swapped</code></td>
+<td>none direct, see open questions</td>
+</tr>
+<tr>
+<td><code>claude_code.compaction</code></td>
+<td><code>trigger</code>, <code>success</code>, <code>duration_ms</code>, <code>pre_tokens</code>, <code>post_tokens</code>, <code>precompute_reuse</code></td>
+<td><code>session.id</code>, trace ID</td>
+</tr>
+<tr>
+<td><code>claude_code.hook_execution_start</code> / <code>_complete</code></td>
+<td><code>hook_event</code>, <code>hook_name</code>, <code>num_hooks</code>, <code>num_blocking</code>, <code>total_duration_ms</code>, output char counts (v2.1.280)</td>
+<td>trace ID</td>
+</tr>
+<tr>
+<td><code>claude_code.hook_registered</code></td>
+<td><code>hook_event</code>, <code>hook_type</code>, <code>hook_source</code></td>
+<td><code>session.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.plugin_loaded</code></td>
+<td><code>plugin.name</code>, <code>skill_path_count</code>, <code>agent_path_count</code>, <code>has_mcp</code>, <code>has_hooks</code></td>
+<td><code>session.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.mcp_server_connection</code></td>
+<td><code>status</code>, <code>transport_type</code>, <code>server_scope</code>, <code>duration_ms</code>, <code>error_code</code>, <code>server_name</code> (gated)</td>
+<td><code>session.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.permission_mode_changed</code></td>
+<td><code>from_mode</code>, <code>to_mode</code>, <code>trigger</code></td>
+<td><code>session.id</code></td>
+</tr>
+<tr>
+<td><code>claude_code.assistant_response</code></td>
+<td><code>response_length</code>, <code>model</code>, <code>query_source</code></td>
+<td><code>request_id</code></td>
+</tr>
+</tbody></table>
+<p>Not used in the MVP: <code>auth</code>, <code>internal_error</code>, <code>plugin_installed</code>, <code>at_mention</code>, <code>hook_plugin_metrics</code>, <code>feedback_survey</code>, <code>retention_sweep</code>, <code>managed_settings_resolved</code>, <code>api_request_body</code>, <code>api_response_body</code>.</p>
+<h2>Metrics</h2>
+<p><code>claude_code.session.count</code> (<code>start_type</code>), <code>claude_code.cost.usage</code> (USD), <code>claude_code.token.usage</code> (<code>type</code>: <code>input</code>, <code>output</code>, <code>cacheRead</code>, <code>cacheCreation</code>), <code>claude_code.active_time.total</code> (<code>type</code>: <code>user</code>, <code>cli</code>), <code>claude_code.lines_of_code.count</code>, <code>claude_code.commit.count</code>, <code>claude_code.pull_request.count</code>, <code>claude_code.code_edit_tool.decision</code>. Cost and token counters carry <code>model</code>, <code>query_source</code> (<code>main</code>, <code>subagent</code>, <code>auxiliary</code>), <code>effort</code>, <code>agent.name</code>, <code>skill.name</code>, <code>plugin.name</code>, <code>mcp_server.name</code>, <code>mcp_tool.name</code>.</p>
+<p>Aftertrace uses metrics only when traces and events are missing (metrics-only users) and for <code>active_time.total</code> and lines of code. Spans plus <code>api_request</code> events give the same cost at request grain.</p>
+<h2>Rule to signal map</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Signals</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Allow rule candidate</td>
+<td><code>blocked_on_user.decision/source</code> + parent <code>tool.tool_name</code>, <code>bash_argv0</code>, <code>full_command</code>; <code>tool_decision.source</code></td>
+</tr>
+<tr>
+<td>Retry waste</td>
+<td><code>llm_request.attempt</code>, <code>gen_ai.request.attempt</code> span events</td>
+</tr>
+<tr>
+<td>Retries exhausted</td>
+<td><code>api_retries_exhausted</code>, <code>api_error.attempt</code>, later <code>api_request</code> in the same session</td>
+</tr>
+<tr>
+<td>Cache drop after compaction</td>
+<td><code>compaction</code> event, next main-thread <code>llm_request</code> cache tokens, <code>api_request.query_source = compact</code></td>
+</tr>
+<tr>
+<td>Model switch cache rebuild</td>
+<td>consecutive main-thread <code>llm_request.model</code>, <code>cache_read_tokens = 0</code></td>
+</tr>
+<tr>
+<td>Expensive skill</td>
+<td><code>api_request.skill.name</code>, <code>cost_usd</code>, <code>skill_activated</code></td>
+</tr>
+<tr>
+<td>Plugin skills unused</td>
+<td><code>plugin_loaded.skill_path_count</code>, absence of <code>skill_activated.plugin.name</code></td>
+</tr>
+<tr>
+<td>Repeated tool errors</td>
+<td><code>tool.execution.success/error_class</code>, <code>tool.tool_name</code>, <code>full_command</code></td>
+</tr>
+<tr>
+<td>Slow hooks</td>
+<td><code>hook_execution_complete.total_duration_ms</code></td>
+</tr>
+<tr>
+<td>Large MCP results</td>
+<td><code>tool.tool_name</code> (<code>mcp__</code> prefix, inferred), <code>result_tokens</code>, <code>api_request.mcp_server.name</code></td>
+</tr>
+</tbody></table>
+<h2>Version gates that matter</h2>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>What it adds</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>v2.1.268</td>
+<td><code>query_source_safe</code>, <code>first_content_ms</code>, <code>error_class</code>, <code>tool_name_safe</code>, <code>bash_command_class</code>, <code>bash_argv0</code>, <code>parent.source</code></td>
+</tr>
+<tr>
+<td>v2.1.269</td>
+<td><code>vcs.*</code> repo attributes (needs <code>OTEL_METRICS_INCLUDE_REPOSITORY=true</code>)</td>
+</tr>
+<tr>
+<td>v2.1.273</td>
+<td>real skill, agent, plugin and MCP names on <code>api_request</code> and the cost and token counters (with <code>OTEL_LOG_TOOL_DETAILS=1</code>)</td>
+</tr>
+<tr>
+<td>v2.1.274</td>
+<td><code>effort</code></td>
+</tr>
+<tr>
+<td>v2.1.280</td>
+<td>hook output char counts</td>
+</tr>
+<tr>
+<td>v2.1.301</td>
+<td><code>permission_mode</code>, <code>classifier_verdict</code> on <code>tool_decision</code></td>
+</tr>
+</tbody></table>
+<p>Aftertrace should read <code>app.version</code> (or <code>service.version</code>) and grey out any rule whose inputs need a newer version, instead of reporting a false &quot;never happens&quot;.</p>
+<h2>Open questions to settle with real data</h2>
+<ol>
+<li><strong>Event name location.</strong> The docs give &quot;Event Name: <code>claude_code.api_request</code>&quot; and an <code>event.name</code> attribute of <code>api_request</code>. The prototype assumes the full name is the log record body (<strong>inferred</strong>) and reads <code>event.name</code> first.</li>
+<li><strong>Resource or record attributes.</strong> Are <code>session.id</code> and the other standard attributes on the resource, the record, or both? The prototype merges both.</li>
+<li><strong><code>tool_name</code> for MCP tools on spans.</strong> Events use the literal <code>mcp_tool</code> for user-configured servers. The span&#39;s <code>tool_name</code> is &quot;Tool name&quot;, and <code>tool_name_safe</code> exists to hide user-chosen names, which suggests the span carries <code>mcp__server__tool</code> (<strong>inferred</strong>).</li>
+<li><strong>Joining <code>subagent_completed</code> to its Agent tool span.</strong> No <code>tool_use_id</code> or <code>agent_id</code> on the event. Candidates: <code>prompt.id</code> plus <code>agent_type</code> plus end time, or the <code>agent_id</code> on child spans.</li>
+<li><strong>Retry timing.</strong> Does each <code>gen_ai.request.attempt</code> span event fire at attempt start? The prototype treats time before the last attempt event as retry waste (<strong>inferred</strong>). Check whether a single-attempt request also emits one event.</li>
+<li><strong>Events and trace IDs in interactive sessions.</strong> The docs say records emitted during an interaction carry the interaction&#39;s IDs. Confirm this holds without <code>TRACEPARENT</code>, and for records emitted from subagents.</li>
+<li><strong><code>query_source</code> values.</strong> <code>compact</code> is documented on events. Confirm what compaction requests look like on spans (<code>query_source_safe</code>).</li>
+<li><strong>Duplicate deliveries.</strong> The API page says spans can arrive more than once. Aftertrace dedupes on trace ID plus span ID. Check whether Claude Code&#39;s exporter can duplicate log records too, since they have no unique ID (dedupe key candidate: <code>session.id</code> plus <code>event.sequence</code> plus <code>event.timestamp</code>).</li>
+<li><strong>Skill inventory.</strong> No event lists installed skills, only <code>plugin_loaded.skill_path_count</code>. &quot;Skill never activates&quot; can only work per plugin, or with an opt-in local scan of <code>~/.claude/skills</code>.</li>
+<li><strong>Volume.</strong> Measure a week of Rahul&#39;s traces: spans per turn, file size, ingest time.</li>
+</ol>
+<h2>Claude API and Managed Agents traces (later)</h2>
+<p>The API page documents a separate producer: SDK client spans and API server spans such as <code>anthropic.messages.create</code>, <code>anthropic.model_request</code>, <code>anthropic.messages.tool_runner</code>, <code>anthropic.custom_tool_use</code>, <code>anthropic.session.turn</code>, <code>anthropic.compaction</code> and <code>anthropic.session.outcome_evaluation</code>, grouped by <code>gen_ai.conversation.id</code> and <code>anthropic.session.id</code>. Their usage attributes (<code>gen_ai.usage.input_tokens</code>) already include cache tokens, unlike Claude Code&#39;s <code>input_tokens</code>. Mixing the two needs a per-producer token rule. Claude Code requests to the Anthropic API carry a <code>traceparent</code> and record the API&#39;s <code>traceresponse</code> as a span link, so a later Aftertrace could stitch server spans under <code>claude_code.llm_request</code>.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/schema-notes.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>
