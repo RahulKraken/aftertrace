@@ -11,7 +11,7 @@ var ContentKeys = []string{
 // IdentityKeys are account identifiers dropped by default.
 var IdentityKeys = []string{
 	"user.email", "user.account_uuid", "user.account_id",
-	"user.id", "organization.id",
+	"user.id", "organization.id", "process.owner",
 }
 
 // Attrs removes content and identity keys from a flat attribute map.
