@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "wouter"
+import { ModelName } from "../components/SpanIcon"
 import { api } from "../lib/api"
-import { dur, impactParts, int, pct, tok, usd, when } from "../lib/format"
+import { dur, impactParts, int, pct, tok, usd, when, modelName } from "../lib/format"
 import type { AppDetail, AppGroup, Finding } from "../lib/types"
 
 export function AppPage() {
@@ -112,12 +113,12 @@ export function AppPage() {
                 <button type="button" key={r.trace_id} className="list-row req-row" onClick={() => nav(`/trace/${r.trace_id}?app=1`)}>
                   <span className={`req-dot${r.error ? " is-err" : ""}`} />
                   <span className="list-title mono">{r.name}</span>
-                  <span className="mono mute">
+                  <span className="num mute">
                     {w.date} {w.time}
                   </span>
-                  <span className="mono mute">{r.calls} calls</span>
-                  <span className="mono">{dur(r.duration_ms)}</span>
-                  <span className="mono">{usd(r.cost_usd)}</span>
+                  <span className="num mute">{r.calls} calls</span>
+                  <span className="num">{dur(r.duration_ms)}</span>
+                  <span className="num">{usd(r.cost_usd)}</span>
                 </button>
               )
             })}
@@ -133,7 +134,7 @@ export function AppPage() {
                 <button type="button" key={e.span_id} className="err-row" onClick={() => nav(`/trace/${e.trace_id}?span=${e.span_id}&app=1`)}>
                   <span className="mono err-text">{e.error_type || "error"}</span>
                   <span className="err-msg">{e.message || e.name}</span>
-                  <span className="mono mute">{when(e.start_ns).date}</span>
+                  <span className="num mute">{when(e.start_ns).date}</span>
                 </button>
               ))}
             </div>
@@ -184,8 +185,8 @@ function Groups({ title, hint, rows }: { title: string; hint?: string; rows: App
           {rows.map((r) => (
             <tr key={r.key}>
               <td>
-                <span className="mono">{r.key}</span>
-                {title !== "Models" && r.models.length > 0 && <span className="mute"> · {r.models.join(", ")}</span>}
+                {title === "Models" ? <ModelName model={r.key} /> : <span className="mono">{r.key}</span>}
+                {title !== "Models" && r.models.length > 0 && <span className="mute"> · {r.models.map((m) => modelName(m) || m).join(", ")}</span>}
               </td>
               <td className="num r">{int(r.calls)}</td>
               <td className="num r">{usd(r.cost_usd)}</td>

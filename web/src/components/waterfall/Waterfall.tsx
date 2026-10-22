@@ -600,38 +600,43 @@ export function Waterfall({
               </AnimatePresence>
             </motion.div>
           </div>
-          {card && byId.get(card) ? (
-            <SpanCard
-              span={byId.get(card)!}
-              content={content}
-              running={Boolean((live && byId.get(card)!.end_ns > nowNs) || (trace.in_progress && byId.get(card)!.end_ns >= root.end_ns))}
-              t0={t0}
-              top={(() => {
-                const i = rows.findIndex((r) => r.span.span_id === card)
-                return i < 0 ? 0 : 24 + i * ROW - scrollTop + ROW + 4
-              })()}
-              left={(labW || 280) + Math.max(0, Math.min((xOf(byId.get(card)!.start_ns) / 100) * trackW, trackW - 380))}
-              onClose={() => setCard(null)}
-              onDetails={() => {
-                setPaneOpen(true)
-                setCard(null)
-              }}
-            />
-          ) : null}
+          <AnimatePresence>
+            {card && byId.get(card) ? (
+              <SpanCard
+                key={card}
+                span={byId.get(card)!}
+                content={content}
+                running={Boolean((live && byId.get(card)!.end_ns > nowNs) || (trace.in_progress && byId.get(card)!.end_ns >= root.end_ns))}
+                t0={t0}
+                top={(() => {
+                  const i = rows.findIndex((r) => r.span.span_id === card)
+                  return i < 0 ? 0 : 24 + i * ROW - scrollTop + ROW + 4
+                })()}
+                left={(labW || 280) + Math.max(0, Math.min((xOf(byId.get(card)!.start_ns) / 100) * trackW, trackW - 380))}
+                onClose={() => setCard(null)}
+                onDetails={() => {
+                  setPaneOpen(true)
+                  setCard(null)
+                }}
+              />
+            ) : null}
+          </AnimatePresence>
         </div>
       </div>
-      {paneOpen && (
-        <PaneColumn>
-          <DetailPane
-            node={selected}
-            trace={trace}
-            findings={findings}
-            content={content}
-            onSelect={(id) => setSel(id)}
-            onClose={() => setPaneOpen(false)}
-          />
-        </PaneColumn>
-      )}
+      <AnimatePresence>
+        {paneOpen && (
+          <PaneColumn key="pane">
+            <DetailPane
+              node={selected}
+              trace={trace}
+              findings={findings}
+              content={content}
+              onSelect={(id) => setSel(id)}
+              onClose={() => setPaneOpen(false)}
+            />
+          </PaneColumn>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

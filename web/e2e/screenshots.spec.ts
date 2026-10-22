@@ -185,6 +185,7 @@ test("waterfall selected: pane takes the budget", async ({ page }) => {
   await page.waitForTimeout(500)
   await waitRow.dispatchEvent("click")
   // A click opens the card; its link opens the full inspector.
+  await expect(page.locator(".span-card")).toBeVisible()
   await page.locator(".span-card .sc-more").click()
   await expect(page.locator(".pane")).toBeVisible()
   await expect(page.locator(".wf")).toHaveClass(/has-pane/)
@@ -369,7 +370,7 @@ test("recap: story, lanes, receipt, week switch", async ({ page }) => {
   await expect(page.locator(".dl-row").first()).toBeVisible()
   await shot(page, "recap", "light")
   await shot(page, "recap", "dark")
-  const label = await page.locator(".recap-nav .mono").textContent()
+  const label = await page.locator(".recap-nav .num").textContent()
   await page.getByRole("button", { name: "Previous week" }).click()
-  await expect(page.locator(".recap-nav .mono")).not.toHaveText(label || "")
+  await expect(page.locator(".recap-nav .num")).not.toHaveText(label || "")
 })

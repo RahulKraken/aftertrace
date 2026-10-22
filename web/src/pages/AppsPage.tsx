@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { ArrowRight, Boxes } from "lucide-react"
+import { ModelName } from "../components/SpanIcon"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
 import { ago, dur, int, pct, usd } from "../lib/format"
@@ -55,7 +56,7 @@ export function AppsPage() {
             <button type="button" key={a.service} className="app-card" onClick={() => nav(`/apps/${encodeURIComponent(a.service)}`)}>
               <div className="app-hd">
                 <span className={`recv-dot${a.live ? " is-on" : ""}`} />
-                <span className="app-name mono">{a.service}</span>
+                <span className="app-name">{a.service}</span>
                 <span className="mute app-seen">{ago(a.last_ns, now)}</span>
               </div>
               {a.calls ? (
@@ -81,8 +82,8 @@ export function AppsPage() {
                   <div className="app-foot">
                     <span className="app-models">
                       {a.models.map((m) => (
-                        <span key={m} className="chip mono">
-                          {m}
+                        <span key={m} className="chip">
+                          <ModelName model={m} size={12} />
                         </span>
                       ))}
                     </span>

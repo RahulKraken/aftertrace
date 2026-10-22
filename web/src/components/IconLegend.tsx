@@ -1,33 +1,22 @@
-import {
-  Bot,
-  FilePenLine,
-  FileText,
-  Globe,
-  MessageSquare,
-  Pause,
-  Play,
-  Plug,
-  Search,
-  Sparkles,
-  SquareTerminal,
-  WandSparkles,
-  Workflow,
-} from "lucide-react"
+import type { ReactNode } from "react"
+import { Bot, FilePenLine, FileText, Globe, Hourglass, MessageSquare, Play, Plug, SquareTerminal, TextSearch, WandSparkles, Webhook } from "lucide-react"
+import { siClaude } from "simple-icons"
+import { BrandIcon } from "./BrandIcon"
 
-const ITEMS = [
-  { Icon: MessageSquare, label: "turn" },
-  { Icon: Sparkles, label: "model" },
-  { Icon: SquareTerminal, label: "Bash" },
-  { Icon: FileText, label: "read" },
-  { Icon: FilePenLine, label: "edit" },
-  { Icon: Search, label: "search" },
-  { Icon: Globe, label: "web" },
-  { Icon: WandSparkles, label: "skill" },
-  { Icon: Plug, label: "MCP" },
-  { Icon: Bot, label: "subagent" },
-  { Icon: Pause, label: "waiting on you" },
-  { Icon: Play, label: "run" },
-  { Icon: Workflow, label: "hook" },
+const ITEMS: { icon: ReactNode; label: string }[] = [
+  { icon: <MessageSquare size={12} strokeWidth={1.75} />, label: "your prompt" },
+  { icon: <BrandIcon icon={siClaude} size={12} />, label: "model call" },
+  { icon: <SquareTerminal size={12} strokeWidth={1.75} />, label: "shell command (or the program's own mark)" },
+  { icon: <FileText size={12} strokeWidth={1.75} />, label: "read a file" },
+  { icon: <FilePenLine size={12} strokeWidth={1.75} />, label: "edit a file" },
+  { icon: <TextSearch size={12} strokeWidth={1.75} />, label: "search" },
+  { icon: <Globe size={12} strokeWidth={1.75} />, label: "web" },
+  { icon: <WandSparkles size={12} strokeWidth={1.75} />, label: "skill" },
+  { icon: <Plug size={12} strokeWidth={1.75} />, label: "connector (the service's mark when known)" },
+  { icon: <Bot size={12} strokeWidth={1.75} />, label: "subagent" },
+  { icon: <Hourglass size={12} strokeWidth={1.75} />, label: "waiting on you" },
+  { icon: <Play size={12} strokeWidth={1.75} />, label: "running" },
+  { icon: <Webhook size={12} strokeWidth={1.75} />, label: "hook" },
 ]
 
 export function IconLegend() {
@@ -35,9 +24,9 @@ export function IconLegend() {
     <div className="icon-legend">
       span
       <div className="icon-legend-pop">
-        {ITEMS.map(({ Icon, label }) => (
+        {ITEMS.map(({ icon, label }) => (
           <div key={label}>
-            <Icon size={12} strokeWidth={1.75} />
+            {icon}
             {label}
           </div>
         ))}

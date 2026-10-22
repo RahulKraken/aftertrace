@@ -193,11 +193,13 @@ export function TurnStory({
           </div>
         </div>
       </div>
-      {selected ? (
-        <PaneColumn>
-          <DetailPane node={selected} trace={trace} findings={findings} content={content} onSelect={setSel} onClose={() => setSel(null)} />
-        </PaneColumn>
-      ) : null}
+      <AnimatePresence>
+        {selected ? (
+          <PaneColumn key="pane">
+            <DetailPane node={selected} trace={trace} findings={findings} content={content} onSelect={setSel} onClose={() => setSel(null)} />
+          </PaneColumn>
+        ) : null}
+      </AnimatePresence>
     </div>
   )
 }

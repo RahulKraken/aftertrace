@@ -1,21 +1,33 @@
+/* Calm by default. Warm paper neutrals instead of cool greys, ink that is
+   dark but not black, and one harmonised family of hues: indigo for the model,
+   teal for tools, amber for you (and the brand), rose for failure. */
 :root {
   color-scheme: light;
-  --bg: #f7f7f8;
-  --bg-recessed: #f2f2f3;
-  --surface: #ffffff;
-  --surface-2: #fafafa;
-  --ink: #0a0a0a;
-  --ink-2: #171717;
-  --mute: #737373;
-  --faint: #a3a3a3;
-  --line: #ebebeb;
-  --line-2: #e5e5e5;
-  --sel: #f4f4f5;
-  --sel-strong: #ececee;
-  --shadow: none;
-  --shadow-pane: none;
-  --shadow-toast: 0 12px 40px color-mix(in oklab, var(--ink) 14%, transparent);
-  --radius: 8px;
+  --bg: #f6f5f1;
+  --bg-recessed: #efede8;
+  --surface: #fffefb;
+  --surface-2: #faf9f5;
+  --ink: #1f1d1a;
+  --ink-2: #34312c;
+  --mute: #75716a;
+  --faint: #a8a39a;
+  --line: #e7e4dd;
+  --line-2: #dfdbd3;
+  --sel: #f2f0ea;
+  --sel-strong: #ebe8e1;
+
+  /* Elevation: soft, warm, layered. Nothing floats without a shadow. */
+  --shadow-1: 0 1px 2px rgb(31 29 26 / 0.05);
+  --shadow-2: 0 1px 2px rgb(31 29 26 / 0.04), 0 4px 12px -2px rgb(31 29 26 / 0.06);
+  --shadow-pop: 0 2px 6px rgb(31 29 26 / 0.06), 0 16px 40px -12px rgb(31 29 26 / 0.22);
+  --shadow: var(--shadow-1);
+  --shadow-pane: -12px 0 32px -24px rgb(31 29 26 / 0.25);
+  --shadow-toast: var(--shadow-pop);
+  --ring: 0 0 0 3px color-mix(in oklab, var(--hue-model) 22%, transparent);
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
   --top: 0px;
   --side: 224px;
   --pane: 400px;
@@ -25,59 +37,74 @@
   --display: var(--sans);
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
 
-  --hue-model: #2563eb;
-  --hue-model-soft: #bfdbfe;
-  --hue-tool: #12b76a;
-  --hue-tool-soft: #bbf7d0;
-  --hue-agent: #7c3aed;
-  --hue-agent-soft: #ddd6fe;
-  --hue-skill: #c026d3;
-  --hue-mcp: #0891b2;
-  --hue-hook: #0ea5e9;
-  --hue-file: #059669;
-  --hue-bash: #0d9488;
-  --hue-web: #3b82f6;
-  --hue-wait: #f5a524;
-  --hue-wait-bg: #fff7ed;
-  --hue-retry: #ef4444;
-  --hue-turn: #a1a1aa;
-  --hue-ok: #16a34a;
+  /* Motion: fast to respond, gentle to settle. Exits are quicker than entries. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-1: 150ms;
+  --dur-2: 220ms;
+  --dur-3: 320ms;
+
+  --hue-model: #6359e0;
+  --hue-model-soft: #dcd9fa;
+  --hue-tool: #14998e;
+  --hue-tool-soft: #c9ece7;
+  --hue-agent: #9466d6;
+  --hue-agent-soft: #e6dbf6;
+  --hue-skill: #bd5a97;
+  --hue-mcp: #2b88b0;
+  --hue-hook: #4b93c9;
+  --hue-file: #2f9775;
+  --hue-bash: #1e938e;
+  --hue-web: #5878d6;
+  --hue-wait: #e29a2e;
+  --hue-wait-bg: #fcf2e0;
+  --hue-retry: #d9534f;
+  --hue-turn: #aaa59c;
+  --hue-ok: #3a9566;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0a0a;
-  --bg-recessed: #111111;
-  --surface: #141414;
-  --surface-2: #1a1a1a;
-  --ink: #fafafa;
-  --ink-2: #e5e5e5;
-  --mute: #a3a3a3;
-  --faint: #737373;
-  --line: #262626;
-  --line-2: #2e2e2e;
-  --sel: #1c1c1c;
-  --sel-strong: #262626;
+  --bg: #141312;
+  --bg-recessed: #0f0e0d;
+  --surface: #1b1a18;
+  --surface-2: #211f1d;
+  --ink: #edebe6;
+  --ink-2: #d8d5ce;
+  --mute: #9d988e;
+  --faint: #6d6962;
+  --line: #2b2926;
+  --line-2: #34312d;
+  --sel: #23211f;
+  --sel-strong: #2c2a27;
 
-  --hue-model: #60a5fa;
-  --hue-model-soft: #1e3a5f;
-  --hue-tool: #34d399;
-  --hue-tool-soft: #14532d;
-  --hue-agent: #a78bfa;
-  --hue-agent-soft: #3b0764;
-  --hue-skill: #e879f9;
-  --hue-mcp: #22d3ee;
-  --hue-hook: #38bdf8;
-  --hue-file: #34d399;
-  --hue-bash: #2dd4bf;
-  --hue-web: #93c5fd;
-  --hue-wait: #fbbf24;
-  --hue-wait-bg: #3f2a0a;
-  --hue-retry: #f87171;
-  --hue-turn: #737373;
-  --hue-ok: #4ade80;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px -2px rgb(0 0 0 / 0.35);
+  --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.35), 0 18px 44px -12px rgb(0 0 0 / 0.6);
+  --shadow-pane: -12px 0 32px -20px rgb(0 0 0 / 0.6);
+
+  --hue-model: #9a92f4;
+  --hue-model-soft: #2f2b5c;
+  --hue-tool: #3fc0b2;
+  --hue-tool-soft: #163f3a;
+  --hue-agent: #b996ef;
+  --hue-agent-soft: #3a2a52;
+  --hue-skill: #e08bc0;
+  --hue-mcp: #5fb4da;
+  --hue-hook: #7db9e6;
+  --hue-file: #5cc29c;
+  --hue-bash: #4cc3bd;
+  --hue-web: #8ea5f0;
+  --hue-wait: #f0b45a;
+  --hue-wait-bg: #382a14;
+  --hue-retry: #ef7a77;
+  --hue-turn: #77726a;
+  --hue-ok: #67bf8e;
 }
 
+/* Reduced motion keeps fades (they help comprehension) and drops movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

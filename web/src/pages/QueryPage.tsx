@@ -5,7 +5,8 @@ import { dur, tok, usd, when } from "../lib/format"
 import type { AskResult, AskSuggestions, Field, QueryResult, QuerySpec, SqlResult, TraceHit } from "../lib/types"
 
 const AGGS = ["COUNT", "SUM", "AVG", "MIN", "MAX", "P50", "P95", "P99"]
-const PAL = ["#2563eb", "#f5a524", "#12b76a", "#7c3aed", "#0891b2"]
+// The calm hue family, in the order series appear.
+const PAL = ["#6359e0", "#e29a2e", "#14998e", "#9466d6", "#2b88b0"]
 
 function opsFor(fields: Field[], key: string): string[] {
   const f = fields.find((x) => x.key === key)

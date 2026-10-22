@@ -80,7 +80,7 @@ export function Shell({
 }) {
   const [cmd, setCmd] = useState(false)
   const [status, setStatus] = useState<Status | null>(null)
-  const [, nav] = useLocation()
+  const [loc, nav] = useLocation()
   const pendingG = useRef(0)
 
   useEffect(() => {
@@ -180,7 +180,10 @@ export function Shell({
               You are looking at synthetic demo data. <a href="../docs/install.html">Install Aftertrace</a> to see your own Claude Code, agents and apps.
             </div>
           )}
-          {children}
+          {/* Keyed by page, not by query: switching Story and Timeline is not a new page. */}
+          <div key={pageKey(loc)} className="page-in">
+            {children}
+          </div>
         </main>
       </div>
       <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(theme === "dark" ? "light" : "dark")} />
@@ -218,4 +221,8 @@ function ReceivingLine({ status }: { status: Status | null }) {
       <i className="recv-dot" /> {fresh ? "Receiving" : "Last data"} · {ago(status.last_ns, now)}
     </span>
   )
+}
+
+function pageKey(loc: string): string {
+  return loc.split("?")[0]
 }

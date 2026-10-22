@@ -11,7 +11,7 @@
    {
     "trace_id": "b72cc2de8b97cc7980e4893460cf4c48",
     "span_id": "4ff0ee0645ff911a",
-    "label": "api_retries_exhausted, 11 attempts"
+    "label": "gave up after 11 attempts"
    }
   ],
   "sessions": [
@@ -33,32 +33,32 @@
    {
     "trace_id": "1c17149d439536b3216fdaeeb975729f",
     "span_id": "3ce107f80e222f82",
-    "label": "blocked_on_user 22.5s"
+    "label": "waited 22.5s"
    },
    {
     "trace_id": "509cb3acac23db7c6e9b7d180a474268",
     "span_id": "694c1957f8db0391",
-    "label": "blocked_on_user 22.5s"
+    "label": "waited 22.5s"
    },
    {
     "trace_id": "fc050fec94dbca3a0aac36098b2cc2bd",
     "span_id": "4168160adb59261f",
-    "label": "blocked_on_user 14.1s"
+    "label": "waited 14.1s"
    },
    {
     "trace_id": "656b3e6f0bade65c3b188cc102ddb837",
     "span_id": "e481a65c2011bef2",
-    "label": "blocked_on_user 12.3s"
+    "label": "waited 12.3s"
    },
    {
     "trace_id": "6941fa1c257c6f561c5cb347611a3ce9",
     "span_id": "a683536c4499d863",
-    "label": "blocked_on_user 10.2s"
+    "label": "waited 10.2s"
    },
    {
     "trace_id": "72b4e3c02eaa7f3b4a715e4e48dd7408",
     "span_id": "d5966d513b1d0090",
-    "label": "blocked_on_user 7.3s"
+    "label": "waited 7.3s"
    }
   ],
   "sessions": [
@@ -81,32 +81,32 @@
    {
     "trace_id": "80710f3727d0ccbf8e52d76e529a0442",
     "span_id": "b63093b58ede0777",
-    "label": "\u00d72 attempts, 11.8s lost"
+    "label": "2 tries, 11.8s lost"
    },
    {
     "trace_id": "80710f3727d0ccbf8e52d76e529a0442",
     "span_id": "db2fd0fe06a7f0e8",
-    "label": "\u00d75 attempts, 11.3s lost"
+    "label": "5 tries, 11.3s lost"
    },
    {
     "trace_id": "b72cc2de8b97cc7980e4893460cf4c48",
     "span_id": "b5f10127ed398fe3",
-    "label": "\u00d72 attempts, 7.5s lost"
+    "label": "2 tries, 7.5s lost"
    },
    {
     "trace_id": "aa31efeff01ba94e8e4512fadb8ee2f2",
     "span_id": "cda1b5546dac3562",
-    "label": "\u00d74 attempts, 5.8s lost"
+    "label": "4 tries, 5.8s lost"
    },
    {
     "trace_id": "b72cc2de8b97cc7980e4893460cf4c48",
     "span_id": "a7efb5a912e03e64",
-    "label": "\u00d73 attempts, 3.3s lost"
+    "label": "3 tries, 3.3s lost"
    },
    {
     "trace_id": "6941fa1c257c6f561c5cb347611a3ce9",
     "span_id": "9572b85a8e48f687",
-    "label": "\u00d72 attempts, 1.4s lost"
+    "label": "2 tries, 1.4s lost"
    }
   ],
   "sessions": [
@@ -176,17 +176,17 @@
    {
     "trace_id": "1a4bdacc64abea0eef60241eda6ddadb",
     "span_id": "73f35b82cac2e6a4",
-    "label": "blocked_on_user 14.7s"
+    "label": "waited 14.7s"
    },
    {
     "trace_id": "28fde21b241f871a0a8633b923e7b817",
     "span_id": "0a806987c4007129",
-    "label": "blocked_on_user 12.6s"
+    "label": "waited 12.6s"
    },
    {
     "trace_id": "a3ef076b1acdc79d2edf85dd616e732b",
     "span_id": "d6f1f6af0894e69f",
-    "label": "blocked_on_user 8.5s"
+    "label": "waited 8.5s"
    }
   ],
   "sessions": [
@@ -329,12 +329,12 @@
    {
     "trace_id": "4def16fd6ac0796e74263ce5f2b305c9",
     "span_id": "44446288f9c2910a",
-    "label": "compaction event (turn)"
+    "label": "compaction"
    },
    {
     "trace_id": "4def16fd6ac0796e74263ce5f2b305c9",
     "span_id": "1c2d43c8c0c16770",
-    "label": "next request, cache hit 0%"
+    "label": "next call, 0% cached"
    }
   ],
   "sessions": [
@@ -370,7 +370,7 @@
    {
     "trace_id": "1a4bdacc64abea0eef60241eda6ddadb",
     "span_id": "5f676c36ad37bf67",
-    "label": "claude-opus-5, 0 cache read, 81,806 cache write"
+    "label": "switched to claude-opus-5, cache rebuilt"
    }
   ],
   "sessions": [

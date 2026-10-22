@@ -1,51 +1,195 @@
 import type { LucideIcon } from "lucide-react"
 import {
-  Asterisk,
   Bot,
-  Bug,
-  Calendar,
-  CreditCard,
-  Database,
-  GitBranch,
-  Kanban,
-  Mail,
-  Notebook,
-  PenTool,
   FilePenLine,
+  FilePlus2,
   FileText,
+  FolderSearch,
   Globe,
+  Hash,
+  Hourglass,
+  ListTodo,
+  MessageCircleQuestion,
   MessageSquare,
-  Pause,
+  NotebookPen,
   Play,
   Plug,
-  Search,
+  Route,
   Sparkles,
   SquareTerminal,
+  TextSearch,
   WandSparkles,
-  Workflow,
+  Webhook,
   Wrench,
 } from "lucide-react"
+import type { SimpleIcon } from "simple-icons"
+import {
+  siAirtable,
+  siAsana,
+  siClaude,
+  siCloudflare,
+  siConfluence,
+  siDiscord,
+  siDocker,
+  siDuckdb,
+  siFigma,
+  siGit,
+  siGithub,
+  siGitlab,
+  siGmail,
+  siGo,
+  siGooglecalendar,
+  siGooglechrome,
+  siGooglegemini,
+  siHomebrew,
+  siHubspot,
+  siHuggingface,
+  siJira,
+  siKubernetes,
+  siLinear,
+  siMeta,
+  siMistralai,
+  siMongodb,
+  siMysql,
+  siNodedotjs,
+  siNotion,
+  siNpm,
+  siObsidian,
+  siOllama,
+  siPerplexity,
+  siPnpm,
+  siPostgresql,
+  siPython,
+  siRedis,
+  siRust,
+  siSentry,
+  siSnowflake,
+  siSqlite,
+  siStripe,
+  siSupabase,
+  siTodoist,
+  siTrello,
+  siVercel,
+  siYarn,
+  siZapier,
+  siBun,
+  siCurl,
+  siMake,
+  siTerraform,
+} from "simple-icons"
+import { modelName } from "../lib/format"
 import { familyOf, spanKind, toolFamily } from "../lib/span"
 import type { Span } from "../lib/types"
+import { BrandIcon } from "./BrandIcon"
 
-const ICONS: Record<string, LucideIcon> = {
+// Claude Code's own tools have no official marks; each gets the glyph people
+// already read that way: a file to read, a pencil to edit, a terminal for Bash.
+const TOOLS: Record<string, LucideIcon> = {
+  Read: FileText,
+  Edit: FilePenLine,
+  MultiEdit: FilePenLine,
+  Write: FilePlus2,
+  NotebookEdit: NotebookPen,
+  Grep: TextSearch,
+  Glob: FolderSearch,
+  WebFetch: Globe,
+  WebSearch: Globe,
+  Bash: SquareTerminal,
+  Agent: Bot,
+  Task: Bot,
+  Skill: WandSparkles,
+  TodoWrite: ListTodo,
+  AskUserQuestion: MessageCircleQuestion,
+  ToolSearch: Wrench,
+}
+
+const KINDS: Record<string, LucideIcon> = {
   turn: MessageSquare,
   model: Sparkles,
-  wait: Pause,
+  wait: Hourglass,
   run: Play,
-  hook: Workflow,
-  bash: SquareTerminal,
-  read: FileText,
-  edit: FilePenLine,
-  search: Search,
-  web: Globe,
-  skill: WandSparkles,
-  mcp: Plug,
+  hook: Webhook,
   agent: Bot,
-  other: Wrench,
-  tool: Wrench,
-  span: Wrench,
+  span: Route,
 }
+
+// Official marks for the services connector (MCP) tools talk to.
+const SERVICES: [RegExp, SimpleIcon][] = [
+  [/linear/i, siLinear],
+  [/github|ccd_pr|pull.?request/i, siGithub],
+  [/gitlab/i, siGitlab],
+  [/notion/i, siNotion],
+  [/figma/i, siFigma],
+  [/stripe/i, siStripe],
+  [/sentry/i, siSentry],
+  [/supabase/i, siSupabase],
+  [/postgres|pg\b/i, siPostgresql],
+  [/mysql/i, siMysql],
+  [/sqlite/i, siSqlite],
+  [/duckdb/i, siDuckdb],
+  [/mongo/i, siMongodb],
+  [/redis/i, siRedis],
+  [/snowflake/i, siSnowflake],
+  [/jira/i, siJira],
+  [/confluence/i, siConfluence],
+  [/asana/i, siAsana],
+  [/trello/i, siTrello],
+  [/todoist/i, siTodoist],
+  [/airtable/i, siAirtable],
+  [/obsidian/i, siObsidian],
+  [/hubspot/i, siHubspot],
+  [/zapier/i, siZapier],
+  [/gmail/i, siGmail],
+  [/calendar/i, siGooglecalendar],
+  [/discord/i, siDiscord],
+  [/vercel/i, siVercel],
+  [/cloudflare/i, siCloudflare],
+  [/docker/i, siDocker],
+  [/kubernetes|k8s/i, siKubernetes],
+  [/hugging/i, siHuggingface],
+  [/chrome/i, siGooglechrome],
+]
+
+// Shell commands by the program they run: git, gh, npm, go, python...
+const PROGRAMS: Record<string, SimpleIcon> = {
+  git: siGit,
+  gh: siGithub,
+  npm: siNpm,
+  npx: siNpm,
+  pnpm: siPnpm,
+  yarn: siYarn,
+  bun: siBun,
+  node: siNodedotjs,
+  go: siGo,
+  gofmt: siGo,
+  python: siPython,
+  python3: siPython,
+  pip: siPython,
+  pytest: siPython,
+  uv: siPython,
+  cargo: siRust,
+  rustc: siRust,
+  docker: siDocker,
+  kubectl: siKubernetes,
+  brew: siHomebrew,
+  curl: siCurl,
+  make: siMake,
+  terraform: siTerraform,
+  duckdb: siDuckdb,
+  psql: siPostgresql,
+  sqlite3: siSqlite,
+}
+
+// Model vendors by model id. OpenAI asked for its mark to be removed from
+// open icon sets, so GPT models keep a neutral sparkle.
+const MODELS: [RegExp, SimpleIcon][] = [
+  [/claude|opus|sonnet|haiku|fable/i, siClaude],
+  [/gemini|gemma/i, siGooglegemini],
+  [/mistral|mixtral|codestral/i, siMistralai],
+  [/llama/i, siMeta],
+  [/sonar|perplexity/i, siPerplexity],
+  [/ollama/i, siOllama],
+]
 
 export function glyphClass(s: Span): string {
   const k = spanKind(s)
@@ -87,36 +231,83 @@ export function barClass(s: Span): string {
   return "ph-turn"
 }
 
-// Connector servers get an icon for what they are, so a Linear call looks
-// different from a database query at a glance. Unknown servers keep the plug.
-const SERVERS: [RegExp, LucideIcon][] = [
-  [/linear|jira|asana|trello/i, Kanban],
-  [/github|gitlab|git\b/i, GitBranch],
-  [/notion|confluence|docs/i, Notebook],
-  [/sentry|bugsnag/i, Bug],
-  [/stripe|billing|pay/i, CreditCard],
-  [/postgres|mysql|sqlite|supabase|database|db\b|bigquery|snowflake/i, Database],
-  [/browser|playwright|puppeteer|chrome/i, Globe],
-  [/figma|design/i, PenTool],
-  [/gmail|mail/i, Mail],
-  [/calendar/i, Calendar],
-  [/slack|discord|teams/i, MessageSquare],
-]
-
 function serverOf(span: Span): string {
   const a = span.attrs
-  const t = String(a.tool_name || "")
+  const t = String(a.tool_name || a["gen_ai.tool.name"] || "")
   return String(a["anthropic.mcp.server.name"] || span.joined?.["mcp_server.name"] || (t.startsWith("mcp__") ? t.split("__")[1] : "") || "")
 }
 
+function programOf(span: Span): string {
+  const a = span.attrs
+  const argv0 = String(a.bash_argv0 || "")
+  if (argv0) return argv0
+  const cmd = String(a.full_command || "").trim()
+  // Skip setup like cd x && or VAR=1 to reach the program that does the work.
+  const first = cmd.replace(/^(cd\s+\S+\s*(&&|;)\s*|[A-Za-z_]\w*=\S*\s+)+/, "").split(/\s+/)[0] || ""
+  return first.split("/").pop() || ""
+}
+
+function modelOf(span: Span): string {
+  const a = span.attrs
+  return String(a.model || a["gen_ai.response.model"] || a["gen_ai.request.model"] || span.joined?.model || a["ai.model.id"] || "")
+}
+
 export function SpanIcon({ span }: { span: Span }) {
-  const key = String(familyOf(span))
-  let Icon = ICONS[key] || Wrench
-  if (key === "mcp") {
-    const server = serverOf(span)
-    Icon = SERVERS.find(([re]) => re.test(server))?.[1] || Plug
+  const k = spanKind(span)
+  if (k === "model") {
+    const brand = MODELS.find(([re]) => re.test(modelOf(span)))?.[1]
+    if (brand) return <BrandIcon icon={brand} />
   }
-  // Claude's mark for Claude model calls, as the model's own sign.
-  if (key === "model" && /claude|opus|sonnet|haiku|fable/i.test(String(span.attrs.model || span.attrs["gen_ai.request.model"] || span.joined?.model || ""))) Icon = Asterisk
+  if (k === "tool" || k === "agent") {
+    const tool = String(span.attrs.tool_name || "")
+    if (familyOf(span) === "mcp") {
+      const server = serverOf(span)
+      if (/slack/i.test(server)) return <Hash strokeWidth={1.75} aria-hidden />
+      if (/browser|playwright|puppeteer/i.test(server)) return <Globe strokeWidth={1.75} aria-hidden />
+      const brand = SERVICES.find(([re]) => re.test(server))?.[1]
+      return brand ? <BrandIcon icon={brand} /> : <Plug strokeWidth={1.75} aria-hidden />
+    }
+    if (tool === "Bash") {
+      const brand = PROGRAMS[programOf(span)]
+      if (brand) return <BrandIcon icon={brand} />
+    }
+    const Icon = TOOLS[tool] || (k === "agent" ? Bot : Wrench)
+    return <Icon strokeWidth={1.75} aria-hidden />
+  }
+  const Icon = KINDS[k] || Wrench
   return <Icon strokeWidth={1.75} aria-hidden />
+}
+
+// For places that name a service rather than a span (Connect, Apps).
+export { BrandIcon }
+
+// A model as people say it, with its maker's mark: "Opus 5.5" with Claude's.
+export function ModelName({ model, size = 13 }: { model: string; size?: number }) {
+  const brand = MODELS.find(([re]) => re.test(model))?.[1]
+  return (
+    <span className="model-name" title={model}>
+      {brand ? <BrandIcon icon={brand} size={size} /> : <Sparkles size={size} strokeWidth={1.75} aria-hidden />}
+      {modelName(model) || model}
+    </span>
+  )
+}
+
+// A Claude Code tool by name with its glyph: Read with a file, Bash with a terminal.
+export function ToolName({ name, size = 13 }: { name: string; size?: number }) {
+  let icon: React.ReactNode
+  if (name.startsWith("mcp__")) {
+    const server = name.split("__")[1] || ""
+    const brand = SERVICES.find(([re]) => re.test(server))?.[1]
+    icon = brand ? <BrandIcon icon={brand} size={size} /> : <Plug size={size} strokeWidth={1.75} aria-hidden />
+  } else {
+    const Icon = TOOLS[name] || Wrench
+    icon = <Icon size={size} strokeWidth={1.75} aria-hidden />
+  }
+  const label = name.startsWith("mcp__") ? name.split("__").slice(2).join(" ").replace(/_/g, " ") : name
+  return (
+    <span className="tool-name" title={name}>
+      {icon}
+      {label}
+    </span>
+  )
 }

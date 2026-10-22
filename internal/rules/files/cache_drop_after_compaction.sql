@@ -52,8 +52,8 @@ SELECT
     ' tokens. The next request rewrote the prompt cache.' AS detail,
   'Expected once per compaction. If it happens often, start a fresh session at natural breakpoints, run /compact yourself between tasks, and keep large tool output out of the main thread by delegating exploration to a subagent.' AS recommendation,
   json_array(
-    json_object('trace_id', c.trace_id, 'span_id', c.span_id, 'label', 'compaction event (turn)'),
-    json_object('trace_id', a.trace_id, 'span_id', a.span_id, 'label', 'next request, cache hit ' || printf('%.0f', a.cache_hit*100) || '%')
+    json_object('trace_id', c.trace_id, 'span_id', c.span_id, 'label', 'compaction'),
+    json_object('trace_id', a.trace_id, 'span_id', a.span_id, 'label', 'next call, ' || printf('%.0f', a.cache_hit*100) || '% cached')
   )::VARCHAR AS evidence,
   json_array(c.session_id)::VARCHAR AS sessions
 FROM comps c

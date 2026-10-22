@@ -15,7 +15,7 @@ SELECT
     END AS detail,
   'Re-run the turn. If this repeats, raise CLAUDE_CODE_MAX_RETRIES (cap 15) or set CLAUDE_CODE_RETRY_WATCHDOG for unattended runs.' AS recommendation,
   json_array(json_object('trace_id', e.trace_id, 'span_id', s.span_id, 'label',
-    'api_retries_exhausted, ' || CAST(n(e.attrs,'total_attempts') AS INTEGER) || ' attempts'))::VARCHAR AS evidence,
+    'gave up after ' || CAST(n(e.attrs,'total_attempts') AS INTEGER) || ' attempts'))::VARCHAR AS evidence,
   json_array(e.session_id)::VARCHAR AS sessions
 FROM events e
 LEFT JOIN spans s ON s.trace_id=e.trace_id AND s.name='claude_code.llm_request' AND s.is_error

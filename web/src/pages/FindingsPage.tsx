@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { Check, Wrench } from "lucide-react"
 import { Link } from "wouter"
 import { WinStage } from "../components/WinStage"
@@ -72,31 +73,50 @@ export function FindingsPage() {
         {done.length > 0 && <Ledger done={done} />}
       </div>
       <div className="findings-body">
-        {hero ? (
-          <HeroFinding
-            f={hero}
-            onFixed={(win) => {
-              const next = { win, id: hero.id }
-              pendingRef.current = next
-              setPending(next)
-            }}
-            onDone={() => resolveFinding(hero.id)}
-          />
-        ) : (
-          <h1 className="story-line week-line">Nothing left to fix.</h1>
-        )}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {hero ? (
+            <motion.div
+              key={hero.id}
+              initial={{ opacity: 0, transform: "translateY(8px)" }}
+              animate={{ opacity: 1, transform: "translateY(0px)", transition: { duration: 0.32, ease: [0.23, 1, 0.32, 1] } }}
+              exit={{ opacity: 0, transform: "translateY(-6px)", transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
+            >
+              <HeroFinding
+                f={hero}
+                onFixed={(win) => {
+                  const next = { win, id: hero.id }
+                  pendingRef.current = next
+                  setPending(next)
+                }}
+                onDone={() => resolveFinding(hero.id)}
+              />
+            </motion.div>
+          ) : (
+            <motion.h1 key="none" className="story-line week-line" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              Nothing left to fix.
+            </motion.h1>
+          )}
+        </AnimatePresence>
         {(rest.length > 0 || done.length > 0) && (
           <div className="quiet-list">
             {done.map((f) => (
-              <div className="frow quiet resolved" data-finding={f.id} key={`done-${f.id}`}>
+              <motion.div layout="position" transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }} className="frow quiet resolved" data-finding={f.id} key={`done-${f.id}`}>
                 <span className="hl">{f.headline}</span>
                 <span className="resolved-mark">resolved</span>
-              </div>
+              </motion.div>
             ))}
             {rest.map((f) => {
               const [v, u] = impactParts(f)
               return (
-                <button type="button" className="frow quiet" data-finding={f.id} key={f.id} onClick={() => setFocus(f.id)}>
+                <motion.button
+                  layout="position"
+                  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                  type="button"
+                  className="frow quiet"
+                  data-finding={f.id}
+                  key={f.id}
+                  onClick={() => setFocus(f.id)}
+                >
                   <span className="hl">
                     <span className={`pillar pillar-${f.pillar}`}>{f.pillar}</span>
                     {f.headline}
@@ -105,7 +125,7 @@ export function FindingsPage() {
                     {v}
                     <span>{u}</span>
                   </span>
-                </button>
+                </motion.button>
               )
             })}
           </div>

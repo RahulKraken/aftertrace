@@ -34,7 +34,7 @@ g AS (
     sum(wait_ms) AS wait_ms,
     to_json(list(DISTINCT session_id)) AS sessions,
     to_json(list({'trace_id': trace_id, 'span_id': wait_span_id, 'label':
-      'blocked_on_user ' || printf('%.1f', wait_ms/1000.0) || 's'} ORDER BY wait_ms DESC)) AS evidence
+      'waited ' || printf('%.1f', wait_ms/1000.0) || 's'} ORDER BY wait_ms DESC)) AS evidence
   FROM ok
   GROUP BY pattern
   HAVING count(*) >= 3
