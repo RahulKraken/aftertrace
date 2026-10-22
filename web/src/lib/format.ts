@@ -126,3 +126,8 @@ export function int(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return "—"
   return Math.round(v).toLocaleString("en-US")
 }
+
+// "1 commit", "3 commits".
+export function plural(n: number, word: string, many = `${word}s`): string {
+  return `${int(n)} ${Math.round(n) === 1 ? word : many}`
+}

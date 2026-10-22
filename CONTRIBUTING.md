@@ -36,12 +36,32 @@ http://127.0.0.1:7311. `npm run build:embed` writes `web/dist` with `VITE_USE_MO
 
 Rebuild `web/dist` and the Go binary after UI changes. `web/dist/**` is gitignored except the stub `index.html`.
 
+## Website
+
+`site/` builds the website: the landing page (`site/public`), every doc in `docs/` rendered with a sidebar, and the mock UI as a live demo under `/demo/`. `.github/workflows/pages.yml` publishes it on every push to `main`.
+
+```bash
+cd web && npm ci && cd ../site && npm ci && cd ..
+node site/build.mjs        # writes site/dist
+python3 -m http.server 4180 -d site/dist
+```
+
+Docs navigation lives in `NAV` in `site/build.mjs`; add new docs there.
+
+## Releases
+
+Push a `v*` tag. `.github/workflows/release.yml` builds macOS (arm64, amd64) and Linux (amd64, arm64) archives, writes `checksums.txt`, and publishes a release with notes from the matching `CHANGELOG.md` section. Add the section first.
+
 ## Tests
 
 ```bash
 go test ./...
-cd web && npm run lint
+cd web && npm run lint && npx playwright test
 ```
+
+CI also runs a smoke test against the real binary on demo data (`web/e2e-live`, `playwright.live.config.ts`). Locally: build the embedded UI and the binary, `aftertrace demo`, `aftertrace serve`, then `npx playwright test -c playwright.live.config.ts` in `web/` (set `AFTERTRACE_URL` if you use another port).
+
+If you change the demo data or an API the mock build mirrors, regenerate the generated fixtures with `sh web/scripts/gen-app-fixtures.sh`.
 
 `go test ./internal/` loads demo JSONL into DuckDB and checks the API, redaction, and that every shipped rule fires. `go test ./internal/rules` checks `rules/` matches `internal/rules/files/`. `go test ./internal/otlp` hits the gRPC and HTTP receivers.
 
