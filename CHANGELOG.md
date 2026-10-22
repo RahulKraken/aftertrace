@@ -4,7 +4,9 @@
 
 **A turn reads as a story**
 - Claude Code turns open on a new Story view: what you asked, where the time went in plain words, where it ended and which files changed, then each step in Claude's own words (with content capture on) and its actions as "Read service.go" or "Refactor serve flags and add service dispatch". Long waits for you are their own card, with the questions Claude asked and your answers. Without content capture, steps are grouped by the kind of work.
-- The waterfall is now the Timeline view. Calls are grouped into the same steps, closed by default; waits on a person over a minute fold into a labelled band so the work around them stays readable; rows say "Thinking" and "Wrote service.go" instead of model ids and raw commands.
+- The waterfall is now the Timeline view. Calls are grouped into the same steps, closed by default; waits on a person over a minute fold into a labelled band so the work around them stays readable; rows say what happened ("Wrote service.go", a model call in Claude's words) with the context beside it ("Opus 5.5", "Linear").
+- Each bar carries its time and cost beside it, the slowest call gets one badge, and a stats strip (duration, waiting on you, cost, tokens, calls, errors) sits on top. Clicking a bar opens a card under it with status, timing, tokens, any error and the input and output; "All details" opens the full inspector.
+- Connector tools get an icon for what they are (Linear, GitHub, Notion, a database...), Claude model calls get Claude's mark, and request handlers and app agents are drawn neutral so the calls inside stand out.
 - The headline no longer calls a question Claude asked you an approval: "Claude waited 29m 38s for your answer. The work itself took 12m 54s."
 - Session titles and turn labels drop injected `<system-reminder>` text.
 - `aftertrace demo` and the website demo include one session with synthetic prompts and narration.

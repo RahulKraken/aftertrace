@@ -227,7 +227,7 @@ export function kindLabel(s: Span): string {
   if (k === "model") return "LLM call"
   if (k === "wait") return "Permission wait"
   if (k === "agent") return "Subagent"
-  if (k === "tool") return "Tool"
+  if (k === "tool") return "Tool call"
   if (k === "run") return "Run"
   if (k === "hook") return "Hook"
   return "Span"

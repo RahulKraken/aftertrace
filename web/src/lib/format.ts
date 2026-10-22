@@ -76,6 +76,17 @@ export function modelShort(m: string | null | undefined): string {
   return (m || "").replace(/^claude-/, "")
 }
 
+// A model id as people say it: claude-opus-5-5 → Opus 5.5, gpt-4o-mini → GPT-4o mini.
+export function modelName(m: string | null | undefined): string {
+  const id = (m || "").replace(/^(anthropic|openai|google)[/.]/, "").replace(/-\d{8}$/, "")
+  if (!id) return ""
+  const claude = id.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?/)
+  if (claude) return `${claude[1][0].toUpperCase()}${claude[1].slice(1)} ${claude[2]}${claude[3] ? `.${claude[3]}` : ""}`
+  if (/^gpt-/i.test(id)) return id.replace(/^gpt/i, "GPT").replace(/-(mini|nano|pro)$/, " $1")
+  if (/^gemini-/i.test(id)) return id.replace(/^gemini-/i, "Gemini ").replace(/-/g, " ")
+  return id
+}
+
 export function impactParts(f: Finding): [string, string] {
   if (f.impact_unit.startsWith("USD")) return [usd(f.impact_value), f.impact_unit.slice(4).trim()]
   if (f.impact_unit.startsWith("s ")) return [dur(f.impact_value * 1000), f.impact_unit.slice(2).trim()]

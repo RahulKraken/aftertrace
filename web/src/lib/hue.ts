@@ -18,5 +18,7 @@ export function hueVar(span: Span): string {
     if (f === "agent") return "var(--hue-agent)"
     return "var(--hue-tool)"
   }
+  // Structure (a request handler, an app's agent) is neutral; the calls inside carry the colour.
+  if (k === "span" || (k === "agent" && !span.name.startsWith("claude_code."))) return "var(--hue-turn)"
   return "var(--hue-tool)"
 }

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "wouter"
 import { bottleneckFor } from "../../lib/bottleneck"
-import { dur, niceTicks, usd, wallClock } from "../../lib/format"
+import { dur, niceTicks, tok, usd, wallClock } from "../../lib/format"
 import { hueVar } from "../../lib/hue"
 import { hashFlag, tickLabel } from "../../lib/replay"
 import {
@@ -15,7 +15,6 @@ import {
   buildForest,
   errorCount,
   hasError,
-  labelOf,
   rollup,
   isAppTrace,
   spanKind,
@@ -25,8 +24,9 @@ import {
   type SpanNode,
 } from "../../lib/span"
 import { appStory, turnStory } from "../../lib/story"
-import { indexContent, snippet, type ContentIndex } from "../../lib/content"
-import { cleanPrompt, describe, groupSteps, PAUSE_MS, STEP } from "../../lib/steps"
+import { indexContent, type ContentIndex } from "../../lib/content"
+import { groupSteps, PAUSE_MS, STEP } from "../../lib/steps"
+import { rowLabel } from "../../lib/labels"
 import { foldedAxis, linearAxis, type Gap } from "../../lib/timeaxis"
 import type { Finding, Trace } from "../../lib/types"
 import { useReplay } from "../../hooks/useReplay"
@@ -37,14 +37,13 @@ import { PaneColumn } from "./PaneColumn"
 import { readPx, startDrag, writePx } from "../../lib/drag"
 import { TraceViewSwitch } from "../story/TraceViewSwitch"
 import type { TraceView } from "../../lib/traceView"
-import { SpanPopover } from "./SpanPopover"
+import { SpanCard } from "./SpanCard"
 import { TREE_DEPTH, TREE_PAD, TreeConnectors } from "./TreeConnectors"
 
 const ROW = 32
 const LAB_KEY = "aftertrace-lab-w"
 const LAB_MIN = 180
 
-export type MetricMode = "time" | "cost"
 
 export function Waterfall({
   trace,
@@ -89,7 +88,8 @@ export function Waterfall({
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverNs, setHoverNs] = useState<number | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
-  const [metric, setMetric] = useState<MetricMode>("time")
+  // The call whose card is open, anchored under its bar.
+  const [card, setCard] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const labRef = useRef<HTMLDivElement>(null)
@@ -139,7 +139,6 @@ export function Waterfall({
 
   const rows = useMemo(() => visibleRows(root, collapsed, live ? nowNs : Number.POSITIVE_INFINITY), [root, collapsed, live, nowNs])
   const selected = byId.get(sel) || root
-  const hoverSpan = hoverId ? byId.get(hoverId) : undefined
 
   const xOf = useCallback((ns: number) => axis.toPct(ns), [axis])
   const fullX = useCallback((ns: number) => ((ns - t0) / 1e6 / fullMs) * 100, [t0, fullMs])
@@ -221,9 +220,11 @@ export function Waterfall({
         e.preventDefault()
       } else if (e.key === "Enter") {
         setPaneOpen(true)
+        setCard(null)
         e.preventDefault()
       } else if (e.key === "Escape") {
-        setPaneOpen(false)
+        if (card) setCard(null)
+        else setPaneOpen(false)
         e.preventDefault()
       } else if (e.key === "[" && trace.prev) {
         location.hash = `#/trace/${trace.prev}`
@@ -252,8 +253,8 @@ export function Waterfall({
   const showMinimap = !live && (view != null || rows.length > 50)
   const errors = errorCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
   const calls = callCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
+  const { llmCalls, tokens, slowest } = useMemo(() => callStats(trace.spans), [trace])
   const sumCost = live ? costUntil(root, nowNs) : rollup(root).cost
-  const hoverRow = hoverId ? rows.findIndex((r) => r.span.span_id === hoverId) : -1
   const markHost = mark ? hostRow(mark.spanId, rows, byId) : null
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -319,14 +320,6 @@ export function Waterfall({
               Replay
             </button>
             {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
-            <div className="seg seg-metric" role="tablist" aria-label="Row metric">
-              <button type="button" role="tab" aria-selected={metric === "time"} className={metric === "time" ? "on" : ""} onClick={() => setMetric("time")}>
-                Time
-              </button>
-              <button type="button" role="tab" aria-selected={metric === "cost"} className={metric === "cost" ? "on" : ""} onClick={() => setMetric("cost")}>
-                Cost
-              </button>
-            </div>
             <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
               ‹
             </button>
@@ -337,26 +330,31 @@ export function Waterfall({
           <h1 className="story-line" style={{ margin: "8px 0 0" }}>
             {isAppTrace(trace.service) ? appStory(root) : turnStory(trace)}
           </h1>
-          <div className="wf-sum">
-            {dur(live ? nowMs : root.duration_ms)} · {usd(sumCost)} · {calls} calls
+          <div className="wf-stats">
+            <Stat k="Duration" v={dur(live ? nowMs : root.duration_ms)} />
+            {!isAppTrace(trace.service) && trace.breakdown?.permission_wait ? <Stat k="Waiting on you" v={dur(trace.breakdown.permission_wait)} tone="wait" /> : null}
+            <Stat k="Cost" v={usd(sumCost)} />
+            <Stat k="Tokens" v={tok(tokens)} />
+            <Stat k="LLM calls" v={String(llmCalls)} />
+            <Stat k="Tool calls" v={String(Math.max(calls - llmCalls, 0))} />
             {errors > 0 ? (
-              <>
-                {" · "}
-                <button
-                  type="button"
-                  className="sum-err"
-                  title="Jump to the next error"
-                  onClick={() => {
-                    const errs = trace.spans.filter((x) => x.is_error).sort((a, b) => a.start_ns - b.start_ns)
-                    const cur = errs.findIndex((x) => x.span_id === sel)
-                    const next = errs[(cur + 1) % errs.length]
-                    if (next) jumpTo(next.span_id)
-                  }}
-                >
-                  {errors} error{errors === 1 ? "" : "s"}
-                </button>
-              </>
-            ) : null}
+              <button
+                type="button"
+                className="wf-stat is-err"
+                title="Jump to the next error"
+                onClick={() => {
+                  const errs = trace.spans.filter((x) => x.is_error).sort((a, b) => a.start_ns - b.start_ns)
+                  const cur = errs.findIndex((x) => x.span_id === sel)
+                  const next = errs[(cur + 1) % errs.length]
+                  if (next) jumpTo(next.span_id)
+                }}
+              >
+                <span className="k">Errors</span>
+                <span className="v">{errors}</span>
+              </button>
+            ) : (
+              <Stat k="Errors" v="0" />
+            )}
           </div>
           {showMinimap && (
           <div className="minimap" title="Scrub the turn. Double-click to reset zoom.">
@@ -580,7 +578,7 @@ export function Waterfall({
                     xOf={xOf}
                     trackW={trackW}
                     nowNs={live ? nowNs : null}
-                    metric={metric}
+                    slowest={slowest === span.span_id}
                     content={content}
                     mark={mark && markHost === span.span_id ? mark.label : null}
                     markLeft={
@@ -591,7 +589,9 @@ export function Waterfall({
                     onToggle={() => toggle(span.span_id)}
                     onSelect={(id) => {
                       setSel(id)
-                      setPaneOpen(true)
+                      // With the inspector open, a click retargets it; otherwise it opens the card.
+                      if (paneOpen) setCard(null)
+                      else setCard((c) => (c === id ? null : id))
                     }}
                     onHover={setHoverId}
                     onMark={() => mark && jumpTo(mark.spanId)}
@@ -600,13 +600,24 @@ export function Waterfall({
               </AnimatePresence>
             </motion.div>
           </div>
-          <SpanPopover
-            content={content}
-            span={hoverSpan && !(paneOpen && hoverSpan.span_id === sel) ? hoverSpan : null}
-            running={Boolean(hoverSpan && live && hoverSpan.end_ns > nowNs)}
-            top={hoverRow >= 0 ? 24 + hoverRow * ROW - scrollTop + ROW + 2 : 0}
-            left={(labW || 280) + 12}
-          />
+          {card && byId.get(card) ? (
+            <SpanCard
+              span={byId.get(card)!}
+              content={content}
+              running={Boolean((live && byId.get(card)!.end_ns > nowNs) || (trace.in_progress && byId.get(card)!.end_ns >= root.end_ns))}
+              t0={t0}
+              top={(() => {
+                const i = rows.findIndex((r) => r.span.span_id === card)
+                return i < 0 ? 0 : 24 + i * ROW - scrollTop + ROW + 4
+              })()}
+              left={(labW || 280) + Math.max(0, Math.min((xOf(byId.get(card)!.start_ns) / 100) * trackW, trackW - 380))}
+              onClose={() => setCard(null)}
+              onDetails={() => {
+                setPaneOpen(true)
+                setCard(null)
+              }}
+            />
+          ) : null}
         </div>
       </div>
       {paneOpen && (
@@ -658,7 +669,7 @@ function Row({
   xOf,
   trackW,
   nowNs,
-  metric,
+  slowest,
   content,
   mark,
   markLeft,
@@ -677,7 +688,7 @@ function Row({
   xOf: (ns: number) => number
   trackW: number
   nowNs: number | null
-  metric: MetricMode
+  slowest: boolean
   content: ContentIndex
   mark: string | null
   markLeft: string | null
@@ -715,7 +726,10 @@ function Row({
   const box = barBox(L, W, trackW)
   const shownMs = Math.max(0, (endNs - span.start_ns) / 1e6)
   const cost = costOf(span)
-  const met = metric === "cost" ? (cost ? usd(cost) : "—") : dur(shownMs)
+  // Time and cost beside the bar they describe; before it when the bar runs to the edge.
+  const barLabel = [dur(shownMs), cost >= 0.001 ? usd(cost) : ""].filter(Boolean).join(" · ")
+  const barEndPx = trackW > 0 ? parseFloat(box.left) + parseFloat(box.width) : 0
+  const labelBefore = trackW > 0 && barEndPx > trackW - 120
 
   const onBarClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -785,7 +799,6 @@ function Row({
           ) : null}
         </AnimatePresence>
         {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
-        <span className="met">{met}</span>
       </div>
       <div className="trk">
         {isStep ? (
@@ -799,6 +812,15 @@ function Row({
           <Phases span={span} />
         </div>
         )}
+        {!mark && k !== "turn" && trackW > 0 ? (
+          <span
+            className={`bar-lab ${labelBefore ? "is-before" : ""} ${err ? "is-err" : ""}`}
+            style={labelBefore ? { right: trackW - parseFloat(isStep ? stepBox(span, xOf, trackW, nowNs).left : box.left) + 6 } : { left: (isStep ? stepEnd(span, xOf, trackW, nowNs) : barEndPx) + 6 }}
+          >
+            {barLabel}
+            {slowest ? <b className="slowest">Slowest</b> : null}
+          </span>
+        ) : null}
         {mark ? (
           <button
             type="button"
@@ -863,43 +885,6 @@ function humanGaps(trace: Trace): Gap[] {
   return out
 }
 
-// Rows say what happened: "Read service.go", "Thinking", step titles in Claude's words.
-function rowLabel(span: SpanNode, content: ContentIndex): { name: string; target: string } {
-  if (span.name === STEP) return { name: String(span.attrs.title || "").replace(/`/g, ""), target: "" }
-  const k = spanKind(span)
-  if (k === "turn") {
-    const label = labelOf(span)
-    // A turn reads better as what you asked than as "153 chars".
-    return { name: label.name, target: content.prompt ? snippet({ text: cleanPrompt(content.prompt.text) }, 120) : label.target }
-  }
-  if (span.name === "claude_code.llm_request") {
-    const m = String(span.attrs.model || "").replace(/^claude-/, "")
-    const replying = span.attrs.stop_reason === "end_turn"
-    return { name: replying ? "Replying" : "Thinking", target: [m, span.attrs.effort].filter(Boolean).join(" · ") }
-  }
-  if (span.name === "claude_code.tool") {
-    const d = describe(span, content)
-    return { name: d.verb, target: d.object || d.detail }
-  }
-  if (span.name === "claude_code.tool.blocked_on_user") return { name: "waiting on you", target: decisionWords(span) }
-  if (span.name === "claude_code.tool.execution") return { name: "running", target: span.is_error ? String(span.attrs.error_class || "failed") : "" }
-  return labelOf(span)
-}
-
-// Permission decisions as a person would say them.
-function decisionWords(span: SpanNode): string {
-  const d = String(span.attrs.decision || "")
-  const src = String(span.attrs.source || "")
-  if (d === "reject" || d === "deny") return src.startsWith("user") ? "you declined" : "declined by your settings"
-  if (src === "user_temporary") return "you approved it once"
-  if (src === "user_permanent") return "you approved it for good"
-  if (src.startsWith("user")) return "you approved it"
-  if (src === "config") return "allowed by your settings"
-  if (src === "hook") return "a hook decided"
-  if (src) return `decided by ${src.replace(/_/g, " ")}`
-  return ""
-}
-
 // A step's own bar: each call inside it at its place in time, thinking and
 // tools in their colours, so a closed step still shows its rhythm.
 function StepBar({ span, xOf, trackW, nowNs }: { span: SpanNode; xOf: (ns: number) => number; trackW: number; nowNs: number | null }) {
@@ -926,4 +911,47 @@ function StepBar({ span, xOf, trackW, nowNs }: { span: SpanNode; xOf: (ns: numbe
       })}
     </div>
   )
+}
+
+function Stat({ k, v, tone }: { k: string; v: string; tone?: "wait" }) {
+  return (
+    <div className={`wf-stat ${tone === "wait" ? "is-wait" : ""}`}>
+      <span className="k">{k}</span>
+      <span className="v">{v}</span>
+    </div>
+  )
+}
+
+// Model calls, tokens, and the one call worth a "slowest" badge: the longest
+// model or tool call by its own work time, once there are enough to compare.
+function callStats(spans: SpanNode[] | Trace["spans"]): { llmCalls: number; tokens: number; slowest: string | null } {
+  let llmCalls = 0
+  let tokens = 0
+  let best: { id: string; ms: number } | null = null
+  let leaves = 0
+  const waitOf = new Map<string, number>()
+  for (const s of spans) if (s.name === "claude_code.tool.blocked_on_user" && s.parent_span_id) waitOf.set(s.parent_span_id, s.duration_ms)
+  for (const s of spans) {
+    const k = spanKind(s)
+    if (k === "model") {
+      llmCalls++
+      const u = usageOf(s)
+      tokens += (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0)
+    }
+    if (k !== "model" && k !== "tool") continue
+    leaves++
+    const ms = s.duration_ms - (waitOf.get(s.span_id) || 0)
+    if (!best || ms > best.ms) best = { id: s.span_id, ms }
+  }
+  return { llmCalls, tokens, slowest: leaves >= 4 && best ? best.id : null }
+}
+
+function stepBox(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null) {
+  const end = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
+  return barBox(xOf(span.start_ns), Math.max(xOf(end) - xOf(span.start_ns), 0), trackW)
+}
+
+function stepEnd(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null): number {
+  const b = stepBox(span, xOf, trackW, nowNs)
+  return parseFloat(b.left) + parseFloat(b.width)
 }

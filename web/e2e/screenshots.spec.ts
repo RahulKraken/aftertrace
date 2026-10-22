@@ -120,7 +120,7 @@ test("waterfall default: bars own the page", async ({ page }) => {
   await expect(page.locator(".pane")).toHaveCount(0)
   await expect(page.locator(".minimap")).toHaveCount(0)
   await expect(page.locator(".chips")).toHaveCount(0)
-  await expect(page.locator(".wf-sum")).toBeVisible()
+  await expect(page.locator(".wf-stats")).toBeVisible()
   await expect(page.locator(".kpis")).toHaveCount(0)
   await expect(page.locator(".live-badge")).toContainText("Done")
   // Calls are grouped into steps, closed by default, each saying how many calls it holds.
@@ -130,19 +130,22 @@ test("waterfall default: bars own the page", async ({ page }) => {
   await shot(page, "waterfall", "dark")
 })
 
-test("waterfall hover popover", async ({ page }) => {
+test("waterfall click card", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
   await openSteps(page)
-  const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "opus" }) }).first()
-  await model.hover()
-  await expect(page.locator(".span-pop")).toBeVisible()
-  await expect(page.locator(".span-pop")).not.toContainText("content hidden")
-  await expect(page.locator(".span-pop")).toContainText("Duration")
-  await shot(page, "waterfall-hover", "light", true)
-  await model.hover()
-  await expect(page.locator(".span-pop")).toBeVisible()
-  await shot(page, "waterfall-hover", "dark", true)
+  // Model calls are named by what Claude said, with the model beside it.
+  const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "Opus" }) }).first()
+  await page.waitForTimeout(400)
+  await model.dispatchEvent("click")
+  await expect(page.locator(".span-card")).toBeVisible()
+  await expect(page.locator(".span-card")).toContainText("Duration")
+  await expect(page.locator(".span-card")).toContainText("LLM call")
+  await expect(page.locator(".span-card .sc-status")).toHaveText("Done")
+  await shot(page, "waterfall-card", "light", true)
+  await shot(page, "waterfall-card", "dark", true)
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".span-card")).toHaveCount(0)
 })
 
 test("waterfall collapsed +N pill", async ({ page }) => {
@@ -156,14 +159,17 @@ test("waterfall collapsed +N pill", async ({ page }) => {
   await shot(page, "waterfall-collapsed", "dark")
 })
 
-test("waterfall cost toggle", async ({ page }) => {
+test("waterfall numbers sit beside their bars", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
-  await page.locator(".seg-metric").getByRole("tab", { name: "Cost" }).click()
-  await expect(page.locator(".seg-metric button.on")).toHaveText("Cost")
-  await expect(page.locator(".row").first().locator(".met")).toContainText("$")
-  await shot(page, "waterfall-cost", "light")
-  await shot(page, "waterfall-cost", "dark")
+  await expect(page.locator(".wf-stat").filter({ hasText: "Cost" })).toContainText("$")
+  await expect(page.locator(".wf-stat").filter({ hasText: "LLM calls" })).toBeVisible()
+  await expect(page.locator(".row.is-step .bar-lab").first()).toContainText("$")
+  await openSteps(page)
+  await expect(page.locator(".slowest")).toHaveCount(1)
+  await page.waitForTimeout(600)
+  await shot(page, "waterfall-open", "light")
+  await shot(page, "waterfall-open", "dark")
 })
 
 test("waterfall selected: pane takes the budget", async ({ page }) => {
@@ -178,6 +184,8 @@ test("waterfall selected: pane takes the budget", async ({ page }) => {
   // Rows spring into place after each expand; click once they settle.
   await page.waitForTimeout(500)
   await waitRow.dispatchEvent("click")
+  // A click opens the card; its link opens the full inspector.
+  await page.locator(".span-card .sc-more").click()
   await expect(page.locator(".pane")).toBeVisible()
   await expect(page.locator(".wf")).toHaveClass(/has-pane/)
   await expect(page.locator(".pane")).toContainText("waiting on you")
@@ -347,6 +355,9 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
   await expect(page.locator(".crumbs")).toContainText("support-bot")
   await expect(page.locator(".story-line")).toContainText("model call")
   await expect(page.locator(".side-item.on")).toContainText("Apps")
+  await page.waitForTimeout(400)
+  await shot(page, "app-trace", "light")
+  await shot(page, "app-trace", "dark")
 })
 
 test("recap: story, lanes, receipt, week switch", async ({ page }) => {

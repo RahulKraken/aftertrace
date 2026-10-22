@@ -200,7 +200,9 @@ export function describe(span: SpanNode, idx: ContentIndex): Omit<Action, "span"
   if (tool.startsWith("mcp__")) {
     const parts = tool.split("__")
     const server = String(a["anthropic.mcp.server.name"] || span.joined?.["mcp_server.name"] || parts[1] || "")
-    return d(humanize(parts.slice(2).join(" ") || tool), `in ${server.replace(/_/g, " ")}`, "mcp")
+    // "List issues" with "Linear" beside it, the way the connector names itself.
+    const pretty = server.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    return d(humanize(parts.slice(2).join(" ") || tool), pretty, "mcp")
   }
   return d(humanize(tool || span.name), "", "other")
 }
@@ -438,7 +440,8 @@ export function groupSteps(root: SpanNode, byId: Map<string, SpanNode>, idx: Con
       newRoot.kids.push(k)
       continue
     }
-    const moved = { ...k, parent_span_id: g.span_id }
+    // The call that wrote the step's title would only repeat it as a row label.
+    const moved = c && c.titleSpan === k.span_id ? { ...k, parent_span_id: g.span_id, attrs: { ...k.attrs, "aftertrace.step_title": true } } : { ...k, parent_span_id: g.span_id }
     out.set(k.span_id, moved)
     // Grandchildren keep pointing at the same parent id, which still resolves.
     g.kids.push(moved)

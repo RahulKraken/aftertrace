@@ -18,7 +18,7 @@ If two things both look important, the budget is already blown. Cut one.
 |---|---:|---|
 | Waterfall bars | 6 | This is the instrument. Time is the object. Pastel tints, tree on the left. |
 | Turn summary sentence | 2 | English first: what this turn cost you. |
-| Header (crumbs, quiet totals, Time \| Cost) | 1 | `3m 48s · $2.56 · 33 calls` — and `· 1 error` in red only when it happens. Not six KPI tiles. |
+| Header (crumbs, the sentence, a stats strip) | 1 | Duration, waiting on you, cost, tokens, LLM calls, tool calls, errors (red, a button to the next error). |
 | Detail panel | 1 | Present but not claiming the page; closed until a span is chosen. |
 | Minimap | 0 | Hidden until you zoom, or the turn has more than 50 spans. |
 | Hover popover, icon legend, ⌘K, crosshair | 0 | Summoned on hover / key. |
@@ -146,9 +146,6 @@ If two things both look important, the budget is already blown. Cut one.
 - A dedicated Shape column (the glyph sits in the list’s 3 units).
 - Waterfall chips (model / tool / wait) — the sentence already said it.
 - Waterfall request / cost subtitle next to the turn title.
-- Six KPI tiles on the waterfall (Flo’s header). One quiet totals line instead.
-- Two numbers on every waterfall row. Time \| Cost picks the one number.
-- A generic SLOWEST badge. The marker is the bottleneck finding, and a click is evidence.
 - Always-on `j k ↵ esc` hint strip.
 - ⌘K chip and `127.0.0.1` tag in the header.
 - Minimap in the default waterfall.
@@ -159,6 +156,15 @@ If two things both look important, the budget is already blown. Cut one.
 - A blurred, dimmed-modal win overlay. The page stays visible; the win is a bottom-right toast.
 - Mini-waterfall + split bar together on the session turn list (one quiet glyph).
 
+## Reversed after testing on real traces
+
+These were cuts. A 42-minute real turn and a reference timeline the owner admired showed they were wrong for this view:
+
+- **A stats strip on the Timeline** (duration, waiting on you, cost, tokens, LLM calls, tool calls, errors). One glance answers "how big was this?", and errors is a button that jumps to the next one.
+- **Time and cost beside each bar** ("6.9s · $0.12"), instead of a Time \| Cost toggle feeding a column on the far left. The number sits next to the thing it measures (mapping), so the toggle went.
+- **One SLOWEST badge** on the longest model or tool call, when there are at least four to compare. One highlight, never more.
+- **Click opens a card under the bar**, not the side pane: status, duration, start, cost, tokens, an error callout, input and output. "All details" opens the full inspector. You stay where you were looking.
+
 ## Non-goals
 
-No confetti. No extra inline numbers on waterfall rows. No permanent legend strip. No motion if the user asked the system not to move. Never more than ten units on one screen.
+No confetti. No permanent legend strip. No motion if the user asked the system not to move. Never more than ten units on one screen.

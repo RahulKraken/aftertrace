@@ -40,7 +40,7 @@ Each principle names the concrete decisions it drives. A design change that brea
 **Mapping.** Controls sit next to what they change, and the layout mirrors the thing it shows.
 - A turn is told the way you think about it: steps, each an intent ("Now writing the service command") with the actions under it, not spans. The span tree is one click away as the Timeline.
 - The Timeline's time axis is shared by every row; the inspector is to the right of the row it describes. A long wait for a person folds into a labelled band, so the axis maps to the work, not to the half hour you were away.
-- The metric toggle (Time | Cost) sits above the column it switches.
+- Each bar carries its own time and cost right beside it; a clicked bar opens its card right under it.
 - Live lanes are ordered by start time, left to right in time, top to bottom by session.
 - Colour maps to one meaning each: amber waiting on you, rose failure or retry waste, blue model, green tools.
 
