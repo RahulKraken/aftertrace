@@ -16,7 +16,8 @@
   --shadow-pane: none;
   --shadow-toast: 0 12px 40px color-mix(in oklab, var(--ink) 14%, transparent);
   --radius: 8px;
-  --top: 48px;
+  --top: 0px;
+  --side: 224px;
   --pane: 400px;
   --labw: clamp(220px, 32%, 520px);
   --row: 32px;

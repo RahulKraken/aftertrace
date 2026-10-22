@@ -8,6 +8,7 @@ Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never 
 
 | Method | Path | Returns |
 | - | - | - |
+| GET | `/api/status` | Server info, capture settings, counts for the sidebar |
 | GET | `/api/overview` | Home: this week vs last, daily series, live lanes, sources, top finding, recent sessions |
 | GET | `/api/sources` | Everything received, grouped by `service.name`, with first and last seen |
 | GET | `/api/sessions` | Session list |
@@ -199,3 +200,19 @@ The query cannot touch anything outside the tables and views:
 - `recent`: the six newest sessions, shaped like `GET /api/sessions` rows.
 
 `GET /api/sources` lists every `service.name` seen in spans, events or metrics: `{name, kind, spans, events, metrics, first_ns, last_ns, live}`. `kind` is `claude-code` for any `claude-code*` service and `app` otherwise. `live` means data in the last 5 minutes.
+
+## Status
+
+`GET /api/status` is cheap enough to poll; the UI calls it every 5 seconds.
+
+```json
+{
+  "info": { "version": "v0.1.0", "db_path": "/Users/you/.aftertrace/aftertrace.duckdb", "store_content": false,
+            "otlp_grpc": "127.0.0.1:4317", "otlp_http": "127.0.0.1:4318", "ui": "127.0.0.1:7311" },
+  "ask": { "enabled": false },
+  "counts": { "Spans": 1206, "SpanEvents": 30, "Events": 1770, "MetricPoints": 382 },
+  "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000
+}
+```
+
+Findings are cached for 10 seconds, so `findings` can lag a new rule match by that long.

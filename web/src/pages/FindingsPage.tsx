@@ -14,7 +14,12 @@ export function FindingsPage() {
   const [fs, setFs] = useState<Finding[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [resolved, setResolved] = useState(() => resolvedIds())
-  const [focus, setFocus] = useState<number | null>(null)
+  // #/findings?focus=3 opens with that finding as the hero (Home links here).
+  const [focus, setFocus] = useState<number | null>(() => {
+    const h = window.location.hash
+    const m = /[?&]focus=(\d+)/.exec(h)
+    return m ? Number(m[1]) : null
+  })
   const [pending, setPending] = useState<PendingWin | null>(null)
   const pendingRef = useRef<PendingWin | null>(null)
 

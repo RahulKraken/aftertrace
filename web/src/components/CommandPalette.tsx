@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { useLocation } from "wouter"
 import { api } from "../lib/api"
 import type { Finding, Session } from "../lib/types"
 
-type Item = { id: string; group: string; label: string; href: string }
+type Item = { id: string; group: string; label: string; href?: string; run?: () => void; hint?: string }
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onClose: () => void; onTheme: () => void }) {
   const [, nav] = useLocation()
   const [q, setQ] = useState("")
   const [i, setI] = useState(0)
@@ -23,15 +23,25 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const items = useMemo(() => {
     const pages: Item[] = [
-      { id: "p-s", group: "Pages", label: "Sessions", href: "/" },
-      { id: "p-f", group: "Pages", label: "Findings", href: "/findings" },
-      { id: "p-q", group: "Pages", label: "Query", href: "/query" },
-      { id: "p-c", group: "Pages", label: "Cost", href: "/cost" },
+      { id: "p-h", group: "Pages", label: "Home", href: "/", hint: "g h" },
+      { id: "p-s", group: "Pages", label: "Sessions", href: "/sessions", hint: "g s" },
+      { id: "p-a", group: "Pages", label: "Apps", href: "/apps", hint: "g a" },
+      { id: "p-f", group: "Pages", label: "Findings", href: "/findings", hint: "g f" },
+      { id: "p-c", group: "Pages", label: "Cost", href: "/cost", hint: "g c" },
+      { id: "p-q", group: "Pages", label: "Query", href: "/query", hint: "g q" },
+      { id: "p-r", group: "Pages", label: "Recap", href: "/recap", hint: "g r" },
+      { id: "p-n", group: "Pages", label: "Connect a source", href: "/connect", hint: "g n" },
+      { id: "p-x", group: "Pages", label: "Settings", href: "/settings", hint: "g ," },
     ]
+    const actions: Item[] = [
+      { id: "a-theme", group: "Actions", label: "Toggle light and dark theme", run: onTheme },
+      { id: "a-ask", group: "Actions", label: "Ask a question about your data", href: "/query?tab=ask" },
+    ]
+    // Sessions are titled by their first prompt, so this searches what you asked for.
     const sess: Item[] = sessions.map((s) => ({
       id: `s-${s.session_id}`,
       group: "Sessions",
-      label: `${s.repo || "session"} · ${s.session_id.slice(0, 8)}`,
+      label: s.title || `${s.repo || "session"} · ${s.session_id.slice(0, 8)}`,
       href: `/session/${s.session_id}`,
     }))
     const fs: Item[] = findings.map((f) => ({
@@ -40,15 +50,24 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       label: f.headline,
       href: f.evidence[0] ? `/trace/${f.evidence[0].trace_id}?span=${f.evidence[0].span_id}` : "/findings",
     }))
-    const all = [...pages, ...sess, ...fs]
+    const all = [...pages, ...actions, ...sess, ...fs]
     const needle = q.toLowerCase().trim()
     if (!needle) return all.slice(0, 12)
     return all.filter((x) => x.label.toLowerCase().includes(needle) || x.group.toLowerCase().includes(needle)).slice(0, 12)
-  }, [q, sessions, findings])
+  }, [q, sessions, findings, onTheme])
 
   useEffect(() => {
     setI(0)
   }, [q])
+
+  const choose = useCallback(
+    (item: Item) => {
+      if (item.run) item.run()
+      else if (item.href) nav(item.href)
+      onClose()
+    },
+    [nav, onClose],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -63,14 +82,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         setI((n) => Math.max(0, n - 1))
         e.preventDefault()
       } else if (e.key === "Enter" && items[i]) {
-        nav(items[i].href)
-        onClose()
+        choose(items[i])
         e.preventDefault()
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, items, i, nav, onClose])
+  }, [open, items, i, choose, onClose])
 
   if (!open) return null
   return (
@@ -80,7 +98,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <Search size={15} />
           <input
             autoFocus
-            placeholder="Go to a page, session, or finding"
+            placeholder="Search pages, sessions by prompt, findings, actions"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -93,13 +111,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               key={item.id}
               className={idx === i ? "on" : undefined}
               onMouseEnter={() => setI(idx)}
-              onClick={() => {
-                nav(item.href)
-                onClose()
-              }}
+              onClick={() => choose(item)}
             >
               <span className="mute">{item.group}</span>
-              {item.label}
+              <span className="cmd-label">{item.label}</span>
+              {item.hint && <kbd>{item.hint}</kbd>}
             </button>
           ))}
           {!items.length && <div className="empty">Nothing matches.</div>}

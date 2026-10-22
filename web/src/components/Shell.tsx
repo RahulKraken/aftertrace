@@ -1,15 +1,66 @@
-import { useEffect, useState } from "react"
-import { Moon, Sun } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import {
+  Boxes,
+  CircleDollarSign,
+  House,
+  Lightbulb,
+  Moon,
+  Plug,
+  Receipt,
+  Rows3,
+  Search,
+  Settings,
+  SquareTerminal,
+  Sun,
+  type LucideIcon,
+} from "lucide-react"
 import { Link, useLocation } from "wouter"
+import { api } from "../lib/api"
+import { ago } from "../lib/format"
 import type { Theme } from "../lib/theme"
+import { StatusContext } from "../lib/status"
+import type { Status } from "../lib/types"
+import { useNow } from "../hooks/useNow"
 import { CommandPalette } from "./CommandPalette"
+import { Logo } from "./Logo"
 
-const NAV = [
-  { href: "/", label: "Sessions" },
-  { href: "/findings", label: "Findings" },
-  { href: "/query", label: "Query" },
-  { href: "/cost", label: "Cost" },
+type Item = { href: string; label: string; icon: LucideIcon; key: string; match?: (loc: string) => boolean }
+
+const TOP: Item = { href: "/", label: "Home", icon: House, key: "h", match: (l) => l === "/" }
+const GROUPS: { label: string; items: Item[] }[] = [
+  {
+    label: "Observe",
+    items: [
+      {
+        href: "/sessions",
+        label: "Sessions",
+        icon: Rows3,
+        key: "s",
+        match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || l.startsWith("/trace/"),
+      },
+      { href: "/apps", label: "Apps", icon: Boxes, key: "a" },
+    ],
+  },
+  {
+    label: "Improve",
+    items: [
+      { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
+      { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
+    ],
+  },
+  {
+    label: "Explore",
+    items: [
+      { href: "/query", label: "Query", icon: SquareTerminal, key: "q" },
+      { href: "/recap", label: "Recap", icon: Receipt, key: "r" },
+    ],
+  },
 ]
+const BOTTOM: Item[] = [
+  { href: "/connect", label: "Connect", icon: Plug, key: "n" },
+  { href: "/settings", label: "Settings", icon: Settings, key: "," },
+]
+const ALL = [TOP, ...GROUPS.flatMap((g) => g.items), ...BOTTOM]
 
 export function Shell({
   children,
@@ -23,54 +74,136 @@ export function Shell({
   mock: boolean
 }) {
   const [cmd, setCmd] = useState(false)
+  const [status, setStatus] = useState<Status | null>(null)
+  const [, nav] = useLocation()
+  const pendingG = useRef(0)
+
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      api
+        .status()
+        .then((s) => alive && setStatus(s))
+        .catch(() => undefined)
+    load()
+    const t = window.setInterval(load, 5000)
+    return () => {
+      alive = false
+      window.clearInterval(t)
+    }
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
         setCmd((v) => !v)
+        return
+      }
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return
+      // "g" then a letter jumps to a page, like Linear and GitHub.
+      if (e.key === "g") {
+        pendingG.current = Date.now()
+        return
+      }
+      if (Date.now() - pendingG.current < 1200) {
+        const hit = ALL.find((i) => i.key === e.key)
+        pendingG.current = 0
+        if (hit) {
+          nav(hit.href)
+          e.preventDefault()
+        }
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [nav])
+
+  const counts: Record<string, React.ReactNode> = {
+    "/": status && status.running > 0 ? <span className="live-count" title={`${status.running} running`}>{status.running}</span> : null,
+    "/findings": status && status.findings > 0 ? <span className="side-count">{status.findings}</span> : null,
+    "/apps": status && status.apps > 0 ? <span className="side-count">{status.apps}</span> : null,
+  }
+
   return (
-    <>
-      <header className="top">
-        <Link href="/" className="brand">
-          aftertrace
-          <small>local</small>
-        </Link>
-        <nav className="tabs">
-          {NAV.map((n) => (
-            <NavLink key={n.href} {...n} />
-          ))}
-        </nav>
-        <span className="spacer" />
-        {mock && <span className="tag warn">synthetic</span>}
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-      </header>
-      <main>{children}</main>
-      <CommandPalette open={cmd} onClose={() => setCmd(false)} />
-    </>
+    <StatusContext.Provider value={status}>
+      <div className="app">
+        <aside className="side" aria-label="Main">
+          <Link href="/" className="brand">
+            <Logo size={18} />
+            <span>aftertrace</span>
+            {mock && <span className="tag warn">demo</span>}
+          </Link>
+          <button type="button" className="side-search" onClick={() => setCmd(true)}>
+            <Search size={14} />
+            <span>Search</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <nav className="side-nav">
+            <NavItem item={TOP} badge={counts["/"]} />
+            {GROUPS.map((g) => (
+              <div className="side-group" key={g.label}>
+                <div className="side-label">{g.label}</div>
+                {g.items.map((it) => (
+                  <NavItem key={it.href} item={it} badge={counts[it.href]} />
+                ))}
+              </div>
+            ))}
+          </nav>
+          <div className="side-foot">
+            {BOTTOM.map((it) => (
+              <NavItem key={it.href} item={it} badge={null} />
+            ))}
+            <div className="side-status">
+              <ReceivingLine status={status} />
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                title="Toggle theme"
+                onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              </button>
+            </div>
+          </div>
+        </aside>
+        <main className="main">{children}</main>
+      </div>
+      <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(theme === "dark" ? "light" : "dark")} />
+    </StatusContext.Provider>
   )
 }
 
-function NavLink({ href, label }: { href: string; label: string }) {
+function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
   const [loc] = useLocation()
-  const on =
-    href === "/"
-      ? loc === "/" || loc.startsWith("/session/") || loc.startsWith("/trace/")
-      : loc === href || loc.startsWith(`${href}/`)
+  const on = item.match ? item.match(loc) : loc === item.href || loc.startsWith(`${item.href}/`)
+  const Icon = item.icon
   return (
-    <Link href={href} className={on ? "on" : undefined}>
-      {label}
+    <Link href={item.href} className={`side-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={`${item.label} (g ${item.key})`}>
+      <Icon size={15} strokeWidth={1.8} />
+      <span className="side-text">{item.label}</span>
+      {badge}
     </Link>
+  )
+}
+
+// One line of feedback that data is flowing (Norman: feedback, visibility).
+function ReceivingLine({ status }: { status: Status | null }) {
+  const now = useNow(1000)
+  if (!status) return <span className="recv">Connecting…</span>
+  if (!status.last_ns) {
+    return (
+      <Link href="/connect" className="recv is-idle">
+        <i className="recv-dot" /> Waiting for data
+      </Link>
+    )
+  }
+  const fresh = now * 1e6 - status.last_ns < 5 * 60e9
+  return (
+    <span className={`recv${fresh ? " is-live" : ""}`} title="Last data received">
+      <i className="recv-dot" /> {fresh ? "Receiving" : "Last data"} · {ago(status.last_ns, now)}
+    </span>
   )
 }

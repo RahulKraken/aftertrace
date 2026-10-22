@@ -49,7 +49,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test("sessions list", async ({ page }) => {
-  await page.goto("/#/")
+  await page.goto("/#/sessions")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
   await expect(page.locator(".week-pct")).toContainText("5%")
@@ -193,7 +193,7 @@ test("query builder", async ({ page }) => {
   await page.goto("/#/query")
   await expect(page.getByRole("heading", { name: "Query" })).toBeVisible()
   await page.getByRole("button", { name: "Run query" }).click()
-  await expect(page.locator("svg")).toBeVisible()
+  await expect(page.locator("main svg").first()).toBeVisible()
   await shot(page, "query-builder", "light")
   await shot(page, "query-builder", "dark")
 })
@@ -228,4 +228,49 @@ test("waterfall skeleton", async ({ page }) => {
   await expect(page.locator(".skel")).toBeVisible()
   await shot(page, "skeleton", "light")
   await shot(page, "skeleton", "dark")
+})
+
+test("home: story, stats, live lane, next finding", async ({ page }) => {
+  await page.goto("/#/")
+  await waitFonts(page)
+  await expect(page.locator(".home-story")).toContainText("Your agents worked")
+  await expect(page.locator(".stat")).toHaveCount(5)
+  await expect(page.locator(".lane").first()).toBeVisible()
+  await expect(page.locator(".next-card")).toBeVisible()
+  await expect(page.locator(".list-row").first()).toBeVisible()
+  await shot(page, "home", "light")
+  await shot(page, "home", "dark")
+})
+
+test("connect: snippet, prompt copy, live verification", async ({ page }) => {
+  await page.goto("/#/connect")
+  await waitFonts(page)
+  await expect(page.getByRole("heading", { name: "Connect a source" })).toBeVisible()
+  await expect(page.locator(".code pre")).toContainText("CLAUDE_CODE_ENABLE_TELEMETRY")
+  await page.getByRole("checkbox").check()
+  await expect(page.locator(".code pre")).toContainText("OTEL_LOG_USER_PROMPTS")
+  await page.getByRole("tab", { name: /App on the Claude SDK/ }).click()
+  await expect(page.locator(".code pre")).toContainText("NodeTracerProvider")
+  await expect(page.locator(".verify")).toBeVisible()
+  await shot(page, "connect", "light")
+})
+
+test("settings: capture gates", async ({ page }) => {
+  await page.goto("/#/settings")
+  await expect(page.locator(".gate")).toHaveCount(4)
+  await page.getByRole("radio", { name: /Max 20x/ }).click()
+  await expect(page.getByRole("radio", { name: /Max 20x/ })).toHaveAttribute("aria-checked", "true")
+})
+
+test("sidebar: g-shortcuts and command palette", async ({ page }) => {
+  await page.goto("/#/")
+  await expect(page.locator(".home-story")).toBeVisible()
+  await page.keyboard.press("g")
+  await page.keyboard.press("f")
+  await expect(page).toHaveURL(/#\/findings/)
+  await page.keyboard.press("Meta+k")
+  await page.keyboard.type("zsh")
+  await expect(page.locator(".cmd-list button").first()).toContainText("zsh")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/#\/session\//)
 })

@@ -18,6 +18,7 @@ type Server struct {
 	Store *store.Store
 	Web   fs.FS
 	Ask   *ask.Agent
+	Info  Info
 }
 
 type Option func(*Server)
@@ -31,6 +32,7 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 		o(s)
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/status", s.getStatus)
 	mux.HandleFunc("GET /api/overview", s.getOverview)
 	mux.HandleFunc("GET /api/sources", s.getSources)
 	mux.HandleFunc("GET /api/sessions", s.getSessions)

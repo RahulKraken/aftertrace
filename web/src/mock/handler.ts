@@ -10,6 +10,7 @@ import {
   sessionDetail,
   sessions,
 } from "./load"
+import { mockOverview, mockSources, mockStatus } from "./overview"
 import { fieldValues, queryTraces, runQuery } from "./query"
 import { runSql } from "./sql"
 
@@ -24,6 +25,9 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
   const method = (init?.method || "GET").toUpperCase()
 
   if (method === "GET") {
+    if (p === "/api/overview") return json(mockOverview())
+    if (p === "/api/status") return json(mockStatus())
+    if (p === "/api/sources") return json({ now: Date.now() * 1e6, sources: mockSources() })
     if (p === "/api/sessions") return json(sessions)
     if (p.startsWith("/api/session/")) {
       const id = p.split("/").pop() || ""

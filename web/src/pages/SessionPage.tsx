@@ -39,7 +39,7 @@ export function SessionPage() {
   return (
     <div className="page">
       <div className="crumbs">
-        <Link href="/">Sessions</Link> › <span className="mono">{s.session_id.slice(0, 8)}</span>
+        <Link href="/sessions">Sessions</Link> › <span className="mono">{s.session_id.slice(0, 8)}</span>
       </div>
       <h1 className="story-line week-line">{sessionStory(s)}</h1>
       <table className="grid">

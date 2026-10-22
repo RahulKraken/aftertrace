@@ -7,3 +7,6 @@
 # without Node. Built assets stay untracked and are embedded from disk.
 web/dist/**
 !web/dist/index.html
+
+# Local Claude Code state (launch config, worktrees)
+/.claude/

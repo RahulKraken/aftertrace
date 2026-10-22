@@ -1,11 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#F3F0E8"/>
-  <rect x="5" y="14" width="22" height="5" rx="1.5" fill="#C5CDEC"/>
-  <rect x="11" y="14" width="9" height="5" rx="1.2" fill="#5C6BC8"/>
-  <rect x="20" y="14" width="5" height="5" fill="url(#h)"/>
-  <defs>
-    <pattern id="h" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="2" height="4" fill="#C9952A"/>
-    </pattern>
-  </defs>
+  <rect width="32" height="32" rx="8" fill="#0A0A0A"/>
+  <rect x="5" y="8" width="14" height="4.5" rx="2.25" fill="#FAFAFA"/>
+  <rect x="10" y="14" width="17" height="4.5" rx="2.25" fill="#FAFAFA" opacity="0.55"/>
+  <rect x="15" y="20" width="9" height="4.5" rx="2.25" fill="#F5A524"/>
 </svg>

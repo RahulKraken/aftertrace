@@ -22,6 +22,9 @@ import (
 	"github.com/RahulKraken/aftertrace/web"
 )
 
+// version is set at release time with -ldflags "-X main.version=v0.1.0".
+var version = "dev"
+
 func main() {
 	log.SetFlags(0)
 	if len(os.Args) < 2 {
@@ -35,6 +38,8 @@ func main() {
 		os.Exit(cmdImport(os.Args[2:]))
 	case "demo":
 		os.Exit(cmdDemo(os.Args[2:]))
+	case "version", "--version":
+		fmt.Println("aftertrace", version)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -51,6 +56,7 @@ Usage:
   aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
   aftertrace import  [--db PATH] [--store-content] <dir>
   aftertrace demo    [--db PATH]
+  aftertrace version
 
 Default bind is 127.0.0.1. Pass --listen 0.0.0.0 to accept remote OTLP (team mode).
 Prompt, response and tool content attributes are dropped at ingest unless --store-content.
@@ -112,6 +118,10 @@ func cmdServe(args []string) int {
 		log.Printf("ui: %v", err)
 		return 1
 	}
+	opts = append(opts, api.WithInfo(api.Info{
+		Version: version, DBPath: st.Path, StoreContent: *storeContent,
+		GRPC: grpcLn.Addr().String(), HTTP: httpLn.Addr().String(), UI: apiLn.Addr().String(),
+	}))
 	srv := &http.Server{Handler: api.New(st, web.FS, opts...), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := srv.Serve(apiLn); err != nil && err != http.ErrServerClosed {
