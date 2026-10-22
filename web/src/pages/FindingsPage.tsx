@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Check, Wrench } from "lucide-react"
 import { Link } from "wouter"
 import { WinStage } from "../components/WinStage"
-import { impactParts } from "../lib/format"
+import { dur, impactParts, usd } from "../lib/format"
 import { api } from "../lib/api"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import type { Finding } from "../lib/types"
@@ -66,6 +66,11 @@ export function FindingsPage() {
   return (
     <div className={`page findings-page${pending ? " is-win" : ""}`} style={{ maxWidth: 820 }}>
       {pending && <WinStage win={pending.win} onDone={finishWin} />}
+      <div className="findings-head">
+        <h1>Findings</h1>
+        <div className="sub">One change at a time, ranked by what it costs you. Every finding links to the spans behind it.</div>
+        {done.length > 0 && <Ledger done={done} />}
+      </div>
       <div className="findings-body">
         {hero ? (
           <HeroFinding
@@ -75,6 +80,7 @@ export function FindingsPage() {
               pendingRef.current = next
               setPending(next)
             }}
+            onDone={() => resolveFinding(hero.id)}
           />
         ) : (
           <h1 className="story-line week-line">Nothing left to fix.</h1>
@@ -91,7 +97,10 @@ export function FindingsPage() {
               const [v, u] = impactParts(f)
               return (
                 <button type="button" className="frow quiet" data-finding={f.id} key={f.id} onClick={() => setFocus(f.id)}>
-                  <span className="hl">{f.headline}</span>
+                  <span className="hl">
+                    <span className={`pillar pillar-${f.pillar}`}>{f.pillar}</span>
+                    {f.headline}
+                  </span>
                   <span className="imp">
                     {v}
                     <span>{u}</span>
@@ -106,7 +115,28 @@ export function FindingsPage() {
   )
 }
 
-function HeroFinding({ f, onFixed }: { f: Finding; onFixed: (win: Win) => void }) {
+// What resolved findings were worth, summed per unit (Norman: feedback;
+// emotional design: reflective). Impacts are the rule's own estimates.
+function Ledger({ done }: { done: Finding[] }) {
+  let secs = 0
+  let usdSaved = 0
+  for (const f of done) {
+    if (f.impact_unit.startsWith("USD")) usdSaved += f.impact_value
+    else if (/^s\b|waited|lost|^s /.test(f.impact_unit)) secs += f.impact_value
+  }
+  const parts = [secs > 0 ? `${dur(secs * 1000)} of waiting` : "", usdSaved > 0 ? `${usd(usdSaved)}` : ""].filter(Boolean)
+  return (
+    <div className="ledger">
+      <Check size={14} />
+      <span>
+        {done.length} {done.length === 1 ? "finding" : "findings"} resolved
+        {parts.length ? <> · worth about {parts.join(" and ")} at the rate they were costing you</> : null}
+      </span>
+    </div>
+  )
+}
+
+function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) => void; onDone: () => void }) {
   const [v, u] = impactParts(f)
   const fx = fixFor(f)
   const [copied, setCopied] = useState(false)
@@ -140,14 +170,17 @@ function HeroFinding({ f, onFixed }: { f: Finding; onFixed: (win: Win) => void }
       </div>
       <p className="rec">{f.recommendation}</p>
       {fx && <pre className="fix-preview">{fx.snippet}</pre>}
-      {fx && (
-        <div className="acts">
+      <div className="acts">
+        {fx && (
           <button type="button" className="btn fix-btn" onClick={copyFix}>
             {copied ? <Check size={13} /> : <Wrench size={13} />}
             {copied ? "Copied" : `Fix · ${fx.label}`}
           </button>
-        </div>
-      )}
+        )}
+        <button type="button" className={`btn ${fx ? "ghost" : ""}`} onClick={onDone}>
+          <Check size={13} /> Mark as done
+        </button>
+      </div>
       <div className="evs">
         {f.evidence.map((e, i) => (
           <Link key={i} className="ev" href={`/trace/${e.trace_id}?span=${e.span_id}`} data-span={e.span_id}>

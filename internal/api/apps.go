@@ -160,7 +160,7 @@ func (s *Server) getApp(w http.ResponseWriter, r *http.Request) {
 type notFound string
 
 func (e notFound) Error() string { return "no app named " + string(e) }
-func errNotFound(n string) error  { return notFound(n) }
+func errNotFound(n string) error { return notFound(n) }
 
 // groupCalls aggregates an app's calls by operation or model. dim is one of
 // two fixed column names, never user input.

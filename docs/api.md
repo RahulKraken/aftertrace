@@ -140,7 +140,7 @@ The query must return `severity`, `headline`, `impact_value`, `impact_unit`, `de
 
 ## Cost
 
-`GET /api/cost?dim=model` — `dim` is `model`, `effort`, `skill`, `subagent`, `mcp`, `repo`, `query_source`, or `tool`.
+`GET /api/cost?dim=model` — `dim` is `source`, `model`, `effort`, `skill`, `subagent`, `mcp`, `repo`, `query_source`, or `tool`. `source` puts Claude Code next to each app (from the `calls` view, with input tokens normalised to exclude cache, as Claude Code reports them).
 
 For cost dimensions: columns `dim, cost_usd, share, requests, input, output, cache_read, cache_write, cache_hit`. Cost is `api_request.cost_usd` joined to `llm_request` on `request_id`.
 

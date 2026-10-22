@@ -4,7 +4,7 @@ import { api } from "../lib/api"
 import { dur, pct, tok, usd } from "../lib/format"
 import type { CostTable } from "../lib/types"
 
-const DIMS = ["model", "effort", "skill", "subagent", "mcp", "tool", "repo", "query_source"] as const
+const DIMS = ["source", "model", "effort", "skill", "subagent", "mcp", "tool", "repo", "query_source"] as const
 
 function fmt(col: string, v: unknown): string {
   if (v == null) return "—"
