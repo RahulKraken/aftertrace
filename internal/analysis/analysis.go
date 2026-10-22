@@ -6,7 +6,10 @@ import (
 	"sort"
 )
 
-var cats = []string{"permission_wait", "retry", "model", "tool", "hook"}
+// Paint priority, highest first. permission_wait is time a person decided a
+// permission prompt; permission_check is the same span when config, a hook or
+// auto mode decided it (no one was waiting on you).
+var cats = []string{"permission_wait", "retry", "model", "tool", "hook", "permission_check"}
 
 type Span struct {
 	SpanID        string         `json:"span_id"`
@@ -130,12 +133,21 @@ func Breakdown(db *sql.DB, traceID string, spans []Span) map[string]float64 {
 	if root == nil {
 		return nil
 	}
+	sources := decisionSources(db, traceID)
 	var ivs []interval
 	for i := range spans {
 		s := &spans[i]
 		switch s.Name {
 		case "claude_code.tool.blocked_on_user":
-			ivs = append(ivs, interval{0, s.StartNS, s.EndNS})
+			src, _ := s.Attrs["source"].(string)
+			if src == "" || src == "unknown" {
+				src = sources[s.SpanID]
+			}
+			if HumanDecision(src) {
+				ivs = append(ivs, interval{0, s.StartNS, s.EndNS})
+			} else {
+				ivs = append(ivs, interval{5, s.StartNS, s.EndNS})
+			}
 		case "claude_code.tool.execution":
 			ivs = append(ivs, interval{3, s.StartNS, s.EndNS})
 		case "claude_code.hook":
@@ -245,4 +257,36 @@ func interaction(spans []Span) *Span {
 		}
 	}
 	return nil
+}
+
+// HumanDecision reports whether a permission decision source means a person
+// answered the prompt. Claude Code uses user_temporary, user_permanent,
+// user_abort and user_reject for people; config, hook and classifier sources
+// for automatic decisions. An unknown source counts as a person, so a missing
+// attribute never hides waiting time.
+func HumanDecision(source string) bool {
+	if source == "" || source == "unknown" {
+		return true
+	}
+	return len(source) >= 5 && source[:5] == "user_"
+}
+
+// decisionSources maps blocked_on_user span ids to the source on their
+// tool_decision event. The span itself says "unknown" in some clients.
+func decisionSources(db *sql.DB, traceID string) map[string]string {
+	out := map[string]string{}
+	rows, err := db.Query(`SELECT span_id, json_extract_string(attrs, '$.source') FROM events
+		WHERE trace_id=? AND name='tool_decision' AND span_id IS NOT NULL`, traceID)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var src sql.NullString
+		if rows.Scan(&id, &src) == nil && src.Valid {
+			out[id] = src.String
+		}
+	}
+	return out
 }

@@ -657,3 +657,35 @@ func TestAskEndToEnd(t *testing.T) {
 		t.Fatalf("ask off: %s", b)
 	}
 }
+
+// Only a person deciding a prompt counts as waiting on you. Config, hook and
+// auto-mode decisions are permission checks.
+func TestPermissionWaitCountsOnlyHumanDecisions(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "w.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ms := int64(1e6)
+	spans := []store.Span{
+		{TraceID: "t", SpanID: "turn", Name: "claude_code.interaction", StartNS: 0, EndNS: 100 * ms, Attrs: map[string]any{}},
+		{TraceID: "t", SpanID: "a", ParentSpanID: "turn", Name: "claude_code.tool", StartNS: 0, EndNS: 40 * ms, Attrs: map[string]any{}},
+		{TraceID: "t", SpanID: "aw", ParentSpanID: "a", Name: "claude_code.tool.blocked_on_user", StartNS: 0, EndNS: 30 * ms,
+			Attrs: map[string]any{"source": "unknown"}},
+		{TraceID: "t", SpanID: "b", ParentSpanID: "turn", Name: "claude_code.tool", StartNS: 50 * ms, EndNS: 90 * ms, Attrs: map[string]any{}},
+		{TraceID: "t", SpanID: "bw", ParentSpanID: "b", Name: "claude_code.tool.blocked_on_user", StartNS: 50 * ms, EndNS: 60 * ms,
+			Attrs: map[string]any{"source": "user_temporary"}},
+	}
+	evs := []store.Event{{TsNS: 30 * ms, Name: "tool_decision", TraceID: "t", SpanID: "aw", Attrs: map[string]any{"source": "config"}}}
+	if err := st.Insert(spans, nil, evs, nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := analysis.SpanRows(st.DB, "t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bd := analysis.Breakdown(st.DB, "t", rows)
+	if bd["permission_wait"] != 10 || bd["permission_check"] != 30 {
+		t.Fatalf("breakdown: %v", bd)
+	}
+}

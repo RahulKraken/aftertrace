@@ -240,14 +240,14 @@ function Mix({ bd }: { bd: NonNullable<Trace["breakdown"]> }) {
           <i key={c} className={`c-${c}`} style={{ flex: bd[c] || 0 }} />
         ))}
       </div>
-      {CATS.filter((c) => bd[c] > 0).map((c) => (
+      {CATS.filter((c) => (bd[c] || 0) > 0).map((c) => (
         <div key={c} style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
           <span>
             <i className={`c-${c}`} style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, marginRight: 6 }} />
             {CAT_LABEL[c]}
           </span>
           <span className="mono">
-            {dur(bd[c])} · {pct(bd[c] / tot)}
+            {dur(bd[c] || 0)} · {pct((bd[c] || 0) / tot)}
           </span>
         </div>
       ))}

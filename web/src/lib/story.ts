@@ -75,7 +75,9 @@ export function weekStory(rows: Session[], now = Date.now()): {
 
 export function mixShare(bd: Breakdown | null | undefined): number[] {
   if (!bd) return [1, 0, 0, 0, 0, 0]
+  // Automatic permission checks are not your time; the mini bar folds them into "other".
+  const v = { ...bd, other: (bd.other || 0) + (bd.permission_check || 0) }
   const keys: (keyof Breakdown)[] = ["model", "tool", "permission_wait", "retry", "hook", "other"]
-  const tot = keys.reduce((a, k) => a + (bd[k] || 0), 0) || 1
-  return keys.map((k) => (bd[k] || 0) / tot)
+  const tot = keys.reduce((a, k) => a + (v[k] || 0), 0) || 1
+  return keys.map((k) => (v[k] || 0) / tot)
 }

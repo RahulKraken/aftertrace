@@ -8,6 +8,8 @@ Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never 
 
 | Method | Path | Returns |
 | - | - | - |
+| GET | `/api/overview` | Home: this week vs last, daily series, live lanes, sources, top finding, recent sessions |
+| GET | `/api/sources` | Everything received, grouped by `service.name`, with first and last seen |
 | GET | `/api/sessions` | Session list |
 | GET | `/api/session/{session_id}` | Session KPIs plus one row per turn |
 | GET | `/api/trace/{trace_id}` | One turn: full span tree, events, breakdown, prev/next |
@@ -60,7 +62,7 @@ Errors are `{ "error": "..." }` with HTTP 400.
 
 `title` is the session's first prompt, cut to 200 characters. It is `null` unless prompt text is captured (`OTEL_LOG_USER_PROMPTS=1` and `aftertrace serve --store-content`). `running` is true while a turn in the session is still in progress (see below).
 
-`breakdown` is wall-clock ms painted per turn (waiting on you, retry waste, model, tool run, hooks, other). Overlaps count once.
+`breakdown` is wall-clock ms painted per turn (waiting on you, retry waste, model, tool run, hooks, permission checks, other). Overlaps count once. `permission_wait` counts only permission prompts a person decided (`user_*` decision sources, or unknown); prompts that config, a hook or auto mode decided are `permission_check`.
 
 `GET /api/session/{id}` — `{ "session": <list row>, "turns": [ ... ] }`. Each turn:
 
@@ -183,3 +185,17 @@ The query cannot touch anything outside the tables and views:
 `GET /api/ask/suggestions` — `{agent, questions, schema}`. `questions` is empty in this build.
 
 `POST /api/ask` body `{question}` returns `{answer, sql: null, result: null, evidence: [], builder: null}` explaining that Ask is opt-in and not wired yet.
+
+## Overview
+
+`GET /api/overview` powers the Home page.
+
+- `lo`, `hi`: the week, unix ns. The last 7 days, or the 7 days ending at the newest data when nothing arrived recently (`anchored: true`).
+- `week`, `prev`: this week and the one before. `sessions`, `turns`, `turn_ms`, `breakdown`, `cost_usd`, `requests`, `tokens`, `cache_hit`, `lines_added`, `lines_removed`, `commits`, `pull_requests`, `active_s` (from Claude Code metrics), `tool_calls`, `approvals` (prompts a person approved), `errors`.
+- `days`: 14 local days ending at `hi`, each `{day, start_ns, cost_usd, turn_ms, wait_ms, turns}`.
+- `live`: turns in progress that received spans in the last 5 minutes, each `{session_id, trace_id, title, source, start_ns, last_ns, spans, cost_usd, doing, quiet}`. `doing` is the latest tool or model call; `quiet` means nothing new for 90 seconds.
+- `sources`: as `GET /api/sources`.
+- `top`, `open`: the highest-ranked finding and the number of findings.
+- `recent`: the six newest sessions, shaped like `GET /api/sessions` rows.
+
+`GET /api/sources` lists every `service.name` seen in spans, events or metrics: `{name, kind, spans, events, metrics, first_ns, last_ns, live}`. `kind` is `claude-code` for any `claude-code*` service and `app` otherwise. `live` means data in the last 5 minutes.
