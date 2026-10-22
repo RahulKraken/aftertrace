@@ -77,8 +77,6 @@ func (s *Server) err(w http.ResponseWriter, err error, code int) {
 func (s *Server) db() *sql.DB { return s.Store.DB }
 
 func (s *Server) getSessions(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := sessions(s.db())
 	if err != nil {
 		s.err(w, err, 400)
@@ -88,8 +86,6 @@ func (s *Server) getSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := sessionDetail(s.db(), r.PathValue("id"))
 	if err != nil {
 		s.err(w, err, 400)
@@ -99,8 +95,6 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := traceDetail(s.db(), r.PathValue("id"))
 	if err != nil {
 		s.err(w, err, 400)
@@ -110,14 +104,10 @@ func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFindings(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	s.json(w, rules.RunAll(s.db()), 200)
 }
 
 func (s *Server) getFields(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	m, err := query.Fields(s.db())
 	if err != nil {
 		s.err(w, err, 400)
@@ -135,8 +125,6 @@ func (s *Server) getFieldValues(w http.ResponseWriter, r *http.Request) {
 	if field == "" {
 		field = "name"
 	}
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	fields, err := query.Fields(s.db())
 	if err != nil {
 		s.err(w, err, 400)
@@ -151,8 +139,6 @@ func (s *Server) getFieldValues(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getCost(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	dim := r.URL.Query().Get("dim")
 	if dim == "" {
 		dim = "model"
@@ -166,8 +152,6 @@ func (s *Server) getCost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getRange(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	var lo, hi sql.NullInt64
 	if err := s.db().QueryRow("SELECT min(start_ns), max(end_ns) FROM spans").Scan(&lo, &hi); err != nil {
 		s.err(w, err, 400)
@@ -182,8 +166,6 @@ func (s *Server) postQuery(w http.ResponseWriter, r *http.Request) {
 		s.err(w, err, 400)
 		return
 	}
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	fields, err := query.Fields(s.db())
 	if err != nil {
 		s.err(w, err, 400)
@@ -207,8 +189,6 @@ func (s *Server) postQueryTraces(w http.ResponseWriter, r *http.Request) {
 		s.err(w, err, 400)
 		return
 	}
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	fields, err := query.Fields(s.db())
 	if err != nil {
 		s.err(w, err, 400)
@@ -230,8 +210,6 @@ func (s *Server) postSQL(w http.ResponseWriter, r *http.Request) {
 		s.err(w, err, 400)
 		return
 	}
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := query.RunSQL(s.db(), body.SQL, 500)
 	if err != nil {
 		s.err(w, err, 400)

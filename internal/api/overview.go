@@ -272,8 +272,6 @@ func sourceName(res map[string]any) string {
 }
 
 func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	db := s.db()
 	now := time.Now().UnixNano()
 
@@ -446,8 +444,6 @@ func sources(db *sql.DB, now int64) ([]source, error) {
 }
 
 func (s *Server) getSources(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := sources(s.db(), time.Now().UnixNano())
 	if err != nil {
 		s.err(w, err, 500)

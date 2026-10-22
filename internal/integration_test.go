@@ -29,6 +29,7 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func loadDemo(t *testing.T) *store.Store {
@@ -425,9 +426,7 @@ func TestSQLSandbox(t *testing.T) {
 		if _, err := query.RunSQL(st.DB, s, 10); err == nil {
 			t.Errorf("RunSQL(%q) succeeded, want error", s)
 		}
-		st.Mu.Lock()
 		_, err := st.DB.Exec(s)
-		st.Mu.Unlock()
 		if err == nil {
 			t.Errorf("Exec(%q) succeeded, want the instance to refuse it", s)
 		}
@@ -478,6 +477,92 @@ func kv(k string, v any) *commonpb.KeyValue {
 	}
 	return kv
 }
+
+// A slow read must not hold up ingest or the sidebar. While a heavy query runs
+// through /api/sql, spans arrive over OTLP HTTP and /api/status is polled; each
+// must answer quickly and all of them before the query finishes.
+func TestSlowReadDoesNotBlockIngest(t *testing.T) {
+	st := loadDemo(t)
+	srv := httptest.NewServer(api.New(st, web.FS))
+	t.Cleanup(srv.Close)
+	ingest := httptest.NewServer(otlp.NewReceiver(st, false).HTTP.Handler)
+	t.Cleanup(ingest.Close)
+	client := &http.Client{Timeout: time.Minute}
+	before, err := st.Counts()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	slow := make(chan time.Duration, 1)
+	go func() {
+		defer func() { slow <- time.Since(start) }()
+		res, err := client.Post(srv.URL+"/api/sql", "application/json",
+			strings.NewReader(`{"sql":"SELECT sum(hash(i)) FROM range(`+slowRows+`) t(i)"}`))
+		if err != nil {
+			t.Errorf("slow sql: %v", err)
+			return
+		}
+		res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Errorf("slow sql -> %d", res.StatusCode)
+		}
+	}()
+	time.Sleep(300 * time.Millisecond) // let the query get going
+
+	const batches = 5
+	var worst time.Duration
+	timed := func(what string, do func() (*http.Response, error)) {
+		t0 := time.Now()
+		res, err := do()
+		if err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+		res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Fatalf("%s -> %d", what, res.StatusCode)
+		}
+		worst = max(worst, time.Since(t0))
+	}
+	for i := range batches {
+		req := &coltracepb.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{
+			Resource: &resourcepb.Resource{Attributes: []*commonpb.KeyValue{kv("service.name", "claude-code")}},
+			ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{{
+				TraceId: bytesN(16, 0xa0+i), SpanId: bytesN(8, 0xb0+i), Name: "claude_code.interaction",
+				StartTimeUnixNano: uint64(time.Now().UnixNano()), EndTimeUnixNano: uint64(time.Now().UnixNano()),
+				Attributes: []*commonpb.KeyValue{kv("session.id", "concurrent")},
+			}}}},
+		}}}
+		pb, err := proto.Marshal(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		timed("ingest", func() (*http.Response, error) {
+			return client.Post(ingest.URL+"/v1/traces", "application/x-protobuf", bytes.NewReader(pb))
+		})
+		timed("status", func() (*http.Response, error) { return client.Get(srv.URL + "/api/status") })
+	}
+	fast := time.Since(start)
+	took := <-slow
+	t.Logf("slow query %v; ingest and status done at %v, worst call %v", took, fast, worst)
+	if fast >= took {
+		t.Fatalf("ingest and status finished at %v, after the slow query (%v): they waited on it", fast, took)
+	}
+	if worst > 2*time.Second {
+		t.Fatalf("a call took %v while the slow query ran", worst)
+	}
+	after, err := st.Counts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Spans != before.Spans+batches {
+		t.Fatalf("spans %d -> %d, want +%d", before.Spans, after.Spans, batches)
+	}
+}
+
+// slowRows sizes the query in TestSlowReadDoesNotBlockIngest to run for a few
+// seconds; DuckDB's own code is not slowed by -race.
+const slowRows = "1000000000"
 
 func bytesN(n, fill int) []byte {
 	b := make([]byte, n)

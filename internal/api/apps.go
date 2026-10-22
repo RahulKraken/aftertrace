@@ -110,8 +110,6 @@ func appRows(db *sql.DB, only string) ([]appRow, error) {
 }
 
 func (s *Server) getApps(w http.ResponseWriter, r *http.Request) {
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	out, err := appRows(s.db(), "")
 	if err != nil {
 		s.err(w, err, 500)
@@ -122,8 +120,6 @@ func (s *Server) getApps(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getApp(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("service")
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	db := s.db()
 	apps, err := appRows(db, name)
 	if err != nil {
