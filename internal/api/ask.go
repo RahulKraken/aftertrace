@@ -118,6 +118,8 @@ func cleanPrompt(s string) string {
 	// A prompt clipped mid-block leaves an injected block with no closing tag.
 	stripped = unclosed.ReplaceAllString(stripped, " ")
 	out := strings.Join(strings.Fields(markup.ReplaceAllString(stripped, " ")), " ")
+	// Side sessions open with Claude Code's own preamble; the brief comes after it.
+	out = strings.TrimSpace(strings.TrimPrefix(out, "Background (from the session that started this one):"))
 	if out != "" || strings.TrimSpace(s) == "" {
 		return out
 	}

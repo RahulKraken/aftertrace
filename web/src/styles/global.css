@@ -1537,3 +1537,11 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .session-story { margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
 .session-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 22px; font-size: 13px; }
 .welcome-demo .copy-inline { margin: 0 0 0 auto; }
+@keyframes view-in { from { opacity: 0; } }
+.view-in { animation: view-in 180ms ease both; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; animation-timing-function: ease; }
+@media (max-width: 720px) {
+  /* The phone nav scrolls sideways when it must, without showing a bar. */
+  .side, .side * { scrollbar-width: none; }
+  .side::-webkit-scrollbar, .side *::-webkit-scrollbar { display: none; }
+}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -230,6 +231,8 @@ func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 	return lanes, nil
 }
 
+// doing says what a live turn is doing now, in the present tense:
+// "Running npm test", "Reading service.go", "Thinking · Opus 5.5".
 func doing(name string, a map[string]any) string {
 	str := func(k string) string {
 		v, _ := a[k].(string)
@@ -238,27 +241,73 @@ func doing(name string, a map[string]any) string {
 	switch name {
 	case "claude_code.tool":
 		t := str("tool_name")
-		target := str("full_command")
-		if target == "" {
-			target = str("file_path")
+		file := path.Base(str("file_path"))
+		switch {
+		case strings.HasPrefix(t, "mcp__"):
+			parts := strings.SplitN(t, "__", 3)
+			action := strings.ReplaceAll(parts[len(parts)-1], "_", " ")
+			server := ""
+			if len(parts) > 1 {
+				server = strings.ReplaceAll(parts[1], "_", " ")
+			}
+			return upperFirst(action) + " · " + server
+		case t == "Bash":
+			if c := str("full_command"); c != "" {
+				return "Running " + clipLabel(strings.SplitN(c, "\n", 2)[0])
+			}
+			return "Running a command"
+		case t == "Read" && file != ".":
+			return "Reading " + file
+		case (t == "Edit" || t == "MultiEdit" || t == "Write") && file != ".":
+			return "Editing " + file
+		case t == "Grep" || t == "Glob":
+			return "Searching the code"
+		case t == "Agent" || t == "Task":
+			if s := str("subagent_type"); s != "" {
+				return "Handing off to " + s
+			}
+			return "Handing off to a subagent"
+		case t == "AskUserQuestion":
+			return "Waiting for your answer"
+		case t == "WebFetch" || t == "WebSearch":
+			return "Reading the web"
 		}
-		if target == "" {
-			target = str("subagent_type")
-		}
-		if target != "" {
-			return t + " · " + clipLabel(target)
-		}
-		return t
+		return "Using " + t
+	case "claude_code.tool.blocked_on_user":
+		return "Waiting for your approval"
 	case "claude_code.llm_request":
-		m := strings.TrimPrefix(str("model"), "claude-")
-		if m == "" {
-			m = "model"
-		}
-		return m + " · thinking"
+		return "Thinking · " + modelDisplay(str("model"))
 	case "claude_code.hook":
-		return "hook · " + str("hook_name")
+		return "Running hook " + str("hook_name")
 	}
 	return name
+}
+
+// modelDisplay turns claude-opus-5-5 into Opus 5.5.
+func modelDisplay(m string) string {
+	m = strings.TrimPrefix(m, "claude-")
+	if m == "" {
+		return "the model"
+	}
+	parts := strings.Split(m, "-")
+	nums := []string{}
+	for _, p := range parts[1:] {
+		if len(p) >= 8 { // a date suffix
+			break
+		}
+		nums = append(nums, p)
+	}
+	if len(nums) == 0 {
+		return upperFirst(parts[0])
+	}
+	return upperFirst(parts[0]) + " " + strings.Join(nums, ".")
+}
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // sourceName is the service that sent a span. Claude Code variants

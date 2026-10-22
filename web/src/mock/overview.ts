@@ -94,7 +94,7 @@ export function mockOverview(): Overview {
           last_ns: now - 3e9,
           spans: 38,
           cost_usd: 0.41,
-          doing: "Bash · npm test -- --watch=false",
+          doing: "Running npm test -- --watch=false",
           quiet: false,
         },
       ]

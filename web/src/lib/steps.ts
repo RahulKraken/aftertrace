@@ -72,7 +72,9 @@ const TAG = /<\/?[A-Za-z_][\w-]*(\s[^<>]*)?>/g
 export function cleanPrompt(s: string): string {
   // A prompt clipped mid-block leaves an injected block with no closing tag.
   const out = s.replace(INJECTED, " ").replace(UNCLOSED, " ").replace(TAG, " ").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
-  if (out || !s.trim()) return out
+  // Side sessions open with Claude Code's own preamble; the brief comes after it.
+  const brief = out.replace(/^Background \(from the session that started this one\):\s*/, "")
+  if (brief || !s.trim()) return brief
   if (s.includes("<task-notification")) return "Background task finished"
   if (s.includes("<side-sessions-event")) return "Update from a side session"
   if (s.includes("<ci-monitor-event")) return "CI update"
