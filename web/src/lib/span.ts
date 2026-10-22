@@ -149,6 +149,8 @@ export function defaultCollapsed(root: SpanNode): Set<string> {
     const k = spanKind(s)
     if (k === "tool" && s.kids.length) out.add(s.span_id)
     if (k === "agent" && s.kids.length) out.add(s.span_id)
+    // Steps from groupSteps start closed: the turn reads as a list of steps.
+    if (s.name === "aftertrace.step") out.add(s.span_id)
     s.kids.forEach(walk)
   }
   walk(root)

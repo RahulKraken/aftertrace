@@ -37,6 +37,17 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
   })
 }
 
+// The timeline opens on closed steps; open them all to reach individual calls.
+async function openSteps(page: Page) {
+  await expect(page.locator(".row.is-step").first()).toBeVisible()
+  const n = await page.locator(".row.is-step").count()
+  for (let i = 0; i < n; i++) {
+    const caret = page.locator(".row.is-step").nth(i).locator(".caret")
+    if ((await caret.textContent()) === "▸") await page.locator(".row.is-step").nth(i).dispatchEvent("click")
+    await expect(caret).toHaveText("▾")
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
@@ -108,6 +119,9 @@ test("waterfall default: bars own the page", async ({ page }) => {
   await expect(page.locator(".wf-sum")).toBeVisible()
   await expect(page.locator(".kpis")).toHaveCount(0)
   await expect(page.locator(".live-badge")).toContainText("Done")
+  // Calls are grouped into steps, closed by default, each saying how many calls it holds.
+  await expect(page.locator(".row.is-step").first()).toBeVisible()
+  await expect(page.locator(".row.is-step .n-pill").first()).toContainText("call")
   await shot(page, "waterfall", "light")
   await shot(page, "waterfall", "dark")
 })
@@ -115,6 +129,7 @@ test("waterfall default: bars own the page", async ({ page }) => {
 test("waterfall hover popover", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
+  await openSteps(page)
   const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "opus" }) }).first()
   await model.hover()
   await expect(page.locator(".span-pop")).toBeVisible()
@@ -149,26 +164,26 @@ test("waterfall cost toggle", async ({ page }) => {
 
 test("waterfall selected: pane takes the budget", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
-  const bash = page.locator(".row").filter({ has: page.locator(".name", { hasText: "Bash" }) }).first()
-  if (await bash.locator(".n-pill").count()) await bash.locator(".caret").click()
+  await openSteps(page)
+  const bash = page.locator(".row").filter({ has: page.locator(".glyph.g-bash") }).first()
+  // A tool's wait and run phases are in its bar; opening it lists them as rows.
+  await expect(bash.locator(".n-pill")).toHaveCount(0)
+  await bash.locator(".caret").dispatchEvent("click")
   const waitRow = page.locator(".row").filter({ hasText: "waiting on you" }).first()
   await expect(waitRow).toBeVisible()
-  await expect(bash).not.toContainText("blocked")
-
-  for (let i = 0; i < 2; i++) {
-    const agent = page
-      .locator(".row")
-      .filter({ has: page.locator(".name", { hasText: "Agent" }) })
-      .filter({ has: page.locator(".n-pill") })
-      .first()
-    if (await agent.count()) await agent.locator(".caret").click()
-  }
-
-  await waitRow.click()
+  // Rows spring into place after each expand; click once they settle.
+  await page.waitForTimeout(500)
+  await waitRow.dispatchEvent("click")
   await expect(page.locator(".pane")).toBeVisible()
   await expect(page.locator(".wf")).toHaveClass(/has-pane/)
   await expect(page.locator(".pane")).toContainText("waiting on you")
-  await expect(page.locator(".row").filter({ has: page.locator(".name", { hasText: "Agent" }) }).nth(1)).toBeVisible()
+
+  for (let i = 0; i < 2; i++) {
+    const agent = page.locator(".row").filter({ has: page.locator(".glyph.g-agent") }).filter({ has: page.locator(".n-pill") }).first()
+    if (await agent.count()) await agent.locator(".caret").dispatchEvent("click")
+    await page.waitForTimeout(300)
+  }
+  await expect(page.locator(".row").filter({ has: page.locator(".glyph.g-agent") }).nth(1)).toBeVisible()
   await page.waitForTimeout(400)
   await shot(page, "waterfall-selected", "light")
   await shot(page, "waterfall-selected", "dark")

@@ -137,7 +137,6 @@ const BASH_VERB: Record<string, [string, ActionCat]> = {
   file_read: ["Read", "explore"],
   vcs: ["Git", "run"],
   github_cli: ["GitHub", "run"],
-  package_manager: ["Installed", "run"],
   fs_mutation: ["Changed files", "edit"],
 }
 
@@ -388,4 +387,73 @@ export function summarize(actions: Action[]): string {
   say("skill", "Used a skill", "Used # skills")
   say("other", "1 other step", "# other steps")
   return parts.join(" · ")
+}
+
+export const STEP = "aftertrace.step"
+
+// Wraps a Claude Code turn's spans into one synthetic span per step, so the
+// timeline reads as a dozen steps you can open rather than a wall of calls.
+// Returns new nodes; the forest passed in is left as it was.
+export function groupSteps(root: SpanNode, byId: Map<string, SpanNode>, idx: ContentIndex): { root: SpanNode; byId: Map<string, SpanNode>; steps: number } {
+  if (spanKind(root) !== "turn") return { root, byId, steps: 0 }
+  const story = buildStory(root, idx)
+  const chapters = story.items.filter((i): i is Chapter => i.kind === "chapter")
+  if (chapters.length < 2) return { root, byId, steps: 0 }
+  const owner = new Map<string, Chapter>()
+  // Model calls belong to the chapter whose time range holds them.
+  for (const c of chapters) for (const a of c.actions) owner.set(a.span.span_id, c)
+  const ranges = chapters.map((c, i) => ({ c, a: c.startNs, b: chapters[i + 1]?.startNs ?? Number.POSITIVE_INFINITY }))
+  const out = new Map(byId)
+  const groups = new Map<string, SpanNode>()
+  const newRoot: SpanNode = { ...root, kids: [] }
+  out.set(root.span_id, newRoot)
+  chapters.forEach((c, i) => {
+    const g: SpanNode = {
+      ...root,
+      span_id: `step:${c.id}`,
+      parent_span_id: root.span_id,
+      name: STEP,
+      attrs: { title: c.title || summarize(c.actions) || "Thinking", step: i + 1, narrated: Boolean(c.title) },
+      is_error: false,
+      status_message: "",
+      joined: null,
+      findings: [],
+      critical: false,
+      retry_end_ns: null,
+      start_ns: Number.POSITIVE_INFINITY,
+      end_ns: 0,
+      duration_ms: 0,
+      kids: [],
+    } as SpanNode
+    groups.set(c.id, g)
+    out.set(g.span_id, g)
+    newRoot.kids.push(g)
+  })
+  for (const k of root.kids) {
+    const kind = spanKind(k)
+    let c = owner.get(k.span_id)
+    if (!c && kind === "model") c = ranges.find((r) => k.start_ns >= r.a && k.start_ns < r.b)?.c ?? chapters[0]
+    const g = c ? groups.get(c.id) : undefined
+    if (!g) {
+      newRoot.kids.push(k)
+      continue
+    }
+    const moved = { ...k, parent_span_id: g.span_id }
+    out.set(k.span_id, moved)
+    // Grandchildren keep pointing at the same parent id, which still resolves.
+    g.kids.push(moved)
+    g.start_ns = Math.min(g.start_ns, k.start_ns)
+    g.end_ns = Math.max(g.end_ns, k.end_ns)
+  }
+  for (const g of groups.values()) {
+    g.kids.sort((a, b) => a.start_ns - b.start_ns)
+    if (!g.kids.length) {
+      newRoot.kids = newRoot.kids.filter((x) => x !== g)
+      out.delete(g.span_id)
+      continue
+    }
+    g.duration_ms = (g.end_ns - g.start_ns) / 1e6
+  }
+  newRoot.kids.sort((a, b) => a.start_ns - b.start_ns)
+  return { root: newRoot, byId: out, steps: groups.size }
 }

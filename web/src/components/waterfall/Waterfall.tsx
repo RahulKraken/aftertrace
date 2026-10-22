@@ -26,6 +26,8 @@ import {
 } from "../../lib/span"
 import { appStory, turnStory } from "../../lib/story"
 import { indexContent, snippet, type ContentIndex } from "../../lib/content"
+import { cleanPrompt, describe, groupSteps, PAUSE_MS, STEP } from "../../lib/steps"
+import { foldedAxis, linearAxis, type Gap } from "../../lib/timeaxis"
 import type { Finding, Trace } from "../../lib/types"
 import { useReplay } from "../../hooks/useReplay"
 import { barClass, glyphClass, SpanIcon } from "../SpanIcon"
@@ -59,7 +61,11 @@ export function Waterfall({
   traceView?: TraceView
   onView?: (v: TraceView) => void
 }) {
-  const { root, byId } = useMemo(() => buildForest(trace.spans), [trace])
+  const content = useMemo(() => indexContent(trace), [trace])
+  const { root, byId } = useMemo(() => {
+    const f = buildForest(trace.spans)
+    return isAppTrace(trace.service) ? f : groupSteps(f.root, f.byId, content)
+  }, [trace, content])
   const mark = useMemo(() => bottleneckFor(trace, findings), [trace, findings])
   const wantReplay = replayProp ?? hashFlag("replay")
   const t0 = root.start_ns
@@ -92,7 +98,6 @@ export function Waterfall({
   const [labW, setLabW] = useState(0)
   const [labPx, setLabPx] = useState<number | null>(() => readPx(LAB_KEY, null))
   const wfRef = useRef<HTMLDivElement>(null)
-  const content = useMemo(() => indexContent(trace), [trace])
   const [view, setView] = useState<{ lo: number; hi: number } | null>(null)
   const [brush, setBrush] = useState<{ a: number; b: number } | null>(null)
   const [flash, setFlash] = useState(false)
@@ -103,6 +108,10 @@ export function Waterfall({
   const lo = live ? t0 : (view?.lo ?? t0)
   const hi = live ? liveHi : (view?.hi ?? t1)
   const total = Math.max((hi - lo) / 1e6, 1)
+  // Long waits for a person fold into a labelled break; the work around them keeps its width.
+  const [fold, setFold] = useState(true)
+  const gaps = useMemo(() => humanGaps(trace), [trace])
+  const axis = useMemo(() => (fold && !live && gaps.length ? foldedAxis(lo, hi, gaps) : linearAxis(lo, hi)), [fold, live, gaps, lo, hi])
 
   // Reset when a different trace or span is requested. A running trace is
   // re-fetched every few seconds; that must not wipe selection or expansion.
@@ -132,7 +141,7 @@ export function Waterfall({
   const selected = byId.get(sel) || root
   const hoverSpan = hoverId ? byId.get(hoverId) : undefined
 
-  const xOf = useCallback((ns: number) => ((ns - lo) / 1e6 / total) * 100, [lo, total])
+  const xOf = useCallback((ns: number) => axis.toPct(ns), [axis])
   const fullX = useCallback((ns: number) => ((ns - t0) / 1e6 / fullMs) * 100, [t0, fullMs])
 
   useEffect(() => {
@@ -227,7 +236,19 @@ export function Waterfall({
   }, [rows, sel, trace.prev, trace.next])
 
   const comps = compactionEvents(trace)
-  const ticks = niceTicks(total)
+  // With waits folded, ticks are spaced for the time that is drawn, and none sit inside a fold.
+  const foldedMs = axis.breaks.reduce((n, b) => n + (b.b - b.a) / 1e6, 0)
+  const tickStep = niceTicks(Math.max(total - foldedMs, 1))[1] || total
+  const tickPct = (t: number) => axis.toPct(lo + t * 1e6)
+  const ticks: number[] = []
+  for (let t = 0, last = -Infinity; t <= total; t += tickStep) {
+    const ns = lo + t * 1e6
+    if (axis.breaks.some((b) => ns > b.a - (b.b - b.a) * 0.02 && ns < b.b)) continue
+    const p = tickPct(t)
+    if (p - last < 6) continue
+    ticks.push(t)
+    last = p
+  }
   const showMinimap = !live && (view != null || rows.length > 50)
   const errors = errorCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
   const calls = callCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
@@ -246,10 +267,10 @@ export function Waterfall({
     }
     const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
     setHoverX(x)
-    setHoverNs(lo + (x / rect.width) * (hi - lo))
+    setHoverNs(axis.toNs((x / rect.width) * 100))
   }
 
-  const pctToNs = (p: number) => lo + (p / 100) * (hi - lo)
+  const pctToNs = (p: number) => axis.toNs(p)
   const commitBrush = (a: number, b: number) => {
     const left = Math.min(a, b)
     const right = Math.max(a, b)
@@ -463,10 +484,27 @@ export function Waterfall({
               }}
             >
               {ticks.map((t) => (
-                <span key={t} className="tick" style={{ left: `${(t / total) * 100}%` }}>
+                <span key={t} className="tick" style={{ left: `${tickPct(t)}%` }}>
                   {tickLabel(t)}
                 </span>
               ))}
+              {axis.breaks.map((b) => (
+                <button
+                  type="button"
+                  key={b.a}
+                  className="ax-break-label"
+                  style={{ left: `${b.at + b.w / 2}%` }}
+                  title="Folded so the work around it stays readable. Click to show to scale."
+                  onClick={() => setFold(false)}
+                >
+                  {b.label}
+                </button>
+              ))}
+              {!fold && gaps.length && !live ? (
+                <button type="button" className="ax-fold" onClick={() => setFold(true)} title="Fold long waits for you">
+                  Fold waits
+                </button>
+              ) : null}
               {comps.map((c, i) => (
                 <span key={i} className="comp-mark" style={{ left: `${xOf(c.ts_ns)}%` }} title="compaction" />
               ))}
@@ -507,7 +545,10 @@ export function Waterfall({
             >
               <div className="trk-grid" style={{ left: labW || undefined }}>
                 {ticks.map((t) => (
-                  <i key={t} style={{ left: `${(t / total) * 100}%` }} />
+                  <i key={t} style={{ left: `${tickPct(t)}%` }} />
+                ))}
+                {axis.breaks.map((b) => (
+                  <b key={b.a} className="ax-break" style={{ left: `${b.at}%`, width: `${b.w}%` }} />
                 ))}
               </div>
               <div className="tree-layer">
@@ -646,12 +687,16 @@ function Row({
   onMark: () => void
 }) {
   const k = spanKind(span)
-  const label = labelOf(span)
-  const name = label.name
-  // A turn reads better as what you asked than as "153 chars".
-  const target = k === "turn" && content.prompt ? snippet(content.prompt, 120) : label.target
+  const isStep = span.name === STEP
+  const { name, target } = rowLabel(span, content)
   const kids = span.kids.length
-  const ro = collapsed && kids ? rollup(span) : null
+  // A tool's own children are its wait and run phases, already drawn in its bar.
+  const phasesOnly = span.kids.every((c) => {
+    const ck = spanKind(c)
+    return ck === "wait" || ck === "run"
+  })
+  const ro = collapsed && kids && !phasesOnly ? rollup(span) : null
+  const pill = ro ? (isStep ? `${span.kids.length} ${span.kids.length === 1 ? "call" : "calls"}` : `+${ro.n}`) : ""
   const endNs = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
   const L = xOf(span.start_ns)
   const W = Math.max(xOf(endNs) - L, 0)
@@ -688,15 +733,15 @@ function Row({
 
   return (
     <motion.div
-      className={`row ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered ? "hov" : ""}`}
+      className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered ? "hov" : ""}`}
       data-span={span.span_id}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0, top: index * ROW }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ type: "spring", bounce: 0.16, visualDuration: 0.32 }}
       style={{ position: "absolute", left: 0, right: 0, height: ROW }}
-      onClick={() => onSelect(span.span_id)}
-      onMouseEnter={() => onHover(span.span_id)}
+      onClick={() => (isStep ? onToggle() : onSelect(span.span_id))}
+      onMouseEnter={() => onHover(isStep ? null : span.span_id)}
     >
       <div className="lab">
         <span className="tree-pad" style={{ width: TREE_PAD + depth * TREE_DEPTH }} />
@@ -713,9 +758,13 @@ function Row({
         ) : (
           <span className="caret" />
         )}
-        <span className={`glyph ${glyphClass(span)}`}>
-          <SpanIcon span={span} />
-        </span>
+        {isStep ? (
+          <span className="glyph g-step">{String(span.attrs.step ?? "")}</span>
+        ) : (
+          <span className={`glyph ${glyphClass(span)}`}>
+            <SpanIcon span={span} />
+          </span>
+        )}
         <span className="name">
           {name}
           {attempt > 1 ? <span className="badge">×{attempt}</span> : null}
@@ -731,7 +780,7 @@ function Row({
               exit={{ opacity: 0, scale: 0.84 }}
               transition={{ type: "spring", bounce: 0.22, visualDuration: 0.28 }}
             >
-              +{ro.n}
+              {pill}
             </motion.span>
           ) : null}
         </AnimatePresence>
@@ -739,6 +788,9 @@ function Row({
         <span className="met">{met}</span>
       </div>
       <div className="trk">
+        {isStep ? (
+          <StepBar span={span} xOf={xOf} trackW={trackW} nowNs={nowNs} />
+        ) : (
         <div
           className={`bar ${k === "wait" ? "is-wait" : ""} ${err ? "err" : ""}`}
           style={{ ...box, ["--bar-hue" as string]: hueVar(span) }}
@@ -746,6 +798,7 @@ function Row({
         >
           <Phases span={span} />
         </div>
+        )}
         {mark ? (
           <button
             type="button"
@@ -796,4 +849,65 @@ function Phases({ span }: { span: SpanNode }) {
   if (k === "turn") return <i className="ph-turn" style={{ width: "100%" }} />
   if (k === "hook") return <i className="ph-hook" style={{ width: "100%" }} />
   return <i className={barClass(span)} style={{ width: "100%" }} />
+}
+
+// Waits on a person long enough to drown out the work: a question or an approval left open.
+function humanGaps(trace: Trace): Gap[] {
+  const out: Gap[] = []
+  for (const s of trace.spans) {
+    if (s.name !== "claude_code.tool.blocked_on_user" || s.duration_ms < PAUSE_MS) continue
+    const src = String(s.attrs.source || "")
+    if (src && !src.startsWith("user")) continue
+    out.push({ a: s.start_ns, b: s.end_ns, label: `${dur(s.duration_ms)} waiting for you` })
+  }
+  return out
+}
+
+// Rows say what happened: "Read service.go", "Thinking", step titles in Claude's words.
+function rowLabel(span: SpanNode, content: ContentIndex): { name: string; target: string } {
+  if (span.name === STEP) return { name: String(span.attrs.title || "").replace(/`/g, ""), target: "" }
+  const k = spanKind(span)
+  if (k === "turn") {
+    const label = labelOf(span)
+    // A turn reads better as what you asked than as "153 chars".
+    return { name: label.name, target: content.prompt ? snippet({ text: cleanPrompt(content.prompt.text) }, 120) : label.target }
+  }
+  if (span.name === "claude_code.llm_request") {
+    const m = String(span.attrs.model || "").replace(/^claude-/, "")
+    const replying = span.attrs.stop_reason === "end_turn"
+    return { name: replying ? "Replying" : "Thinking", target: [m, span.attrs.effort].filter(Boolean).join(" · ") }
+  }
+  if (span.name === "claude_code.tool") {
+    const d = describe(span, content)
+    return { name: d.verb, target: d.object || d.detail }
+  }
+  return labelOf(span)
+}
+
+// A step's own bar: each call inside it at its place in time, thinking and
+// tools in their colours, so a closed step still shows its rhythm.
+function StepBar({ span, xOf, trackW, nowNs }: { span: SpanNode; xOf: (ns: number) => number; trackW: number; nowNs: number | null }) {
+  const end = (n: number) => (nowNs != null ? Math.min(n, nowNs) : n)
+  const box = barBox(xOf(span.start_ns), Math.max(xOf(end(span.end_ns)) - xOf(span.start_ns), 0), trackW)
+  return (
+    <div className="step-bar" style={box}>
+      {span.kids.map((c) => {
+        if (nowNs != null && c.start_ns > nowNs) return null
+        const l = xOf(c.start_ns) - xOf(span.start_ns)
+        const w = Math.max(xOf(end(c.end_ns)) - xOf(c.start_ns), 0)
+        const whole = Math.max(xOf(end(span.end_ns)) - xOf(span.start_ns), 0.0001)
+        const wait = waitChild(c)
+        const waitW = wait ? Math.max(xOf(end(wait.end_ns)) - xOf(c.start_ns), 0) : 0
+        return (
+          <i
+            key={c.span_id}
+            className={`sb-seg ${spanKind(c) === "model" ? "sb-model" : "sb-tool"} ${c.is_error ? "sb-err" : ""}`}
+            style={{ left: `${(l / whole) * 100}%`, width: `max(2px, ${(w / whole) * 100}%)` }}
+          >
+            {waitW > 0 ? <b className="sb-wait" style={{ width: `${(waitW / Math.max(w, 0.0001)) * 100}%` }} /> : null}
+          </i>
+        )
+      })}
+    </div>
+  )
 }

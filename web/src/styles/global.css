@@ -1359,3 +1359,35 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
   .st-act-dur { min-width: 0; }
 }
 .st-glyph { margin-right: 0; }
+
+/* Timeline: steps and folded waits. */
+.ax-break {
+  position: absolute; top: 0; bottom: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--hue-wait) 16%, transparent) 0 4px, transparent 4px 9px);
+  border-left: 1px dashed color-mix(in oklab, var(--hue-wait) 55%, transparent);
+  border-right: 1px dashed color-mix(in oklab, var(--hue-wait) 55%, transparent);
+}
+.ax-break-label {
+  position: absolute; top: 3px; transform: translateX(-50%); z-index: 4; white-space: nowrap;
+  font: 500 10.5px var(--sans); color: color-mix(in oklab, var(--hue-wait) 70%, var(--ink));
+  background: var(--hue-wait-bg); border: 1px solid color-mix(in oklab, var(--hue-wait) 45%, var(--line));
+  border-radius: 99px; padding: 0 7px; height: 17px; line-height: 15px; cursor: pointer;
+}
+.ax-break-label:hover { border-color: var(--hue-wait); }
+.ax-fold {
+  position: absolute; right: 6px; top: 3px; z-index: 4; height: 17px; padding: 0 7px; border-radius: 99px;
+  font: 500 10.5px var(--sans); color: var(--mute); background: var(--surface); border: 1px solid var(--line);
+}
+.ax-fold:hover { color: var(--ink); }
+.glyph.g-step {
+  font: 600 10px var(--mono); color: var(--ink); background: var(--surface);
+  border: 1px solid color-mix(in oklab, var(--ink) 18%, var(--line)); border-radius: 99px;
+}
+.row.is-step .name { font-weight: 500; color: var(--ink); }
+.row.is-step { cursor: pointer; }
+.step-bar { position: absolute; top: 8px; height: 16px; border-radius: 5px; background: color-mix(in oklab, var(--ink) 4%, transparent); }
+.sb-seg { position: absolute; top: 3px; bottom: 3px; border-radius: 2px; overflow: hidden; display: block; }
+.sb-model { background: color-mix(in oklab, var(--hue-model) 70%, transparent); }
+.sb-tool { background: color-mix(in oklab, var(--hue-tool) 75%, transparent); }
+.sb-err { background: var(--hue-retry); }
+.sb-wait { position: absolute; left: 0; top: 0; bottom: 0; display: block; background: var(--hue-wait); }
