@@ -246,7 +246,7 @@ function Bars({ rows, fmt }: { rows: { k: string; label?: React.ReactNode; v: nu
   if (!rows.length) return <div className="quiet-line">Nothing this week.</div>
   const max = Math.max(...rows.map((r) => r.v), 1e-9)
   return (
-    <div className="card bars-card">
+    <div className="card bars-card stagger">
       {rows.map((r) => (
         <div className="bar-row" key={r.k}>
           <span className="bar-k">{r.label ?? r.k}</span>

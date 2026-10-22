@@ -1545,3 +1545,108 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
   .side, .side * { scrollbar-width: none; }
   .side::-webkit-scrollbar, .side *::-webkit-scrollbar { display: none; }
 }
+
+/* ── Alive: data that moves when it means something ──────────────────── */
+
+/* Things that arrive together cascade, a beat apart. */
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } }
+.stagger > * { animation: rise-in 520ms var(--ease-out) both; }
+.stagger > *:nth-child(1) { animation-delay: 60ms; }
+.stagger > *:nth-child(2) { animation-delay: 110ms; }
+.stagger > *:nth-child(3) { animation-delay: 160ms; }
+.stagger > *:nth-child(4) { animation-delay: 210ms; }
+.stagger > *:nth-child(5) { animation-delay: 260ms; }
+.stagger > *:nth-child(6) { animation-delay: 310ms; }
+.stagger > *:nth-child(7) { animation-delay: 360ms; }
+.stagger > *:nth-child(8) { animation-delay: 410ms; }
+.stagger > *:nth-child(n + 9) { animation-delay: 450ms; }
+
+/* Sparklines: a smooth line that draws itself, a gradient that settles under it. */
+.spark-wrap { position: relative; display: inline-flex; flex: none; }
+.spark { cursor: crosshair; }
+.spark-line { stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1100ms var(--ease-out) 250ms forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.spark-area { animation: fade-up 900ms ease 600ms both; }
+@keyframes fade-up { from { opacity: 0; } }
+.spark-stop-top { stop-color: var(--faint); stop-opacity: 0.28; }
+.spark-stop-bottom { stop-color: var(--faint); stop-opacity: 0; }
+.spark-model .spark-stop-top { stop-color: var(--hue-model); stop-opacity: 0.32; }
+.spark-model .spark-stop-bottom { stop-color: var(--hue-model); }
+.spark-wait .spark-stop-top { stop-color: var(--hue-wait); stop-opacity: 0.36; }
+.spark-wait .spark-stop-bottom { stop-color: var(--hue-wait); }
+.spark-area { fill-opacity: 1; }
+.spark-dot { animation: fade-up 300ms ease 1200ms both; }
+.spark-dot.is-hover { animation: none; stroke: var(--surface); stroke-width: 1.5; }
+.spark-cross { stroke: color-mix(in oklab, var(--ink) 22%, transparent); stroke-width: 1; stroke-dasharray: 2 2; }
+.spark-tip {
+  position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%); z-index: 10; pointer-events: none; white-space: nowrap;
+  display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 8px; border-radius: 7px; font-size: 11.5px;
+  background: var(--ink); color: var(--surface); box-shadow: var(--shadow-pop); animation: tip-in 120ms var(--ease-out) both;
+}
+.spark-tip .mute { color: color-mix(in oklab, var(--surface) 65%, transparent); }
+.spark-tip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+@keyframes tip-in { from { opacity: 0; transform: translate(-50%, 3px); } }
+
+/* Home header: the brand's three bars, large and quiet, behind the week's sentence. */
+.home-head { position: relative; isolation: isolate; padding: 26px 28px 28px; margin: 0 0 22px; border-radius: 18px; overflow: hidden;
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--hue-model) 12%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 120% at 85% 110%, color-mix(in oklab, var(--hue-wait) 14%, transparent) 0%, transparent 60%),
+    var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--shadow-1);
+}
+.hero-mark { position: absolute; right: -10px; top: 50%; width: 300px; height: 150px; transform: translateY(-50%); z-index: -1; opacity: 0.9; }
+.hm-bar { transform-box: fill-box; transform-origin: left center; animation: bar-in 900ms var(--ease-out) both; }
+.hm-1 { fill: color-mix(in oklab, var(--ink) 9%, transparent); animation-delay: 150ms; }
+.hm-2 { fill: color-mix(in oklab, var(--hue-model) 16%, transparent); animation-delay: 280ms; }
+.hm-3 { fill: color-mix(in oklab, var(--hue-wait) 45%, transparent); animation-delay: 410ms; }
+@keyframes bar-in { from { transform: scaleX(0.04); opacity: 0; } }
+.hero-mark.is-live .hm-3 { animation: bar-in 900ms var(--ease-out) 410ms both, breathe 2.8s ease-in-out 1.4s infinite; }
+@keyframes breathe { 50% { transform: scaleX(1.12); fill: color-mix(in oklab, var(--hue-wait) 70%, transparent); } }
+.home-story { position: relative; }
+.hl-wait { background-image: linear-gradient(color-mix(in oklab, var(--hue-wait) 45%, transparent), color-mix(in oklab, var(--hue-wait) 45%, transparent));
+  background-repeat: no-repeat; background-position: 0 92%; background-size: 0% 0.18em; animation: underline 900ms var(--ease-out) 700ms forwards; }
+@keyframes underline { to { background-size: 100% 0.18em; } }
+
+/* Bars grow from their start, one after another. */
+.grow-bars > i { transform-origin: left center; animation: bar-in 700ms var(--ease-out) both; animation-delay: calc(200ms + var(--i, 0) * 70ms); }
+.split-card.has-focus .split-bar i:not(.is-focus) { opacity: 0.25; }
+.split-card.has-focus .split-row:not(.is-focus) { opacity: 0.45; }
+.split-bar i, .split-row { transition: opacity var(--dur-2) ease; cursor: default; }
+
+/* Cards answer the pointer by lifting a little. */
+@media (hover: hover) and (pointer: fine) {
+  .stat-strip .stat { transition: background-color var(--dur-2) ease; }
+  .stat-strip .stat:hover { background: color-mix(in oklab, var(--hue-model) 3%, var(--surface)); }
+  .app-card, .lane, .list-row, .frow.quiet, .src-item { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) ease, background-color var(--dur-1) ease, border-color var(--dur-1) ease; }
+  .app-card:hover, .lane:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+}
+
+/* A running lane has light moving through it, so live reads as live. */
+.lane { position: relative; overflow: hidden; }
+.lane:not(.is-quiet)::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 0%, color-mix(in oklab, var(--hue-model) 9%, transparent) 45%, transparent 60%);
+  transform: translateX(-100%); animation: sweep 3.2s ease-in-out infinite;
+}
+@keyframes sweep { 60%, 100% { transform: translateX(100%); } }
+.lane-doing-wrap { display: block; position: relative; overflow: hidden; height: 17px; }
+.lane-doing { display: block; }
+.count { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+/* Share bars and glyph segments grow from their start. */
+.grow-x, .bar-track i, .mwf-seg { transform-origin: left center; transform-box: fill-box; animation: bar-in 800ms var(--ease-out) 250ms both; }
+.mwf-seg { animation-delay: calc(200ms + var(--i, 0) * 60ms); }
+/* Table rows cascade without moving the table's layout. */
+tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
+/* Story: the time bar fills in, part by part. */
+.st-bar i { transform-origin: left center; animation: bar-in 700ms var(--ease-out) both; }
+.st-bar i:nth-child(1) { animation-delay: 200ms; }
+.st-bar i:nth-child(2) { animation-delay: 280ms; }
+.st-bar i:nth-child(3) { animation-delay: 360ms; }
+.st-bar i:nth-child(4) { animation-delay: 440ms; }
+/* Timeline: each bar grows from its start, rows a beat apart, like a trace being drawn. */
+.wf .bar, .wf .step-bar { transform-origin: left center; animation: bar-in 620ms var(--ease-out) both; animation-delay: calc(120ms + var(--i, 0) * 22ms); }
+.wf .bar-lab, .wf .slowest { animation: fade-up 400ms ease both; animation-delay: calc(400ms + var(--i, 0) * 22ms); }
+/* Recap: the receipt prints out of its slot, once. */
+@keyframes print { from { clip-path: inset(0 0 100% 0); transform: translateY(-14px); } to { clip-path: inset(0 0 0 0); transform: none; } }
+.receipt { animation: print 1100ms cubic-bezier(0.32, 0.72, 0, 1) 300ms both; }

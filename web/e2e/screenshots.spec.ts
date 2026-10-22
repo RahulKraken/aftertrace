@@ -49,6 +49,8 @@ async function openSteps(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Screenshots show the settled page: counts finished, bars grown.
+  await page.emulateMedia({ reducedMotion: "reduce" })
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
     if (!localStorage.getItem("aftertrace-resolved")) {

@@ -59,6 +59,7 @@ function ShareCell({ v }: { v: unknown }) {
         }}
       >
         <i
+          className="grow-x"
           style={{
             display: "block",
             height: "100%",
@@ -116,7 +117,7 @@ export function CostPage() {
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="stagger">
             {d.rows.map((r, i) => (
               <tr key={i} style={{ cursor: "default" }}>
                 {r.map((v, j) => (

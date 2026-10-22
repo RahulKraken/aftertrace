@@ -115,7 +115,7 @@ export function SessionsPage() {
             <th className="r">Findings</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="stagger">
           {groups.flatMap((g) => [
             <tr className="day-row" key={`d-${g.day}`}>
               <td colSpan={7}>{g.day}</td>

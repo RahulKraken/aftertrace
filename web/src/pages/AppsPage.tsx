@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { ArrowRight, Boxes } from "lucide-react"
 import { ModelName } from "../components/SpanIcon"
+import { Num } from "../components/Num"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
 import { ago, dur, int, pct, usd } from "../lib/format"
@@ -51,7 +52,7 @@ export function AppsPage() {
           </Link>
         </div>
       ) : (
-        <div className="app-grid">
+        <div className="app-grid stagger">
           {apps.map((a) => (
             <button type="button" key={a.service} className="app-card" onClick={() => nav(`/apps/${encodeURIComponent(a.service)}`)}>
               <div className="app-hd">
@@ -64,15 +65,21 @@ export function AppsPage() {
                   <div className="app-nums">
                     <div>
                       <div className="stat-label">Calls</div>
-                      <div className="app-val">{int(a.calls)}</div>
+                      <div className="app-val">
+                        <Num value={a.calls} format={(n) => int(Math.round(n))} />
+                      </div>
                     </div>
                     <div>
                       <div className="stat-label">Cost</div>
-                      <div className="app-val">{usd(a.cost_usd)}</div>
+                      <div className="app-val">
+                        <Num value={a.cost_usd} format={usd} />
+                      </div>
                     </div>
                     <div>
                       <div className="stat-label">p50</div>
-                      <div className="app-val">{dur(a.p50_ms)}</div>
+                      <div className="app-val">
+                        <Num value={a.p50_ms || 0} format={dur} />
+                      </div>
                     </div>
                     <div>
                       <div className="stat-label">Failed</div>
@@ -87,7 +94,7 @@ export function AppsPage() {
                         </span>
                       ))}
                     </span>
-                    <Sparkline values={a.daily_cost} width={120} />
+                    <Sparkline values={a.daily_cost} width={120} format={usd} labels={a.daily_cost.map((_, i) => (i === a.daily_cost.length - 1 ? "today" : `${a.daily_cost.length - 1 - i}d ago`))} tone="model" />
                   </div>
                 </>
               ) : (

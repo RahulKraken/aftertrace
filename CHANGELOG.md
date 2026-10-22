@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0
+
+**Alive**
+- Numbers count to their value and glide when live data changes.
+- Sparklines draw themselves over a gradient and show the day and value under the pointer.
+- Home has a signature header (the brand's bars drawing in, the amber one breathing while a turn runs).
+- Cards cascade in and lift under the pointer; bars grow from their start everywhere, including the Timeline's spans.
+- The time split highlights the category you point at.
+- Running lanes have light moving through them, and their activity slides to each new step, in plain words ("Running npm test", "Thinking · Opus 5.5", "Waiting for your approval").
+- The Recap receipt prints; Story and Timeline, and light and dark, cross-fade.
+- Session titles skip Claude Code's side-session preamble.
+
 ## v0.3.1
 
 - First run is a welcome: what already works, the one next step (Connect Claude Code), a listening signal, and `aftertrace demo` to look around first.

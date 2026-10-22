@@ -159,7 +159,7 @@ export function TurnStory({
               ) : null}
             </div>
 
-            <ol className="st-steps" ref={listRef}>
+            <ol className="st-steps stagger" ref={listRef}>
               {story.items.map((it, i) =>
                 it.kind === "pause" ? (
                   <PauseCard key={it.id} p={it} t0={root.start_ns} onOpen={setSel} selected={sel} />
