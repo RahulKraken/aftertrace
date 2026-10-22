@@ -291,3 +291,17 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
   await expect(page.locator(".story-line")).toContainText("model call")
   await expect(page.locator(".side-item.on")).toContainText("Apps")
 })
+
+test("recap: story, lanes, receipt, week switch", async ({ page }) => {
+  await page.goto("/#/recap")
+  await waitFonts(page)
+  await expect(page.locator(".recap-story")).toContainText("Your agents put in")
+  await expect(page.locator(".receipt")).toContainText("AFTERTRACE")
+  await expect(page.locator(".receipt")).toContainText("API value")
+  await expect(page.locator(".dl-row").first()).toBeVisible()
+  await shot(page, "recap", "light")
+  await shot(page, "recap", "dark")
+  const label = await page.locator(".recap-nav .mono").textContent()
+  await page.getByRole("button", { name: "Previous week" }).click()
+  await expect(page.locator(".recap-nav .mono")).not.toHaveText(label || "")
+})

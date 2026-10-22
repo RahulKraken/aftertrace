@@ -34,6 +34,7 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.getStatus)
 	mux.HandleFunc("GET /api/overview", s.getOverview)
+	mux.HandleFunc("GET /api/recap", s.getRecap)
 	mux.HandleFunc("GET /api/sources", s.getSources)
 	mux.HandleFunc("GET /api/apps", s.getApps)
 	mux.HandleFunc("GET /api/app/{service}", s.getApp)

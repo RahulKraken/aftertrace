@@ -9,6 +9,7 @@ Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never 
 | Method | Path | Returns |
 | - | - | - |
 | GET | `/api/status` | Server info, capture settings, counts for the sidebar |
+| GET | `/api/recap?week=N` | The Nth week back: summary, previous week, top tools/models/apps, priciest and longest turns, busiest day in lanes, peak parallel turns |
 | GET | `/api/overview` | Home: this week vs last, daily series, live lanes, sources, top finding, recent sessions |
 | GET | `/api/sources` | Everything received, grouped by `service.name`, with first and last seen |
 | GET | `/api/apps` | Apps (non-Claude-Code services): calls, cost, latency, failures, 14-day series |
@@ -226,3 +227,9 @@ Findings are cached for 10 seconds, so `findings` can lag a new rule match by th
 `GET /api/app/{service}` returns `{app, operations, models, recent, errors}`. `operations` and `models` rows are `{key, calls, failed, cost_usd, p50_ms, p95_ms, ttft_p50_ms, avg_input_tokens, avg_output_tokens, models, cost_estimated}`. `recent` is the 40 newest traces with their calls rolled up; `errors` the 10 newest failed spans.
 
 In `GET /api/trace/{id}`, model calls from apps carry `joined: {cost_usd, model, provider, cost_estimated, app_call: true}`, and the trace has `service`.
+
+## Recap
+
+`GET /api/recap?week=N` (N from 0, the current week, to 52). The week is the 7 days ending now, or ending at the newest data when nothing arrived in the last week, minus N weeks.
+
+`{week, lo, hi, has_older, stats, prev, tools, models, apps, priciest, longest, busiest_day, peak_parallel}`. `stats` and `prev` are shaped like `week` in `/api/overview`. `busiest_day` is `{day, turn_ms, lanes: [{session_id, title, turns: [[start_ns, end_ns], ...]}]}`. `priciest` and `longest` are turns `{trace_id, session_id, start_ns, duration_ms, cost_usd, prompt?}`; `prompt` only when prompt text is captured.

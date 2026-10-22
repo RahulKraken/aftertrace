@@ -706,7 +706,8 @@ func TestEndpointsDoNotDeadlock(t *testing.T) {
 	var sid string
 	_ = st.DB.QueryRow(`SELECT session_id FROM turn_roots WHERE session_id IS NOT NULL LIMIT 1`).Scan(&sid)
 	paths := []string{"/api/status", "/api/overview", "/api/sources", "/api/sessions", "/api/session/" + sid, "/api/trace/" + tid,
-		"/api/findings", "/api/fields", "/api/cost?dim=model", "/api/range", "/api/ask/suggestions"}
+		"/api/findings", "/api/fields", "/api/cost?dim=model", "/api/range", "/api/ask/suggestions",
+		"/api/recap", "/api/recap?week=1", "/api/apps", "/api/app/support-bot"}
 	for round := 0; round < 2; round++ {
 		for _, p := range paths {
 			res, err := client.Get(srv.URL + p)

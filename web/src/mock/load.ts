@@ -2,6 +2,7 @@ import type {
   AppDetail,
   AppSummary,
   AskResult,
+  Recap,
   AskSuggestions,
   CostTable,
   Field,
@@ -31,6 +32,8 @@ const askFiles = import.meta.glob("./fixtures/ask/*.json", { eager: true, import
 const appFiles = import.meta.glob("./fixtures/apps/*.json", { eager: true, import: "default" }) as Record<string, AppDetail>
 
 import appsJson from "./fixtures/apps.json"
+import recap0 from "./fixtures/recap-0.json"
+import recap1 from "./fixtures/recap-1.json"
 import sessionsJson from "./fixtures/sessions.json"
 import findingsJson from "./fixtures/findings.json"
 import fieldsJson from "./fixtures/fields.json"
@@ -61,6 +64,8 @@ export const fields = fieldsJson as Field[]
 export const range = rangeJson as Range
 
 // Generated from the real backend by scripts/gen-app-fixtures.sh.
+export const recaps = [recap0, recap1] as unknown as Recap[]
+
 export const apps = appsJson as AppSummary[]
 
 export function appDetail(service: string): AppDetail | undefined {
