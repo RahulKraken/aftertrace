@@ -234,6 +234,27 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 	}
 	rows.Close()
 
+	// Model calls from apps: cost (reported or priced), model and provider.
+	cr, err := db.Query(`SELECT span_id, cost_usd, model, provider, cost_reported FROM calls WHERE trace_id=?`, tid)
+	if err != nil {
+		return nil, err
+	}
+	for cr.Next() {
+		var sid string
+		var cost sql.NullFloat64
+		var model, provider sql.NullString
+		var reported bool
+		if err := cr.Scan(&sid, &cost, &model, &provider, &reported); err != nil {
+			cr.Close()
+			return nil, err
+		}
+		joined[sid] = map[string]any{
+			"cost_usd": nullNum(cost), "model": nullStr(model), "provider": nullStr(provider),
+			"cost_estimated": !reported, "app_call": true,
+		}
+	}
+	cr.Close()
+
 	// Claude Code links tool_use_id and the permission decision through the
 	// tool_decision event, not the spans. The tools view resolves both.
 	toolUse := map[string]string{}
@@ -373,6 +394,7 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 		"turn_index":  i + 1,
 		"turn_count":  len(sib),
 		"in_progress": inProgress,
+		"service":     traceService(db, tid),
 	}, nil
 }
 
@@ -565,4 +587,12 @@ func cleanTitle(t sql.NullString) any {
 		return nil
 	}
 	return c
+}
+
+// traceService is the service.name that sent a trace's root (or any) span.
+func traceService(db *sql.DB, tid string) string {
+	var svc sql.NullString
+	_ = db.QueryRow(`SELECT json_extract_string(resource, '$."service.name"') FROM spans WHERE trace_id=?
+		ORDER BY coalesce(parent_span_id, '') = '' DESC, start_ns LIMIT 1`, tid).Scan(&svc)
+	return svc.String
 }

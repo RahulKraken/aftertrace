@@ -1,4 +1,6 @@
 import type {
+  AppDetail,
+  AppSummary,
   AskResult,
   AskSuggestions,
   CostTable,
@@ -46,6 +48,8 @@ export function emptyMode(): boolean {
 
 export const api = {
   overview: () => request<Overview>("/api/overview"),
+  apps: () => request<AppSummary[]>("/api/apps"),
+  app: (service: string) => request<AppDetail>(`/api/app/${encodeURIComponent(service)}`),
   status: () => request<Status>("/api/status"),
   sources: () => request<{ now: number; sources: Source[] }>("/api/sources"),
   sessions: () => (emptyMode() ? Promise.resolve([] as Session[]) : request<Session[]>("/api/sessions")),

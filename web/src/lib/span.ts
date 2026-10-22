@@ -10,7 +10,38 @@ export function spanKind(s: Span): SpanKind {
   if (s.name === "claude_code.hook") return "hook"
   if (s.name === "claude_code.tool" && s.attrs.tool_name === "Agent") return "agent"
   if (s.name === "claude_code.tool") return "tool"
+  // Apps and agents on OpenTelemetry GenAI conventions.
+  if (s.joined?.app_call) return "model"
+  const op = String(s.attrs["gen_ai.operation.name"] || "")
+  if (op === "execute_tool" || s.name.startsWith("execute_tool ") || /^anthropic\.(custom_|mcp_)?tool_use/.test(s.name) || s.name === "ai.toolCall")
+    return "tool"
+  if (op === "invoke_agent" || op === "create_agent" || s.name.startsWith("invoke_agent ")) return "agent"
   return "span"
+}
+
+export function isAppTrace(service: string | null | undefined): boolean {
+  return Boolean(service) && !String(service).startsWith("claude-code")
+}
+
+// Token usage and timing for a model span, whatever convention sent it.
+export function usageOf(s: Span): { input: number | null; output: number | null; cacheRead: number | null; cacheWrite: number | null; ttftMs: number | null; model: string } {
+  const a = s.attrs
+  const num = (...keys: string[]): number | null => {
+    for (const k of keys) {
+      const v = a[k]
+      if (v != null && v !== "" && !Number.isNaN(Number(v))) return Number(v)
+    }
+    return null
+  }
+  const ttftS = num("gen_ai.response.time_to_first_chunk")
+  return {
+    input: num("input_tokens", "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens", "llm.token_count.prompt", "ai.usage.inputTokens", "ai.usage.promptTokens"),
+    output: num("output_tokens", "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens", "llm.token_count.completion", "ai.usage.outputTokens", "ai.usage.completionTokens"),
+    cacheRead: num("cache_read_tokens", "gen_ai.usage.cache_read.input_tokens", "gen_ai.usage.cache_read_input_tokens", "llm.token_count.prompt_details.cache_read", "ai.usage.cachedInputTokens"),
+    cacheWrite: num("cache_creation_tokens", "gen_ai.usage.cache_write.input_tokens", "gen_ai.usage.cache_creation.input_tokens", "gen_ai.usage.cache_creation_input_tokens"),
+    ttftMs: num("ttft_ms", "ai.response.msToFirstChunk") ?? (ttftS != null ? ttftS * 1000 : null),
+    model: String(a.model || s.joined?.model || a["gen_ai.response.model"] || a["gen_ai.request.model"] || a["ai.model.id"] || ""),
+  }
 }
 
 export function toolFamily(name: string | undefined | null): ToolFamily {
@@ -28,6 +59,7 @@ export function toolFamily(name: string | undefined | null): ToolFamily {
 
 export function familyOf(s: Span): ToolFamily | SpanKind {
   const k = spanKind(s)
+  if (k === "agent" && !s.name.startsWith("claude_code.")) return "agent"
   if (k === "tool" || k === "agent") return toolFamily(String(s.attrs.tool_name || ""))
   return k
 }
@@ -40,6 +72,21 @@ export function labelOf(s: Span): { name: string; target: string } {
       name: `Turn ${a["interaction.sequence"] ?? ""}`,
       target: `${a.user_prompt_length ?? 0} chars`,
     }
+  }
+  if (k === "model" && !s.name.startsWith("claude_code.")) {
+    const u = usageOf(s)
+    const reason = a["gen_ai.response.finish_reasons"] || a["anthropic.message.stop_reason"] || a["ai.response.finishReason"]
+    return {
+      name: u.model.replace(/^claude-/, "") || "model call",
+      target: [s.joined?.provider || a["gen_ai.provider.name"] || a["gen_ai.system"], Array.isArray(reason) ? reason.join(",") : reason].filter(Boolean).join(" · "),
+    }
+  }
+  if (k === "tool" && !s.name.startsWith("claude_code.")) {
+    const t = String(a["gen_ai.tool.name"] || s.name.replace(/^(execute_tool|anthropic\.\w*tool_use)\s*/, ""))
+    return { name: t || "tool", target: "" }
+  }
+  if (k === "agent" && !s.name.startsWith("claude_code.")) {
+    return { name: String(a["gen_ai.agent.name"] || s.name.replace(/^invoke_agent\s*/, "")), target: "agent" }
   }
   if (k === "model") {
     const m = String(a.model || "").replace(/^claude-/, "")
@@ -139,7 +186,7 @@ export function visibleRows(
 
 export function costOf(s: SpanNode): number {
   const k = spanKind(s)
-  if (k === "turn" || k === "agent") return rollup(s).cost
+  if (k === "turn" || k === "agent" || (k === "span" && s.kids.length)) return rollup(s).cost
   return s.joined?.cost_usd || 0
 }
 
@@ -158,6 +205,7 @@ export function callCount(spans: Span[], nowNs = Number.POSITIVE_INFINITY): numb
   for (const s of spans) {
     if (s.start_ns > nowNs) continue
     if (s.name === "claude_code.llm_request" || s.name === "claude_code.tool") n++
+    else if (s.joined?.app_call || (!s.name.startsWith("claude_code.") && spanKind(s) === "tool")) n++
   }
   return n
 }

@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/RahulKraken/aftertrace/internal/pricing"
 	"os"
 	"path/filepath"
 	"sync"
@@ -97,6 +98,10 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
+	}
+	if err := pricing.Seed(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("prices: %w", err)
 	}
 	if _, err := db.Exec(viewsSQL); err != nil {
 		db.Close()

@@ -1,4 +1,5 @@
 import { dur, pct } from "./format"
+import { spanKind, type SpanNode } from "./span"
 import type { Breakdown, Session, Trace } from "./types"
 
 export function sessionStory(s: Session): string {
@@ -80,4 +81,35 @@ export function mixShare(bd: Breakdown | null | undefined): number[] {
   const keys: (keyof Breakdown)[] = ["model", "tool", "permission_wait", "retry", "hook", "other"]
   const tot = keys.reduce((a, k) => a + (v[k] || 0), 0) || 1
   return keys.map((k) => (v[k] || 0) / tot)
+}
+
+// One line for an app request: how much of it was model calls.
+export function appStory(root: SpanNode): string {
+  const calls: SpanNode[] = []
+  let errors = 0
+  const walk = (n: SpanNode) => {
+    if (n.is_error) errors++
+    if (spanKind(n) === "model" && !n.name.startsWith("claude_code.")) calls.push(n)
+    n.kids.forEach(walk)
+  }
+  walk(root)
+  const total = root.duration_ms || 1
+  // Union of call intervals, so parallel calls count once.
+  const iv = calls.map((c) => [c.start_ns, c.end_ns] as [number, number]).sort((a, b) => a[0] - b[0])
+  let modelNs = 0
+  let curS = -1
+  let curE = -1
+  for (const [a, b] of iv) {
+    if (a > curE) {
+      if (curE > curS) modelNs += curE - curS
+      curS = a
+      curE = b
+    } else curE = Math.max(curE, b)
+  }
+  if (curE > curS) modelNs += curE - curS
+  const share = modelNs / 1e6 / total
+  const head = calls.length
+    ? `${calls.length} model ${calls.length === 1 ? "call" : "calls"} took ${pct(Math.min(share, 1))} of this ${dur(total)} request.`
+    : `${dur(total)}, no model calls in this trace.`
+  return errors ? `${head} ${errors} ${errors === 1 ? "span" : "spans"} failed.` : head
 }

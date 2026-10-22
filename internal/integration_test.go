@@ -73,6 +73,9 @@ func TestRulesFireOnIntendedScenariosAndStaySilentOnCleanSession(t *testing.T) {
 		"tool.repeated_errors",
 		"hook.overhead",
 		"mcp.large_results",
+		"app.model_downgrade",
+		"app.errors",
+		"app.no_prompt_cache",
 	}
 	for _, id := range need {
 		if len(got[id]) == 0 {

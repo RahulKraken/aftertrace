@@ -3,7 +3,7 @@ import { X } from "lucide-react"
 import { contentFor, snippet, type ContentIndex } from "../../lib/content"
 import { ContentBlock } from "./ContentBlock"
 import { CAT_LABEL, CATS, dur, pct, tok, usd } from "../../lib/format"
-import { labelOf, rollup, runChild, spanKind, waitChild, type SpanNode } from "../../lib/span"
+import { isAppTrace, labelOf, rollup, runChild, spanKind, usageOf, waitChild, type SpanNode } from "../../lib/span"
 import type { Finding, SpanKind, Trace } from "../../lib/types"
 import { hueVar } from "../../lib/hue"
 import { CACHE_TIP, EFFORT_TIP, Tip } from "../Tip"
@@ -133,10 +133,16 @@ export function DetailPane({
           <pre>{JSON.stringify({ ...node, kids: undefined }, null, 2)}</pre>
         </details>
       </div>
-      {!content.any && (
+      {!content.any && !isAppTrace(trace.service) && (
         <div className="note" style={{ marginTop: 14 }}>
           Prompt, response and tool content are not captured. Set OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES and
           OTEL_LOG_TOOL_CONTENT in Claude Code, and run aftertrace serve --store-content.
+        </div>
+      )}
+      {isAppTrace(trace.service) && hasIO && !io.input && !io.output && (
+        <div className="note" style={{ marginTop: 14 }}>
+          Messages are not captured. Turn on your SDK's content mode (for the Claude SDK,
+          ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE=content) and run aftertrace serve --store-content.
         </div>
       )}
       {k === "agent" && (
@@ -260,10 +266,9 @@ function Mix({ bd }: { bd: NonNullable<Trace["breakdown"]> }) {
 
 function Phases({ node, trace }: { node: SpanNode; trace: Trace }) {
   const k = spanKind(node)
-  const a = node.attrs
   if (k === "model") {
     const rs = node.retry_end_ns ? (node.retry_end_ns - node.start_ns) / 1e6 : 0
-    const tt = Number(a.ttft_ms || 0)
+    const tt = usageOf(node).ttftMs || 0
     const st = Math.max(0, node.duration_ms - rs - tt)
     return (
       <>
@@ -346,7 +351,21 @@ function Metrics({ node }: { node: SpanNode }) {
     if (v == null || v === "") return
     pairs.push([key, String(v)])
   }
-  if (k === "model") {
+  if (k === "model" && !node.name.startsWith("claude_code.")) {
+    // OpenTelemetry GenAI: input_tokens already includes cache reads and writes.
+    const u = usageOf(node)
+    push("duration", dur(node.duration_ms))
+    push(j.cost_estimated ? "cost (est.)" : "cost", usd(j.cost_usd))
+    push("model", u.model)
+    push("provider", j.provider)
+    push("input", u.input != null ? tok(u.input) : "")
+    push("output", u.output != null ? tok(u.output) : "")
+    push("cache read", u.cacheRead != null ? tok(u.cacheRead) : "")
+    push("cache write", u.cacheWrite != null ? tok(u.cacheWrite) : "")
+    push("cache hit", u.input && u.cacheRead != null ? pct(u.cacheRead / u.input) : "")
+    push("ttft", u.ttftMs != null ? dur(u.ttftMs) : "")
+    push("error", a["error.type"])
+  } else if (k === "model") {
     const tot = Number(a.input_tokens || 0) + Number(a.cache_read_tokens || 0) + Number(a.cache_creation_tokens || 0)
     push("duration", dur(node.duration_ms))
     push("cost", usd(j.cost_usd))

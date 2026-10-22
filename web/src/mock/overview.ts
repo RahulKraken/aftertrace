@@ -1,5 +1,5 @@
 import type { Breakdown, DayPoint, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
-import { findings, sessions } from "./load"
+import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
 
@@ -124,7 +124,10 @@ function firstTrace(): string {
 export function mockSources(): Source[] {
   const now = Date.now() * 1e6
   const spans = (spansJson as Table).rows.length
-  return [{ name: "claude-code", kind: "claude-code", spans, events: 549, metrics: 764, first_ns: now - 9 * DAY, last_ns: now - 3e9, live: true }]
+  return [
+    { name: "claude-code", kind: "claude-code", spans, events: 549, metrics: 764, first_ns: now - 9 * DAY, last_ns: now - 3e9, live: true },
+    ...apps.map((a, i) => ({ name: a.service, kind: "app" as const, spans: a.spans, events: 0, metrics: 0, first_ns: a.first_ns, last_ns: now - (i + 1) * 3600e9, live: false })),
+  ]
 }
 
 export function mockStatus(): Status {
@@ -137,8 +140,8 @@ export function mockStatus(): Status {
     running: 1,
     sessions: sessions.length,
     findings: findings.length,
-    apps: 0,
-    sources: 1,
+    apps: apps.length,
+    sources: 1 + apps.length,
     last_ns: now - 3e9,
   }
 }

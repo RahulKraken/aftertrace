@@ -6,17 +6,20 @@ Aftertrace is local-first. The process never opens a network connection of its o
 
 At ingest, `internal/redact` deletes keys from every span, span event, log record, and metric data point, including resource attributes.
 
-Content keys, dropped unless `--store-content`:
+Content keys, dropped unless `--store-content`. The full list is `ContentKeys` and `ContentPrefixes` in [`internal/redact/redact.go`](../internal/redact/redact.go):
 
 ```
-user_prompt
-prompt
-prompt_text
-response
-tool_input
-tool.output
-new_context
-body
+Claude Code     user_prompt prompt prompt_text response tool_input tool.output output new_context body
+GenAI semconv   gen_ai.input.messages gen_ai.output.messages gen_ai.system_instructions gen_ai.tool.definitions
+                gen_ai.tool.call.arguments gen_ai.tool.call.result gen_ai.retrieval.query.text gen_ai.retrieval.documents
+                gen_ai.prompt gen_ai.completion gen_ai.request.stop_sequences  gen_ai.prompt.* gen_ai.completion.*
+Claude SDK      anthropic.tool_result.content
+OpenLLMetry     traceloop.entity.input traceloop.entity.output
+OpenInference   input.value output.value llm.prompts llm.tools tool_call.function.arguments tool.parameters
+                llm.input_messages.* llm.output_messages.*
+Vercel AI SDK   ai.prompt ai.prompt.messages ai.response.text ai.response.toolCalls ai.response.reasoning ai.toolCall.args ai.toolCall.result
+Pydantic AI     pydantic_ai.all_messages
+Gemini CLI      request_text response_text function_args
 ```
 
 Those names are the ones Claude Code uses for prompt text, responses, tool input, tool output, detailed-beta context, and raw API bodies. See [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage).

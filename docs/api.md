@@ -11,6 +11,8 @@ Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never 
 | GET | `/api/status` | Server info, capture settings, counts for the sidebar |
 | GET | `/api/overview` | Home: this week vs last, daily series, live lanes, sources, top finding, recent sessions |
 | GET | `/api/sources` | Everything received, grouped by `service.name`, with first and last seen |
+| GET | `/api/apps` | Apps (non-Claude-Code services): calls, cost, latency, failures, 14-day series |
+| GET | `/api/app/{service}` | One app: summary, operations, models, recent requests, recent errors |
 | GET | `/api/sessions` | Session list |
 | GET | `/api/session/{session_id}` | Session KPIs plus one row per turn |
 | GET | `/api/trace/{trace_id}` | One turn: full span tree, events, breakdown, prev/next |
@@ -216,3 +218,11 @@ The query cannot touch anything outside the tables and views:
 ```
 
 Findings are cached for 10 seconds, so `findings` can lag a new rule match by that long.
+
+## Apps
+
+`GET /api/apps` returns one row per `service.name` that is not `claude-code*`: `{service, spans, traces, calls, failed, cost_usd, input_tokens, output_tokens, cache_read_tokens, p50_ms, p95_ms, ttft_p50_ms, models, operations, first_ns, last_ns, live, daily_cost, daily_calls}`. Call numbers come from the `calls` view ([apps.md](apps.md)); a service with spans but no recognised model calls has `calls: 0`.
+
+`GET /api/app/{service}` returns `{app, operations, models, recent, errors}`. `operations` and `models` rows are `{key, calls, failed, cost_usd, p50_ms, p95_ms, ttft_p50_ms, avg_input_tokens, avg_output_tokens, models, cost_estimated}`. `recent` is the 40 newest traces with their calls rolled up; `errors` the 10 newest failed spans.
+
+In `GET /api/trace/{id}`, model calls from apps carry `joined: {cost_usd, model, provider, cost_estimated, app_call: true}`, and the trace has `service`.

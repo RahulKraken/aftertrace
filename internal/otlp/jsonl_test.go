@@ -59,3 +59,16 @@ func TestImportDirJSONL(t *testing.T) {
 		t.Fatalf("spans=%d", c.Spans)
 	}
 }
+
+// OTLP/JSON ids are hex; they must come through unchanged, not base64-decoded.
+func TestJSONHexIDsAreKept(t *testing.T) {
+	line := []byte(`{"resourceSpans":[{"resource":{},"scopeSpans":[{"spans":[{"traceId":"5b8efff798038103d269b633813fc60c","spanId":"eee19b7ec3c1b174","parentSpanId":"eee19b7ec3c1b173","name":"chat x","startTimeUnixNano":"1","endTimeUnixNano":"2"}]}]}]}`)
+	req, err := UnmarshalTracesJSON(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spans, _ := ConvertTraces(req, false)
+	if len(spans) != 1 || spans[0].TraceID != "5b8efff798038103d269b633813fc60c" || spans[0].SpanID != "eee19b7ec3c1b174" || spans[0].ParentSpanID != "eee19b7ec3c1b173" {
+		t.Fatalf("ids: %+v", spans)
+	}
+}

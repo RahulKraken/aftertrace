@@ -70,6 +70,9 @@ Views:
 | `llm` | `claude_code.llm_request` joined to `api_request` on `request_id`. Adds `cost_usd`, `skill_name`, `mcp_server_name`, tokens, `model`, `effort`. |
 | `tools` | `claude_code.tool` plus `blocked_on_user` and `execution` children. |
 | `q_spans` | Every span with joined `api_request` attrs for model rows. |
+| `turn_roots` | One row per Claude Code turn, including turns still running (`in_progress`). |
+| `calls` | One model call from an app or agent (anything not Claude Code), normalised across OpenTelemetry GenAI, the Claude SDK, OpenLLMetry, OpenInference, the Vercel AI SDK, Pydantic AI and Gemini CLI. `service`, `operation`, `provider`, `model`, `model_key`, tokens (`input_tokens` includes cache), `ttft_ms`, `cost_usd` (reported, or estimated from `prices`), `cost_reported`, `error_type`, `conversation_id`. |
+| `prices` | USD per million tokens by model-id prefix: `input`, `cache_write`, `cache_read`, `output`. Match with `starts_with(model_key, prefix)` and take the longest prefix. |
 
 Queries are read-only. Do not `INSERT`/`UPDATE`/`CREATE`.
 

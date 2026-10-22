@@ -1,5 +1,7 @@
 import type { AskResult, QuerySpec } from "../lib/types"
 import {
+  appDetail,
+  apps,
   askSuggestions,
   findings,
   fields,
@@ -28,6 +30,12 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
     if (p === "/api/overview") return json(mockOverview())
     if (p === "/api/status") return json(mockStatus())
     if (p === "/api/sources") return json({ now: Date.now() * 1e6, sources: mockSources() })
+    if (p === "/api/apps") return json(apps)
+    if (p.startsWith("/api/app/")) {
+      const d = appDetail(decodeURIComponent(p.slice("/api/app/".length)))
+      if (!d) return json({ error: "not found" }, 404)
+      return json(d)
+    }
     if (p === "/api/sessions") return json(sessions)
     if (p.startsWith("/api/session/")) {
       const id = p.split("/").pop() || ""

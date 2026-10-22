@@ -6,11 +6,14 @@
     "retry.waste",
     "tool.repeated_errors",
     "hook.overhead",
+    "app.errors",
     "skill.cost",
     "mcp.large_results",
     "cache.drop_after_compaction",
+    "app.model_downgrade",
     "plugin.skills_unused",
-    "model.switch_cache_rebuild"
+    "model.switch_cache_rebuild",
+    "app.no_prompt_cache"
   ],
   "cost_models": 3
 }
