@@ -227,7 +227,7 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
       <i className="lane-dot" />
       <span className="lane-main">
         <span className="lane-title">{lane.title || `Session ${lane.session_id.slice(0, 8)}`}</span>
-        <span className="lane-doing mono">{lane.quiet ? `quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}</span>
+        <span className="lane-doing">{lane.quiet ? `Quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}</span>
       </span>
       <span className="lane-meta num">
         <span>{dur(Math.max(elapsed, 0))}</span>

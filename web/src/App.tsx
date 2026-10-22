@@ -5,7 +5,7 @@ import { useHashLocation } from "wouter/use-hash-location"
 import { Shell } from "./components/Shell"
 import { EmptyState } from "./components/EmptyState"
 import { ToastHost } from "./lib/toast"
-import { applyTheme, readTheme, type Theme } from "./lib/theme"
+import { applyTheme, readTheme, switchTheme, type Theme } from "./lib/theme"
 import { AppPage } from "./pages/AppPage"
 import { AppsPage } from "./pages/AppsPage"
 import { ConnectPage } from "./pages/ConnectPage"
@@ -36,7 +36,7 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <ToastHost>
       <Router hook={useHashPath}>
-        <Shell theme={theme} onTheme={setTheme} mock={mock}>
+        <Shell theme={theme} onTheme={(t) => switchTheme(t, setTheme)} mock={mock}>
           <Switch>
             <Route path="/" component={HomePage} />
             <Route path="/sessions" component={SessionsPage} />

@@ -79,16 +79,24 @@ export function TracePage() {
   // A link to a span (finding evidence, an error) or a replay wants the time axis.
   // App traces are short and have no narration, so they open on it too.
   const story = view === "story" && !span && !replay && !isAppTrace(trace.service)
-  if (story) return <TurnStory trace={trace} findings={findings} view="story" onView={changeView} />
+  // Switching views fades rather than snaps; the page itself does not move.
+  if (story)
+    return (
+      <div className="view-in" key="story">
+        <TurnStory trace={trace} findings={findings} view="story" onView={changeView} />
+      </div>
+    )
   return (
-    <Waterfall
-      traceView={isAppTrace(trace.service) ? undefined : "timeline"}
-      onView={changeView}
-      key={`${trace.trace_id}:${span || ""}:${replay ? "r" : ""}`}
-      trace={trace}
-      findings={findings}
-      initialSpan={span}
-      replay={replay}
-    />
+    <div className="view-in" key="timeline">
+      <Waterfall
+        traceView={isAppTrace(trace.service) ? undefined : "timeline"}
+        onView={changeView}
+        key={`${trace.trace_id}:${span || ""}:${replay ? "r" : ""}`}
+        trace={trace}
+        findings={findings}
+        initialSpan={span}
+        replay={replay}
+      />
+    </div>
   )
 }
