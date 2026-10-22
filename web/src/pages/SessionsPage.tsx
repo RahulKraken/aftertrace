@@ -55,6 +55,17 @@ export function SessionsPage() {
     )
   }, [rows, filter, q])
 
+  // Day dividers (Today, Yesterday, then dates), computed once per list.
+  const groups = useMemo(() => {
+    const out: { day: string; rows: Session[] }[] = []
+    for (const s of shown) {
+      const d = dayLabel(s.start_ns)
+      if (!out.length || out[out.length - 1].day !== d) out.push({ day: d, rows: [] })
+      out[out.length - 1].rows.push(s)
+    }
+    return out
+  }, [shown])
+
   if (err) {
     return (
       <div className="page">
@@ -72,7 +83,6 @@ export function SessionsPage() {
     )
   }
 
-  let lastDay = ""
   return (
     <div className="page sessions">
       <h1>Sessions</h1>
@@ -106,19 +116,11 @@ export function SessionsPage() {
           </tr>
         </thead>
         <tbody>
-          {shown.flatMap((s) => {
-            const t = when(s.start_ns)
-            const d = dayLabel(s.start_ns)
-            const out = []
-            if (d !== lastDay) {
-              lastDay = d
-              out.push(
-                <tr className="day-row" key={`d-${d}`}>
-                  <td colSpan={7}>{d}</td>
-                </tr>,
-              )
-            }
-            out.push(
+          {groups.flatMap((g) => [
+            <tr className="day-row" key={`d-${g.day}`}>
+              <td colSpan={7}>{g.day}</td>
+            </tr>,
+            ...g.rows.map((s) => (
               <tr key={s.session_id} onClick={() => nav(`/session/${s.session_id}`)}>
                 <td>
                   <span className="repo-shape">
@@ -130,16 +132,15 @@ export function SessionsPage() {
                     {s.running && <span className="run-pill">running</span>}
                   </span>
                 </td>
-                <td className="num mute">{t.time}</td>
+                <td className="num mute">{when(s.start_ns).time}</td>
                 <td className="num r">{s.turns}</td>
                 <td className="num r">{dur(s.turn_ms)}</td>
                 <td className="num r">{s.breakdown?.permission_wait ? dur(s.breakdown.permission_wait) : <span className="mute">—</span>}</td>
                 <td className="num r">{usd(s.cost_usd)}</td>
                 <td className="num r">{s.findings || <span className="mute">0</span>}</td>
-              </tr>,
-            )
-            return out
-          })}
+              </tr>
+            )),
+          ])}
         </tbody>
       </table>
       {!shown.length && <div className="quiet-line">No sessions match.</div>}
