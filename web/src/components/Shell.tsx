@@ -174,7 +174,14 @@ export function Shell({
             </div>
           </div>
         </aside>
-        <main className="main">{children}</main>
+        <main className="main">
+          {import.meta.env.VITE_DEMO === "1" && (
+            <div className="demo-banner">
+              You are looking at synthetic demo data. <a href="../docs/install.html">Install Aftertrace</a> to see your own Claude Code, agents and apps.
+            </div>
+          )}
+          {children}
+        </main>
       </div>
       <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(theme === "dark" ? "light" : "dark")} />
     </StatusContext.Provider>
