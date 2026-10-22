@@ -17,6 +17,14 @@ export function SessionPage() {
     api.session(params.id).then(setD).catch((e: Error) => setErr(e.message))
   }, [params.id])
 
+  const running = Boolean(d?.turns.some((t) => t.running))
+  useEffect(() => {
+    if (!running || !params.id) return
+    const id = params.id
+    const t = window.setInterval(() => api.session(id).then(setD).catch(() => {}), 5000)
+    return () => window.clearInterval(t)
+  }, [running, params.id])
+
   if (err) {
     return (
       <div className="page">
@@ -38,22 +46,25 @@ export function SessionPage() {
         <thead>
           <tr>
             <th>Turn</th>
+            <th>Prompt</th>
             <th>Started</th>
             <th className="r">Duration</th>
             <th className="r">Cost</th>
           </tr>
         </thead>
         <tbody>
-          {d.turns.map((t) => {
+          {d.turns.map((t, i) => {
             const w = when(t.start_ns)
             return (
               <tr key={t.trace_id} onClick={() => nav(`/trace/${t.trace_id}`)}>
                 <td className="num">
                   <span className="repo-shape">
                     <MiniWaterfall bd={t.breakdown} turns={1} />
-                    {t.seq}
+                    {t.seq || i + 1}
+                    {t.running ? <span className="run-pill">running</span> : t.in_progress ? <span className="run-pill is-stale">incomplete</span> : null}
                   </span>
                 </td>
+                <td className="prompt-cell">{t.prompt ? <span title={t.prompt}>{t.prompt}</span> : <span className="mute">—</span>}</td>
                 <td className="num">
                   <span className="date">{w.date}</span>
                   {w.time}

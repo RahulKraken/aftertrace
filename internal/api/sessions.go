@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/rules"
@@ -14,8 +15,8 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 	rows, err := db.Query(`
 		SELECT r.session_id, min(r.start_ns), max(r.end_ns), count(*), sum(r.duration_ms),
 			any_value(a(r.attrs,'vcs.repository.name')), any_value(a(r.attrs,'app.entrypoint')),
-			list(r.trace_id)
-		FROM spans r WHERE r.name='claude_code.interaction' GROUP BY r.session_id ORDER BY min(r.start_ns) DESC`)
+			list(r.trace_id), bool_or(r.in_progress AND r.end_ns > ?)
+		FROM turn_roots r WHERE r.session_id IS NOT NULL GROUP BY r.session_id ORDER BY min(r.start_ns) DESC`, runningSince())
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +29,8 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 		var turnMS float64
 		var repo, entry sql.NullString
 		var tidsRaw any
-		if err := rows.Scan(&sid, &st, &en, &turns, &turnMS, &repo, &entry, &tidsRaw); err != nil {
+		var running bool
+		if err := rows.Scan(&sid, &st, &en, &turns, &turnMS, &repo, &entry, &tidsRaw, &running); err != nil {
 			return nil, err
 		}
 		tids := asStringSlice(tidsRaw)
@@ -64,6 +66,12 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 				bd[k] += v
 			}
 		}
+		var title sql.NullString
+		if err := db.QueryRow(`SELECT substr(a(attrs,'prompt'), 1, 200) FROM events
+			WHERE name='user_prompt' AND session_id=? AND `+notRedacted("a(attrs,'prompt')")+`
+			ORDER BY ts_ns LIMIT 1`, sid).Scan(&title); err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
 		nf := 0
 		for _, f := range findings {
 			for _, sess := range f.Sessions {
@@ -90,6 +98,8 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 			"agents":     agents,
 			"breakdown":  bd,
 			"findings":   nf,
+			"title":      nullStr(title),
+			"running":    running,
 		})
 	}
 	if out == nil {
@@ -110,8 +120,8 @@ func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
 			break
 		}
 	}
-	rows, err := db.Query(`SELECT trace_id, span_id, start_ns, duration_ms, n(attrs,'interaction.sequence')
-		FROM spans WHERE name='claude_code.interaction' AND session_id=? ORDER BY start_ns`, sid)
+	rows, err := db.Query(`SELECT trace_id, span_id, start_ns, duration_ms, n(attrs,'interaction.sequence'), in_progress, in_progress AND end_ns > ?
+		FROM turn_roots WHERE session_id=? ORDER BY start_ns`, runningSince(), sid)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +132,8 @@ func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
 		var st int64
 		var d float64
 		var seq sql.NullFloat64
-		if err := rows.Scan(&tid, &sp, &st, &d, &seq); err != nil {
+		var pending, running bool
+		if err := rows.Scan(&tid, &sp, &st, &d, &seq, &pending, &running); err != nil {
 			return nil, err
 		}
 		var cost sql.NullFloat64
@@ -140,6 +151,10 @@ func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		prompt, err := turnPrompt(db, tid)
+		if err != nil {
+			return nil, err
+		}
 		turns = append(turns, map[string]any{
 			"trace_id":    tid,
 			"span_id":     sp,
@@ -151,12 +166,36 @@ func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
 			"models":      asStringSlice(modelsRaw),
 			"tools":       tools,
 			"breakdown":   analysis.Breakdown(db, tid, spans),
+			"prompt":      nullStr(prompt),
+			"in_progress": pending,
+			"running":     running,
 		})
 	}
 	if turns == nil {
 		turns = []map[string]any{}
 	}
 	return map[string]any{"session": sess, "turns": turns}, rows.Err()
+}
+
+// A turn without its interaction span counts as running while spans keep
+// arriving. After that it is incomplete: Claude Code exited mid-turn.
+func runningSince() int64 { return time.Now().Add(-5 * time.Minute).UnixNano() }
+
+// Claude Code writes "<REDACTED>" in place of content unless the matching
+// OTEL_LOG_* flag is on. Treat that the same as absent.
+func notRedacted(expr string) string {
+	return expr + ` IS NOT NULL AND ` + expr + ` NOT IN ('<REDACTED>', '[REDACTED]')`
+}
+
+// turnPrompt is the text the user typed for one turn: the user_prompt event,
+// else the interaction span's own user_prompt attribute.
+func turnPrompt(db *sql.DB, tid string) (sql.NullString, error) {
+	var p sql.NullString
+	err := db.QueryRow(`SELECT coalesce(
+		(SELECT a(attrs,'prompt') FROM events WHERE name='user_prompt' AND trace_id=? AND `+notRedacted("a(attrs,'prompt')")+` ORDER BY ts_ns LIMIT 1),
+		(SELECT a(attrs,'user_prompt') FROM spans WHERE name='claude_code.interaction' AND trace_id=? AND `+notRedacted("a(attrs,'user_prompt')")+` LIMIT 1))`,
+		tid, tid).Scan(&p)
+	return p, err
 }
 
 func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
@@ -284,8 +323,10 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 	}
 
 	var sid string
+	inProgress := false
 	for _, sp := range outSpans {
 		if sp.Name == "claude_code.interaction" {
+			inProgress = sp.Attrs[analysis.InProgressAttr] == true
 			if v, ok := sp.Attrs["session.id"].(string); ok {
 				sid = v
 			}
@@ -294,7 +335,7 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 	}
 	sib := []string{}
 	if sid != "" {
-		sr, err := db.Query(`SELECT trace_id FROM spans WHERE name='claude_code.interaction' AND session_id=? ORDER BY start_ns`, sid)
+		sr, err := db.Query(`SELECT trace_id FROM turn_roots WHERE session_id=? ORDER BY start_ns`, sid)
 		if err != nil {
 			return nil, err
 		}
@@ -331,6 +372,7 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 		"next":        next,
 		"turn_index":  i + 1,
 		"turn_count":  len(sib),
+		"in_progress": inProgress,
 	}, nil
 }
 

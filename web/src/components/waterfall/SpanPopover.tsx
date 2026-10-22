@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react"
 import { dur, usd, wallClock } from "../../lib/format"
+import { contentFor, snippet, type ContentIndex } from "../../lib/content"
 import { costOf, kindLabel, labelOf, type SpanNode } from "../../lib/span"
 
 export function SpanPopover({
@@ -7,11 +8,13 @@ export function SpanPopover({
   top,
   left,
   running,
+  content,
 }: {
   span: SpanNode | null
   top: number
   left: number
   running?: boolean
+  content: ContentIndex
 }) {
   return (
     <AnimatePresence>
@@ -25,15 +28,16 @@ export function SpanPopover({
           style={{ top, left }}
           role="tooltip"
         >
-          <PopBody span={span} running={running} />
+          <PopBody span={span} running={running} content={content} />
         </motion.div>
       ) : null}
     </AnimatePresence>
   )
 }
 
-function PopBody({ span, running }: { span: SpanNode; running?: boolean }) {
+function PopBody({ span, running, content }: { span: SpanNode; running?: boolean; content: ContentIndex }) {
   const { name, target } = labelOf(span)
+  const io = contentFor(span, content)
   const status = span.is_error ? "Failed" : running ? "Running" : "Done"
   return (
     <>
@@ -63,14 +67,18 @@ function PopBody({ span, running }: { span: SpanNode; running?: boolean }) {
         <div className="pop-err">{span.status_message || String(span.attrs.error_class || "span failed")}</div>
       ) : (
         <>
-          <div className="pop-io">
-            <div className="k">Input</div>
-            <div className="content-hidden">content hidden</div>
-          </div>
-          <div className="pop-io">
-            <div className="k">Output</div>
-            <div className="content-hidden">content hidden</div>
-          </div>
+          {io.input && (
+            <div className="pop-io">
+              <div className="k">{io.inputLabel}</div>
+              <div className="pop-text">{snippet(io.input, 180)}</div>
+            </div>
+          )}
+          {io.output && (
+            <div className="pop-io">
+              <div className="k">{io.outputLabel}</div>
+              <div className="pop-text">{snippet(io.output, 180)}</div>
+            </div>
+          )}
         </>
       )}
     </>

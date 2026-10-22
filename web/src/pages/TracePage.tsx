@@ -39,6 +39,17 @@ export function TracePage() {
       .catch((e: Error) => setErr(e.message))
   }, [params.id])
 
+  // A running turn grows as spans arrive. Re-fetch it until Claude Code sends the turn's root span.
+  const running = Boolean(trace?.in_progress)
+  useEffect(() => {
+    if (!running || !params.id) return
+    const id = params.id
+    const t = window.setInterval(() => {
+      api.trace(id).then(setTrace).catch(() => {})
+    }, 3000)
+    return () => window.clearInterval(t)
+  }, [running, params.id])
+
   if (err) {
     return (
       <div className="page">

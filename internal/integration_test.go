@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/api"
 	"github.com/RahulKraken/aftertrace/internal/demo"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
@@ -536,5 +537,49 @@ func TestFindingsEmptyStoreIsEmptyArray(t *testing.T) {
 	}
 	if string(b) != "[]" {
 		t.Fatalf("findings on empty store: %s", b)
+	}
+}
+
+// A turn that is still running has no claude_code.interaction span yet. It
+// must still show up as a turn, with a stand-in root for the waterfall.
+func TestRunningTurnHasStandInRoot(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "run.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	spans := []store.Span{
+		{TraceID: "t1", SpanID: "llm", ParentSpanID: "turn", Name: "claude_code.llm_request", StartNS: 100, EndNS: 300,
+			SessionID: "s1", Attrs: map[string]any{"session.id": "s1"}},
+		{TraceID: "t1", SpanID: "tool", ParentSpanID: "turn", Name: "claude_code.tool", StartNS: 300, EndNS: 500,
+			SessionID: "s1", Attrs: map[string]any{"session.id": "s1"}},
+		// The child of a tool that is still running arrives before the tool span.
+		{TraceID: "t1", SpanID: "exec", ParentSpanID: "running-tool", Name: "claude_code.tool.execution", StartNS: 520, EndNS: 600,
+			SessionID: "s1", Attrs: map[string]any{"session.id": "s1"}},
+	}
+	if err := st.Insert(spans, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	var root string
+	var pending bool
+	if err := st.DB.QueryRow(`SELECT span_id, in_progress FROM turn_roots WHERE trace_id='t1'`).Scan(&root, &pending); err != nil {
+		t.Fatal(err)
+	}
+	if root != "turn" || !pending {
+		t.Fatalf("turn_roots: span_id=%q in_progress=%v", root, pending)
+	}
+	rows, err := analysis.SpanRows(st.DB, "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 4 || rows[0].SpanID != "turn" || rows[0].Name != "claude_code.interaction" ||
+		rows[0].StartNS != 100 || rows[0].EndNS != 600 || rows[0].Attrs[analysis.InProgressAttr] != true ||
+		rows[0].Attrs["session.id"] != "s1" {
+		t.Fatalf("stand-in root: %+v", rows[0])
+	}
+	for _, r := range rows[1:] {
+		if r.ParentSpanID != "turn" {
+			t.Fatalf("%s parent %q, want it under the stand-in root", r.SpanID, r.ParentSpanID)
+		}
 	}
 }

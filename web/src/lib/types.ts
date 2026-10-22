@@ -24,6 +24,9 @@ export type Session = {
   agents: string[]
   breakdown: Breakdown | null
   findings: number
+  // First prompt of the session, when content is captured.
+  title?: string | null
+  running?: boolean
 }
 
 export type Turn = {
@@ -37,6 +40,10 @@ export type Turn = {
   models: string[]
   tools: number
   breakdown: Breakdown | null
+  prompt?: string | null
+  // No claude_code.interaction span yet. running: spans arrived in the last 5 minutes.
+  in_progress?: boolean
+  running?: boolean
 }
 
 export type SessionDetail = {
@@ -94,6 +101,7 @@ export type Trace = {
   next: string | null
   turn_index: number
   turn_count: number
+  in_progress?: boolean
 }
 
 export type Evidence = {
