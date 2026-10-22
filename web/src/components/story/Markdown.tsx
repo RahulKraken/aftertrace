@@ -2,13 +2,13 @@ import type { ReactNode } from "react"
 
 // Just enough Markdown for Claude's replies: paragraphs, lists, headings,
 // `code`, **bold** and [links](https://…). Built as React nodes, never as HTML.
-const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))/g
+const INLINE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))/g
 
 function inline(s: string, key: string): ReactNode[] {
   return s.split(INLINE).map((part, i) => {
     const k = `${key}-${i}`
     if (part.startsWith("`") && part.endsWith("`") && part.length > 1) return <code key={k}>{part.slice(1, -1)}</code>
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 3) return <strong key={k}>{part.slice(2, -2)}</strong>
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 3) return <strong key={k}>{inline(part.slice(2, -2), k)}</strong>
     const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/)
     if (link)
       return (

@@ -85,8 +85,10 @@ test("story default: a turn reads as steps", async ({ page }) => {
   await expect(page.locator(".st-bar i")).not.toHaveCount(0)
   await expect(page.locator(".st-ch")).not.toHaveCount(0)
   await expect(page.locator(".st-end")).toContainText("Done")
-  // Steps without Claude's words are named by the work they did.
-  await expect(page.locator(".st-title").first()).not.toHaveText("")
+  // The showcase session carries synthetic prompts and narration.
+  await expect(page.locator(".st-prompt")).toContainText("charged twice")
+  await expect(page.locator(".st-title").first()).toContainText("Reproducing it first")
+  await expect(page.locator(".st-outcome")).toContainText("idempotency key")
   await shot(page, "story", "light")
   await shot(page, "story", "dark")
 })
@@ -94,7 +96,9 @@ test("story default: a turn reads as steps", async ({ page }) => {
 test("story step opens the inspector, and Timeline keeps the choice", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}`)
   await waitFonts(page)
-  const step = page.locator(".st-ch").filter({ hasText: "subagent" }).first()
+  // Pin the step by id: its summary line goes away once it opens.
+  const id = await page.locator(".st-ch").filter({ hasText: "subagent" }).first().getAttribute("data-item")
+  const step = page.locator(`.st-ch[data-item="${id}"]`)
   await step.locator(".st-ch-head").click()
   await expect(step.locator(".st-act").first()).toBeVisible()
   await expect(step.locator(".st-acts-nested .st-act").first()).toBeVisible()
