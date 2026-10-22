@@ -1,0 +1,95 @@
+name: Release
+
+# Push a tag like v0.1.0 to build binaries and publish a GitHub Release.
+# Run it by hand (workflow_dispatch) to build the archives without releasing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # DuckDB links through CGO, so each target builds on a matching
+          # runner. Both macOS archives build on Apple silicon; clang targets
+          # x86_64 with -arch.
+          - { runner: macos-latest, goos: darwin, goarch: arm64, cc: clang }
+          - { runner: macos-latest, goos: darwin, goarch: amd64, cc: "clang -arch x86_64" }
+          - { runner: ubuntu-latest, goos: linux, goarch: amd64, cc: gcc }
+          - { runner: ubuntu-24.04-arm, goos: linux, goarch: arm64, cc: gcc }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CGO_ENABLED: "1"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build the UI
+        working-directory: web
+        run: npm ci && npm run build:embed
+      - name: Build the binary
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="dev-${GITHUB_SHA::7}" ;; esac
+          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o aftertrace ./cmd/aftertrace
+          file aftertrace
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: Check it runs
+        if: matrix.goarch == 'arm64' && matrix.goos == 'darwin' || matrix.goarch == 'amd64' && matrix.goos == 'linux' || matrix.goarch == 'arm64' && matrix.goos == 'linux'
+        run: ./aftertrace version && ./aftertrace demo --db "$RUNNER_TEMP/check.duckdb"
+      - name: Archive
+        run: |
+          NAME="aftertrace_${VERSION}_${GOOS}_${GOARCH}"
+          mkdir "$NAME"
+          cp aftertrace LICENSE README.md "$NAME/"
+          tar czf "$NAME.tar.gz" "$NAME"
+          echo "ARCHIVE=$NAME.tar.gz" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz > checksums.txt && cat checksums.txt
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v tag="${GITHUB_REF_NAME}" '
+            $0 ~ "^## " { if (found) exit; if (index($0, tag)) { found=1; next } }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+          cat notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/checksums.txt --title "Aftertrace $GITHUB_REF_NAME" --notes-file notes.md

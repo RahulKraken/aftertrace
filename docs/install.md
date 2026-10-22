@@ -1,8 +1,29 @@
 # Install
 
-Aftertrace is a Go binary with an embedded DuckDB and an embedded React UI. There is no package yet. You build it.
+Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothing else to run.
 
-## Prerequisites
+## Install a release (macOS and Linux)
+
+```bash
+curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
+```
+
+The script picks the archive for your OS and CPU (macOS arm64 or Intel, Linux amd64 or arm64) from the [latest release](https://github.com/RahulKraken/aftertrace/releases/latest), checks it against `checksums.txt`, and installs `aftertrace` to `/usr/local/bin` if you can write there, otherwise `~/.local/bin`. `AFTERTRACE_VERSION=v0.1.0` pins a version; `AFTERTRACE_BIN=/some/dir` picks the directory. Read [`install.sh`](../install.sh) first if you prefer; it is short.
+
+Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`.
+
+```bash
+aftertrace version
+aftertrace serve
+```
+
+Then open http://127.0.0.1:7311 and go to **Connect**.
+
+Windows is not packaged yet. Build from source below (DuckDB ships a `windows-amd64` library; you need a CGO toolchain such as MSYS2 MinGW).
+
+## Build from source
+
+### Prerequisites
 
 | Tool | Why | Version used here |
 | - | - | - |
@@ -12,7 +33,7 @@ Aftertrace is a Go binary with an embedded DuckDB and an embedded React UI. Ther
 
 The Go module vendors prebuilt DuckDB libraries for `darwin-amd64`, `darwin-arm64`, `linux-amd64`, `linux-arm64`, and `windows-amd64`. You still need CGO to link them. Other GOOS/GOARCH pairs will not build.
 
-## Build
+### Build
 
 From the repo root. `npm run build:embed` is required for a UI that talks to `/api`. Without it, `go build` embeds the stub `web/dist/index.html`.
 
