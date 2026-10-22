@@ -32,7 +32,8 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l cmd internal web)" || (gofmt -l cmd internal web && exit 1)
       - run: go vet ./...
-      - run: go test ./...
+      # Read handlers run concurrently with ingest; -race keeps them honest.
+      - run: go test -race ./...
       # Builds against the committed stub web/dist/index.html (no Node).
       - run: go build -o aftertrace ./cmd/aftertrace
 

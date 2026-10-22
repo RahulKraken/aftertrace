@@ -44,10 +44,7 @@ func findingsFor(db *sql.DB) []rules.Finding {
 }
 
 func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
-	// Counts takes the store lock itself, so call it before taking the lock here.
 	c, _ := s.Store.Counts()
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	db := s.db()
 	now := time.Now().UnixNano()
 	var running, sessions int

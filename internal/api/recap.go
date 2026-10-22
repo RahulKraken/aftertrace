@@ -15,8 +15,6 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	if back < 0 || back > 52 {
 		back = 0
 	}
-	s.Store.Mu.Lock()
-	defer s.Store.Mu.Unlock()
 	db := s.db()
 	now := time.Now().UnixNano()
 	stats, err := traceStats(db)

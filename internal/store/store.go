@@ -20,11 +20,15 @@ var schemaSQL string
 //go:embed views.sql
 var viewsSQL string
 
-// Store is a DuckDB file plus the Aftertrace schema. One writer; callers serialize with Mu.
+// Store is a DuckDB file plus the Aftertrace schema. Reads need no lock: every
+// pooled connection is a connection to one DuckDB instance, and DuckDB's MVCC
+// gives each query a snapshot, so a slow read never waits on ingest or other
+// reads. Writes go through Insert, which takes wmu: two batches that INSERT OR
+// REPLACE the same span would otherwise fail with a transaction conflict.
 type Store struct {
 	DB   *sql.DB
 	Path string
-	Mu   sync.Mutex
+	wmu  sync.Mutex
 }
 
 type Span struct {
@@ -118,8 +122,8 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
 	return s.insertLocked(spans, sevs, evs, pts)
 }
 
@@ -200,8 +204,6 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 }
 
 func (s *Store) Counts() (Counts, error) {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
 	var c Counts
 	row := s.DB.QueryRow(`SELECT
 		(SELECT count(*) FROM spans),
