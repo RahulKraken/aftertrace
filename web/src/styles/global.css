@@ -124,6 +124,7 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 14px; }
 .c-permission_wait { background: var(--hue-wait); }
 .c-retry { background: var(--hue-retry); }
 .c-hook { background: var(--hue-hook); }
+.c-permission_check { background: color-mix(in oklab, var(--hue-wait) 35%, var(--hue-turn)); }
 .c-other { background: var(--hue-turn); }
 
 .legend { display: flex; gap: 14px; color: var(--mute); font-size: 11.5px; margin-top: 10px; flex-wrap: wrap; }

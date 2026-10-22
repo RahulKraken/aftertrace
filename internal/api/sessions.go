@@ -12,6 +12,10 @@ import (
 
 func sessions(db *sql.DB) ([]map[string]any, error) {
 	findings := rules.RunAll(db)
+	stats, err := traceStats(db)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.Query(`
 		SELECT r.session_id, min(r.start_ns), max(r.end_ns), count(*), sum(r.duration_ms),
 			any_value(a(r.attrs,'vcs.repository.name')), any_value(a(r.attrs,'app.entrypoint')),
@@ -58,11 +62,7 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 		ar.Close()
 		bd := map[string]float64{}
 		for _, t := range tids {
-			spans, err := analysis.SpanRows(db, t)
-			if err != nil {
-				return nil, err
-			}
-			for k, v := range analysis.Breakdown(db, t, spans) {
+			for k, v := range breakdowns.get(db, t, stats[t]) {
 				bd[k] += v
 			}
 		}
@@ -98,7 +98,7 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 			"agents":     agents,
 			"breakdown":  bd,
 			"findings":   nf,
-			"title":      nullStr(title),
+			"title":      cleanTitle(title),
 			"running":    running,
 		})
 	}
@@ -555,3 +555,14 @@ func jsonString(v any) string {
 }
 
 func tweak(v any) any { return v }
+
+func cleanTitle(t sql.NullString) any {
+	if !t.Valid {
+		return nil
+	}
+	c := cleanPrompt(t.String)
+	if c == "" {
+		return nil
+	}
+	return c
+}

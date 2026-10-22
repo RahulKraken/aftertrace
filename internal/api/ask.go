@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -107,8 +108,17 @@ func evidenceFor(db *sql.DB, ids []string) []map[string]any {
 	return out
 }
 
+// markup matches wrapper tags clients put around pasted or injected text,
+// such as <pasted_content id="..."> and </pasted_content>.
+var markup = regexp.MustCompile(`</?[A-Za-z_][\w-]*(\s[^<>]*)?>`)
+
+// cleanPrompt is prompt text for labels: wrapper tags removed, whitespace collapsed.
+func cleanPrompt(s string) string {
+	return strings.Join(strings.Fields(markup.ReplaceAllString(s, " ")), " ")
+}
+
 func clipLabel(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
+	s = cleanPrompt(s)
 	if len([]rune(s)) > 60 {
 		return string([]rune(s)[:59]) + "…"
 	}

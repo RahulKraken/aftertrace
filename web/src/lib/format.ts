@@ -6,6 +6,7 @@ export const CATS: (keyof Breakdown)[] = [
   "permission_wait",
   "retry",
   "hook",
+  "permission_check",
   "other",
 ]
 
@@ -15,6 +16,7 @@ export const CAT_LABEL: Record<keyof Breakdown, string> = {
   permission_wait: "waiting on you",
   retry: "retry waste",
   hook: "hooks",
+  permission_check: "permission checks",
   other: "other",
 }
 

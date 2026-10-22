@@ -4,6 +4,8 @@ export type Breakdown = {
   permission_wait: number
   retry: number
   hook: number
+  // Permission prompts decided by config, a hook or auto mode. Absent in older payloads.
+  permission_check?: number
   other: number
 }
 

@@ -133,7 +133,10 @@ export function snippet(c: Content | null, max = 220): string {
   return clip(c.text, max)
 }
 
+// Wrapper tags clients add around pasted text, e.g. <pasted_content id="...">.
+const MARKUP = /<\/?[A-Za-z_][\w-]*(\s[^<>]*)?>/g
+
 function clip(s: string, max: number): string {
-  const one = s.replace(/\s+/g, " ").trim()
+  const one = s.replace(MARKUP, " ").replace(/\s+/g, " ").trim()
   return one.length > max ? one.slice(0, max - 1) + "…" : one
 }
