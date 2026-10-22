@@ -55,6 +55,11 @@ export type SessionDetail = {
 
 export type SpanJoined = {
   cost_usd?: number | null
+  // Set on model calls from apps (the calls view), not on Claude Code spans.
+  app_call?: boolean
+  model?: string | null
+  provider?: string | null
+  cost_estimated?: boolean
   "skill.name"?: string | null
   "agent.name"?: string | null
   "mcp_server.name"?: string | null
@@ -104,6 +109,8 @@ export type Trace = {
   turn_index: number
   turn_count: number
   in_progress?: boolean
+  // service.name of the trace. Anything not claude-code* is an app.
+  service?: string
 }
 
 export type Evidence = {

@@ -27,7 +27,7 @@ func ImportDir(st *store.Store, dir string, storeContent bool) (store.Counts, er
 	before, _ := st.Counts()
 	if err := importJSONL(filepath.Join(dir, "traces.jsonl"), func(b []byte) error {
 		var req coltracepb.ExportTraceServiceRequest
-		if err := protoJSON.Unmarshal(b, &req); err != nil {
+		if err := unmarshalOTLPJSON(b, &req); err != nil {
 			return err
 		}
 		sp, se := ConvertTraces(&req, storeContent)
@@ -37,7 +37,7 @@ func ImportDir(st *store.Store, dir string, storeContent bool) (store.Counts, er
 	}
 	if err := importJSONL(filepath.Join(dir, "logs.jsonl"), func(b []byte) error {
 		var req collogspb.ExportLogsServiceRequest
-		if err := protoJSON.Unmarshal(b, &req); err != nil {
+		if err := unmarshalOTLPJSON(b, &req); err != nil {
 			return err
 		}
 		return st.Insert(nil, nil, ConvertLogs(&req, storeContent), nil)
@@ -46,7 +46,7 @@ func ImportDir(st *store.Store, dir string, storeContent bool) (store.Counts, er
 	}
 	if err := importJSONL(filepath.Join(dir, "metrics.jsonl"), func(b []byte) error {
 		var req colmetricspb.ExportMetricsServiceRequest
-		if err := protoJSON.Unmarshal(b, &req); err != nil {
+		if err := unmarshalOTLPJSON(b, &req); err != nil {
 			return err
 		}
 		return st.Insert(nil, nil, nil, ConvertMetrics(&req, storeContent))
@@ -95,7 +95,7 @@ func importJSONL(path string, fn func([]byte) error) error {
 
 func UnmarshalTracesJSON(b []byte) (*coltracepb.ExportTraceServiceRequest, error) {
 	var req coltracepb.ExportTraceServiceRequest
-	if err := protoJSON.Unmarshal(b, &req); err != nil {
+	if err := unmarshalOTLPJSON(b, &req); err != nil {
 		return nil, err
 	}
 	return &req, nil
@@ -103,7 +103,7 @@ func UnmarshalTracesJSON(b []byte) (*coltracepb.ExportTraceServiceRequest, error
 
 func UnmarshalLogsJSON(b []byte) (*collogspb.ExportLogsServiceRequest, error) {
 	var req collogspb.ExportLogsServiceRequest
-	if err := protoJSON.Unmarshal(b, &req); err != nil {
+	if err := unmarshalOTLPJSON(b, &req); err != nil {
 		return nil, err
 	}
 	return &req, nil
@@ -111,7 +111,7 @@ func UnmarshalLogsJSON(b []byte) (*collogspb.ExportLogsServiceRequest, error) {
 
 func UnmarshalMetricsJSON(b []byte) (*colmetricspb.ExportMetricsServiceRequest, error) {
 	var req colmetricspb.ExportMetricsServiceRequest
-	if err := protoJSON.Unmarshal(b, &req); err != nil {
+	if err := unmarshalOTLPJSON(b, &req); err != nil {
 		return nil, err
 	}
 	return &req, nil

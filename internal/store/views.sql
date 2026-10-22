@@ -56,10 +56,67 @@ SELECT o.trace_id, arg_max(o.parent_id, o.n), any_value(o.session_id), t.st, t.e
 FROM (
   SELECT s.trace_id, s.parent_span_id AS parent_id, count(*) AS n, any_value(s.session_id) AS session_id
   FROM spans s
-  WHERE coalesce(s.parent_span_id, '') <> ''
+  WHERE coalesce(s.parent_span_id, '') <> '' AND s.name LIKE 'claude_code.%'
     AND NOT EXISTS (SELECT 1 FROM spans i WHERE i.trace_id = s.trace_id AND i.name = 'claude_code.interaction')
     AND NOT EXISTS (SELECT 1 FROM spans p WHERE p.trace_id = s.trace_id AND p.span_id = s.parent_span_id)
   GROUP BY 1, 2
 ) o
 JOIN (SELECT trace_id, min(start_ns) AS st, max(end_ns) AS en FROM spans GROUP BY 1) t USING (trace_id)
 GROUP BY o.trace_id, t.st, t.en;
+
+-- model id -> price key: lowercase, drop "vendor/" and "us.anthropic."-style prefixes.
+CREATE OR REPLACE MACRO model_key(m) AS regexp_replace(regexp_replace(lower(m), '^.*/', ''), '^([a-z]+\.)+', '');
+
+-- one row per model call from anything that is not Claude Code: your apps and
+-- agents sending OpenTelemetry GenAI spans (current and deprecated semconv),
+-- the Claude SDK, OpenLLMetry, OpenInference, the Vercel AI SDK, Pydantic AI,
+-- Gemini CLI. Agent and tool spans are not calls; their usage is aggregated
+-- from the calls inside them. The Claude SDK's CLIENT span is skipped when the
+-- API's SERVER span for the same request is present (same name, child of it).
+CREATE OR REPLACE VIEW calls AS
+WITH base AS (
+  SELECT s.trace_id, s.span_id, s.parent_span_id, s.name, s.start_ns, s.end_ns, s.duration_ms, s.is_error, s.status_message,
+    coalesce(json_extract_string(s.resource, '$."service.name"'), 'unknown') AS service,
+    coalesce(a(s.attrs,'gen_ai.operation.name'), a(s.attrs,'llm.request.type'), lower(a(s.attrs,'openinference.span.kind'))) AS op,
+    coalesce(a(s.attrs,'gen_ai.provider.name'), a(s.attrs,'gen_ai.system'), a(s.attrs,'llm.provider'), a(s.attrs,'llm.system'), a(s.attrs,'ai.model.provider')) AS provider,
+    coalesce(a(s.attrs,'gen_ai.response.model'), a(s.attrs,'gen_ai.request.model'), a(s.attrs,'llm.model_name'), a(s.attrs,'ai.response.model'), a(s.attrs,'ai.model.id'), a(s.attrs,'model')) AS model,
+    coalesce(n(s.attrs,'gen_ai.usage.input_tokens'), n(s.attrs,'gen_ai.usage.prompt_tokens'), n(s.attrs,'llm.token_count.prompt'), n(s.attrs,'ai.usage.inputTokens'), n(s.attrs,'ai.usage.promptTokens'), n(s.attrs,'input_token_count')) AS input_tokens,
+    coalesce(n(s.attrs,'gen_ai.usage.output_tokens'), n(s.attrs,'gen_ai.usage.completion_tokens'), n(s.attrs,'llm.token_count.completion'), n(s.attrs,'ai.usage.outputTokens'), n(s.attrs,'ai.usage.completionTokens'), n(s.attrs,'output_token_count')) AS output_tokens,
+    coalesce(n(s.attrs,'gen_ai.usage.cache_read.input_tokens'), n(s.attrs,'gen_ai.usage.cache_read_input_tokens'), n(s.attrs,'llm.token_count.prompt_details.cache_read'), n(s.attrs,'ai.usage.inputTokenDetails.cacheReadTokens'), n(s.attrs,'ai.usage.cachedInputTokens')) AS cache_read_tokens,
+    coalesce(n(s.attrs,'gen_ai.usage.cache_write.input_tokens'), n(s.attrs,'gen_ai.usage.cache_creation.input_tokens'), n(s.attrs,'gen_ai.usage.cache_creation_input_tokens'), n(s.attrs,'llm.token_count.prompt_details.cache_write'), n(s.attrs,'ai.usage.inputTokenDetails.cacheWriteTokens')) AS cache_write_tokens,
+    coalesce(n(s.attrs,'gen_ai.response.time_to_first_chunk') * 1000, n(s.attrs,'ai.response.msToFirstChunk'), n(s.attrs,'ttft_ms')) AS ttft_ms,
+    coalesce(n(s.attrs,'llm.cost.total'), n(s.attrs,'operation.cost')) AS reported_cost,
+    coalesce(a(s.attrs,'error.type'), CASE WHEN s.is_error THEN 'error' END) AS error_type,
+    coalesce(a(s.attrs,'gen_ai.conversation.id'), a(s.attrs,'anthropic.session.id'), a(s.attrs,'session.id'), s.session_id) AS conversation_id,
+    a(s.attrs,'ai.telemetry.functionId') AS function_id
+  FROM spans s
+  WHERE s.name NOT LIKE 'claude_code.%'
+    AND coalesce(a(s.attrs,'gen_ai.operation.name'), '') NOT IN ('invoke_agent', 'create_agent', 'invoke_workflow', 'execute_tool', 'plan')
+    AND s.name NOT IN ('anthropic.model_request', 'anthropic.messages.tool_runner', 'anthropic.session.turn')
+    AND (
+      a(s.attrs,'gen_ai.operation.name') IN ('chat', 'text_completion', 'generate_content', 'embeddings')
+      OR s.name = 'anthropic.messages.create'
+      OR a(s.attrs,'openinference.span.kind') = 'LLM'
+      OR s.name IN ('ai.generateText.doGenerate', 'ai.streamText.doStream', 'ai.generateObject.doGenerate', 'ai.streamObject.doStream')
+      OR s.name = 'llm_call'
+      OR a(s.attrs,'llm.request.type') IN ('chat', 'completion')
+      -- Hand-rolled spans: a model and token usage, but no operation name.
+      OR (a(s.attrs,'gen_ai.request.model') IS NOT NULL AND (n(s.attrs,'gen_ai.usage.input_tokens') IS NOT NULL OR n(s.attrs,'gen_ai.usage.output_tokens') IS NOT NULL))
+    )
+    AND NOT (s.name = 'anthropic.messages.create' AND EXISTS (
+      SELECT 1 FROM spans k WHERE k.trace_id = s.trace_id AND k.parent_span_id = s.span_id AND k.name = 'anthropic.messages.create'))
+),
+keyed AS (
+  SELECT b.*, model_key(b.model) AS model_key,
+    (SELECT r.name FROM spans r WHERE r.trace_id = b.trace_id AND coalesce(r.parent_span_id, '') = '' ORDER BY r.start_ns LIMIT 1) AS root_name
+  FROM base b
+)
+SELECT k.* EXCLUDE (reported_cost, root_name),
+  coalesce(k.function_id, CASE WHEN k.root_name IS NULL OR k.root_name = k.name THEN k.name ELSE k.root_name END) AS operation,
+  coalesce(k.reported_cost,
+    (SELECT (greatest(coalesce(k.input_tokens, 0) - coalesce(k.cache_read_tokens, 0) - coalesce(k.cache_write_tokens, 0), 0) * p.input
+            + coalesce(k.cache_write_tokens, 0) * p.cache_write + coalesce(k.cache_read_tokens, 0) * p.cache_read
+            + coalesce(k.output_tokens, 0) * p.output) / 1e6
+     FROM prices p WHERE starts_with(k.model_key, p.prefix) ORDER BY length(p.prefix) DESC LIMIT 1)) AS cost_usd,
+  k.reported_cost IS NOT NULL AS cost_reported
+FROM keyed k;

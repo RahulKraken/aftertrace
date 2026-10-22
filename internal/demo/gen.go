@@ -619,6 +619,7 @@ func WriteJSONL(dir string) ([]*Session, error) {
 	}
 	rng := rand.New(rand.NewSource(Seed))
 	sessions := buildSessions(rng)
+	addOutputMetrics(sessions, rand.New(rand.NewSource(Seed+1)))
 	ft, err := os.Create(filepath.Join(dir, "traces.jsonl"))
 	if err != nil {
 		return nil, err
@@ -697,6 +698,11 @@ func WriteJSONL(dir string) ([]*Session, error) {
 				"metrics": ms,
 			}},
 		}}}); err != nil {
+			return nil, err
+		}
+	}
+	for _, a := range buildApps(Seed + 2) {
+		if err := enc(ft, a.otlp()); err != nil {
 			return nil, err
 		}
 	}

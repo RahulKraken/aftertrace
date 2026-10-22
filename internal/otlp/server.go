@@ -163,7 +163,7 @@ func (r *Receiver) acceptMetrics(body []byte, isJSON bool) error {
 
 func unmarshalOTLP(body []byte, isJSON bool, msg proto.Message) error {
 	if isJSON {
-		return protoJSON.Unmarshal(body, msg)
+		return unmarshalOTLPJSON(body, msg)
 	}
 	return proto.Unmarshal(body, msg)
 }

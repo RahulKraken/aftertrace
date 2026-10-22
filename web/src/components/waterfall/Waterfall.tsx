@@ -18,6 +18,7 @@ import {
   labelOf,
   rollup,
   spanKind,
+  usageOf,
   visibleRows,
   waitChild,
   type SpanNode,
@@ -803,14 +804,14 @@ function Row({
 
 function Phases({ span }: { span: SpanNode }) {
   const k = spanKind(span)
-  const a = span.attrs
   const spanNs = span.end_ns - span.start_ns || 1
   const segw = (a0: number, a1: number) => Math.max(0, ((a1 - a0) / spanNs) * 100)
   if (k === "model") {
     if (span.is_error) return <i className="ph-retry" style={{ width: "100%" }} />
     const rs = span.retry_end_ns
     const st = rs || span.start_ns
-    const tt = a.ttft_ms ? Math.min(span.end_ns, st + Number(a.ttft_ms) * 1e6) : st
+    const ttft = usageOf(span).ttftMs
+    const tt = ttft ? Math.min(span.end_ns, st + ttft * 1e6) : st
     return (
       <>
         {rs ? <i className="ph-retry" style={{ width: `${segw(span.start_ns, rs)}%` }} /> : null}

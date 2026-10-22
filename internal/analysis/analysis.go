@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sort"
+	"strings"
 )
 
 // Paint priority, highest first. permission_wait is time a person decided a
@@ -93,9 +94,18 @@ func withPendingRoot(spans []Span) []Span {
 	if missing == "" {
 		return spans
 	}
+	// A Claude Code turn gets a stand-in interaction span; anything else
+	// (an app trace whose root has not ended) gets a neutral one.
+	name := "in progress"
+	for _, s := range spans {
+		if strings.HasPrefix(s.Name, "claude_code.") {
+			name = "claude_code.interaction"
+			break
+		}
+	}
 	root := Span{
 		SpanID:     missing,
-		Name:       "claude_code.interaction",
+		Name:       name,
 		StartNS:    start,
 		EndNS:      end,
 		DurationMS: float64(end-start) / 1e6,

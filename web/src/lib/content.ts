@@ -92,6 +92,24 @@ export function contentFor(span: SpanNode, idx: ContentIndex): SpanContent {
   if (k === "turn") {
     return { input: idx.prompt, output: idx.finalResponse, inputLabel: "Prompt", outputLabel: "Final response" }
   }
+  if (k === "model" && !span.name.startsWith("claude_code.")) {
+    // App model calls carry content on the span itself (opt-in in each SDK).
+    return {
+      input: text(a["gen_ai.input.messages"]) || text(a["ai.prompt.messages"]) || text(a["ai.prompt"]) || text(a["input.value"]),
+      output: text(a["gen_ai.output.messages"]) || text(a["ai.response.text"]) || text(a["output.value"]),
+      inputLabel: "Messages",
+      outputLabel: "Response",
+      inputNote: "Not captured. The SDK sends content only when its content mode is on.",
+    }
+  }
+  if ((k === "tool" || k === "agent") && !span.name.startsWith("claude_code.")) {
+    return {
+      input: text(a["gen_ai.tool.call.arguments"]) || text(a["ai.toolCall.args"]),
+      output: text(a["gen_ai.tool.call.result"]) || text(a["anthropic.tool_result.content"]) || text(a["ai.toolCall.result"]),
+      inputLabel: "Arguments",
+      outputLabel: "Result",
+    }
+  }
   if (k === "model") {
     const rid = String(a.request_id || "")
     return {
