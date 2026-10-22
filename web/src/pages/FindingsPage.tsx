@@ -98,7 +98,7 @@ export function FindingsPage() {
           )}
         </AnimatePresence>
         {(rest.length > 0 || done.length > 0) && (
-          <div className="quiet-list">
+          <div className="quiet-list stagger">
             {done.map((f) => (
               <motion.div layout="position" transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }} className="frow quiet resolved" data-finding={f.id} key={`done-${f.id}`}>
                 <span className="hl">{f.headline}</span>

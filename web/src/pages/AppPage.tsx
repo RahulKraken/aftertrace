@@ -181,7 +181,7 @@ function Groups({ title, hint, rows }: { title: string; hint?: string; rows: App
             <th className="r">Failed</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="stagger">
           {rows.map((r) => (
             <tr key={r.key}>
               <td>

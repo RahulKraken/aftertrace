@@ -758,7 +758,7 @@ function Row({
       animate={{ opacity: 1, y: 0, top: index * ROW }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ type: "spring", bounce: 0.16, visualDuration: 0.32 }}
-      style={{ position: "absolute", left: 0, right: 0, height: ROW }}
+      style={{ position: "absolute", left: 0, right: 0, height: ROW, ["--i" as string]: Math.min(index, 24) }}
       onClick={() => (isStep ? onToggle() : onSelect(span.span_id))}
       onMouseEnter={() => onHover(isStep ? null : span.span_id)}
     >

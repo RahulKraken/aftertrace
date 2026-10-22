@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { ArrowRight, Plug } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
@@ -7,6 +8,7 @@ import { planMultiple, readPlan } from "../lib/plan"
 import type { Breakdown, LiveLane, Overview, WindowStats } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
 import { Sparkline } from "../components/Sparkline"
+import { Num } from "../components/Num"
 import { useNow } from "../hooks/useNow"
 
 export function HomePage() {
@@ -48,7 +50,8 @@ export function HomePage() {
   const w = ov.week
   return (
     <div className="page home">
-      <div className="home-head">
+      <div className={`home-head${live ? " is-live" : ""}`}>
+        <HeroMark live={live} />
         <div className="home-date">
           {ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}
           {live && (
@@ -70,7 +73,7 @@ export function HomePage() {
           <span className="sec-sub">Turns in progress, updated every few seconds</span>
         </div>
         {ov.live.length ? (
-          <div className="lanes">
+          <div className="lanes stagger">
             {ov.live.map((l) => (
               <Lane key={l.trace_id} lane={l} now={ov.now} />
             ))}
@@ -141,20 +144,20 @@ function Story({ w, days }: { w: WindowStats; days: number }) {
   const mult = planMultiple(plan, w.cost_usd, days)
   return (
     <>
-      Your agents worked <b>{dur(w.turn_ms)}</b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
+      Your agents worked <b><Num value={w.turn_ms} format={dur} /></b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
       {w.cost_usd > 0 && (
         <>
-          {" "}for <b>{usd(w.cost_usd)}</b>
+          {" "}for <b><Num value={w.cost_usd} format={usd} /></b>
         </>
       )}
       .{" "}
       {wait / Math.max(w.turn_ms, 1) >= 0.08 ? (
         <>
-          <span className="hl-wait">{dur(wait)}</span> of that was waiting on you.
+          <span className="hl-wait"><Num value={wait} format={dur} /></span> of that was waiting on you.
         </>
       ) : w.lines_added > 0 ? (
         <>
-          They wrote <b>{int(w.lines_added)}</b> lines{w.commits > 0 && <> and made {plural(w.commits, "commit")}</>}.
+          They wrote <b><Num value={w.lines_added} format={(n) => int(Math.round(n))} /></b> lines{w.commits > 0 && <> and made {plural(w.commits, "commit")}</>}.
         </>
       ) : (
         <>You waited on them for only {dur(wait)}.</>
@@ -172,34 +175,37 @@ function StatStrip({ ov }: { ov: Overview }) {
   const w = ov.week
   const p = ov.prev
   const days = ov.days.slice(-7)
-  const stats: { label: string; value: string; d: number | null; goodDown?: boolean; spark?: number[]; tone?: "ink" | "wait" | "model"; sub?: string }[] = [
-    { label: "Agent time", value: dur(w.turn_ms), d: delta(w.turn_ms, p.turn_ms), spark: days.map((x) => x.turn_ms), tone: "model" },
+  const labels = days.map((x) => x.day)
+  const stats: { label: string; n: number | null; fmt: (n: number) => string; d: number | null; goodDown?: boolean; spark?: number[]; tone?: "ink" | "wait" | "model"; sub?: string }[] = [
+    { label: "Agent time", n: w.turn_ms, fmt: dur, d: delta(w.turn_ms, p.turn_ms), spark: days.map((x) => x.turn_ms), tone: "model" },
     {
       label: "Waiting on you",
-      value: dur(w.breakdown.permission_wait || 0),
+      n: w.breakdown.permission_wait || 0,
+      fmt: dur,
       d: delta(w.breakdown.permission_wait || 0, p.breakdown.permission_wait || 0),
       goodDown: true,
       spark: days.map((x) => x.wait_ms),
       tone: "wait",
       sub: w.approvals ? `${int(w.approvals)} ${w.approvals === 1 ? "approval" : "approvals"}` : undefined,
     },
-    { label: "API value", value: usd(w.cost_usd), d: delta(w.cost_usd, p.cost_usd), goodDown: true, spark: days.map((x) => x.cost_usd), sub: `${int(w.requests)} requests` },
+    { label: "API value", n: w.cost_usd, fmt: usd, d: delta(w.cost_usd, p.cost_usd), goodDown: true, spark: days.map((x) => x.cost_usd), sub: `${int(w.requests)} requests` },
     {
       label: "Shipped",
-      value: w.lines_added ? `+${int(w.lines_added)}` : "—",
+      n: w.lines_added || null,
+      fmt: (n) => `+${int(Math.round(n))}`,
       d: delta(w.lines_added, p.lines_added),
       sub: [w.commits ? plural(w.commits, "commit") : "", w.pull_requests ? plural(w.pull_requests, "PR") : ""].filter(Boolean).join(" · ") || "lines added",
     },
-    { label: "Cache hit", value: w.cache_hit == null ? "—" : pct(w.cache_hit), d: null, sub: `${int(w.tokens / 1e6)}M tokens` },
+    { label: "Cache hit", n: w.cache_hit, fmt: pct, d: null, sub: `${int(w.tokens / 1e6)}M tokens` },
   ]
   return (
-    <div className="stat-strip">
+    <div className="stat-strip stagger">
       {stats.map((s) => (
         <div className="stat" key={s.label}>
           <div className="stat-label">{s.label}</div>
           <div className="stat-row">
-            <span className="stat-val">{s.value}</span>
-            {s.spark && <Sparkline values={s.spark} tone={s.tone} />}
+            <span className="stat-val">{s.n == null ? "—" : <Num value={s.n} format={s.fmt} />}</span>
+            {s.spark && <Sparkline values={s.spark} labels={labels} format={s.fmt} tone={s.tone} />}
           </div>
           <div className="stat-foot">
             {s.d != null && Number.isFinite(s.d) && Math.abs(s.d) >= 0.01 ? (
@@ -227,12 +233,29 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
       <i className="lane-dot" />
       <span className="lane-main">
         <span className="lane-title">{lane.title || `Session ${lane.session_id.slice(0, 8)}`}</span>
-        <span className="lane-doing">{lane.quiet ? `Quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}</span>
+        {/* Each new step slides in under the last, so you can watch the agent move. */}
+        <span className="lane-doing-wrap">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={lane.quiet ? "quiet" : lane.doing}
+              className="lane-doing"
+              initial={{ opacity: 0, transform: "translateY(8px)" }}
+              animate={{ opacity: 1, transform: "translateY(0px)", transition: { duration: 0.32, ease: [0.23, 1, 0.32, 1] } }}
+              exit={{ opacity: 0, transform: "translateY(-8px)", transition: { duration: 0.18, ease: [0.23, 1, 0.32, 1] } }}
+            >
+              {lane.quiet ? `Quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}
+            </motion.span>
+          </AnimatePresence>
+        </span>
       </span>
       <span className="lane-meta num">
         <span>{dur(Math.max(elapsed, 0))}</span>
-        <span className="mute">{int(lane.spans)} spans</span>
-        <span>{usd(lane.cost_usd)}</span>
+        <span className="mute">
+          <Num value={lane.spans} format={(n) => `${int(Math.round(n))} spans`} />
+        </span>
+        <span>
+          <Num value={lane.cost_usd} format={usd} />
+        </span>
       </span>
       <ArrowRight size={14} className="lane-go" />
     </button>
@@ -256,21 +279,31 @@ function NextFinding({ f }: { f: NonNullable<Overview["top"]> }) {
 }
 
 function TimeSplit({ bd }: { bd: Breakdown }) {
+  // Pointing at a category lights its share of the bar and dims the rest (mapping).
+  const [focus, setFocus] = useState<string | null>(null)
   const tot = CATS.reduce((a, c) => a + (bd[c] || 0), 0) || 1
   const shown = CATS.filter((c) => (bd[c] || 0) / tot >= 0.005)
   return (
-    <div className="card split-card">
-      <div className="phase split-bar">
-        {CATS.map((c) => (
-          <i key={c} className={`c-${c}`} style={{ flex: bd[c] || 0 }} title={`${CAT_LABEL[c]} ${dur(bd[c] || 0)}`} />
+    <div className={`card split-card${focus ? " has-focus" : ""}`} onMouseLeave={() => setFocus(null)}>
+      <div className="phase split-bar grow-bars">
+        {CATS.map((c, i) => (
+          <i
+            key={c}
+            className={`c-${c}${focus === c ? " is-focus" : ""}`}
+            style={{ flex: bd[c] || 0, ["--i" as string]: i }}
+            title={`${CAT_LABEL[c]} ${dur(bd[c] || 0)}`}
+            onMouseEnter={() => setFocus(c)}
+          />
         ))}
       </div>
       <div className="split-legend">
         {shown.map((c) => (
-          <div key={c} className="split-row">
+          <div key={c} className={`split-row${focus === c ? " is-focus" : ""}`} onMouseEnter={() => setFocus(c)}>
             <i className={`c-${c} split-sw`} />
             <span>{CAT_LABEL[c]}</span>
-            <span className="num">{dur(bd[c] || 0)}</span>
+            <span className="num">
+              <Num value={bd[c] || 0} format={dur} />
+            </span>
             <span className="num mute">{pct((bd[c] || 0) / tot)}</span>
           </div>
         ))}
@@ -283,7 +316,7 @@ function RecentList({ ov }: { ov: Overview }) {
   const [, nav] = useLocation()
   if (!ov.recent.length) return <div className="quiet-line">No sessions yet.</div>
   return (
-    <div className="card list-card">
+    <div className="card list-card stagger">
       {ov.recent.map((s) => {
         const t = when(s.start_ns)
         return (
@@ -340,5 +373,17 @@ function HomeSkeleton() {
         ))}
       </div>
     </div>
+  )
+}
+
+// The brand mark, large and quiet behind the week's sentence: three bars draw
+// in once, and while a turn is running the amber one (waiting on you) breathes.
+function HeroMark({ live }: { live: boolean }) {
+  return (
+    <svg className={`hero-mark${live ? " is-live" : ""}`} viewBox="0 0 240 120" aria-hidden="true">
+      <rect className="hm-bar hm-1" x="10" y="16" width="130" height="22" rx="11" />
+      <rect className="hm-bar hm-2" x="60" y="49" width="160" height="22" rx="11" />
+      <rect className="hm-bar hm-3" x="110" y="82" width="86" height="22" rx="11" />
+    </svg>
   )
 }

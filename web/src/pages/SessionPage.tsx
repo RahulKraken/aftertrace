@@ -66,7 +66,7 @@ export function SessionPage() {
             <th className="r">Cost</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="stagger">
           {d.turns.map((t, i) => {
             const w = when(t.start_ns)
             return (
