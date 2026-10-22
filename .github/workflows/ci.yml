@@ -29,6 +29,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal web)" || (gofmt -l cmd internal web && exit 1)
       - run: go vet ./...
       - run: go test ./...
       # Builds against the committed stub web/dist/index.html (no Node).
@@ -69,6 +71,23 @@ jobs:
           test -n "$bundle"
           grep -aqF "dist/assets/$bundle" aftertrace
           echo "embedded $bundle"
+      # Smoke test the real binary on demo data: the mock e2e suite cannot
+      # catch API, SQL or locking bugs.
+      - name: Start aftertrace on demo data
+        run: |
+          ./aftertrace demo --db "$RUNNER_TEMP/demo.duckdb"
+          ./aftertrace serve --db "$RUNNER_TEMP/demo.duckdb" > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:7311/api/status > /dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/serve.log"; exit 1
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test against the real server
+        working-directory: web
+        run: npx playwright test -c playwright.live.config.ts
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/serve.log"
 
   e2e:
     name: Playwright e2e (mock UI)

@@ -1,15 +1,36 @@
-import { useEffect, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Search } from "lucide-react"
 import { useLocation } from "wouter"
 import { api } from "../lib/api"
 import { dur, usd, when } from "../lib/format"
-import { weekStory } from "../lib/story"
 import type { Session } from "../lib/types"
 import { EmptyState } from "../components/EmptyState"
 import { MiniWaterfall } from "../components/MiniWaterfall"
 
+type Filter = "all" | "running" | "findings" | "errors"
+
+const FILTERS: { id: Filter; label: string; test: (s: Session) => boolean }[] = [
+  { id: "all", label: "All", test: () => true },
+  { id: "running", label: "Running", test: (s) => Boolean(s.running) },
+  { id: "findings", label: "With findings", test: (s) => s.findings > 0 },
+  { id: "errors", label: "With errors", test: (s) => s.errors > 0 },
+]
+
+function dayLabel(ns: number): string {
+  const d = new Date(ns / 1e6)
+  const today = new Date()
+  const y = new Date()
+  y.setDate(today.getDate() - 1)
+  if (d.toDateString() === today.toDateString()) return "Today"
+  if (d.toDateString() === y.toDateString()) return "Yesterday"
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
+}
+
 export function SessionsPage() {
   const [rows, setRows] = useState<Session[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [filter, setFilter] = useState<Filter>("all")
+  const [q, setQ] = useState("")
   const [, nav] = useLocation()
 
   useEffect(() => {
@@ -23,11 +44,22 @@ export function SessionsPage() {
     return () => window.clearInterval(t)
   }, [running])
 
+  const shown = useMemo(() => {
+    const f = FILTERS.find((x) => x.id === filter) || FILTERS[0]
+    const needle = q.trim().toLowerCase()
+    return (rows || []).filter(
+      (s) =>
+        f.test(s) &&
+        (!needle ||
+          [s.title, s.repo, s.session_id, ...(s.models || [])].some((v) => String(v || "").toLowerCase().includes(needle))),
+    )
+  }, [rows, filter, q])
+
   if (err) {
     return (
       <div className="page">
         {err}
-        <div className="err-next">Reload this page. If it persists, check that the mock fixtures loaded.</div>
+        <div className="err-next">Reload this page. If it persists, check that aftertrace serve is running.</div>
       </div>
     )
   }
@@ -40,68 +72,77 @@ export function SessionsPage() {
     )
   }
 
+  let lastDay = ""
   return (
-    <div className="page">
-      <WeekLine rows={rows} />
-      <table className="grid">
+    <div className="page sessions">
+      <h1>Sessions</h1>
+      <div className="sub">Every Claude Code session, titled by the first thing you asked. Agent SDK runs show up here too.</div>
+      <div className="list-tools">
+        <div className="seg" role="tablist" aria-label="Filter sessions">
+          {FILTERS.map((f) => {
+            const n = rows.filter(f.test).length
+            return (
+              <button type="button" role="tab" aria-selected={filter === f.id} key={f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>
+                {f.label} <span className="seg-n">{n}</span>
+              </button>
+            )
+          })}
+        </div>
+        <label className="list-search">
+          <Search size={14} />
+          <input placeholder="Search prompts, repos, models" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+      </div>
+      <table className="grid sessions-grid">
         <thead>
           <tr>
-            <th>Started</th>
             <th>Session</th>
-            <th className="r">Time</th>
+            <th>Started</th>
+            <th className="r">Turns</th>
+            <th className="r">Agent time</th>
+            <th className="r">Waiting on you</th>
             <th className="r">Cost</th>
             <th className="r">Findings</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((s) => {
+          {shown.flatMap((s) => {
             const t = when(s.start_ns)
-            return (
+            const d = dayLabel(s.start_ns)
+            const out = []
+            if (d !== lastDay) {
+              lastDay = d
+              out.push(
+                <tr className="day-row" key={`d-${d}`}>
+                  <td colSpan={7}>{d}</td>
+                </tr>,
+              )
+            }
+            out.push(
               <tr key={s.session_id} onClick={() => nav(`/session/${s.session_id}`)}>
-                <td className="num">
-                  <span className="date">{t.date}</span>
-                  {t.time}
-                  {s.running ? <span className="run-pill">running</span> : null}
-                </td>
                 <td>
                   <span className="repo-shape">
                     <MiniWaterfall bd={s.breakdown} turns={s.turns} />
                     <span className="prompt-cell" title={s.title || undefined}>
-                      {s.title || s.repo || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
+                      {s.title || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
                     </span>
+                    {s.repo && <span className="chip mono">{s.repo}</span>}
+                    {s.running && <span className="run-pill">running</span>}
                   </span>
                 </td>
+                <td className="num mute">{t.time}</td>
+                <td className="num r">{s.turns}</td>
                 <td className="num r">{dur(s.turn_ms)}</td>
+                <td className="num r">{s.breakdown?.permission_wait ? dur(s.breakdown.permission_wait) : <span className="mute">—</span>}</td>
                 <td className="num r">{usd(s.cost_usd)}</td>
                 <td className="num r">{s.findings || <span className="mute">0</span>}</td>
-              </tr>
+              </tr>,
             )
+            return out
           })}
         </tbody>
       </table>
+      {!shown.length && <div className="quiet-line">No sessions match.</div>}
     </div>
-  )
-}
-
-function WeekLine({ rows }: { rows: Session[] }) {
-  const { waitPct, sessions, costUsd, thisWeek } = weekStory(rows)
-  const span = thisWeek ? "this week" : "your latest week"
-  if (waitPct < 1) {
-    return (
-      <h1 className="story-line week-line">
-        {sessions} {sessions === 1 ? "session" : "sessions"} {span}, {usd(costUsd)}, and almost no time waiting on
-        approvals.
-      </h1>
-    )
-  }
-  return (
-    <h1 className="story-line week-line">
-      You spent{" "}
-      <span className="week-pct" style={{ "--pct": waitPct } as CSSProperties}>
-        {waitPct}%
-        <i className="week-pct-mark" aria-hidden="true" />
-      </span>{" "}
-      of {span} waiting on approvals.
-    </h1>
   )
 }

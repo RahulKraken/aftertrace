@@ -55,6 +55,6 @@ test("delight demo under 30s", async ({ page }) => {
   await page.locator(".cmd input").fill("sessions")
   await page.waitForTimeout(350)
   await page.keyboard.press("Enter")
-  await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
   await page.waitForTimeout(500)
 })

@@ -426,16 +426,29 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 			"note":    "Tools carry no cost of their own. result_tokens is what the tool added to context.",
 		}, nil
 	}
-	dims := map[string]string{
-		"model": "model", "effort": "effort", "skill": "skill_name", "subagent": "agent_name",
-		"mcp": "mcp_server_name", "repo": "repo", "query_source": "query_source",
-	}
-	col, ok := dims[dim]
-	if !ok {
-		return nil, errDim(dim)
+	// source: Claude Code next to each app. App input tokens include cache
+	// reads and writes (GenAI convention); Claude Code's do not, so subtract.
+	from := "llm WHERE NOT is_error"
+	col := ""
+	if dim == "source" {
+		from = `(SELECT 'Claude Code' AS src, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens FROM llm WHERE NOT is_error
+			UNION ALL
+			SELECT service, cost_usd, greatest(coalesce(input_tokens,0) - coalesce(cache_read_tokens,0) - coalesce(cache_write_tokens,0), 0),
+				output_tokens, cache_read_tokens, cache_write_tokens FROM calls WHERE NOT is_error AND error_type IS NULL) u`
+		col = "src"
+	} else {
+		dims := map[string]string{
+			"model": "model", "effort": "effort", "skill": "skill_name", "subagent": "agent_name",
+			"mcp": "mcp_server_name", "repo": "repo", "query_source": "query_source",
+		}
+		c, ok := dims[dim]
+		if !ok {
+			return nil, errDim(dim)
+		}
+		col = c
 	}
 	var total sql.NullFloat64
-	if err := db.QueryRow("SELECT sum(cost_usd) FROM llm").Scan(&total); err != nil {
+	if err := db.QueryRow("SELECT sum(cost_usd) FROM " + from).Scan(&total); err != nil {
 		return nil, err
 	}
 	tot := 1.0
@@ -445,7 +458,7 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 	rows, err := db.Query(`SELECT coalesce(` + col + `, '(none)'), sum(cost_usd), sum(cost_usd)/` + strconvf(tot) + `, count(*),
 		sum(input_tokens), sum(output_tokens), sum(cache_read_tokens), sum(cache_creation_tokens),
 		sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0)
-		FROM llm WHERE NOT is_error GROUP BY 1 ORDER BY 2 DESC`)
+		FROM ` + from + ` GROUP BY 1 ORDER BY 2 DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -468,8 +481,15 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 		"dim":     dim,
 		"columns": []string{dim, "cost_usd", "share", "requests", "input", "output", "cache_read", "cache_write", "cache_hit"},
 		"rows":    out,
-		"note":    "Cost is cost_usd from api_request events, joined to spans on request_id.",
+		"note":    costNote(dim),
 	}, nil
+}
+
+func costNote(dim string) string {
+	if dim == "source" {
+		return "Claude Code cost is its own estimate. App cost is what the app reported, or estimated from tokens with the price table."
+	}
+	return "Cost is cost_usd from api_request events, joined to spans on request_id."
 }
 
 type dimError string

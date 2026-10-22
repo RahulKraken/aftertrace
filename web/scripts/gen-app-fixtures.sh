@@ -44,6 +44,7 @@ for t in sorted(traces):
     for sp in tr["spans"]:
         sp["findings"] = [remap[i] for i in sp.get("findings") or [] if i in remap]
     json.dump(tr, open(f"{out}/traces/{t}.json", "w"))
+json.dump(get("/api/cost?dim=source"), open(f"{out}/cost/source.json", "w"))
 for wk in (0, 1):
     json.dump(get(f"/api/recap?week={wk}"), open(f"{out}/recap-{wk}.json", "w"))
 print(f"{len(apps)} apps, {len(traces)} traces, recap")
