@@ -249,6 +249,62 @@ input.search { width: 100%; }
   border-radius: 4px;
 }
 .caret:hover { color: var(--ink); background: var(--bg-recessed); }
+/* A parent row's caret is a count of what sits directly inside it, like a
+   folded tab: hairline when open, filled when closed. */
+.caret.count {
+  height: 16px; width: 18px; padding: 0; margin: 0; border: 1px solid var(--line-2); letter-spacing: -0.02em; overflow: hidden;
+  background: var(--surface); font: 500 10px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--mute);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 120ms ease-out;
+}
+.caret.count.is-closed { background: var(--bg-recessed); color: var(--ink-2); border-color: color-mix(in oklab, var(--ink) 18%, var(--line-2)); }
+.caret.count:hover { color: var(--ink); border-color: color-mix(in oklab, var(--ink) 30%, var(--line-2)); background: var(--surface); }
+.caret.count:active { transform: scale(0.94); }
+.caret.count svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform 180ms var(--ease-out); }
+.caret.count svg.is-open { transform: rotate(90deg); }
+.caret.count:focus-visible { outline: 2px solid color-mix(in oklab, var(--hue-model) 45%, transparent); outline-offset: 1px; }
+
+/* ⋯ on the row you point at: the menu for that span. */
+.row-more {
+  position: absolute; right: 6px; top: 50%; width: 24px; height: 22px; margin-top: -11px;
+  display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; cursor: pointer;
+  color: var(--mute); background: var(--sel); box-shadow: -10px 0 10px -2px var(--sel);
+  opacity: 0; transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+.row-more svg { width: 14px; height: 14px; fill: currentColor; }
+.row:hover .row-more, .row.hov .row-more, .row.sel .row-more, .row-more.is-open, .row-more:focus-visible { opacity: 1; }
+.row-more:hover, .row-more.is-open { color: var(--ink); background: color-mix(in oklab, var(--ink) 8%, var(--sel)); }
+.row-more:active { transform: scale(0.94); }
+@media (hover: none) { .row-more { opacity: 1; background: transparent; box-shadow: none; } }
+
+.row-menu {
+  position: fixed; z-index: 60; min-width: 236px; padding: 5px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop);
+  font: 13px var(--sans); color: var(--ink);
+}
+.row-menu button {
+  display: flex; align-items: center; gap: 16px; width: 100%; padding: 7px 10px; border: 0; border-radius: 7px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.row-menu button span { flex: 1; }
+.row-menu button:hover:not(:disabled), .row-menu button:focus-visible { background: var(--bg-recessed); outline: none; }
+.row-menu button:disabled { color: var(--faint); cursor: default; }
+.row-menu kbd { font: 11px var(--mono); color: var(--faint); }
+.row-menu-sep { display: block; height: 1px; margin: 4px 6px; background: var(--line); }
+
+/* "Showing only this span": a quiet strip above the rows, with the way back. */
+.wf-focus {
+  display: flex; align-items: center; gap: 12px; overflow: hidden; padding: 0 16px;
+  font: 12.5px var(--sans); color: var(--mute); background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+.wf-focus > span { padding: 9px 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-focus b { color: var(--ink); font-weight: 500; }
+.wf-focus button {
+  flex: none; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); border-radius: 7px;
+  padding: 4px 9px; font: 12px var(--sans); cursor: pointer; transition: background-color 140ms ease, transform 120ms ease-out;
+}
+.wf-focus button:hover { background: var(--bg-recessed); }
+.wf-focus button:active { transform: scale(0.97); }
+.wf-focus kbd { font: 10.5px var(--mono); color: var(--faint); margin-left: 4px; }
 .glyph {
   flex: none; width: 18px; height: 18px; border-radius: 5px;
   display: grid; place-items: center; margin-right: 7px;
@@ -1707,3 +1763,5 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
 .sdot.is-err { background: var(--hue-retry); }
 .sdot:hover, .sdot.is-hot { transform: scale(1.6); background: var(--hue-model); z-index: 2; }
 .sdot.is-err:hover, .sdot.is-err.is-hot { background: var(--hue-retry); }
+.n-pill, .err-dot { transition: opacity 140ms ease; }
+.row:hover .n-pill, .row.hov .n-pill, .row.sel .n-pill { opacity: 0; }
