@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, Wrench } from "lucide-react"
 import { Link } from "wouter"
 import { WinStage } from "../components/WinStage"
-import { dur, impactParts, usd } from "../lib/format"
+import { dur, impactFormat, impactParts, usd } from "../lib/format"
+import { Num } from "../components/Num"
 import { api } from "../lib/api"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import type { Finding } from "../lib/types"
@@ -157,7 +158,7 @@ function Ledger({ done }: { done: Finding[] }) {
 }
 
 function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) => void; onDone: () => void }) {
-  const [v, u] = impactParts(f)
+  const [, u] = impactParts(f)
   const fx = fixFor(f)
   const [copied, setCopied] = useState(false)
 
@@ -185,7 +186,7 @@ function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) =
       </div>
       <h1>{f.headline}</h1>
       <div className="imp hero-imp">
-        {v}
+        <Num value={f.impact_value} format={impactFormat(f)} />
         <span>{u}</span>
       </div>
       <p className="rec">{f.recommendation}</p>

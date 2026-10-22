@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowRight, Check, SquareTerminal } from "lucide-react"
 import { siAnthropic, siClaude, siGooglegemini, siOpentelemetry } from "simple-icons"
 import { BrandIcon } from "../components/BrandIcon"
+import { Num } from "../components/Num"
 import { Link } from "wouter"
 import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
@@ -380,10 +381,14 @@ function Verify({ src }: { src: SourceDef }) {
   const earlier = match[0]
   if (fresh) {
     return (
-      <div className="verify is-ok" role="status">
-        <Check size={15} />
+      // The moment it works is worth marking: the check lands with a ring, once.
+      <div className="verify is-ok is-celebrate" role="status">
+        <span className="verify-check">
+          <Check size={15} strokeWidth={2.75} />
+        </span>
         <span>
-          Receiving from <b className="mono">{fresh.name}</b>, {ago(fresh.last_ns, now)}. {int(fresh.spans)} spans, {int(fresh.events)} events so far.
+          Receiving from <b>{fresh.name}</b>, {ago(fresh.last_ns, now)}. <Num value={fresh.spans} format={(n) => int(Math.round(n))} /> spans,{" "}
+          <Num value={fresh.events} format={(n) => int(Math.round(n))} /> events so far.
         </span>
         <Link href={fresh.kind === "app" ? "/apps" : "/"} className="sec-link">
           Open it <ArrowRight size={13} />

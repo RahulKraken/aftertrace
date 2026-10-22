@@ -87,6 +87,13 @@ export function modelName(m: string | null | undefined): string {
   return id
 }
 
+// How to print a finding's impact value, for counting it up in place.
+export function impactFormat(f: Finding): (n: number) => string {
+  if (f.impact_unit.startsWith("USD")) return usd
+  if (f.impact_unit.startsWith("s")) return (n) => dur(n * 1000)
+  return (n) => String(Math.round(n))
+}
+
 export function impactParts(f: Finding): [string, string] {
   if (f.impact_unit.startsWith("USD")) return [usd(f.impact_value), f.impact_unit.slice(4).trim()]
   if (f.impact_unit.startsWith("s ")) return [dur(f.impact_value * 1000), f.impact_unit.slice(2).trim()]
