@@ -294,7 +294,7 @@ export type Overview = {
 
 export type Status = {
   now: number
-  info: { version: string; db_path: string; store_content: boolean; otlp_grpc: string; otlp_http: string; ui: string }
+  info: { version: string; db_path: string; store_content: boolean; otlp_grpc: string; otlp_http: string; ui: string; service: string }
   ask: { enabled: boolean; model?: string }
   counts: { Spans: number; SpanEvents: number; Events: number; MetricPoints: number }
   running: number

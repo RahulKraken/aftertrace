@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `aftertrace service install|uninstall|status`: keep `aftertrace serve` running at login as a LaunchAgent (macOS) or a systemd user unit (Linux), with the flags you pass. It prints every file and command first; `--dry-run` stops there. Logs go to `~/.aftertrace/serve.log`.
+- Connect suggests the service when the server is not running as one. `/api/status` reports `info.service`.
+- `scripts/homebrew-formula.sh` prints a Homebrew formula for a release.
+
 ## v0.1.0
 
 The first release. Aftertrace is a local-first profiler for your AI work: Claude Code, your own LLM apps and your personal agents, in one binary on your machine.

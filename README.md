@@ -27,6 +27,8 @@ aftertrace serve
 
 Open http://127.0.0.1:7311 and go to **Connect**. macOS and Linux; Windows and building from source: [docs/install.md](docs/install.md). `aftertrace demo` loads synthetic sessions and apps if you want to look around first.
 
+To keep it running across logouts and restarts, stop it and run `aftertrace service install` instead (a LaunchAgent on macOS, a systemd user unit on Linux). It takes the same flags as `serve`: [docs/install.md](docs/install.md#run-it-at-login).
+
 ## Build from source
 
 You need Go 1.24, a C compiler (DuckDB is linked with CGO), and Node 22. See [docs/install.md](docs/install.md).

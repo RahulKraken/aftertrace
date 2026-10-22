@@ -21,6 +21,25 @@ Then open http://127.0.0.1:7311 and go to **Connect**.
 
 Windows is not packaged yet. Build from source below (DuckDB ships a `windows-amd64` library; you need a CGO toolchain such as MSYS2 MinGW).
 
+## Run it at login
+
+`aftertrace serve` stops when you close the terminal, log out or restart. `aftertrace service install` runs it as a login service instead: a LaunchAgent on macOS, a systemd user unit on Linux. It starts at login, restarts if it exits, and appends its output to `~/.aftertrace/serve.log`.
+
+Pass the same flags you give `serve`:
+
+```bash
+aftertrace service install --store-content
+```
+
+It prints the file it writes and every command it runs. `--dry-run` prints them and stops. If an `aftertrace serve` you started by hand is still running, stop it first; install refuses while the ports are taken.
+
+```bash
+aftertrace service status
+aftertrace service uninstall
+```
+
+Run `install` again to change flags or to pick up a new binary after an upgrade. Details, the exact files, and Linux's `loginctl enable-linger`: [cli.md](cli.md#aftertrace-service).
+
 ## Build from source
 
 ### Prerequisites

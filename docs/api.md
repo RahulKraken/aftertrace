@@ -211,12 +211,15 @@ The query cannot touch anything outside the tables and views:
 ```json
 {
   "info": { "version": "v0.1.0", "db_path": "/Users/you/.aftertrace/aftertrace.duckdb", "store_content": false,
-            "otlp_grpc": "127.0.0.1:4317", "otlp_http": "127.0.0.1:4318", "ui": "127.0.0.1:7311" },
+            "otlp_grpc": "127.0.0.1:4317", "otlp_http": "127.0.0.1:4318", "ui": "127.0.0.1:7311",
+            "service": "" },
   "ask": { "enabled": false },
   "counts": { "Spans": 1206, "SpanEvents": 30, "Events": 1770, "MetricPoints": 382 },
   "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000
 }
 ```
+
+`info.service` is `launchd` or `systemd` when the server was started by [`aftertrace service install`](cli.md#aftertrace-service), and empty otherwise. Connect uses it to suggest the service.
 
 Findings are cached for 10 seconds, so `findings` can lag a new rule match by that long.
 

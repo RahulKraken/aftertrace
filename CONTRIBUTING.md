@@ -52,6 +52,8 @@ Docs navigation lives in `NAV` in `site/build.mjs`; add new docs there.
 
 Push a `v*` tag. `.github/workflows/release.yml` builds macOS (arm64, amd64) and Linux (amd64, arm64) archives, writes `checksums.txt`, and publishes a release with notes from the matching `CHANGELOG.md` section. Add the section first.
 
+There is no Homebrew tap yet. `sh scripts/homebrew-formula.sh vX.Y.Z` prints `Formula/aftertrace.rb` for a published release, with the four archive URLs and their sha256 from its `checksums.txt` (pass a local `checksums.txt` as the second argument to skip the download). Committing that file to a repo named `homebrew-<name>` makes `brew install <owner>/<name>/aftertrace` work; regenerate it on each tag.
+
 ## Tests
 
 ```bash

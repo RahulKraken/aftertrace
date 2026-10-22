@@ -267,6 +267,15 @@ export function ConnectPage() {
             <div className="mono listen">
               OTLP gRPC {ep.grpc} · OTLP HTTP {ep.http}
             </div>
+            {status && !status.info.service && (
+              <div className="note">
+                This server stops when you log out or restart. To start it at login, stop it and run{" "}
+                <code>aftertrace service install{status.info.store_content ? " --store-content" : ""}</code>.{" "}
+                <a href={`${DOCS}/cli.md#aftertrace-service`} target="_blank" rel="noreferrer">
+                  How it works
+                </a>
+              </div>
+            )}
           </Step>
 
           <Step n={2} title={`Add this to ${src.where}`}>
