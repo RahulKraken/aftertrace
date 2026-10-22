@@ -1,5 +1,7 @@
 # Point Claude Code at Aftertrace
 
+The quickest way: run `aftertrace serve`, open http://127.0.0.1:7311 and go to **Connect**. It shows the settings block below with your server's real endpoints, has a button that copies it as a prompt Claude Code can apply for you, and confirms on the same page when the first data arrives. This page explains every variable in that block.
+
 Variable names in this page are taken from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart `claude`.
 
 Put the env in `~/.claude/settings.json` or in the shell you start Claude Code from. Claude Code **ignores** OpenTelemetry exporter variables in a repository `.claude/settings.json` and `.claude/settings.local.json`. A repo file can still turn a signal **off** by setting an exporter to `none`.
