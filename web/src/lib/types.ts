@@ -179,12 +179,17 @@ export type AskResult = {
   result: SqlResult | null
   evidence: Record<string, unknown>[]
   builder?: QuerySpec | null
+  enabled?: boolean
+  model?: string
+  steps?: { sql: string; rows: number; error?: string }[]
 }
 
 export type AskSuggestions = {
   agent: string
   questions: string[]
   schema: string
+  // false when the server runs without --ask; absent in the mock build.
+  enabled?: boolean
 }
 
 export type Range = { lo: number; hi: number }

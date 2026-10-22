@@ -42,6 +42,7 @@ export function QueryPage() {
   const [sqlres, setSqlres] = useState<SqlResult | null>(null)
   const [running, setRunning] = useState(false)
   const [asking, setAsking] = useState(false)
+  const [askErr, setAskErr] = useState<string | null>(null)
   const [sqlRunning, setSqlRunning] = useState(false)
   const [histN, setHistN] = useState(0)
   const hist = useRef<QuerySpec[]>([])
@@ -112,11 +113,16 @@ export function QueryPage() {
   }
 
   const askIt = async (question: string) => {
+    if (!question.trim()) return
     setAskQ(question)
     setAsking(true)
+    setAskErr(null)
     try {
       const r = await api.ask(question)
       setAsk(r)
+    } catch (e) {
+      setAsk(null)
+      setAskErr((e as Error).message)
     } finally {
       setAsking(false)
     }
@@ -319,14 +325,41 @@ export function QueryPage() {
               </button>
             ))}
           </div>
-          <div className="priv">
-            Agent: {sugg?.agent || "canned"}. A real agent is opt-in and sends only the schema and aggregated query
-            results, never prompt or tool content.
+          <div className={`priv${sugg?.enabled === false ? " is-off" : ""}`}>
+            {sugg?.enabled === false ? (
+              <>
+                Ask is off. Run <code>aftertrace serve --ask</code> with <code>ANTHROPIC_API_KEY</code> set. It sends the
+                schema and query results (long strings cut) to the Anthropic API; nothing else leaves this machine.
+              </>
+            ) : (
+              <>Agent: {sugg?.agent || "…"}</>
+            )}
           </div>
+          {asking && <div className="ask-wait">Writing and running queries…</div>}
+          {askErr && (
+            <div className="err-box">
+              {askErr}
+              <div className="err-next">Ask again, or switch to SQL and write the query yourself.</div>
+            </div>
+          )}
           {ask && (
             <div className="qres" style={{ gridTemplateColumns: "1fr 360px" }}>
               <div className="card">
                 <div className="answer">{ask.answer}</div>
+                {ask.steps && ask.steps.length > 0 && (
+                  <details className="ask-steps">
+                    <summary>
+                      Ran {ask.steps.length} {ask.steps.length === 1 ? "query" : "queries"}
+                      {ask.model ? ` · ${ask.model}` : ""}
+                    </summary>
+                    {ask.steps.map((st, i) => (
+                      <div key={i} className="ask-step">
+                        <pre>{st.sql}</pre>
+                        <span className={st.error ? "err-text" : "mute"}>{st.error || `${st.rows} rows`}</span>
+                      </div>
+                    ))}
+                  </details>
+                )}
                 {ask.sql && (
                   <>
                     <details open>

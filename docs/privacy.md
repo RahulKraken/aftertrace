@@ -56,7 +56,17 @@ There is no TLS and no auth. Team mode on a shared host is a private network dec
 
 ## No telemetry, no phone-home
 
-The binary does not check for updates, crash-report, or send usage. The Ask endpoint is a stub: it runs no model and sends nothing off the machine. `POST /api/sql` is read-only and sandboxed.
+The binary does not check for updates, crash-report, or send usage. `POST /api/sql` is read-only and sandboxed. The one exception is Ask, which is off unless you turn it on.
+
+## Ask
+
+`aftertrace serve --ask` with `ANTHROPIC_API_KEY` set turns on plain-English questions on the Query page. Claude writes SQL, Aftertrace runs it in the sandbox below, and Claude answers from the rows. What leaves the machine, to the Anthropic API only:
+
+- The question you typed.
+- The schema: table and view columns, and the span and event names present with their counts.
+- The rows of each query it runs, at most 50 per query, with every string cut to 200 characters.
+
+The prompt tells Claude not to select prompt, response or tool content, and the 200-character cut keeps long content out even if it does. Nothing is sent when `--ask` is off, and the Query page says so. The model is `claude-opus-5-5` unless `AFTERTRACE_ASK_MODEL` names another.
 
 ## SQL sandbox
 

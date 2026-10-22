@@ -6,7 +6,7 @@
 Aftertrace — local profiler for Claude Code.
 
 Usage:
-  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content]
+  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
   aftertrace import  [--db PATH] [--store-content] <dir>
   aftertrace demo    [--db PATH]
 ```
@@ -21,6 +21,8 @@ Start the OTLP receivers and the UI / JSON API. Blocks until SIGINT or SIGTERM.
 
 ```
 Usage of serve:
+  -ask
+    	answer English questions with Claude (sends schema and query results to the Anthropic API)
   -db string
     	DuckDB file (default "$HOME/.aftertrace/aftertrace.duckdb")
   -grpc-port int
@@ -46,6 +48,7 @@ Aftertrace
   OTLP HTTP   127.0.0.1:4318
   UI / API    http://127.0.0.1:7311
 redact=on store_content=false  (no telemetry)
+ask=off
 ```
 
 | Flag | Default | Notes |
@@ -56,6 +59,7 @@ redact=on store_content=false  (no telemetry)
 | `--http-port` | `4318` | OTLP HTTP. `POST /v1/traces`, `/v1/logs`, `/v1/metrics`. JSON or protobuf. |
 | `--ui-port` | `7311` | UI and `/api`. |
 | `--store-content` | off | Keep the content keys in [privacy.md](privacy.md). Identity keys are still dropped. |
+| `--ask` | off | Turn on Ask on the Query page. Needs `ANTHROPIC_API_KEY`; exits 1 without it. `AFTERTRACE_ASK_MODEL` picks the model (default `claude-opus-5-5`). See [privacy.md](privacy.md#ask). |
 
 A bound port exits 1:
 
