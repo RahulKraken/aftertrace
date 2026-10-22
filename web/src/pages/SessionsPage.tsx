@@ -128,7 +128,7 @@ export function SessionsPage() {
                     <span className="prompt-cell" title={s.title || undefined}>
                       {s.title || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
                     </span>
-                    {s.repo && <span className="chip mono">{s.repo}</span>}
+                    {s.repo && <span className="chip">{s.repo}</span>}
                     {s.running && <span className="run-pill">running</span>}
                   </span>
                 </td>

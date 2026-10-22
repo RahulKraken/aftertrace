@@ -18,7 +18,7 @@ SELECT
     ' tokens to cache and read none. Effort went ' || coalesce(prev_effort, 'none') || ' to ' || coalesce(effort, 'none') || '.' AS detail,
   'Prompt caches are per model. Pick the model at session start, or switch at a /clear boundary. For a one-off hard step, delegate it to a subagent on the bigger model instead.' AS recommendation,
   json_array(json_object('trace_id', trace_id, 'span_id', span_id, 'label',
-    model || ', 0 cache read, ' || CAST(cache_creation_tokens AS BIGINT) || ' cache write'))::VARCHAR AS evidence,
+    'switched to ' || model || ', cache rebuilt'))::VARCHAR AS evidence,
   json_array(session_id)::VARCHAR AS sessions
 FROM m
 WHERE prev_model IS NOT NULL AND prev_model <> model AND cache_read_tokens = 0;

@@ -22,7 +22,7 @@ export function ContentBlock({ label, content, note }: { label: string; content:
     <div className="cblock">
       <div className="cblock-hd">
         <span className="h">{label}</span>
-        <span className="mute mono cblock-len">{content.text.length.toLocaleString()} chars</span>
+        <span className="mute num cblock-len">{content.text.length.toLocaleString()} chars</span>
         <CopyButton text={content.text} label="" done="Copied" className="icon-btn" />
       </div>
       <pre className={`cblock-body${content.json ? " is-json" : ""}`}>{shown}</pre>

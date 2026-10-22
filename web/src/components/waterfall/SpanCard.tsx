@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react"
+import { motion } from "motion/react"
 import { TriangleAlert, X } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { dur, modelName, tok, usd } from "../../lib/format"
@@ -52,15 +52,15 @@ export function SpanCard({
   const error = failed ? errorText(span) : ""
 
   return (
-    <AnimatePresence>
-      <motion.div
+    <motion.div
         ref={ref}
         className="span-card"
         role="dialog"
         aria-label={`${name} details`}
-        initial={{ opacity: 0, y: -4, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: "spring", bounce: 0, visualDuration: 0.2 }}
+        // Grows from the bar it belongs to (top left), never from nowhere.
+        initial={{ opacity: 0, transform: "translateY(-4px) scale(0.96)" }}
+        animate={{ opacity: 1, transform: "translateY(0px) scale(1)", transition: { duration: 0.22, ease: [0.23, 1, 0.32, 1] } }}
+        exit={{ opacity: 0, transform: "translateY(-2px) scale(0.98)", transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] } }}
         style={{ top, left }}
       >
         <div className="sc-head">
@@ -138,7 +138,6 @@ export function SpanCard({
           All details
         </button>
       </motion.div>
-    </AnimatePresence>
   )
 }
 

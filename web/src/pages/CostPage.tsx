@@ -1,8 +1,34 @@
 import { useEffect, useState } from "react"
 import { CACHE_TIP, EFFORT_TIP, Tip } from "../components/Tip"
+import { ModelName, ToolName } from "../components/SpanIcon"
 import { api } from "../lib/api"
 import { dur, pct, tok, usd } from "../lib/format"
 import type { CostTable } from "../lib/types"
+
+// Column and dimension names as words, not field names.
+const COL_LABEL: Record<string, string> = {
+  cost_usd: "Cost",
+  share: "Share",
+  requests: "Requests",
+  input: "Input",
+  output: "Output",
+  cache_read: "Cache read",
+  cache_write: "Cache write",
+  calls: "Calls",
+  tokens: "Tokens",
+  duration_ms: "Time",
+}
+const DIM_LABEL: Record<string, string> = {
+  source: "Source",
+  model: "Model",
+  effort: "Effort",
+  skill: "Skill",
+  subagent: "Subagent",
+  mcp: "Connector",
+  tool: "Tool",
+  repo: "Repo",
+  query_source: "Query source",
+}
 
 const DIMS = ["source", "model", "effort", "skill", "subagent", "mcp", "tool", "repo", "query_source"] as const
 
@@ -63,7 +89,7 @@ export function CostPage() {
       <div className="seg" style={{ marginTop: 14 }}>
         {DIMS.map((x) => (
           <button type="button" key={x} className={x === dim ? "on" : undefined} onClick={() => setDim(x)}>
-            {x}
+            {DIM_LABEL[x] || x}
           </button>
         ))}
       </div>
@@ -80,11 +106,11 @@ export function CostPage() {
               {d.columns.map((c, i) => (
                 <th key={c} className={i ? "r" : undefined}>
                   {c === "effort" ? (
-                    <Tip label={EFFORT_TIP}>effort</Tip>
+                    <Tip label={EFFORT_TIP}>Effort</Tip>
                   ) : c === "cache_hit" ? (
-                    <Tip label={CACHE_TIP}>cache_hit</Tip>
+                    <Tip label={CACHE_TIP}>Cache hit</Tip>
                   ) : (
-                    c
+                    COL_LABEL[c] || DIM_LABEL[c] || c
                   )}
                 </th>
               ))}
@@ -95,7 +121,15 @@ export function CostPage() {
               <tr key={i} style={{ cursor: "default" }}>
                 {r.map((v, j) => (
                   <td key={j} className={j ? "num r" : undefined}>
-                    {d.columns[j] === "share" ? <ShareCell v={v} /> : fmt(d.columns[j], v)}
+                    {d.columns[j] === "share" ? (
+                      <ShareCell v={v} />
+                    ) : j === 0 && dim === "model" && typeof v === "string" ? (
+                      <ModelName model={v} />
+                    ) : j === 0 && dim === "tool" && typeof v === "string" ? (
+                      <ToolName name={v} />
+                    ) : (
+                      fmt(d.columns[j], v)
+                    )}
                   </td>
                 ))}
               </tr>

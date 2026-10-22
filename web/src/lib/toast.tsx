@@ -24,10 +24,9 @@ export function ToastHost({ children }: { children: React.ReactNode }) {
             <motion.div
               key={t.id}
               className="toast"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.14 }}
+              initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
+              animate={{ opacity: 1, transform: "translateY(0px) scale(1)", transition: { duration: 0.26, ease: [0.23, 1, 0.32, 1] } }}
+              exit={{ opacity: 0, transform: "translateY(6px) scale(0.98)", transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
             >
               {t.text}
             </motion.div>

@@ -20,7 +20,7 @@ SELECT
     printf('%.1f', (SELECT waste_ms FROM rows ORDER BY waste_ms DESC LIMIT 1)/1000.0) || 's lost.' AS detail,
   'Retries are server-side or network failures, so the fix is rarely local. If they cluster in time, check status and consider a fallback model for long runs. If they cluster on one network, check your proxy.' AS recommendation,
   to_json(list({'trace_id': trace_id, 'span_id': span_id, 'label':
-    '×' || CAST(attempt AS INTEGER) || ' attempts, ' || printf('%.1f', waste_ms/1000.0) || 's lost'}
+    CAST(attempt AS INTEGER) || ' tries, ' || printf('%.1f', waste_ms/1000.0) || 's lost'}
     ORDER BY waste_ms DESC))::VARCHAR AS evidence,
   to_json(list(DISTINCT session_id))::VARCHAR AS sessions
 FROM rows

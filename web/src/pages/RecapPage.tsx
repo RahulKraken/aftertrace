@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Download, ImageIcon, FileText } from "lucide-react"
+import { ModelName, ToolName } from "../components/SpanIcon"
 import { Link } from "wouter"
 import { api } from "../lib/api"
 import { CAT_LABEL, CATS, delta, dur, int, pct, plural, usd } from "../lib/format"
@@ -66,7 +67,7 @@ export function RecapPage() {
           <button type="button" className="icon-btn" disabled={!r.has_older} onClick={() => setWeek(week + 1)} aria-label="Previous week" title="Previous week">
             <ChevronLeft size={15} />
           </button>
-          <span className="mono">{weekLabel(r)}</span>
+          <span className="num">{weekLabel(r)}</span>
           <button type="button" className="icon-btn" disabled={week === 0} onClick={() => setWeek(week - 1)} aria-label="Next week" title="Next week">
             <ChevronRight size={15} />
           </button>
@@ -105,7 +106,7 @@ export function RecapPage() {
               <div className="split-legend split-inline">
                 {CATS.filter((c) => (s.breakdown[c] || 0) > 0).map((c) => (
                   <span key={c} className="split-chip">
-                    <i className={`c-${c} split-sw`} /> {CAT_LABEL[c]} <span className="mono">{dur(s.breakdown[c] || 0)}</span>
+                    <i className={`c-${c} split-sw`} /> {CAT_LABEL[c]} <span className="num">{dur(s.breakdown[c] || 0)}</span>
                   </span>
                 ))}
               </div>
@@ -117,13 +118,13 @@ export function RecapPage() {
               <div className="sec-hd">
                 <h2>Tools you leaned on</h2>
               </div>
-              <Bars rows={r.tools.map((t) => ({ k: t.tool, v: t.calls, sub: `${dur(t.exec_ms)} running${t.wait_ms > 1000 ? ` · ${dur(t.wait_ms)} waiting` : ""}` }))} fmt={int} />
+              <Bars rows={r.tools.map((t) => ({ k: t.tool, label: <ToolName name={t.tool} />, v: t.calls, sub: `${dur(t.exec_ms)} running${t.wait_ms > 1000 ? ` · ${dur(t.wait_ms)} waiting` : ""}` }))} fmt={int} />
             </section>
             <section className="home-sec">
               <div className="sec-hd">
                 <h2>Models</h2>
               </div>
-              <Bars rows={r.models.map((m) => ({ k: m.model.replace(/^claude-/, ""), v: m.cost_usd, sub: `${int(m.requests)} requests` }))} fmt={usd} />
+              <Bars rows={r.models.map((m) => ({ k: m.model, label: <ModelName model={m.model} />, v: m.cost_usd, sub: `${int(m.requests)} requests` }))} fmt={usd} />
             </section>
           </div>
 
@@ -241,18 +242,18 @@ function DayLanes({ day, showPrompts }: { day: NonNullable<Recap["busiest_day"]>
   )
 }
 
-function Bars({ rows, fmt }: { rows: { k: string; v: number; sub?: string }[]; fmt: (v: number) => string }) {
+function Bars({ rows, fmt }: { rows: { k: string; label?: React.ReactNode; v: number; sub?: string }[]; fmt: (v: number) => string }) {
   if (!rows.length) return <div className="quiet-line">Nothing this week.</div>
   const max = Math.max(...rows.map((r) => r.v), 1e-9)
   return (
     <div className="card bars-card">
       {rows.map((r) => (
         <div className="bar-row" key={r.k}>
-          <span className="bar-k mono">{r.k}</span>
+          <span className="bar-k">{r.label ?? r.k}</span>
           <span className="bar-track">
             <i style={{ width: `${(r.v / max) * 100}%` }} />
           </span>
-          <span className="bar-v mono">{fmt(r.v)}</span>
+          <span className="bar-v num">{fmt(r.v)}</span>
           {r.sub && <span className="bar-sub mute">{r.sub}</span>}
         </div>
       ))}

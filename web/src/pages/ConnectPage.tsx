@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
-import { ArrowRight, Check } from "lucide-react"
+import { ArrowRight, Check, SquareTerminal } from "lucide-react"
+import { siAnthropic, siClaude, siGooglegemini, siOpentelemetry } from "simple-icons"
+import { BrandIcon } from "../components/BrandIcon"
 import { Link } from "wouter"
 import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
@@ -42,6 +44,17 @@ const CC_ENV = (ep: Endpoints, content: boolean) => {
     env.OTEL_LOG_TOOL_CONTENT = "1"
   }
   return env
+}
+
+// Each source wears its own mark, so you can find yours without reading.
+// OpenAI's mark is not in open icon sets, so Codex gets a terminal.
+const SOURCE_ICONS: Record<string, React.ReactNode> = {
+  "claude-code": <BrandIcon icon={siClaude} size={15} />,
+  "agent-sdk": <BrandIcon icon={siClaude} size={15} />,
+  "claude-sdk": <BrandIcon icon={siAnthropic} size={15} />,
+  otel: <BrandIcon icon={siOpentelemetry} size={15} />,
+  codex: <SquareTerminal size={15} strokeWidth={1.75} />,
+  gemini: <BrandIcon icon={siGooglegemini} size={15} />,
 }
 
 const SOURCES: SourceDef[] = [
@@ -250,6 +263,7 @@ export function ConnectPage() {
               }}
             >
               <span className="src-name">
+                <span className="src-logo">{SOURCE_ICONS[s.id]}</span>
                 {s.name}
                 {s.badge && <span className={`src-badge${s.badge === "Preview" ? " is-preview" : ""}`}>{s.badge}</span>}
               </span>
@@ -257,7 +271,12 @@ export function ConnectPage() {
             </button>
           ))}
           <a href={`${DOCS}/behind-a-collector.md`} target="_blank" rel="noreferrer" className="src-item src-more">
-            <span className="src-name">Behind a collector, or on another machine</span>
+            <span className="src-name">
+              <span className="src-logo">
+                <BrandIcon icon={siOpentelemetry} size={15} />
+              </span>
+              Behind a collector, or on another machine
+            </span>
             <span className="src-blurb">Fan out from an existing OpenTelemetry Collector, or import its file-exporter JSONL with aftertrace import.</span>
           </a>
         </div>
@@ -290,7 +309,7 @@ export function ConnectPage() {
             )}
             <div className="code">
               <div className="code-bar">
-                <span className="mono mute">{v.label}</span>
+                <span className="mute">{v.label}</span>
                 <CopyButton text={code} label="Copy" className="btn ghost btn-sm" />
                 {src.prompt && (
                   <CopyButton text={src.prompt(ep, content)} label="Copy as a prompt for Claude Code" done="Prompt copied" className="btn ghost btn-sm" />

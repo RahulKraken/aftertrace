@@ -122,7 +122,7 @@ export function HomePage() {
           {ov.sources.map((s) => (
             <span key={s.name} className={`src-chip${s.live ? " is-live" : ""}`} title={`${int(s.spans)} spans, ${int(s.events)} events, ${int(s.metrics)} metric points`}>
               <i className="recv-dot" />
-              <span className="mono">{s.name}</span>
+              <span>{s.name}</span>
               <span className="mute">{s.kind === "app" ? "app" : "Claude Code"} · {ago(s.last_ns)}</span>
             </span>
           ))}
@@ -229,7 +229,7 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
         <span className="lane-title">{lane.title || `Session ${lane.session_id.slice(0, 8)}`}</span>
         <span className="lane-doing mono">{lane.quiet ? `quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}</span>
       </span>
-      <span className="lane-meta mono">
+      <span className="lane-meta num">
         <span>{dur(Math.max(elapsed, 0))}</span>
         <span className="mute">{int(lane.spans)} spans</span>
         <span>{usd(lane.cost_usd)}</span>
@@ -270,8 +270,8 @@ function TimeSplit({ bd }: { bd: Breakdown }) {
           <div key={c} className="split-row">
             <i className={`c-${c} split-sw`} />
             <span>{CAT_LABEL[c]}</span>
-            <span className="mono">{dur(bd[c] || 0)}</span>
-            <span className="mono mute">{pct((bd[c] || 0) / tot)}</span>
+            <span className="num">{dur(bd[c] || 0)}</span>
+            <span className="num mute">{pct((bd[c] || 0) / tot)}</span>
           </div>
         ))}
       </div>
@@ -293,12 +293,12 @@ function RecentList({ ov }: { ov: Overview }) {
               {s.title || s.repo || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
               {s.running && <span className="run-pill">running</span>}
             </span>
-            <span className="mono mute">
+            <span className="num mute">
               {t.date} {t.time}
             </span>
-            <span className="mono mute">{s.turns} turns</span>
-            <span className="mono">{dur(s.turn_ms)}</span>
-            <span className="mono">{usd(s.cost_usd)}</span>
+            <span className="num mute">{s.turns} turns</span>
+            <span className="num">{dur(s.turn_ms)}</span>
+            <span className="num">{usd(s.cost_usd)}</span>
           </button>
         )
       })}
