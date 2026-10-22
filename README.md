@@ -4,7 +4,11 @@
 
 One binary on your machine. Your data never leaves it.
 
-[Website](https://rahulkraken.github.io/aftertrace/) · [Live demo](https://rahulkraken.github.io/aftertrace/demo/) · [Docs](https://rahulkraken.github.io/aftertrace/docs/install.html) · [Changelog](CHANGELOG.md)
+[Website](https://rahulkraken.github.io/aftertrace/) · [Live demo](https://rahulkraken.github.io/aftertrace/demo/) · [Docs](https://rahulkraken.github.io/aftertrace/docs/how-it-works.html) · [Changelog](CHANGELOG.md)
+
+<a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig1-dark.webp"><img alt="Fig 1, How Aftertrace works: an instrument bench. Sources feed a junction box (the OTLP receivers), light runs along a trough through a sieve (redaction) into a cabinet of four drawers (the DuckDB tables), a carriage of 13 rule templates reads the drawers and drops finding cards in a tray, and a screen (the UI) and a locked outbox (Ask) sit at the end." src="docs/images/readme/fig1-light.webp"></picture></a>
+
+<sub>How it works, in one machine. Click it to explore it live.</sub>
 
 ![Aftertrace Home: a sentence about the week, agent time, waiting on you, API value, what shipped, a running session, the next finding and where the time went](docs/images/home.png)
 
@@ -103,9 +107,7 @@ Details for each rule: [docs/findings.md](docs/findings.md).
 
 ## How it works
 
-<a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig1-dark.webp"><img alt="Fig 1, How Aftertrace works: an instrument bench. Sources feed a junction box (the OTLP receivers), light runs along a trough through a sieve (redaction) into a cabinet of four drawers (the DuckDB tables), a carriage of 13 rule templates reads the drawers and drops finding cards in a tray, and a screen (the UI) and a locked outbox (Ask) sit at the end." src="docs/images/readme/fig1-light.webp"></picture></a>
-
-One Go binary with DuckDB and the web UI embedded. Sources send OpenTelemetry to `127.0.0.1:4317` (gRPC) or `:4318` (HTTP). Identity is dropped at the door, and content is too unless you ask to keep it. What is left goes into one DuckDB file, 13 SQL rules turn it into findings, and the UI on `127.0.0.1:7311` reads the same file. Nothing leaves your machine unless you switch on Ask.
+The figure at the top is the whole system. One Go binary with DuckDB and the web UI embedded. Sources send OpenTelemetry to `127.0.0.1:4317` (gRPC) or `:4318` (HTTP). Identity is dropped at the door, and content is too unless you ask to keep it. What is left goes into one DuckDB file, 13 SQL rules turn it into findings, and the UI on `127.0.0.1:7311` reads the same file. Nothing leaves your machine unless you switch on Ask.
 
 Each part, up close. Click one to open it live: point at its parts, press its keys, and watch the light run through it.
 
