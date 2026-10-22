@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.0
+
+**Calm, and recognisable**
+- A warmer palette (paper neutrals, softer ink, warm charcoal in dark mode) and one family of hues: indigo for the model, teal for tools, amber for you, rose for failure.
+- One motion language: pages arrive, the inspector slides in from its edge, the span card grows from its bar, toasts, tooltips and the command palette fade, findings cross-fade, buttons answer a press. Reduced motion is respected.
+- Official marks for Claude, Gemini, the services connector tools talk to (Linear, GitHub, Notion, Postgres...) and the programs shell commands run (git, npm, go, python...).
+- Numbers in Inter with tabular figures; model ids as "Opus 5.5"; Cost columns in words; finding evidence in words ("waited 22.5s").
 
 **A turn reads as a story**
 - Claude Code turns open on a new Story view: what you asked, where the time went in plain words, where it ended and which files changed, then each step in Claude's own words (with content capture on) and its actions as "Read service.go" or "Refactor serve flags and add service dispatch". Long waits for you are their own card, with the questions Claude asked and your answers. Without content capture, steps are grouped by the kind of work.
