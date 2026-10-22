@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/api"
@@ -687,5 +688,32 @@ func TestPermissionWaitCountsOnlyHumanDecisions(t *testing.T) {
 	bd := analysis.Breakdown(st.DB, "t", rows)
 	if bd["permission_wait"] != 10 || bd["permission_check"] != 30 {
 		t.Fatalf("breakdown: %v", bd)
+	}
+}
+
+// Every GET endpoint answers, twice in a row, within a deadline. Catches a
+// handler that takes the store lock and calls something that takes it again.
+func TestEndpointsDoNotDeadlock(t *testing.T) {
+	st := loadDemo(t)
+	srv := httptest.NewServer(api.New(st, web.FS))
+	t.Cleanup(srv.Close)
+	client := &http.Client{Timeout: 20 * time.Second}
+	var tid string
+	_ = st.DB.QueryRow(`SELECT trace_id FROM turn_roots LIMIT 1`).Scan(&tid)
+	var sid string
+	_ = st.DB.QueryRow(`SELECT session_id FROM turn_roots WHERE session_id IS NOT NULL LIMIT 1`).Scan(&sid)
+	paths := []string{"/api/status", "/api/overview", "/api/sources", "/api/sessions", "/api/session/" + sid, "/api/trace/" + tid,
+		"/api/findings", "/api/fields", "/api/cost?dim=model", "/api/range", "/api/ask/suggestions"}
+	for round := 0; round < 2; round++ {
+		for _, p := range paths {
+			res, err := client.Get(srv.URL + p)
+			if err != nil {
+				t.Fatalf("%s: %v", p, err)
+			}
+			res.Body.Close()
+			if res.StatusCode != 200 {
+				t.Fatalf("%s -> %d", p, res.StatusCode)
+			}
+		}
 	}
 }
