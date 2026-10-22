@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aftertrace · the flight recorder for your AI work</title>
+<meta name="description" content="A local-first profiler for Claude Code, your agents and your LLM apps. See what they did, how long you waited, what it cost, and the one change worth making. One binary; your data never leaves your machine." />
+<meta property="og:title" content="Aftertrace" />
+<meta property="og:description" content="The flight recorder for your AI work. Local-first, open source." />
+<meta property="og:image" content="assets/shots/home-light.png" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a>
+  <nav class="top-links">
+    <a href="docs/install.html">Docs</a>
+    <a href="demo/">Live demo</a>
+    <a href="https://github.com/RahulKraken/aftertrace">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="eyebrow">Open source · local-first · Apache-2.0</div>
+    <h1>The flight recorder for your&nbsp;AI&nbsp;work.</h1>
+    <p class="lede">See what Claude Code, your agents and the apps you build with LLMs actually did: how long you waited, what it cost, and the one change worth making next. One binary on your machine. Your data never leaves it.</p>
+    <div class="cta">
+      <a class="btn" href="demo/">Try the live demo</a>
+      <a class="btn ghost" href="docs/install.html">Read the docs</a>
+    </div>
+    <div class="install" role="group" aria-label="Install command">
+      <code id="cmd">curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code>
+      <button type="button" class="copy" data-copy="cmd" aria-label="Copy install command">Copy</button>
+    </div>
+    <div class="install-note">macOS and Linux. Then <code>aftertrace serve</code> and open <code>127.0.0.1:7311</code>.</div>
+  </section>
+
+  <figure class="shot hero-shot">
+    <picture>
+      <source srcset="assets/shots/home-dark.png" media="(prefers-color-scheme: dark)" />
+      <img src="assets/shots/home-light.png" alt="Aftertrace Home: a sentence about the week, agent time, waiting on you, API value, what shipped, a live lane for a running session, the next finding and where the time went." width="1440" height="900" />
+    </picture>
+  </figure>
+
+  <section class="band">
+    <h2>The questions it answers</h2>
+    <p class="band-sub">Built for one person who builds a lot with AI, not for a platform team. No evals, no datasets, no dashboards to assemble.</p>
+    <div class="qs">
+      <div class="q"><div class="q-n">01</div><h3>Which session needs me right now?</h3><p>Live lanes show every turn still running across your parallel sessions, what each is doing, and when one has gone quiet.</p></div>
+      <div class="q"><div class="q-n">02</div><h3>Where did my time go?</h3><p>Wall clock split into model, tool runs, retries, hooks and the part that matters most: time waiting on you to approve something.</p></div>
+      <div class="q"><div class="q-n">03</div><h3>What did the agent actually do?</h3><p>A waterfall of every model call and tool, and, if you opt in, the prompt, each reply, every command and its output, as a transcript.</p></div>
+      <div class="q"><div class="q-n">04</div><h3>What one change saves the most?</h3><p>Findings are SQL rules with an impact in seconds or dollars, the spans behind them, and a fix you can copy: an allow rule, a cheaper model, a cache.</p></div>
+      <div class="q"><div class="q-n">05</div><h3>What do my own apps cost?</h3><p>Point any app or agent that speaks OpenTelemetry at it. Calls, cost, latency and failures per app and per operation.</p></div>
+      <div class="q"><div class="q-n">06</div><h3>Did my plan pay for itself?</h3><p>A weekly recap: hours of agent work, what shipped, API-equivalent value against your plan, as a receipt you can share.</p></div>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="f-text">
+      <div class="eyebrow">Trace</div>
+      <h2>Every turn, on one time axis.</h2>
+      <p>Model calls split into time to first token and streaming. Tool calls split into waiting on you and running. The critical path in full colour. Click any span for its metrics, its input and output, the events joined to it, and the findings that cite it.</p>
+      <ul><li>Resizable inspector and label column, remembered</li><li>A transcript of the whole turn</li><li>Running turns appear while they run</li></ul>
+    </div>
+    <figure class="shot"><picture><source srcset="assets/shots/waterfall-selected-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/waterfall-selected-light.png" alt="A Claude Code turn as a waterfall with the inspector open." loading="lazy" /></picture></figure>
+  </section>
+
+  <section class="feature flip">
+    <div class="f-text">
+      <div class="eyebrow">Findings</div>
+      <h2>One change at a time, ranked by what it costs you.</h2>
+      <p>Fourteen rules ship today: permission prompts you always approve, retries, slow hooks, cache drops after compaction, skills that never activate, MCP tools that flood the context, and for your apps, models too big for the job, failing calls and prompts that are never cached. Each one is a SQL file you can read and change.</p>
+      <ul><li>Impact in seconds or dollars, never a score</li><li>Evidence chips open the exact span</li><li>A ledger of what fixes saved</li></ul>
+    </div>
+    <figure class="shot"><picture><source srcset="assets/shots/findings-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/findings-light.png" alt="The findings page with the top finding and its fix." loading="lazy" /></picture></figure>
+  </section>
+
+  <section class="feature">
+    <div class="f-text">
+      <div class="eyebrow">Apps</div>
+      <h2>Your Claude Code and your own apps, side by side.</h2>
+      <p>Anything that sends OpenTelemetry GenAI spans shows up as an app: the Claude SDK, the Vercel AI SDK, Pydantic AI, OpenLLMetry, OpenInference. Model calls are recognised across conventions, agent spans are never double counted, and cost is estimated from tokens when an app does not report it.</p>
+      <ul><li>Per operation: calls, cost, p50 and p95, failures</li><li>Traces in the same waterfall</li><li>Rules written for apps</li></ul>
+    </div>
+    <figure class="shot"><img src="assets/shots/app-light.png" alt="An app page: model calls, cost, latency, findings and operations." loading="lazy" /></figure>
+  </section>
+
+  <section class="feature flip">
+    <div class="f-text">
+      <div class="eyebrow">Recap</div>
+      <h2>Your week, as a receipt.</h2>
+      <p>Hours of agent work, lines shipped, minutes spent waiting, and what the week was worth at API prices against what your plan costs. Copy it as an image. Prompts stay hidden unless you turn them on.</p>
+    </div>
+    <figure class="shot"><picture><source srcset="assets/shots/recap-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/recap-light.png" alt="The weekly recap with its receipt." loading="lazy" /></picture></figure>
+  </section>
+
+  <section class="band privacy">
+    <h2>Local-first, by construction.</h2>
+    <div class="ps">
+      <div><h3>Binds to 127.0.0.1</h3><p>The receivers and the UI listen on your machine only. No account, no cloud, no telemetry, no update check.</p></div>
+      <div><h3>Content is opt-in, twice</h3><p>Prompts, responses and tool output are dropped at ingest unless Claude Code sends them <em>and</em> you run with <code>--store-content</code>.</p></div>
+      <div><h3>Identity is always dropped</h3><p>Email, account and org ids, and your OS user name never reach the store.</p></div>
+      <div><h3>Ask is the only exit</h3><p>Plain-English questions are off by default. Turned on, they send the schema and query rows to the Anthropic API, nothing else.</p></div>
+    </div>
+    <p class="band-sub">One DuckDB file you can open, copy or delete. <a href="docs/privacy.html">What is stored, exactly</a>.</p>
+  </section>
+
+  <section class="band">
+    <h2>Where it fits</h2>
+    <div class="table-wrap">
+      <table class="compare">
+        <thead><tr><th></th><th>Aftertrace</th><th>Usage readers</th><th>Built-in usage view</th><th>Team LLM platforms</th></tr></thead>
+        <tbody>
+          <tr><td>Time, not just tokens</td><td class="yes">Waiting on you, tools, retries</td><td>No</td><td>Partly</td><td>Latency</td></tr>
+          <tr><td>Live view of running sessions</td><td class="yes">Yes</td><td>No</td><td>No</td><td>No</td></tr>
+          <tr><td>Coding agents and your apps together</td><td class="yes">Yes, over OTLP</td><td>Coding agents</td><td>One tool</td><td>Apps</td></tr>
+          <tr><td>History beyond 30 days, across machines</td><td class="yes">Yes</td><td>One machine</td><td>Short window</td><td>Yes, hosted</td></tr>
+          <tr><td>Setup</td><td class="yes">One binary, one settings block</td><td>One command</td><td>Built in</td><td>SDK and a service</td></tr>
+          <tr><td>Data leaves your machine</td><td class="yes">Never</td><td>No</td><td>No</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="band start">
+    <h2>Start in a minute</h2>
+    <ol class="steps">
+      <li><h3>Install</h3><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre></li>
+      <li><h3>Run it</h3><pre><code>aftertrace serve</code></pre><p>Open <code>127.0.0.1:7311</code>. Want to look around first? <code>aftertrace demo</code> loads synthetic sessions.</p></li>
+      <li><h3>Connect</h3><p>The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
+    </ol>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="brand"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></div>
+  <div class="foot-links"><a href="docs/install.html">Docs</a><a href="demo/">Demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/LICENSE">Apache-2.0</a></div>
+  <div class="foot-note">Not affiliated with Anthropic. Claude is a trademark of Anthropic.</div>
+</footer>
+<script>
+  document.querySelectorAll("[data-copy]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      const t = document.getElementById(b.dataset.copy).textContent
+      try { await navigator.clipboard.writeText(t); b.textContent = "Copied" } catch { b.textContent = "Select and copy" }
+      setTimeout(() => (b.textContent = "Copy"), 1600)
+    })
+  })
+</script>
+</body>
+</html>

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/duckdb/duckdb-go/v2"
 )
@@ -93,41 +95,69 @@ type TraceHit struct {
 	Repo      string  `json:"repo"`
 }
 
+// Fields lists the query builder's fields: the fixed columns plus every
+// attribute key on spans and api_request events, typed num when every value
+// casts to a number. One pass over the data; the result is cached briefly
+// because the Query page asks for it on every load and the scan grows with
+// the store.
 func Fields(db *sql.DB) (map[string]Field, error) {
+	fieldsCache.mu.Lock()
+	defer fieldsCache.mu.Unlock()
+	if fieldsCache.db == db && time.Since(fieldsCache.at) < 30*time.Second {
+		return fieldsCache.out, nil
+	}
+	out, err := scanFields(db)
+	if err != nil {
+		return nil, err
+	}
+	fieldsCache.db, fieldsCache.at, fieldsCache.out = db, time.Now(), out
+	return out, nil
+}
+
+var fieldsCache struct {
+	mu  sync.Mutex
+	db  *sql.DB
+	at  time.Time
+	out map[string]Field
+}
+
+func scanFields(db *sql.DB) (map[string]Field, error) {
 	out := map[string]Field{}
 	for k, v := range columns {
 		out[k] = Field{Key: k, Kind: v[1]}
 	}
-	rows, err := db.Query(`SELECT DISTINCT k FROM (
-		SELECT unnest(json_keys(attrs)) k FROM spans
-		UNION SELECT unnest(json_keys(attrs)) k FROM events WHERE name='api_request') ORDER BY k`)
+	rows, err := db.Query(`
+		WITH kv AS (
+			SELECT unnest(json_keys(attrs)) AS k, attrs AS j FROM spans
+			UNION ALL
+			SELECT unnest(json_keys(attrs)) AS k, attrs AS j FROM events WHERE name = 'api_request'
+		)
+		SELECT k,
+			count(*) FILTER (WHERE TRY_CAST(json_extract_string(j, '$."' || k || '"') AS DOUBLE) IS NULL
+				AND json_extract_string(j, '$."' || k || '"') IS NOT NULL),
+			count(json_extract_string(j, '$."' || k || '"'))
+		FROM kv GROUP BY k ORDER BY k`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var keys []string
 	for rows.Next() {
 		var k string
-		if err := rows.Scan(&k); err != nil {
+		var nullish, n int
+		if err := rows.Scan(&k, &nullish, &n); err != nil {
 			return nil, err
 		}
-		keys = append(keys, k)
-	}
-	for _, k := range keys {
 		if _, ok := out[k]; ok {
 			continue
-		}
-		var nullish, n int
-		err := db.QueryRow(`SELECT count(*) FILTER (WHERE TRY_CAST(v AS DOUBLE) IS NULL), count(*) FROM
-			(SELECT coalesce(a(attrs,?), a(event_attrs,?)) v FROM q_spans) WHERE v IS NOT NULL`, k, k).Scan(&nullish, &n)
-		if err != nil {
-			return nil, err
 		}
 		kind := "str"
 		if n > 0 && nullish == 0 && !strings.HasSuffix(k, "_id") && k != "event.sequence" {
 			kind = "num"
 		}
 		out[k] = Field{Key: k, Kind: kind}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	out["repo"] = Field{Key: "repo", Kind: "str"}
 	return out, nil

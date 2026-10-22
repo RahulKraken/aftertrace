@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Point Claude Code at Aftertrace · Aftertrace docs</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+<header class="top"><a class="brand" href="../index.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg><span>aftertrace</span></a><nav class="top-links"><a href="../docs/install.html" class="on">Docs</a><a href="../demo/">Live demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a></nav></header>
+<div class="docs">
+<aside class="docs-nav"><div class="dn-group"><div class="dn-label">Get started</div><a href="../docs/install.html">Install</a><a href="../docs/claude-code-setup.html" class="on" aria-current="page">Connect Claude Code</a><a href="../docs/apps.html">Apps and agents</a><a href="../docs/behind-a-collector.html">Behind a collector</a></div><div class="dn-group"><div class="dn-label">Use</div><a href="../docs/findings.html">Findings</a><a href="../docs/cli.html">CLI</a><a href="../docs/privacy.html">Privacy</a><a href="../docs/troubleshooting.html">Troubleshooting</a></div><div class="dn-group"><div class="dn-label">Extend</div><a href="../docs/writing-rules.html">Writing rules</a><a href="../docs/api.html">JSON API</a><a href="../docs/schema-notes.html">Schema notes</a></div><div class="dn-group"><div class="dn-label">Project</div><a href="../docs/product/brief.html">Product brief</a><a href="../docs/product/design.html">Design</a><a href="../docs/design-principles.html">Design principles</a><a href="../docs/spec.html">Spec</a><a href="../docs/stack.html">Stack decision</a></div></aside>
+<main class="prose"><h1>Point Claude Code at Aftertrace</h1>
+<p>Variable names in this page are taken from <a href="https://code.claude.com/docs/en/monitoring-usage">Claude Code monitoring</a>. None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart <code>claude</code>.</p>
+<p>Put the env in <code>~/.claude/settings.json</code> or in the shell you start Claude Code from. Claude Code <strong>ignores</strong> OpenTelemetry exporter variables in a repository <code>.claude/settings.json</code> and <code>.claude/settings.local.json</code>. A repo file can still turn a signal <strong>off</strong> by setting an exporter to <code>none</code>.</p>
+<p>Managed settings, if your organization has them, win. They can strip a developer-set endpoint at startup. If nothing arrives, check that first.</p>
+<h2>Minimum that fills the waterfall</h2>
+<p>Aftertrace needs metrics, events (logs), and traces. Tracing is a Claude Code beta and is off until you set <code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA</code>.</p>
+<p><code>~/.claude/settings.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;env&quot;: {
+    &quot;CLAUDE_CODE_ENABLE_TELEMETRY&quot;: &quot;1&quot;,
+    &quot;CLAUDE_CODE_ENHANCED_TELEMETRY_BETA&quot;: &quot;1&quot;,
+    &quot;OTEL_METRICS_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_LOGS_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_TRACES_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_EXPORTER_OTLP_PROTOCOL&quot;: &quot;grpc&quot;,
+    &quot;OTEL_EXPORTER_OTLP_ENDPOINT&quot;: &quot;http://127.0.0.1:4317&quot;,
+    &quot;OTEL_LOG_TOOL_DETAILS&quot;: &quot;1&quot;
+  }
+}
+</code></pre>
+<p>Same keys in the shell:</p>
+<pre><code class="language-bash">export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317
+export OTEL_LOG_TOOL_DETAILS=1
+</code></pre>
+<p>Then restart Claude Code. <code>ENABLE_ENHANCED_TELEMETRY_BETA=1</code> is also accepted as an alias of <code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA</code>.</p>
+<p><code>OTEL_LOG_TOOL_DETAILS=1</code> is not content. It is how skill, agent, plugin and MCP names, Bash <code>full_command</code>, and file paths stay real instead of collapsing to <code>custom</code> / <code>third-party</code>. Several <a href="findings.html">findings</a> need those names. Prompt text stays redacted at the source.</p>
+<h2>HTTP instead of gRPC</h2>
+<p>Claude Code has <strong>no default</strong> <code>OTEL_EXPORTER_OTLP_PROTOCOL</code>. Set it. Aftertrace&#39;s HTTP receiver is <code>127.0.0.1:4318</code> and accepts <code>http/protobuf</code> and <code>http/json</code> on <code>/v1/traces</code>, <code>/v1/logs</code>, <code>/v1/metrics</code>.</p>
+<pre><code class="language-json">{
+  &quot;env&quot;: {
+    &quot;CLAUDE_CODE_ENABLE_TELEMETRY&quot;: &quot;1&quot;,
+    &quot;CLAUDE_CODE_ENHANCED_TELEMETRY_BETA&quot;: &quot;1&quot;,
+    &quot;OTEL_METRICS_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_LOGS_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_TRACES_EXPORTER&quot;: &quot;otlp&quot;,
+    &quot;OTEL_EXPORTER_OTLP_PROTOCOL&quot;: &quot;http/protobuf&quot;,
+    &quot;OTEL_EXPORTER_OTLP_ENDPOINT&quot;: &quot;http://127.0.0.1:4318&quot;,
+    &quot;OTEL_LOG_TOOL_DETAILS&quot;: &quot;1&quot;
+  }
+}
+</code></pre>
+<p>The SDK appends <code>/v1/traces</code> (and logs, metrics) to that base URL. Do not put <code>/v1/traces</code> in <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>. Per-signal overrides from the monitoring page, if you need them:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>OTEL_EXPORTER_OTLP_TRACES_ENDPOINT</code></td>
+<td><code>http://127.0.0.1:4318/v1/traces</code></td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_LOGS_ENDPOINT</code></td>
+<td><code>http://127.0.0.1:4318/v1/logs</code></td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_METRICS_ENDPOINT</code></td>
+<td><code>http://127.0.0.1:4318/v1/metrics</code></td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_TRACES_PROTOCOL</code></td>
+<td><code>grpc</code>, <code>http/json</code>, <code>http/protobuf</code></td>
+</tr>
+</tbody></table>
+<p>Aftertrace does not require headers. Leave <code>OTEL_EXPORTER_OTLP_HEADERS</code> unset.</p>
+<h2>What the traces beta does</h2>
+<p><code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> alone exports metrics and, if <code>OTEL_LOGS_EXPORTER=otlp</code>, events. It does <strong>not</strong> export spans.</p>
+<p><code>CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1</code> plus <code>OTEL_TRACES_EXPORTER=otlp</code> turns on distributed traces. Each user prompt becomes a <code>claude_code.interaction</code> root span. API calls, tools, permission waits and tool execution nest under it. That tree is the waterfall.</p>
+<p>Without the beta flag, Aftertrace can still store metrics and events. Sessions and some findings will be thin or empty because they join on spans.</p>
+<p>A separate pair, <code>ENABLE_BETA_TRACING_DETAILED=1</code> and <code>BETA_TRACING_ENDPOINT</code>, is <strong>not</strong> this flag. Detailed beta tracing redirects logs and traces to <code>BETA_TRACING_ENDPOINT</code> and is ignored in project/local settings. If that pair is set, data will not arrive at Aftertrace. Do not set it unless you mean to.</p>
+<h2>Opting into content</h2>
+<p>Claude Code redacts user prompt text, assistant responses, tool input, and tool content by default. The gates below send that material to <strong>your</strong> OTLP endpoint, not to Anthropic. Aftertrace then drops the content keys listed in <a href="privacy.html">privacy.md</a> unless you also pass <code>--store-content</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it sends</th>
+<th>Cost of turning it on</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>OTEL_LOG_TOOL_DETAILS=1</code></td>
+<td>off</td>
+<td>Bash commands, file paths, skill / agent / MCP names, <code>tool_parameters</code></td>
+<td>Metadata about what ran. Can include secrets that were in a command line. Recommended for Aftertrace.</td>
+</tr>
+<tr>
+<td><code>OTEL_LOG_USER_PROMPTS=1</code></td>
+<td>off</td>
+<td>Prompt text (<code>prompt</code>, <code>prompt_text</code>, span <code>user_prompt</code>)</td>
+<td>The text you typed, in the store if you also pass <code>--store-content</code>.</td>
+</tr>
+<tr>
+<td><code>OTEL_LOG_ASSISTANT_RESPONSES=1</code></td>
+<td>off (falls back to <code>OTEL_LOG_USER_PROMPTS</code> when unset)</td>
+<td>Assistant response text</td>
+<td>Model output in events. Under detailed beta tracing, span <code>response.model_output</code> still follows <code>OTEL_LOG_USER_PROMPTS</code>.</td>
+</tr>
+<tr>
+<td><code>OTEL_LOG_TOOL_CONTENT=1</code></td>
+<td>off</td>
+<td><code>tool.output</code> span events: file text, Bash stdout/stderr, MCP / WebFetch / WebSearch results. Requires tracing. Truncated at 60 KB by default (<code>CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH</code>).</td>
+<td>Source and command output in the store if you also pass <code>--store-content</code>.</td>
+</tr>
+<tr>
+<td><code>OTEL_LOG_RAW_API_BODIES=1</code> or <code>file:</code></td>
+<td>off</td>
+<td>Full Anthropic Messages request/response JSON, entire conversation history. Implies consent to the other content flags. Ignored in project/local settings.</td>
+<td>The whole transcript. Do not turn this on for Aftertrace.</td>
+</tr>
+</tbody></table>
+<p>Aftertrace never recommends <code>OTEL_LOG_USER_PROMPTS</code>, <code>OTEL_LOG_TOOL_CONTENT</code>, or <code>OTEL_LOG_RAW_API_BODIES</code>. <code>--store-content</code> is a second gate: even if Claude Code sends those attributes, Aftertrace deletes them at ingest unless that flag is set. Identity keys are dropped either way.</p>
+<h2>Check that data is arriving</h2>
+<ol>
+<li><code>aftertrace serve</code> is running. The log line is <code>OTLP gRPC 127.0.0.1:4317</code> and <code>UI / API http://127.0.0.1:7311</code>.</li>
+<li>Restart Claude Code after changing <code>~/.claude/settings.json</code>.</li>
+<li>Start a session (metrics) and send a prompt (events and traces).</li>
+<li>Open <a href="http://127.0.0.1:7311">http://127.0.0.1:7311</a> or:</li>
+</ol>
+<pre><code class="language-bash">curl -s http://127.0.0.1:7311/api/sessions | head
+curl -s http://127.0.0.1:7311/api/findings | head
+</code></pre>
+<p>The monitoring page says: a metrics setup should show <code>claude_code.session.count</code> when a session starts; a logs-only setup should show a <code>claude_code.user_prompt</code> event after you submit a prompt. In Aftertrace those land in <code>metric_points</code> and <code>events</code>.</p>
+<p>If nothing arrives, start Claude Code with <code>claude --debug-file /tmp/claude-otel.log</code> and look for <code>[3P telemetry]</code> errors. Lines prefixed <code>[Anthropic telemetry]</code> are Anthropic&#39;s own operational telemetry and are unrelated.</p>
+<p>Export intervals, if you want a faster first span while debugging (defaults from the monitoring page: metrics 60000 ms, logs 5000 ms, traces 5000 ms):</p>
+<pre><code class="language-bash">export OTEL_METRIC_EXPORT_INTERVAL=10000
+export OTEL_LOGS_EXPORT_INTERVAL=5000
+export OTEL_TRACES_EXPORT_INTERVAL=5000
+</code></pre>
+<p>The metrics interval variable is <code>OTEL_METRIC_EXPORT_INTERVAL</code> (no S).</p>
+<p>Already have a collector in the middle: <a href="behind-a-collector.html">behind-a-collector.md</a>. Nothing on the Sessions page: <a href="troubleshooting.html#no-data-showing-up">troubleshooting.md</a>.</p>
+
+<p class="edit"><a href="https://github.com/RahulKraken/aftertrace/edit/main/docs/claude-code-setup.md">Edit this page on GitHub</a></p>
+</main>
+</div>
+</body>
+</html>
