@@ -160,3 +160,12 @@ a, .btn, .copy, .docs-nav a { transition: background-color 150ms ease, color 150
 .hero > *:nth-child(5) { animation-delay: 240ms; }
 .hero-shot { animation: rise 600ms var(--ease-out) 260ms both; }
 @media (prefers-reduced-motion: reduce) { .hero > *, .hero-shot { animation: none; } }
+
+/* Live figures in the docs: the frame for the reader's theme, sized by the figure. */
+.figure-embed { margin: 28px -8px; }
+.figure-embed iframe { display: block; width: 100%; height: 560px; border: 0; background: transparent; color-scheme: normal; }
+.figure-embed .fig-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  .figure-embed .fig-light { display: none; }
+  .figure-embed .fig-dark { display: block; }
+}

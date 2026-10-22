@@ -13,7 +13,7 @@ const out = join(here, "dist")
 const repo = "https://github.com/RahulKraken/aftertrace"
 
 const NAV = [
-  ["Get started", [["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
+  ["Get started", [["how-it-works", "How it works"], ["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
   ["Use", [["findings", "Findings"], ["cli", "CLI"], ["privacy", "Privacy"], ["troubleshooting", "Troubleshooting"]]],
   ["Extend", [["writing-rules", "Writing rules"], ["api", "JSON API"], ["schema-notes", "Schema notes"]]],
   ["Project", [["product/brief", "Product brief"], ["product/design", "Design"], ["design-principles", "Design principles"], ["spec", "Spec"], ["stack", "Stack decision"]]],
@@ -28,6 +28,25 @@ mkdirSync(join(out, "assets/fonts"), { recursive: true })
 for (const f of readdirSync(join(root, "web/src/fonts"))) if (f.endsWith(".woff2")) cpSync(join(root, "web/src/fonts", f), join(out, "assets/fonts", f))
 mkdirSync(join(out, "assets/shots"), { recursive: true })
 for (const f of readdirSync(join(root, "web/screenshots"))) if (f.endsWith(".png")) cpSync(join(root, "web/screenshots", f), join(out, "assets/shots", f))
+
+// Figures: interactive drawings from docs/figures, one light and one dark
+// page each. A doc places one with <!-- figure:name --> followed by its
+// still image, which is what GitHub shows; the site swaps both for the live
+// figure in the reader's theme.
+for (const f of readdirSync(join(root, "docs/figures"))) {
+  const build = join(root, "docs/figures", f, "build.mjs")
+  if (!existsSync(build)) continue
+  for (const args of [[], ["--dark"]]) execFileSync("node", [build, ...args], { stdio: "inherit", env: { ...process.env, FIGURES_OUT: join(out, "figures") } })
+}
+function figures(md, depth) {
+  const up = "../".repeat(depth)
+  return md.replace(/<!-- figure:(\w+) -->\n!\[([^\]]*)\]\([^)]*\)/g, (_, name, alt) =>
+    `<div class="figure-embed" data-figure="${name}">` +
+    `<iframe class="fig-light" src="${up}figures/${name}.html" title="${alt.replace(/"/g, "&quot;")}" loading="lazy"></iframe>` +
+    `<iframe class="fig-dark" src="${up}figures/${name}-dark.html" title="${alt.replace(/"/g, "&quot;")}" loading="lazy"></iframe>` +
+    `</div>`)
+}
+const FIGURE_SCRIPT = `<script>addEventListener("message",(e)=>{const d=e.data;if(!d||!d.figure||!d.height)return;for(const f of document.querySelectorAll(".figure-embed iframe"))if(f.contentWindow===e.source)f.style.height=d.height+"px"})</script>`
 
 // Docs: markdown to HTML, .md links to .html, repo links to GitHub.
 function rewriteLinks(html, depth) {
@@ -87,7 +106,7 @@ for (const [, items] of NAV) {
     const md = readFileSync(src, "utf8")
     const title = (md.match(/^#\s+(.+)$/m) || [, slug])[1]
     const depth = slug.split("/").length
-    const body = rewriteLinks(marked.parse(md), depth)
+    const body = rewriteLinks(marked.parse(figures(md, depth)), depth) + (md.includes("<!-- figure:") ? FIGURE_SCRIPT : "")
     const dest = join(out, "docs", `${slug}.html`)
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, page({ title, body, current: slug, depth }))
