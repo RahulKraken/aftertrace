@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Download, ImageIcon, FileText } from "lucide-react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
-import { CAT_LABEL, CATS, delta, dur, int, pct, usd } from "../lib/format"
+import { CAT_LABEL, CATS, delta, dur, int, pct, plural, usd } from "../lib/format"
 import { readPlan } from "../lib/plan"
 import { receiptLines, receiptMarkdown, receiptPNG, weekLabel } from "../lib/receipt"
 import { useToast } from "../lib/toast"
@@ -193,12 +193,12 @@ function Story({ r, plan }: { r: Recap; plan: number }) {
         <>, {pct(Math.abs(d))} {d > 0 ? "more" : "less"} than the week before</>
       ) : null}
       . You waited on them for <b>{dur(wait)}</b>
-      {s.approvals ? <> over {int(s.approvals)} approvals</> : null}.
+      {s.approvals ? <> over {int(s.approvals)} {s.approvals === 1 ? "approval" : "approvals"}</> : null}.
       {s.lines_added ? (
         <>
           {" "}
-          They shipped <b>{int(s.lines_added)}</b> lines{s.commits ? <> in {int(s.commits)} commits</> : null}
-          {s.pull_requests ? <> and {int(s.pull_requests)} pull requests</> : null}.
+          They shipped <b>{int(s.lines_added)}</b> lines{s.commits ? <> in {plural(s.commits, "commit")}</> : null}
+          {s.pull_requests ? <> and {plural(s.pull_requests, "pull request")}</> : null}.
         </>
       ) : null}{" "}
       At API prices the week was worth <b>{usd(s.cost_usd)}</b>

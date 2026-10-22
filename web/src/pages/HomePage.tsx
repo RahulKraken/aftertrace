@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { ArrowRight, Plug } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
-import { ago, CAT_LABEL, CATS, delta, dur, impactParts, int, pct, usd, when } from "../lib/format"
+import { ago, CAT_LABEL, CATS, delta, dur, impactParts, int, pct, plural, usd, when } from "../lib/format"
 import { planMultiple, readPlan } from "../lib/plan"
 import type { Breakdown, LiveLane, Overview, WindowStats } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
@@ -154,7 +154,7 @@ function Story({ w, days }: { w: WindowStats; days: number }) {
         </>
       ) : w.lines_added > 0 ? (
         <>
-          They wrote <b>{int(w.lines_added)}</b> lines{w.commits > 0 && <> and made {int(w.commits)} commits</>}.
+          They wrote <b>{int(w.lines_added)}</b> lines{w.commits > 0 && <> and made {plural(w.commits, "commit")}</>}.
         </>
       ) : (
         <>You waited on them for only {dur(wait)}.</>
@@ -181,14 +181,14 @@ function StatStrip({ ov }: { ov: Overview }) {
       goodDown: true,
       spark: days.map((x) => x.wait_ms),
       tone: "wait",
-      sub: w.approvals ? `${int(w.approvals)} approvals` : undefined,
+      sub: w.approvals ? `${int(w.approvals)} ${w.approvals === 1 ? "approval" : "approvals"}` : undefined,
     },
     { label: "API value", value: usd(w.cost_usd), d: delta(w.cost_usd, p.cost_usd), goodDown: true, spark: days.map((x) => x.cost_usd), sub: `${int(w.requests)} requests` },
     {
       label: "Shipped",
       value: w.lines_added ? `+${int(w.lines_added)}` : "—",
       d: delta(w.lines_added, p.lines_added),
-      sub: [w.commits ? `${int(w.commits)} commits` : "", w.pull_requests ? `${int(w.pull_requests)} PRs` : ""].filter(Boolean).join(" · ") || "lines added",
+      sub: [w.commits ? plural(w.commits, "commit") : "", w.pull_requests ? plural(w.pull_requests, "PR") : ""].filter(Boolean).join(" · ") || "lines added",
     },
     { label: "Cache hit", value: w.cache_hit == null ? "—" : pct(w.cache_hit), d: null, sub: `${int(w.tokens / 1e6)}M tokens` },
   ]
