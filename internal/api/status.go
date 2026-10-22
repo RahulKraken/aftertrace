@@ -44,6 +44,8 @@ func findingsFor(db *sql.DB) []rules.Finding {
 }
 
 func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
+	// Counts takes the store lock itself, so call it before taking the lock here.
+	c, _ := s.Store.Counts()
 	s.Store.Mu.Lock()
 	defer s.Store.Mu.Unlock()
 	db := s.db()
@@ -51,7 +53,6 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	var running, sessions int
 	_ = db.QueryRow(`SELECT count(*) FROM turn_roots WHERE in_progress AND end_ns > ?`, now-int64(5*time.Minute)).Scan(&running)
 	_ = db.QueryRow(`SELECT count(DISTINCT session_id) FROM turn_roots`).Scan(&sessions)
-	c, _ := s.Store.Counts()
 	open := 0
 	for _, f := range findingsFor(db) {
 		if f.Severity != "error" {
