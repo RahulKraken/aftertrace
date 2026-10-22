@@ -134,7 +134,7 @@ export function mockStatus(): Status {
   const now = Date.now() * 1e6
   return {
     now,
-    info: { version: "demo", db_path: "(in-browser demo data)", store_content: false, otlp_grpc: "127.0.0.1:4317", otlp_http: "127.0.0.1:4318", ui: "" },
+    info: { version: "demo", db_path: "(in-browser demo data)", store_content: false, otlp_grpc: "127.0.0.1:4317", otlp_http: "127.0.0.1:4318", ui: "", service: "" },
     ask: { enabled: true, model: "canned answers" },
     counts: { Spans: (spansJson as Table).rows.length, SpanEvents: 169, Events: 549, MetricPoints: 764 },
     running: 1,

@@ -17,6 +17,8 @@ type Info struct {
 	GRPC         string `json:"otlp_grpc"`
 	HTTP         string `json:"otlp_http"`
 	UI           string `json:"ui"`
+	// Service is "launchd" or "systemd" when started by aftertrace service install.
+	Service string `json:"service"`
 }
 
 func WithInfo(i Info) Option { return func(s *Server) { s.Info = i } }

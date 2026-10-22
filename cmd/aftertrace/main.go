@@ -18,6 +18,7 @@ import (
 	"github.com/RahulKraken/aftertrace/internal/demo"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
 	"github.com/RahulKraken/aftertrace/internal/rules"
+	"github.com/RahulKraken/aftertrace/internal/service"
 	"github.com/RahulKraken/aftertrace/internal/store"
 	"github.com/RahulKraken/aftertrace/web"
 )
@@ -38,6 +39,8 @@ func main() {
 		os.Exit(cmdImport(os.Args[2:]))
 	case "demo":
 		os.Exit(cmdDemo(os.Args[2:]))
+	case "service":
+		os.Exit(cmdService(os.Args[2:]))
 	case "version", "--version":
 		fmt.Println("aftertrace", version)
 	case "help", "-h", "--help":
@@ -56,6 +59,9 @@ Usage:
   aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
   aftertrace import  [--db PATH] [--store-content] <dir>
   aftertrace demo    [--db PATH]
+  aftertrace service install [--dry-run] [serve flags]
+  aftertrace service uninstall [--dry-run]
+  aftertrace service status
   aftertrace version
 
 Default bind is 127.0.0.1. Pass --listen 0.0.0.0 to accept remote OTLP (team mode).
@@ -64,6 +70,8 @@ user.email and account IDs are always dropped.
 There is no telemetry and no phone-home. --ask is the only path that sends
 anything out: the schema and query results go to the Anthropic API
 (ANTHROPIC_API_KEY; AFTERTRACE_ASK_MODEL to pick the model).
+service install keeps serve running at login: a LaunchAgent on macOS, a
+systemd --user unit on Linux. It prints every file and command first.
 `)
 }
 
@@ -75,20 +83,33 @@ func defaultDB() string {
 	return filepath.Join(h, ".aftertrace", "aftertrace.duckdb")
 }
 
+// serveFlags are shared by serve and service install, which passes them on.
+type serveFlags struct {
+	db, listen                 *string
+	grpcPort, httpPort, uiPort *int
+	storeContent, ask          *bool
+}
+
+func addServeFlags(fs *flag.FlagSet) serveFlags {
+	return serveFlags{
+		db:           fs.String("db", defaultDB(), "DuckDB file"),
+		listen:       fs.String("listen", "127.0.0.1", "bind address (use 0.0.0.0 for team mode)"),
+		grpcPort:     fs.Int("grpc-port", 4317, "OTLP gRPC port"),
+		httpPort:     fs.Int("http-port", 4318, "OTLP HTTP port"),
+		uiPort:       fs.Int("ui-port", 7311, "UI and JSON API port"),
+		storeContent: fs.Bool("store-content", false, "keep prompt/response/tool content attributes"),
+		ask:          fs.Bool("ask", false, "answer English questions with Claude (sends schema and query results to the Anthropic API)"),
+	}
+}
+
 func cmdServe(args []string) int {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	dbPath := fs.String("db", defaultDB(), "DuckDB file")
-	listen := fs.String("listen", "127.0.0.1", "bind address (use 0.0.0.0 for team mode)")
-	grpcPort := fs.Int("grpc-port", 4317, "OTLP gRPC port")
-	httpPort := fs.Int("http-port", 4318, "OTLP HTTP port")
-	uiPort := fs.Int("ui-port", 7311, "UI and JSON API port")
-	storeContent := fs.Bool("store-content", false, "keep prompt/response/tool content attributes")
-	askOn := fs.Bool("ask", false, "answer English questions with Claude (sends schema and query results to the Anthropic API)")
+	f := addServeFlags(fs)
 	_ = fs.Parse(args)
 
 	var opts []api.Option
 	askState := "off"
-	if *askOn {
+	if *f.ask {
 		agent, err := ask.FromEnv()
 		if err != nil {
 			log.Printf("--ask: %v", err)
@@ -98,28 +119,28 @@ func cmdServe(args []string) int {
 		askState = agent.Model + " (sends schema and query results to the Anthropic API)"
 	}
 
-	st, err := store.Open(*dbPath)
+	st, err := store.Open(*f.db)
 	if err != nil {
 		log.Printf("open db: %v", err)
 		return 1
 	}
 	defer st.Close()
 
-	recv := otlp.NewReceiver(st, *storeContent)
-	grpcLn, httpLn, err := recv.Listen(*listen, *grpcPort, *httpPort)
+	recv := otlp.NewReceiver(st, *f.storeContent)
+	grpcLn, httpLn, err := recv.Listen(*f.listen, *f.grpcPort, *f.httpPort)
 	if err != nil {
 		log.Print(err)
 		return 1
 	}
 	recv.Serve(grpcLn, httpLn)
 
-	apiLn, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *listen, *uiPort))
+	apiLn, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *f.listen, *f.uiPort))
 	if err != nil {
 		log.Printf("ui: %v", err)
 		return 1
 	}
 	opts = append(opts, api.WithInfo(api.Info{
-		Version: version, DBPath: st.Path, StoreContent: *storeContent,
+		Version: version, DBPath: st.Path, StoreContent: *f.storeContent, Service: os.Getenv(service.EnvVar),
 		GRPC: grpcLn.Addr().String(), HTTP: httpLn.Addr().String(), UI: apiLn.Addr().String(),
 	}))
 	srv := &http.Server{Handler: api.New(st, web.FS, opts...), ReadHeaderTimeout: 10 * time.Second}
@@ -135,7 +156,7 @@ func cmdServe(args []string) int {
 	log.Printf("  OTLP gRPC   %s", grpcLn.Addr())
 	log.Printf("  OTLP HTTP   %s", httpLn.Addr())
 	log.Printf("  UI / API    http://%s", apiLn.Addr())
-	log.Printf("redact=on store_content=%v  (no telemetry)", *storeContent)
+	log.Printf("redact=on store_content=%v  (no telemetry)", *f.storeContent)
 	log.Printf("ask=%s", askState)
 
 	ch := make(chan os.Signal, 1)
