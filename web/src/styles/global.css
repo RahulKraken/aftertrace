@@ -1691,3 +1691,19 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
 .grid tr { transition: opacity var(--dur-2) ease, background-color var(--dur-1) ease; }
 .grid tr.is-cool { opacity: 0.5; }
 .grid tr.is-hot { background: color-mix(in oklab, var(--hue-model) 5%, transparent); }
+
+/* App: recent requests as dots; they pop in left to right. */
+.scatter { margin: 18px 0 8px; padding: 14px 16px 16px; }
+.scatter { position: relative; }
+.scatter-svg { display: block; width: 100%; height: 160px; }
+.scatter-grid { stroke: var(--line); stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.scatter-dots { position: absolute; left: 16px; right: 16px; bottom: 16px; height: 160px; }
+.sdot {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; padding: 0; border-radius: 99px; cursor: pointer;
+  background: color-mix(in oklab, var(--hue-model) 55%, transparent); border: 1.5px solid var(--surface);
+  animation: pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(150ms + var(--i, 0) * 14ms);
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-1) ease;
+}
+.sdot.is-err { background: var(--hue-retry); }
+.sdot:hover, .sdot.is-hot { transform: scale(1.6); background: var(--hue-model); z-index: 2; }
+.sdot.is-err:hover, .sdot.is-err.is-hot { background: var(--hue-retry); }
