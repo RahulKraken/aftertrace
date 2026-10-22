@@ -3,6 +3,7 @@ import {
   appDetail,
   apps,
   askSuggestions,
+  recaps,
   findings,
   fields,
   getAsk,
@@ -31,6 +32,10 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
     if (p === "/api/status") return json(mockStatus())
     if (p === "/api/sources") return json({ now: Date.now() * 1e6, sources: mockSources() })
     if (p === "/api/apps") return json(apps)
+    if (p === "/api/recap") {
+      const wk = Number(url.searchParams.get("week") || 0)
+      return json({ ...recaps[Math.min(wk, recaps.length - 1)], has_older: wk < recaps.length - 1 })
+    }
     if (p.startsWith("/api/app/")) {
       const d = appDetail(decodeURIComponent(p.slice("/api/app/".length)))
       if (!d) return json({ error: "not found" }, 404)

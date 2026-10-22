@@ -348,3 +348,21 @@ export type AppDetail = {
   recent: { trace_id: string; name: string; start_ns: number; duration_ms: number; error: boolean; calls: number; cost_usd: number | null; tokens: number | null; models: string | null }[]
   errors: { trace_id: string; span_id: string; name: string; start_ns: number; message: string; error_type: string }[]
 }
+
+export type RecapTurn = { trace_id: string; session_id: string; start_ns: number; duration_ms: number; cost_usd: number; prompt?: string }
+
+export type Recap = {
+  week: number
+  lo: number
+  hi: number
+  has_older: boolean
+  stats: WindowStats
+  prev: WindowStats
+  tools: { tool: string; calls: number; exec_ms: number; wait_ms: number }[]
+  models: { model: string; requests: number; cost_usd: number; tokens: number }[]
+  apps: { service: string; calls: number; cost_usd: number; failed: number }[]
+  priciest: RecapTurn | null
+  longest: RecapTurn | null
+  busiest_day: { day: string; turn_ms: number; lanes: { session_id: string; title: string | null; turns: [number, number][] }[] } | null
+  peak_parallel: number
+}
