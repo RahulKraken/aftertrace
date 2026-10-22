@@ -39,6 +39,8 @@ import { TraceViewSwitch } from "../story/TraceViewSwitch"
 import type { TraceView } from "../../lib/traceView"
 import { SpanCard } from "./SpanCard"
 import { TREE_DEPTH, TREE_PAD, TreeConnectors } from "./TreeConnectors"
+import { RowMenu, type MenuItem } from "./RowMenu"
+import { depthMap, kindKey, kindNoun, parentsWhere } from "../../lib/collapse"
 
 const ROW = 32
 const LAB_KEY = "aftertrace-lab-w"
@@ -84,6 +86,10 @@ export function Waterfall({
     return c
   })
   const [sel, setSel] = useState(initialSpan && byId.has(initialSpan) ? initialSpan : root.span_id)
+  // "Show only this span": the rows start at it and the axis fits it.
+  const [focus, setFocus] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ id: string; at: { x: number; y: number; from: "button" | "pointer" } } | null>(null)
+  const depths = useMemo(() => depthMap(root), [root])
   const [paneOpen, setPaneOpen] = useState(() => Boolean(initialSpan && byId.has(initialSpan)))
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverNs, setHoverNs] = useState<number | null>(null)
@@ -130,6 +136,8 @@ export function Waterfall({
     setCollapsed(c)
     setSel(initialSpan && byId.has(initialSpan) ? initialSpan : root.span_id)
     setView(null)
+    setFocus(null)
+    setMenu(null)
     setPaneOpen(Boolean(initialSpan && byId.has(initialSpan)))
     if (initialSpan && byId.has(initialSpan)) {
       setFlash(true)
@@ -137,7 +145,11 @@ export function Waterfall({
     }
   }, [resetKey, initialSpan, root, byId, mark?.spanId])
 
-  const rows = useMemo(() => visibleRows(root, collapsed, live ? nowNs : Number.POSITIVE_INFINITY), [root, collapsed, live, nowNs])
+  const focusNode = focus ? byId.get(focus) || null : null
+  const rows = useMemo(
+    () => visibleRows(focusNode || root, collapsed, live ? nowNs : Number.POSITIVE_INFINITY),
+    [root, focusNode, collapsed, live, nowNs],
+  )
   const selected = byId.get(sel) || root
 
   const xOf = useCallback((ns: number) => axis.toPct(ns), [axis])
@@ -180,6 +192,70 @@ export function Waterfall({
     })
   }
 
+  const closeAll = (ids: string[]) => setCollapsed((prev) => new Set([...prev, ...ids]))
+  // Opening also opens what holds them, so every one of them comes into view.
+  const openAll = (ids: string[]) =>
+    setCollapsed((prev) => {
+      const n = new Set(prev)
+      for (const id of ids) {
+        n.delete(id)
+        for (const a of ancestors(byId, id)) n.delete(a)
+      }
+      return n
+    })
+
+  const showOnly = (id: string | null) => {
+    const s = id ? byId.get(id) : null
+    setFocus(s && s !== root ? s.span_id : null)
+    setView(s && s !== root ? { lo: s.start_ns, hi: Math.max(s.end_ns, s.start_ns + 1e6) } : null)
+    if (s) {
+      setSel(s.span_id)
+      setCollapsed((prev) => {
+        const n = new Set(prev)
+        n.delete(s.span_id)
+        return n
+      })
+    }
+  }
+
+  const atDepth = (id: string) => {
+    const d = depths.get(id) ?? 0
+    return parentsWhere(root, (x) => depths.get(x.span_id) === d)
+  }
+  const ofKind = (id: string) => {
+    const key = kindKey(byId.get(id)!)
+    return parentsWhere(root, (x) => kindKey(x) === key)
+  }
+
+  const menuItems = (id: string): MenuItem[] => {
+    const span = byId.get(id)
+    if (!span) return []
+    const level = atDepth(id)
+    const kind = ofKind(id)
+    const open = (ids: string[]) => ids.filter((x) => !collapsed.has(x)).length
+    const shut = (ids: string[]) => ids.filter((x) => collapsed.has(x) || ancestors(byId, x).some((a) => collapsed.has(a))).length
+    const noun = kindNoun(span)
+    const lv = (verb: string, k: number) => (k > 1 ? `${verb} all ${k} at this level` : `${verb} at this level`)
+    const kd = (verb: string, k: number) => (k > 1 ? `${verb} all ${k} ${noun}` : `${verb} all ${noun}`)
+    return [
+      { label: lv("Collapse", open(level)), hint: "-", disabled: !open(level), onSelect: () => closeAll(level) },
+      { label: lv("Expand", shut(level)), hint: "=", disabled: !shut(level), onSelect: () => openAll(level) },
+      { sep: true },
+      { label: kd("Collapse", open(kind)), disabled: !open(kind), onSelect: () => closeAll(kind) },
+      { label: kd("Expand", shut(kind)), disabled: !shut(kind), onSelect: () => openAll(kind) },
+      { sep: true },
+      focus === id || span === root
+        ? { label: "Show the whole turn", hint: "f", disabled: !focus, onSelect: () => showOnly(null) }
+        : { label: "Show only this span", hint: "f", disabled: !span.kids.length, onSelect: () => showOnly(id) },
+      {
+        label: "Copy span ID",
+        onSelect: () => {
+          void navigator.clipboard?.writeText(id)
+        },
+      },
+    ]
+  }
+
   const jumpTo = useCallback(
     (id: string) => {
       if (!byId.has(id)) return
@@ -201,6 +277,7 @@ export function Waterfall({
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      if (menu || e.metaKey || e.ctrlKey || e.altKey) return
       const i = rows.findIndex((r) => r.span.span_id === sel)
       if (e.key === "j" || e.key === "ArrowDown") {
         if (i < rows.length - 1) setSel(rows[i + 1].span.span_id)
@@ -222,9 +299,19 @@ export function Waterfall({
         setPaneOpen(true)
         setCard(null)
         e.preventDefault()
+      } else if (e.key === "-") {
+        closeAll(atDepth(sel))
+        e.preventDefault()
+      } else if (e.key === "=" || e.key === "+") {
+        openAll(atDepth(sel))
+        e.preventDefault()
+      } else if (e.key === "f") {
+        showOnly(focus === sel ? null : sel)
+        e.preventDefault()
       } else if (e.key === "Escape") {
         if (card) setCard(null)
-        else setPaneOpen(false)
+        else if (paneOpen) setPaneOpen(false)
+        else if (focus) showOnly(null)
         e.preventDefault()
       } else if (e.key === "[" && trace.prev) {
         location.hash = `#/trace/${trace.prev}`
@@ -234,7 +321,7 @@ export function Waterfall({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [rows, sel, trace.prev, trace.next])
+  }, [rows, sel, trace.prev, trace.next, menu, focus, paneOpen, card, depths, root])
 
   const comps = compactionEvents(trace)
   // With waits folded, ticks are spaced for the time that is drawn, and none sit inside a fold.
@@ -420,6 +507,26 @@ export function Waterfall({
           </div>
           )}
         </div>
+        <AnimatePresence initial={false}>
+          {focusNode ? (
+            <motion.div
+              className="wf-focus"
+              key="focus"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            >
+              <span>
+                Showing only <b>{rowLabel(focusNode, content).name}</b> and what it called · {dur(focusNode.duration_ms)}
+              </span>
+              <button type="button" onClick={() => showOnly(null)}>
+                Show the whole turn <kbd>esc</kbd>
+              </button>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+        {menu ? <RowMenu at={menu.at} items={menuItems(menu.id)} onClose={() => setMenu(null)} /> : null}
         <div
           className="wf-body"
           ref={bodyRef}
@@ -595,6 +702,11 @@ export function Waterfall({
                     }}
                     onHover={setHoverId}
                     onMark={() => mark && jumpTo(mark.spanId)}
+                    menuOpen={menu?.id === span.span_id}
+                    onMenu={(at) => {
+                      setHoverId(span.span_id)
+                      setMenu({ id: span.span_id, at })
+                    }}
                   />
                 ))}
               </AnimatePresence>
@@ -682,6 +794,8 @@ function Row({
   onSelect,
   onHover,
   onMark,
+  menuOpen,
+  onMenu,
 }: {
   span: SpanNode
   depth: number
@@ -701,6 +815,8 @@ function Row({
   onSelect: (id: string) => void
   onHover: (id: string | null) => void
   onMark: () => void
+  menuOpen: boolean
+  onMenu: (at: { x: number; y: number; from: "button" | "pointer" }) => void
 }) {
   const k = spanKind(span)
   const isStep = span.name === STEP
@@ -712,7 +828,8 @@ function Row({
     return ck === "wait" || ck === "run"
   })
   const ro = collapsed && kids && !phasesOnly ? rollup(span) : null
-  const pill = ro ? (isStep ? `${span.kids.length} ${span.kids.length === 1 ? "call" : "calls"}` : `+${ro.n}`) : ""
+  // The count chip says how many sit directly inside; the pill only adds what is nested deeper.
+  const pill = ro ? (isStep ? `${span.kids.length} ${span.kids.length === 1 ? "call" : "calls"}` : ro.n > kids ? `${ro.n} in all` : "") : ""
   const endNs = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
   const L = xOf(span.start_ns)
   const W = Math.max(xOf(endNs) - L, 0)
@@ -752,7 +869,7 @@ function Row({
 
   return (
     <motion.div
-      className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered ? "hov" : ""}`}
+      className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered || menuOpen ? "hov" : ""}`}
       data-span={span.span_id}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0, top: index * ROW }}
@@ -761,19 +878,34 @@ function Row({
       style={{ position: "absolute", left: 0, right: 0, height: ROW, ["--i" as string]: Math.min(index, 24) }}
       onClick={() => (isStep ? onToggle() : onSelect(span.span_id))}
       onMouseEnter={() => onHover(isStep ? null : span.span_id)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu({ x: e.clientX, y: e.clientY, from: "pointer" })
+      }}
     >
       <div className="lab">
         <span className="tree-pad" style={{ width: TREE_PAD + depth * TREE_DEPTH }} />
         {kids ? (
-          <span
-            className="caret"
+          <button
+            type="button"
+            className={`caret count ${collapsed ? "is-closed" : ""}`}
+            aria-expanded={!collapsed}
+            title={collapsed ? `Show the ${kids} inside` : `Hide the ${kids} inside`}
             onClick={(e) => {
               e.stopPropagation()
               onToggle()
             }}
           >
-            {collapsed ? "▸" : "▾"}
-          </span>
+            {isStep ? (
+              <svg viewBox="0 0 10 10" aria-hidden className={collapsed ? "" : "is-open"}>
+                <path d="M3.5 2 L6.5 5 L3.5 8" />
+              </svg>
+            ) : kids > 99 ? (
+              "99+"
+            ) : (
+              kids
+            )}
+          </button>
         ) : (
           <span className="caret" />
         )}
@@ -804,6 +936,24 @@ function Row({
           ) : null}
         </AnimatePresence>
         {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
+        <button
+          type="button"
+          className={`row-more ${menuOpen ? "is-open" : ""}`}
+          aria-label="More for this span"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            e.stopPropagation()
+            const r = e.currentTarget.getBoundingClientRect()
+            onMenu({ x: r.right, y: r.bottom, from: "button" })
+          }}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <circle cx="3.5" cy="8" r="1.3" />
+            <circle cx="8" cy="8" r="1.3" />
+            <circle cx="12.5" cy="8" r="1.3" />
+          </svg>
+        </button>
       </div>
       <div className="trk">
         {isStep ? (

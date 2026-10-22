@@ -9,6 +9,12 @@ export function glyphCenterX(depth: number): number {
   return TREE_PAD + depth * TREE_DEPTH + TREE_CARET + TREE_GLYPH / 2
 }
 
+// A parent's line drops from its count chip, and reaches a child at its chip
+// when it has one, else at its icon: the rail never runs through a chip.
+function chipCenterX(depth: number): number {
+  return TREE_PAD + depth * TREE_DEPTH + TREE_CARET / 2
+}
+
 export function TreeConnectors({
   rows,
   rowH,
@@ -26,9 +32,9 @@ export function TreeConnectors({
     if (!parentId) continue
     const pi = index.get(parentId)
     if (pi == null) continue
-    const x0 = glyphCenterX(rows[pi].depth)
-    const x1 = glyphCenterX(row.depth) - TREE_GLYPH / 2 - 1
-    const y0 = pi * rowH + rowH / 2 + 9
+    const x0 = chipCenterX(rows[pi].depth)
+    const x1 = row.span.kids.length ? chipCenterX(row.depth) - TREE_CARET / 2 + 1 : glyphCenterX(row.depth) - TREE_GLYPH / 2 - 1
+    const y0 = pi * rowH + rowH / 2 + 8
     const y1 = i * rowH + rowH / 2
     const r = Math.min(5, Math.max(0, y1 - y0))
     if (y1 <= y0 + 1) {
