@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.1
+
+- Sessions opens on four weeks of activity: point at a day to read it, click to show only its sessions.
+- Cost opens on a share ribbon; a slice and its table row light together.
+- The App page shows recent requests as a latency scatter; failures in rose, every dot opens its trace.
+- Finding impacts count up, query charts draw their lines, and the first data on Connect lands with a ring.
+
 ## v0.4.0
 
 **Alive**
