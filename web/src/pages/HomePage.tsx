@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { ArrowRight, Plug } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
-import { ago, CAT_LABEL, CATS, delta, dur, impactParts, int, pct, plural, usd, when } from "../lib/format"
+import { ago, CAT_LABEL, CATS, delta, dur, impactFormat, impactParts, int, pct, plural, usd, when } from "../lib/format"
 import { planMultiple, readPlan } from "../lib/plan"
 import type { Breakdown, LiveLane, Overview, WindowStats } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
@@ -263,11 +263,13 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
 }
 
 function NextFinding({ f }: { f: NonNullable<Overview["top"]> }) {
-  const [imp, unit] = impactParts(f)
+  const [, unit] = impactParts(f)
   return (
     <Link href={`/findings?focus=${f.id}`} className="card next-card">
       <div className="next-imp">
-        <span className="next-num">{imp}</span> <span className="mute">{unit}</span>
+        <span className="next-num">
+          <Num value={f.impact_value} format={impactFormat(f)} />
+        </span> <span className="mute">{unit}</span>
       </div>
       <div className="next-head">{f.headline}</div>
       <div className="next-rec">{f.recommendation}</div>

@@ -1650,3 +1650,11 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
 /* Recap: the receipt prints out of its slot, once. */
 @keyframes print { from { clip-path: inset(0 0 100% 0); transform: translateY(-14px); } to { clip-path: inset(0 0 0 0); transform: none; } }
 .receipt { animation: print 1100ms cubic-bezier(0.32, 0.72, 0, 1) 300ms both; }
+.q-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1200ms var(--ease-out) forwards; animation-delay: calc(150ms + var(--i, 0) * 120ms); }
+/* First data on Connect: the check lands, a ring spreads from it, once. */
+.verify.is-celebrate { animation: rise-in 500ms var(--ease-out) both; }
+.verify-check { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 99px; flex: none;
+  background: var(--hue-ok); color: var(--surface); animation: pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both; }
+.verify-check::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--hue-ok); animation: ring 900ms var(--ease-out) 260ms both; }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } }
+@keyframes ring { from { transform: scale(1); opacity: 0.7; } to { transform: scale(2.4); opacity: 0; } }

@@ -663,7 +663,7 @@ function Chart({
           ))}
         {res.series.map((s, i) => (
           <g key={i}>
-            <path d={path(s.points)} fill="none" stroke={PAL[i % PAL.length]} strokeWidth="1.75" />
+            <path d={path(s.points)} className="q-line" style={{ ["--i" as string]: i }} pathLength={1} fill="none" stroke={PAL[i % PAL.length]} strokeWidth="1.75" />
             {s.points.map((p, j) => (
               <circle
                 key={j}
