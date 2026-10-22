@@ -67,7 +67,8 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 			}
 		}
 		var title sql.NullString
-		if err := db.QueryRow(`SELECT substr(a(attrs,'prompt'), 1, 200) FROM events
+		// Read enough to get past injected reminder blocks; cleanTitle clips after cleaning.
+		if err := db.QueryRow(`SELECT substr(a(attrs,'prompt'), 1, 8000) FROM events
 			WHERE name='user_prompt' AND session_id=? AND `+notRedacted("a(attrs,'prompt')")+`
 			ORDER BY ts_ns LIMIT 1`, sid).Scan(&title); err != nil && err != sql.ErrNoRows {
 			return nil, err
@@ -166,7 +167,7 @@ func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
 			"models":      asStringSlice(modelsRaw),
 			"tools":       tools,
 			"breakdown":   analysis.Breakdown(db, tid, spans),
-			"prompt":      nullStr(prompt),
+			"prompt":      cleanTitle(prompt),
 			"in_progress": pending,
 			"running":     running,
 		})
@@ -605,6 +606,9 @@ func cleanTitle(t sql.NullString) any {
 	c := cleanPrompt(t.String)
 	if c == "" {
 		return nil
+	}
+	if r := []rune(c); len(r) > 200 {
+		return string(r[:200])
 	}
 	return c
 }

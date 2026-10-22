@@ -108,11 +108,15 @@ var markup = regexp.MustCompile(`</?[A-Za-z_][\w-]*(\s[^<>]*)?>`)
 // type: reminders, background-task and side-session notices, CI events.
 var injected = regexp.MustCompile(`(?s)<(system-reminder|task-notification|side-sessions-event|ci-monitor-event|local-command-caveat)\b[^>]*>.*?</(system-reminder|task-notification|side-sessions-event|ci-monitor-event|local-command-caveat)>`)
 
+var unclosed = regexp.MustCompile(`(?s)<(system-reminder|task-notification|side-sessions-event|ci-monitor-event|local-command-caveat)\b.*$`)
+
 // cleanPrompt is prompt text for labels: injected blocks dropped, wrapper tags
 // removed, whitespace collapsed. A prompt that was nothing but injected text
 // gets a short description of what sent it.
 func cleanPrompt(s string) string {
 	stripped := injected.ReplaceAllString(s, " ")
+	// A prompt clipped mid-block leaves an injected block with no closing tag.
+	stripped = unclosed.ReplaceAllString(stripped, " ")
 	out := strings.Join(strings.Fields(markup.ReplaceAllString(stripped, " ")), " ")
 	if out != "" || strings.TrimSpace(s) == "" {
 		return out
