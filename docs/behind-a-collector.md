@@ -1,5 +1,7 @@
 # Behind an OpenTelemetry Collector
 
+> [How the receivers work, with a figure →](how-it-works/receive.md)
+
 If Claude Code already exports to an OpenTelemetry Collector, do not point it at Aftertrace directly. Keep the collector as the only OTLP endpoint Claude Code sees, and fan out to Aftertrace from there.
 
 Aftertrace's default ports are the same as a typical collector (`4317` gRPC, `4318` HTTP). One process can bind them. Move Aftertrace:

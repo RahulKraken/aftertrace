@@ -1,8 +1,10 @@
 # JSON API
 
+> [What the API reads, with a figure →](how-it-works/store.md)
+
 Read-only HTTP API served by `aftertrace serve` on `127.0.0.1:7311` (the UI port). Shapes match the throwaway prototype so the web UI can consume them. Attribute names come from Claude Code's monitoring docs; Aftertrace does not invent them.
 
-Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never sends data off the machine.
+Ask (`POST /api/ask`) is off unless the server was started with `--ask` and `ANTHROPIC_API_KEY`. When on, it sends the schema and trimmed query results to the Anthropic API, never raw traces. See [Ask](how-it-works/ask.md).
 
 ## Endpoints
 
@@ -25,8 +27,8 @@ Ask (`POST /api/ask`) is a stub in this build. It never calls a model and never 
 | POST | `/api/query` | Builder JSON compiled to SQL |
 | POST | `/api/query/traces` | Matching traces for a builder query |
 | POST | `/api/sql` | One read-only `SELECT` or `WITH` |
-| GET | `/api/ask/suggestions` | Stub agent metadata |
-| POST | `/api/ask` | Stub: `{answer, sql, result, evidence, builder}` |
+| GET | `/api/ask/suggestions` | Whether Ask is on, which model, sample questions, the schema |
+| POST | `/api/ask` | Answer a question: `{answer, enabled, sql, result, evidence, steps, model}` |
 
 Errors are `{ "error": "..." }` with HTTP 400.
 
@@ -184,11 +186,23 @@ The query cannot touch anything outside the tables and views:
 - DuckDB prepares the statement first; anything but a `SELECT` (for example `WITH ... DELETE`) is refused.
 - It runs in a transaction that is always rolled back.
 
-## Ask (stub)
+## Ask
 
-`GET /api/ask/suggestions` — `{agent, questions, schema}`. `questions` is empty in this build.
+`GET /api/ask/suggestions` returns `{agent, enabled, questions, schema}`. `agent` is one line saying which model answers and what it sends, or how to turn Ask on. `questions` is six sample questions. `schema` is the same schema text the model is given.
 
-`POST /api/ask` body `{question}` returns `{answer, sql: null, result: null, evidence: [], builder: null}` explaining that Ask is opt-in and not wired yet.
+`POST /api/ask` takes `{question}`. A missing or blank question is a 400.
+
+- **Ask off:** a 200 with `enabled: false`, an `answer` that says how to turn it on, `sql` and `result` null and `evidence` empty. Nothing is sent anywhere.
+- **Ask on:** the model works through up to 8 tool calls, writing read-only SQL that runs here. The reply has:
+  - `answer`;
+  - `sql`, the last query it ran;
+  - `result`, the rows of that query, up to 500;
+  - `evidence`, up to five turns the answer cites, each `{trace_id, span_id, label}`;
+  - `steps`, each query it tried, as `{sql, rows, error}`;
+  - `model`.
+- **Errors:** the request times out after 3 minutes. An API or loop failure is a 502.
+
+`builder` is always null. How the loop works and exactly what leaves the machine: [Ask](how-it-works/ask.md).
 
 ## Overview
 

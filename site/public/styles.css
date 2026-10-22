@@ -169,3 +169,7 @@ a, .btn, .copy, .docs-nav a { transition: background-color 150ms ease, color 150
   .figure-embed .fig-light { display: none; }
   .figure-embed .fig-dark { display: block; }
 }
+.band.how .figure-embed { max-width: 980px; margin: 0; }
+/* Long inline values (env vars, URLs) wrap instead of pushing the page sideways on a phone. */
+.prose :not(pre) > code { overflow-wrap: anywhere; }
+.prose a { overflow-wrap: anywhere; }

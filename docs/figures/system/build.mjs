@@ -482,11 +482,11 @@ const DATA = {
 const live = readFileSync(join(HERE, "live.js"), "utf8").replace("__DATA__", JSON.stringify(DATA))
 
 const CSS = readFileSync(join(HERE, "figure.css"), "utf8")
-const stage = `<div class="fx-stage" tabindex="0" role="group" aria-label="How Aftertrace works. Arrow keys move between stations; C flips the content lever; A unlocks Ask.">${backSvg}<canvas class="fx-layer fx-gl" aria-hidden="true"></canvas>${frontSvg}</div>`
+const stage = `<div class="fx-stage" tabindex="0" role="group" aria-label="How Aftertrace works. Arrow keys move between stations; Enter opens the page for that station; C flips the content lever; A unlocks Ask.">${backSvg}<canvas class="fx-layer fx-gl" aria-hidden="true"></canvas>${frontSvg}</div>`
 const body = k.plateHtml({
   fig: "Fig 1",
   title: "How Aftertrace works",
-  hint: "Hover a station · C · A",
+  hint: "Point at a station · click to go deeper",
   readout: STATIONS[0].read,
   keys: [
     { mark: "lit", label: "The station you point at (or step to with the arrow keys)" },

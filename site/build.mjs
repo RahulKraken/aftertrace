@@ -13,7 +13,8 @@ const out = join(here, "dist")
 const repo = "https://github.com/RahulKraken/aftertrace"
 
 const NAV = [
-  ["Get started", [["how-it-works", "How it works"], ["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
+  ["How it works", [["how-it-works", "Overview"], ["how-it-works/receive", "Receiving"], ["how-it-works/redaction", "Redaction"], ["how-it-works/store", "The store"], ["how-it-works/findings", "Findings"], ["how-it-works/turn", "Reading a turn"], ["how-it-works/ask", "Ask"]]],
+  ["Get started", [["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
   ["Use", [["findings", "Findings"], ["cli", "CLI"], ["privacy", "Privacy"], ["troubleshooting", "Troubleshooting"]]],
   ["Extend", [["writing-rules", "Writing rules"], ["api", "JSON API"], ["schema-notes", "Schema notes"]]],
   ["Project", [["product/brief", "Product brief"], ["product/design", "Design"], ["design-principles", "Design principles"], ["spec", "Spec"], ["stack", "Stack decision"]]],
@@ -38,6 +39,14 @@ for (const f of readdirSync(join(root, "docs/figures"))) {
   if (!existsSync(build)) continue
   for (const args of [[], ["--dark"]]) execFileSync("node", [build, ...args], { stdio: "inherit", env: { ...process.env, FIGURES_OUT: join(out, "figures") } })
 }
+// Counts the docs state in prose must match the source the figures read.
+const { MODEL } = await import(join(root, "docs/figures/model.mjs"))
+function checkCounts(slug, md) {
+  const want = { "content keys": MODEL.contentKeys.length, "identity keys": MODEL.identityKeys.length, "SQL rules": MODEL.rules.length }
+  for (const [what, n] of Object.entries(want))
+    for (const m of md.matchAll(new RegExp(`\\b(\\d+) ${what}`, "g")))
+      if (Number(m[1]) !== n) throw new Error(`docs/${slug}.md says ${m[1]} ${what}; the source has ${n}`)
+}
 function figures(md, depth) {
   const up = "../".repeat(depth)
   return md.replace(/<!-- figure:(\w+) -->\n!\[([^\]]*)\]\([^)]*\)/g, (_, name, alt) =>
@@ -46,7 +55,9 @@ function figures(md, depth) {
     `<iframe class="fig-dark" src="${up}figures/${name}-dark.html" title="${alt.replace(/"/g, "&quot;")}" loading="lazy"></iframe>` +
     `</div>`)
 }
-const FIGURE_SCRIPT = `<script>addEventListener("message",(e)=>{const d=e.data;if(!d||!d.figure||!d.height)return;for(const f of document.querySelectorAll(".figure-embed iframe"))if(f.contentWindow===e.source)f.style.height=d.height+"px"})</script>`
+// A figure posts its height so its frame fits it, and may ask to open a page
+// (Fig 1 sends the reader to the page for the station they click).
+const FIGURE_SCRIPT = (depth) => `<script>addEventListener("message",(e)=>{const d=e.data;if(!d||!d.figure)return;for(const f of document.querySelectorAll(".figure-embed iframe")){if(f.contentWindow!==e.source)continue;if(d.height)f.style.height=d.height+"px";if(d.open&&/^[\\w/-]+$/.test(d.open))location.href="${"../".repeat(depth)}docs/"+d.open+".html"}})</script>`
 
 // Docs: markdown to HTML, .md links to .html, repo links to GitHub.
 function rewriteLinks(html, depth) {
@@ -85,7 +96,7 @@ function page({ title, body, current, depth }) {
 <link rel="stylesheet" href="${up}styles.css" />
 </head>
 <body class="docs-body">
-<header class="top"><a class="brand" href="${up}index.html">${LOGO}<span>aftertrace</span></a><nav class="top-links"><a href="${up}docs/install.html" class="on">Docs</a><a href="${up}demo/">Live demo</a><a href="${repo}">GitHub</a></nav></header>
+<header class="top"><a class="brand" href="${up}index.html">${LOGO}<span>aftertrace</span></a><nav class="top-links"><a href="${up}docs/how-it-works.html" class="on">Docs</a><a href="${up}demo/">Live demo</a><a href="${repo}">GitHub</a></nav></header>
 <div class="docs">
 <aside class="docs-nav">${nav(current, depth)}</aside>
 <main class="prose">${body}
@@ -104,16 +115,17 @@ for (const [, items] of NAV) {
     const src = join(root, "docs", `${slug}.md`)
     if (!existsSync(src)) throw new Error(`missing doc ${src}`)
     const md = readFileSync(src, "utf8")
+    checkCounts(slug, md)
     const title = (md.match(/^#\s+(.+)$/m) || [, slug])[1]
     const depth = slug.split("/").length
-    const body = rewriteLinks(marked.parse(figures(md, depth)), depth) + (md.includes("<!-- figure:") ? FIGURE_SCRIPT : "")
+    const body = rewriteLinks(marked.parse(figures(md, depth)), depth) + (md.includes("<!-- figure:") ? FIGURE_SCRIPT(depth) : "")
     const dest = join(out, "docs", `${slug}.html`)
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, page({ title, body, current: slug, depth }))
   }
 }
 cpSync(join(root, "docs/images"), join(out, "docs/images"), { recursive: true })
-writeFileSync(join(out, "docs/index.html"), `<!doctype html><meta http-equiv="refresh" content="0; url=install.html"><a href="install.html">Docs</a>`)
+writeFileSync(join(out, "docs/index.html"), `<!doctype html><meta http-equiv="refresh" content="0; url=how-it-works.html"><a href="how-it-works.html">Docs</a>`)
 
 // The demo: the mock UI (synthetic fixtures, no server) with relative paths.
 if (!process.env.SKIP_DEMO) {

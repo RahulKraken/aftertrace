@@ -1,0 +1,68 @@
+/* Fig 5. Colour is the pillar: the app's hues for cost (indigo) and bottleneck (amber), teal for config. */
+.iso { --fig-cost: #6359e0; --fig-bottleneck: #e29a2e; --fig-config: #14998e; --fig-error: #d9534f; }
+.iso[data-theme="dark"] { --fig-cost: #9a92f4; --fig-bottleneck: #f0b45a; --fig-config: #3fc0b2; --fig-error: #ef7b74; }
+
+.fx-stage { position: relative; outline: none; touch-action: pan-y; cursor: default; }
+.fx-stage > svg, .fx-stage > canvas { display: block; width: 100%; height: auto; }
+.fx-stage > .fx-layer { position: absolute; inset: 0; height: 100% !important; pointer-events: none; }
+.iso[data-theme="dark"] .fx-gl { mix-blend-mode: screen; }
+.fx-stage:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fig-cost) 35%, transparent); border-radius: 10px; }
+
+/* Index tabs in their pillar's colour, shaded like any other solid. */
+.fig-tab .iso-top { fill: var(--tab); }
+.fig-tab .iso-shade { fill: color-mix(in oklab, var(--tab) 78%, var(--anatomy-shade-1)); }
+.fig-tab .iso-fill { fill: var(--tab); }
+.fig-tab[data-pillar="cost"] { --tab: var(--fig-cost); }
+.fig-tab[data-pillar="bottleneck"] { --tab: var(--fig-bottleneck); }
+.fig-tab[data-pillar="config"] { --tab: var(--fig-config); }
+
+/* The card being read: its edge drawn in the lit tone. */
+[data-card][data-reading] > .iso-solid:first-child > .iso-edge { stroke: var(--anatomy-lit); stroke-width: calc(var(--anatomy-weight) * 1.25); }
+[data-card][data-reading] > .iso-solid:first-child > .iso-top { fill: var(--anatomy-lit-top); }
+
+/* Stencil holes: dark punched circles with a fine rim. */
+.fig-holes circle { fill: var(--anatomy-shade-0); stroke: var(--anatomy-lo); stroke-width: 0.35; }
+
+/* A broken rule wears a red flag. */
+.fig-broken { opacity: 0; transition: opacity 240ms ease; }
+.fig-broken .iso-top, .fig-broken .iso-fill { fill: var(--fig-error); }
+.fig-broken .iso-shade { fill: color-mix(in oklab, var(--fig-error) 78%, var(--anatomy-shade-1)); }
+[data-card][data-broken] .fig-broken { opacity: 1; }
+
+/* Lamps: dim at rest, bright while their part works. */
+.fig-lamp { fill: var(--fig-cost); opacity: 0.35; transition: opacity 260ms ease, fill 260ms ease; }
+.fig-lamp[data-hue="bottleneck"], .fig-lamp[data-hue="wait"] { fill: var(--fig-bottleneck); }
+.fig-lamp[data-hue="config"] { fill: var(--fig-config); }
+.fig-lamp[data-hue="error"] { fill: var(--fig-error); }
+.fig-lamp[data-on] { opacity: 1; }
+
+/* Printer details. */
+.fig-slot { fill: var(--anatomy-shade-0); stroke: var(--anatomy-lo); stroke-width: 0.5; }
+.fig-vents rect { fill: var(--anatomy-shade-0); stroke: var(--anatomy-lo); stroke-width: var(--anatomy-weight); }
+.fig-silhouette { filter: brightness(0); }
+.fig-needle { stroke: var(--anatomy-lit); stroke-width: 0.8; stroke-linecap: round; }
+.fig-hub { fill: var(--anatomy-lit); }
+
+/* Tickets in the tray arrive one at a time and leave together. */
+.ticket { opacity: 0; transition: opacity 360ms ease; }
+.ticket[data-in] { opacity: 1; }
+.fig-flying { opacity: 0; }
+.fig-chip { fill: var(--anatomy-paper); stroke: var(--anatomy-mid); stroke-width: var(--anatomy-weight); }
+.fig-thread { transition: opacity 420ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket, .fig-lamp, .fig-thread, .fig-broken { transition: none; }
+}
+
+/* Phones: the drawing a little larger inside its card, and the readout wraps. */
+@media (max-width: 560px) {
+  .fx-stage { width: 116%; margin-left: -8%; }
+  .iso-plate { overflow: hidden; }
+  .iso-plate-corner[data-corner="hint"] { display: none; }
+  .iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 92%; left: 0; }
+}
+
+/* Embedded in a docs page: no page margins, and the docs page shows through. */
+html[data-embed] body { background: transparent; display: flow-root; }
+html[data-embed] .iso-page { width: 100%; margin: 0; padding: 0 1px; display: flow-root; }
+html:has(body[data-theme="light"]) { color-scheme: light; }

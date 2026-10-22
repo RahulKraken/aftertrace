@@ -1,0 +1,58 @@
+/* Fig 6. Colour is the subject: every span and every rod keeps the hue the app gives it. */
+.iso { --fig-model: #6359e0; --fig-tool: #14998e; --fig-wait: #e29a2e; --fig-retry: #d9534f; --fig-turn: #aaa59c; }
+.iso[data-theme="dark"] { --fig-model: #9a92f4; --fig-tool: #3fc0b2; --fig-wait: #f0b45a; --fig-retry: #ef7a77; --fig-turn: #77726a; }
+
+.fx-stage { position: relative; outline: none; touch-action: pan-y; cursor: default; }
+.fx-stage > svg, .fx-stage > canvas { display: block; width: 100%; height: auto; }
+.fx-stage > .fx-layer { position: absolute; inset: 0; height: 100% !important; pointer-events: none; }
+.iso[data-theme="dark"] .fx-gl { mix-blend-mode: screen; }
+.fx-stage:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fig-model) 35%, transparent); border-radius: 10px; }
+
+[data-hue="model"] { --h: var(--fig-model); }
+[data-hue="tool"] { --h: var(--fig-tool); }
+[data-hue="wait"] { --h: var(--fig-wait); }
+[data-hue="retry"] { --h: var(--fig-retry); }
+[data-hue="turn"], [data-hue="other"] { --h: var(--fig-turn); }
+
+/* Ink on the chart paper, over lanes printed in a pale wash of each pen's colour. */
+.fig-lane { fill: color-mix(in oklab, var(--h) 9%, transparent); }
+.iso[data-theme="dark"] .fig-lane { fill: color-mix(in oklab, var(--h) 12%, transparent); }
+.fig-ink { fill: var(--h); }
+.fig-ink[data-kind="hair"] { opacity: 0.9; }
+.fig-ink[data-kind="stamp"] { opacity: 0; fill: color-mix(in oklab, var(--h) 70%, var(--anatomy-paper)); }
+.fig-ink[data-kind="auto"] { fill: color-mix(in oklab, var(--h) 35%, var(--anatomy-paper)); }
+.iso[data-theme="dark"] .fig-ink { fill: color-mix(in oklab, var(--h) 82%, var(--anatomy-paper)); }
+.fig-focus { fill: none; stroke: var(--anatomy-lit); stroke-width: 0.9; stroke-linejoin: round; }
+
+/* Coloured solids: pen tips and beads take their hue through the kit's four tones. */
+.fig-hued .iso-fill, .fig-hued .iso-top { fill: color-mix(in oklab, var(--h) 86%, white); }
+.fig-hued .iso-shade[data-shade="0"] { fill: color-mix(in oklab, var(--h) 78%, black); }
+.fig-hued .iso-shade[data-shade="1"] { fill: color-mix(in oklab, var(--h) 88%, black); }
+.fig-hued .iso-shade[data-shade="2"] { fill: var(--h); }
+.fig-hued .iso-shade[data-shade="3"] { fill: color-mix(in oklab, var(--h) 86%, white); }
+.fig-hued .iso-edge { stroke: color-mix(in oklab, var(--h) 55%, black); }
+.iso[data-theme="dark"] .fig-hued .iso-edge { stroke: color-mix(in oklab, var(--h) 70%, white); }
+
+/* The pilot lamp: dim at rest, lit while the recorder runs. */
+.fig-pilot .iso-fill, .fig-pilot .iso-shade, .fig-pilot .iso-top { fill: color-mix(in oklab, var(--fig-model) 30%, var(--anatomy-paper)); transition: fill 300ms ease; }
+.fig-pilot[data-on] .iso-fill, .fig-pilot[data-on] .iso-shade, .fig-pilot[data-on] .iso-top { fill: var(--fig-model); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-pilot .iso-fill, .fig-pilot .iso-shade, .fig-pilot .iso-top { transition: none; }
+}
+
+/* Span readouts are long: they wrap onto a second line rather than run into the hint. */
+.iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 62%; line-height: 1.4; }
+
+/* Phones: the drawing a little larger inside its card, and the readout wraps. */
+@media (max-width: 560px) {
+  .fx-stage { width: 116%; margin-left: -8%; }
+  .iso-plate { overflow: hidden; }
+  .iso-plate-corner[data-corner="hint"] { display: none; }
+  .iso-plate-corner[data-corner="readout"] { white-space: normal; text-align: right; max-width: 92%; left: 0; }
+}
+
+/* Embedded in a docs page: no page margins, and the docs page shows through. */
+html[data-embed] body { background: transparent; display: flow-root; }
+html[data-embed] .iso-page { width: 100%; margin: 0; padding: 0 1px; display: flow-root; }
+html:has(body[data-theme="light"]) { color-scheme: light; }

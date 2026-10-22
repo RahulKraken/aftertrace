@@ -1,5 +1,7 @@
 # Schema notes
 
+> [How the store is laid out, with a figure →](how-it-works/store.md)
+
 What the docs say Claude Code emits, mapped to what Aftertrace needs. Sources, re-read on 2026-10-21:
 
 - Claude Code monitoring: https://code.claude.com/docs/en/monitoring-usage

@@ -1,5 +1,7 @@
 # Apps and agents
 
+> [What happens to what your app sends, with a figure →](how-it-works/receive.md)
+
 Anything that is not Claude Code and sends OpenTelemetry to Aftertrace is an app: a service you built on the Claude SDK, a Pydantic AI agent on a cron, a script using the Vercel AI SDK. Aftertrace groups everything it receives by `service.name`, recognises model calls, and shows calls, cost, latency and failures per app and per operation.
 
 ## Connect an app

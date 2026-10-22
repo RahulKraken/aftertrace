@@ -1,5 +1,7 @@
 # Writing a rule
 
+> [How the engine runs rules, with a figure →](how-it-works/findings.md)
+
 A rule is one SQL file. Contributors write SQL, not Go. The binary embeds the files under `internal/rules/files/` at build time, so you copy the same bytes into both trees.
 
 ## File format
