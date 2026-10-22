@@ -43,8 +43,8 @@ async function openSteps(page: Page) {
   const n = await page.locator(".row.is-step").count()
   for (let i = 0; i < n; i++) {
     const caret = page.locator(".row.is-step").nth(i).locator(".caret")
-    if ((await caret.textContent()) === "▸") await page.locator(".row.is-step").nth(i).dispatchEvent("click")
-    await expect(caret).toHaveText("▾")
+    if ((await caret.getAttribute("aria-expanded")) === "false") await page.locator(".row.is-step").nth(i).dispatchEvent("click")
+    await expect(caret).toHaveAttribute("aria-expanded", "true")
   }
 }
 
@@ -160,7 +160,7 @@ test("waterfall collapsed +N pill", async ({ page }) => {
   await waitFonts(page)
   await page.locator(".row").first().locator(".caret").click()
   await expect(page.locator(".n-pill").first()).toBeVisible()
-  await expect(page.locator(".n-pill").first()).toContainText("+")
+  await expect(page.locator(".n-pill").first()).toContainText("in all")
   await page.waitForTimeout(400)
   await shot(page, "waterfall-collapsed", "light")
   await shot(page, "waterfall-collapsed", "dark")
