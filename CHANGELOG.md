@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.1
+
+- First run is a welcome: what already works, the one next step (Connect Claude Code), a listening signal, and `aftertrace demo` to look around first.
+- A session page leads with the prompt that started it, with its repo, models, turns, time and cost underneath.
+- Session titles and turn prompts no longer start with injected `<system-reminder>` text, even when a long prompt was clipped mid-block.
+- The inspector uses the same plain words as the row and the card, with a softer edge; the Timeline's stats stay on one line.
+- The website uses the app's palette and motion.
+
 ## v0.3.0
 
 **Calm, and recognisable**
