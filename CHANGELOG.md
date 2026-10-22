@@ -1,10 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.2.0
 
-- `aftertrace service install|uninstall|status`: keep `aftertrace serve` running at login as a LaunchAgent (macOS) or a systemd user unit (Linux), with the flags you pass. It prints every file and command first; `--dry-run` stops there. Logs go to `~/.aftertrace/serve.log`.
+**Run it at login**
+- `aftertrace service install|uninstall|status` keeps `aftertrace serve` running as a LaunchAgent (macOS) or a systemd user unit (Linux), with the flags you pass (for example `--store-content`). It prints every file and command first; `--dry-run` stops there. Logs go to `~/.aftertrace/serve.log`. See [docs/cli.md](docs/cli.md#aftertrace-service).
 - Connect suggests the service when the server is not running as one. `/api/status` reports `info.service`.
-- `scripts/homebrew-formula.sh` prints a Homebrew formula for a release.
+
+**Faster under load**
+- Reads no longer take the store lock, so a slow query or page never blocks ingest.
+
+**Packaging**
+- `scripts/homebrew-formula.sh` prints a Homebrew formula for a release, for anyone running a tap.
 
 ## v0.1.0
 
