@@ -8,7 +8,7 @@ test("delight demo under 30s", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
     if (document.documentElement) document.documentElement.dataset.theme = "light"
-    localStorage.setItem("aftertrace-resolved", JSON.stringify([4]))
+    localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"]))
   })
 
   await page.goto("/#/findings")

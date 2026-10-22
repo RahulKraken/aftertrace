@@ -8,14 +8,14 @@ import { Num } from "../components/Num"
 import { api } from "../lib/api"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import type { Finding } from "../lib/types"
-import { onWins, resolveFinding, resolvedIds } from "../lib/wins"
+import { findingKey, onWins, resolveFinding, resolvedKeys } from "../lib/wins"
 
-type PendingWin = { win: Win; id: number }
+type PendingWin = { win: Win; finding: Finding }
 
 export function FindingsPage() {
   const [fs, setFs] = useState<Finding[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [resolved, setResolved] = useState(() => resolvedIds())
+  const [resolved, setResolved] = useState(() => resolvedKeys())
   // #/findings?focus=3 opens with that finding as the hero (Home links here).
   const [focus, setFocus] = useState<number | null>(() => {
     const h = window.location.hash
@@ -29,11 +29,11 @@ export function FindingsPage() {
     api.findings().then(setFs).catch((e: Error) => setErr(e.message))
   }, [])
 
-  useEffect(() => onWins(() => setResolved(resolvedIds())), [])
+  useEffect(() => onWins(() => setResolved(resolvedKeys())), [])
 
   const finishWin = useCallback(() => {
     const cur = pendingRef.current
-    if (cur) resolveFinding(cur.id)
+    if (cur) resolveFinding(cur.finding)
     pendingRef.current = null
     setPending(null)
     setFocus(null)
@@ -57,11 +57,11 @@ export function FindingsPage() {
     )
   }
 
-  const open = fs.filter((f) => !resolved.has(f.id))
+  const open = fs.filter((f) => !resolved.has(findingKey(f)))
   const order = [...resolved]
   const done = fs
-    .filter((f) => resolved.has(f.id))
-    .sort((a, b) => order.indexOf(b.id) - order.indexOf(a.id))
+    .filter((f) => resolved.has(findingKey(f)))
+    .sort((a, b) => order.indexOf(findingKey(b)) - order.indexOf(findingKey(a)))
   const hero = open.find((f) => f.id === focus) || rankHero(open)
   const rest = open.filter((f) => f.id !== hero?.id)
 
@@ -85,11 +85,11 @@ export function FindingsPage() {
               <HeroFinding
                 f={hero}
                 onFixed={(win) => {
-                  const next = { win, id: hero.id }
+                  const next = { win, finding: hero }
                   pendingRef.current = next
                   setPending(next)
                 }}
-                onDone={() => resolveFinding(hero.id)}
+                onDone={() => resolveFinding(hero)}
               />
             </motion.div>
           ) : (
