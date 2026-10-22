@@ -300,7 +300,7 @@ export function Waterfall({
       <div className="wf-main">
         <div className="wf-head">
           <div className="crumbs">
-            <Link href="/">Sessions</Link> ›{" "}
+            <Link href="/sessions">Sessions</Link> ›{" "}
             <Link href={`/session/${trace.session_id}`} className="mono">
               {trace.session_id.slice(0, 8)}
             </Link>{" "}

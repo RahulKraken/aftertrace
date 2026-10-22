@@ -216,3 +216,84 @@ export type ToolFamily =
   | "mcp"
   | "agent"
   | "other"
+
+export type WindowStats = {
+  sessions: number
+  turns: number
+  turn_ms: number
+  breakdown: Breakdown
+  cost_usd: number
+  requests: number
+  tokens: number
+  cache_hit: number | null
+  lines_added: number
+  lines_removed: number
+  commits: number
+  pull_requests: number
+  active_s: number
+  tool_calls: number
+  approvals: number
+  errors: number
+}
+
+export type DayPoint = {
+  day: string
+  start_ns: number
+  cost_usd: number
+  turn_ms: number
+  wait_ms: number
+  turns: number
+}
+
+export type LiveLane = {
+  session_id: string
+  trace_id: string
+  title: string | null
+  source: string
+  start_ns: number
+  last_ns: number
+  spans: number
+  cost_usd: number
+  doing: string
+  quiet: boolean
+}
+
+export type Source = {
+  name: string
+  kind: "claude-code" | "app"
+  spans: number
+  events: number
+  metrics: number
+  first_ns: number
+  last_ns: number
+  live: boolean
+}
+
+export type Overview = {
+  now: number
+  lo: number
+  hi: number
+  anchored: boolean
+  week: WindowStats
+  prev: WindowStats
+  days: DayPoint[]
+  live: LiveLane[]
+  sources: Source[]
+  top: Finding | null
+  open: number
+  recent: Session[]
+  has_data: boolean
+}
+
+export type Status = {
+  now: number
+  info: { version: string; db_path: string; store_content: boolean; otlp_grpc: string; otlp_http: string; ui: string }
+  ask: { enabled: boolean; model?: string }
+  counts: { Spans: number; SpanEvents: number; Events: number; MetricPoints: number }
+  running: number
+  sessions: number
+  findings: number
+  apps: number
+  sources: number
+  last_ns: number
+}

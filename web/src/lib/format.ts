@@ -102,3 +102,27 @@ export function niceTicks(totalMs: number): number[] {
   for (let x = 0; x <= totalMs; x += step) t.push(x)
   return t
 }
+
+// Relative time for a unix-ns timestamp: "now", "12s ago", "4m ago", "3h ago", "2d ago".
+export function ago(ns: number | null | undefined, nowMs = Date.now()): string {
+  if (!ns) return "never"
+  const s = Math.max(0, Math.round((nowMs * 1e6 - ns) / 1e9))
+  if (s < 5) return "now"
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 48) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+// Signed percentage change, or null when there is no baseline.
+export function delta(cur: number, prev: number): number | null {
+  if (!prev) return null
+  return (cur - prev) / prev
+}
+
+export function int(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return "—"
+  return Math.round(v).toLocaleString("en-US")
+}

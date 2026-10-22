@@ -6,8 +6,11 @@ import type {
   Finding,
   QueryResult,
   QuerySpec,
+  Overview,
   Range,
   Session,
+  Source,
+  Status,
   SessionDetail,
   SqlResult,
   Trace,
@@ -42,6 +45,9 @@ export function emptyMode(): boolean {
 }
 
 export const api = {
+  overview: () => request<Overview>("/api/overview"),
+  status: () => request<Status>("/api/status"),
+  sources: () => request<{ now: number; sources: Source[] }>("/api/sources"),
   sessions: () => (emptyMode() ? Promise.resolve([] as Session[]) : request<Session[]>("/api/sessions")),
   session: (id: string) => request<SessionDetail>(`/api/session/${id}`),
   trace: (id: string) => request<Trace>(`/api/trace/${id}`),

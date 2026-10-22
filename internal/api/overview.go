@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
-	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
 const day = int64(24 * time.Hour)
@@ -363,7 +362,7 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	findings := rules.RunAll(db)
+	findings := findingsFor(db)
 	var top any
 	open := 0
 	for _, f := range findings {

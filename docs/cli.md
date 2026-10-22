@@ -1,6 +1,6 @@
 # CLI
 
-`aftertrace` has three commands. Unknown commands and a missing command print usage and exit 2.
+`aftertrace` has four commands: `serve`, `import`, `demo` and `version`. Unknown commands and a missing command print usage and exit 2.
 
 ```
 Aftertrace — local profiler for Claude Code.
@@ -9,6 +9,7 @@ Usage:
   aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
   aftertrace import  [--db PATH] [--store-content] <dir>
   aftertrace demo    [--db PATH]
+  aftertrace version
 ```
 
 `help`, `-h`, and `--help` print the same text. Each command also accepts `-h` for its flags. Go's flag package accepts both `-db` and `--db`.

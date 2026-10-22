@@ -6,11 +6,16 @@ import { Shell } from "./components/Shell"
 import { EmptyState } from "./components/EmptyState"
 import { ToastHost } from "./lib/toast"
 import { applyTheme, readTheme, type Theme } from "./lib/theme"
+import { AppsPage } from "./pages/AppsPage"
+import { ConnectPage } from "./pages/ConnectPage"
 import { CostPage } from "./pages/CostPage"
 import { FindingsPage } from "./pages/FindingsPage"
+import { HomePage } from "./pages/HomePage"
 import { QueryPage } from "./pages/QueryPage"
+import { RecapPage } from "./pages/RecapPage"
 import { SessionPage } from "./pages/SessionPage"
 import { SessionsPage } from "./pages/SessionsPage"
+import { SettingsPage } from "./pages/SettingsPage"
 import { TracePage } from "./pages/TracePage"
 
 function useHashPath(): [string, (to: string, opts?: { replace?: boolean }) => void] {
@@ -32,7 +37,12 @@ export default function App() {
       <Router hook={useHashPath}>
         <Shell theme={theme} onTheme={setTheme} mock={mock}>
           <Switch>
-            <Route path="/" component={SessionsPage} />
+            <Route path="/" component={HomePage} />
+            <Route path="/sessions" component={SessionsPage} />
+            <Route path="/apps" component={AppsPage} />
+            <Route path="/recap" component={RecapPage} />
+            <Route path="/connect" component={ConnectPage} />
+            <Route path="/settings" component={SettingsPage} />
             <Route path="/session/:id" component={SessionPage} />
             <Route path="/trace/:id" component={TracePage} />
             <Route path="/findings" component={FindingsPage} />

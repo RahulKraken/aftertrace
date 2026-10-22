@@ -36,7 +36,21 @@ import toolsJson from "./fixtures/tables/tools.json"
 import qSpansJson from "./fixtures/tables/q_spans.json"
 import spansJson from "./fixtures/tables/spans.json"
 
-export const sessions = sessionsJson as Session[]
+// Synthetic first prompts, so the demo reads like real use. Keyed by repo.
+// Synthetic first prompts, so the demo reads like real use.
+const TITLES = [
+  "Tidy up my zsh aliases and add a git log alias",
+  "Set up a pre-commit hook for the dotfiles repo",
+  "Fix the flaky orders test and make npm test pass",
+  "Generate the monthly PDF report for the dashboard",
+  "Add rate limiting to the /v1/orders endpoint",
+  "Why is the checkout page slow? Profile the bundle",
+]
+
+export const sessions = (sessionsJson as Session[]).map((s, i) => ({
+  ...s,
+  title: TITLES[i % TITLES.length],
+}))
 export const findings = findingsJson as Finding[]
 export const fields = fieldsJson as Field[]
 export const range = rangeJson as Range
