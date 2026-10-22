@@ -454,7 +454,7 @@ button.tx-item:hover { border-color: var(--mute); }
   overflow: auto; padding: 16px 16px 28px;
   position: relative;
 }
-.pane.accent { box-shadow: inset 3px 0 0 var(--pane-hue, var(--hue-model)), var(--shadow-pane); }
+.pane.accent { box-shadow: var(--shadow-pane); }
 .pane h2 { font-size: 14px; margin: 0; font-weight: 600; display: flex; gap: 8px; align-items: center; }
 .pane .sec { margin-top: 16px; }
 .pane .sec > .h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); margin-bottom: 6px; }
@@ -860,7 +860,7 @@ td.prompt-cell { display: table-cell; max-width: 0; width: 55%; }
 @media (prefers-reduced-motion: reduce) { .run-pill::before { animation: none; } }
 .pane-target {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  overflow-wrap: anywhere; font: 12px/1.45 var(--mono); color: var(--ink-2); margin-bottom: 2px;
+  overflow-wrap: anywhere; font: 13px/1.45 var(--sans); color: var(--ink-2); margin-bottom: 2px;
 }
 .err-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hue-retry); flex: none; margin: 0 6px; }
 button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: var(--hue-retry); cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--hue-retry) 40%, transparent); text-underline-offset: 2px; }
@@ -1399,13 +1399,14 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
   border: 1px solid color-mix(in oklab, var(--hue-wait) 35%, transparent);
 }
 
-.wf-stats { display: flex; flex-wrap: wrap; margin: 14px -16px -10px; border-top: 1px solid var(--line); }
+.wf-stats { display: flex; flex-wrap: nowrap; overflow: hidden; margin: 14px -16px -10px; border-top: 1px solid var(--line); }
 .wf-stat {
-  flex: 1 1 0; min-width: 104px; display: flex; flex-direction: column; gap: 3px; padding: 10px 16px 11px;
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px 11px;
   border: 0; border-right: 1px solid var(--line); background: none; text-align: left; font: inherit; color: inherit;
 }
 .wf-stat:last-child { border-right: 0; }
-.wf-stat .k { font-size: 10.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--faint); }
+.wf-stat .k { font-size: 10.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-stat .v { white-space: nowrap; }
 .wf-stat .v { font-size: 17px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .wf-stat.is-wait .v { color: color-mix(in oklab, var(--hue-wait) 75%, var(--ink)); }
 .wf-stat.is-err { cursor: pointer; }
@@ -1496,3 +1497,43 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .model-name, .tool-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .model-name svg, .tool-name svg { flex: none; }
 .tool-name svg { color: var(--mute); }
+
+/* First run: a welcome, not an error page. The steps arrive one after another. */
+.welcome { max-width: 600px; margin: 9vh auto 64px; padding: 0 24px; }
+.welcome-mark {
+  width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); margin-bottom: 22px;
+}
+.welcome h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.04em; margin: 0; }
+.welcome-lede { color: var(--mute); font-size: 15.5px; line-height: 1.6; margin: 10px 0 30px; max-width: 34em; }
+.welcome-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; position: relative; }
+.welcome-steps li {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 14px; padding: 0 0 22px; position: relative;
+  animation: page-in var(--dur-3) var(--ease-out) both;
+}
+.welcome-steps li:nth-child(2) { animation-delay: 70ms; }
+.welcome-steps li:nth-child(3) { animation-delay: 140ms; }
+.welcome-steps li:not(:last-child)::before { content: ""; position: absolute; left: 13.5px; top: 30px; bottom: 2px; width: 1.5px; background: var(--line); }
+.ws-node {
+  width: 28px; height: 28px; border-radius: 99px; display: grid; place-items: center; font: 600 12px var(--sans);
+  background: var(--surface); border: 1.5px solid var(--line-2); color: var(--ink-2);
+}
+.welcome-steps li.is-done .ws-node { background: var(--hue-ok); border-color: var(--hue-ok); color: var(--surface); }
+.welcome-steps li.is-waiting .ws-node { border-color: color-mix(in oklab, var(--hue-model) 40%, var(--line)); }
+.ws-t { font-size: 15px; font-weight: 600; letter-spacing: -0.015em; padding-top: 4px; }
+.ws-d { color: var(--mute); font-size: 13.5px; margin-top: 2px; }
+.welcome-cta { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; height: 36px; padding: 0 14px; border-radius: 10px; text-decoration: none; }
+.welcome-demo {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; padding: 14px 16px;
+  border-radius: 12px; background: var(--bg-recessed); color: var(--mute); font-size: 13.5px;
+  animation: page-in var(--dur-3) var(--ease-out) 210ms both;
+}
+.welcome-demo code { font: 12.5px var(--mono); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+
+.session-title {
+  font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -0.035em; margin: 10px 0 0; max-width: 34em; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.session-story { margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
+.session-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 22px; font-size: 13px; }
+.welcome-demo .copy-inline { margin: 0 0 0 auto; }

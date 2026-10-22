@@ -65,11 +65,13 @@ export type TurnStoryModel = {
 export const PAUSE_MS = 60_000
 
 const INJECTED = /<(system-reminder|task-notification|side-sessions-event|ci-monitor-event|local-command-caveat)\b[^>]*>[\s\S]*?<\/\1>/g
+const UNCLOSED = /<(system-reminder|task-notification|side-sessions-event|ci-monitor-event|local-command-caveat)\b[\s\S]*$/
 const TAG = /<\/?[A-Za-z_][\w-]*(\s[^<>]*)?>/g
 
 // What the person typed: injected blocks dropped, wrapper tags removed.
 export function cleanPrompt(s: string): string {
-  const out = s.replace(INJECTED, " ").replace(TAG, " ").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
+  // A prompt clipped mid-block leaves an injected block with no closing tag.
+  const out = s.replace(INJECTED, " ").replace(UNCLOSED, " ").replace(TAG, " ").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
   if (out || !s.trim()) return out
   if (s.includes("<task-notification")) return "Background task finished"
   if (s.includes("<side-sessions-event")) return "Update from a side session"

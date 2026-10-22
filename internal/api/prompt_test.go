@@ -10,6 +10,8 @@ func TestCleanPrompt(t *testing.T) {
 		{"<system-reminder>one</system-reminder><system-reminder>two</system-reminder>", "Automated message"},
 		{"<task-notification><task-id>b1</task-id></task-notification>", "Background task finished"},
 		{"<system-reminder>x</system-reminder><side-sessions-event>None working</side-sessions-event>", "Update from a side session"},
+		{"<system-reminder>\nLinked sessions now: a = b (done, PR #5); c", "Automated message"},
+		{"Fix it <system-reminder>clipped", "Fix it"},
 		{"", ""},
 	}
 	for _, c := range cases {

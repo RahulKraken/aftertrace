@@ -3,6 +3,7 @@ import { X } from "lucide-react"
 import { contentFor, snippet, type ContentIndex } from "../../lib/content"
 import { ContentBlock } from "./ContentBlock"
 import { CAT_LABEL, CATS, dur, pct, tok, usd } from "../../lib/format"
+import { rowLabel } from "../../lib/labels"
 import { isAppTrace, labelOf, rollup, runChild, spanKind, usageOf, waitChild, type SpanNode } from "../../lib/span"
 import type { Finding, SpanKind, Trace } from "../../lib/types"
 import { hueVar } from "../../lib/hue"
@@ -25,7 +26,8 @@ export function DetailPane({
   onClose: () => void
 }) {
   const k = spanKind(node)
-  const { name, target } = labelOf(node)
+  // The same words as the row and the card; the raw span name stays in the subtitle.
+  const { name, target } = rowLabel(node, content)
   const a = node.attrs
   const j = node.joined || {}
   const cited = (node.findings || []).map((id) => findings.find((f) => f.id === id)).filter(Boolean) as Finding[]
@@ -48,7 +50,7 @@ export function DetailPane({
           <SpanIcon span={node} />
         </span>
         <span className="pane-title">{name}</span>
-        <span className="mono mute" style={{ fontWeight: 400 }}>
+        <span className="num mute" style={{ fontWeight: 400 }}>
           {dur(node.duration_ms)}
         </span>
         <span className="spacer" />
@@ -66,7 +68,7 @@ export function DetailPane({
           <>
             {" · "}
             <button type="button" className="add" onClick={() => onSelect(parent)} style={{ border: 0, background: "none", padding: 0 }}>
-              parent
+              Up to parent
             </button>
           </>
         ) : null}

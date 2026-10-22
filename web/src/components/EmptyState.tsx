@@ -1,78 +1,62 @@
-import { Check, Circle } from "lucide-react"
+import { ArrowRight, Check } from "lucide-react"
+import { siClaude } from "simple-icons"
+import { Link } from "wouter"
+import { BrandIcon } from "./BrandIcon"
 import { CopyButton } from "./CopyButton"
+import { Logo } from "./Logo"
 
-const SETTINGS = `{
-  "env": {
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
-    "OTEL_METRICS_EXPORTER": "otlp",
-    "OTEL_LOGS_EXPORTER": "otlp",
-    "OTEL_TRACES_EXPORTER": "otlp",
-    "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
-    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4317",
-    "OTEL_LOG_TOOL_DETAILS": "1"
-  }
-}`
-
+// The first thing a new person sees. Visible system status (it is running),
+// one obvious next step (connect), feedback that it is listening, and a way
+// to look around before connecting anything.
 export function EmptyState() {
   return (
-    <div className="empty-hero">
-      <h1>Nothing on the wire yet</h1>
-      <p>
-        Aftertrace is listening on this machine. Point Claude Code at the local collector and the first turn will show up
-        here.
-      </p>
-      <div className="checks">
-        <div className="check on">
-          <div className="check-icon">
-            <Check size={13} />
-          </div>
-          <div className="body">
-            <div className="t">Receiver is listening</div>
-            <div className="d">OTLP on 127.0.0.1:4317 (gRPC) and :4318 (HTTP). This UI is up.</div>
-          </div>
-        </div>
-        <div className="check">
-          <div className="check-icon">
-            <Circle size={10} />
-          </div>
-          <div className="body">
-            <div className="t">Claude Code env not set</div>
-            <div className="d">
-              Add the exporters to <code>~/.claude/settings.json</code>. Managed settings can override a repo-local
-              file, so the user one is the one that counts.
-            </div>
-          </div>
-        </div>
-        <div className="check">
-          <div className="check-icon">
-            <Circle size={10} />
-          </div>
-          <div className="body">
-            <div className="t">Waiting for the first span</div>
-            <div className="d">Send a prompt in Claude Code. A turn will land within a few seconds of export.</div>
-          </div>
-        </div>
+    <div className="welcome">
+      <div className="welcome-mark">
+        <Logo size={30} />
       </div>
-      <div className="recipe">
-        <div
-          className="h"
-          style={{ fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--faint)" }}
-        >
-          Connect Claude Code
-        </div>
-        <ol>
-          <li>
-            <span>
-              Paste this into <code>~/.claude/settings.json</code>. Keep <code>OTEL_LOG_TOOL_DETAILS=1</code> so
-              skill, agent and MCP names stay real. Prompt text stays redacted at the source. Claude Code ignores these
-              keys in a repository <code>.claude/settings.json</code>.
-            </span>
-            <CopyButton className="btn ghost copy-inline" text={SETTINGS} label="Copy settings.json" done="Copied" />
-            <pre>{SETTINGS}</pre>
-          </li>
-          <li>Restart Claude Code, then send a prompt. This page will fill in.</li>
-        </ol>
+      <h1>Welcome to Aftertrace</h1>
+      <p className="welcome-lede">
+        It's running on this machine and nothing leaves it. Connect Claude Code, or any app that speaks OpenTelemetry, and
+        your first turn shows up here as it happens.
+      </p>
+
+      <ol className="welcome-steps">
+        <li className="is-done">
+          <span className="ws-node">
+            <Check size={13} strokeWidth={2.5} />
+          </span>
+          <div>
+            <div className="ws-t">Aftertrace is running</div>
+            <div className="ws-d">Listening on 127.0.0.1 for traces, logs and metrics.</div>
+          </div>
+        </li>
+        <li>
+          <span className="ws-node">2</span>
+          <div>
+            <div className="ws-t">Connect a source</div>
+            <div className="ws-d">One block in your Claude Code settings, or a few lines in your app.</div>
+            <Link href="/connect" className="btn welcome-cta">
+              <BrandIcon icon={siClaude} size={14} mono />
+              Connect Claude Code
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </li>
+        <li className="is-waiting">
+          <span className="ws-node">
+            <i className="live-dot" />
+          </span>
+          <div>
+            <div className="ws-t">Send a prompt</div>
+            <div className="ws-d">Listening for your first span. This page fills in by itself.</div>
+          </div>
+        </li>
+      </ol>
+
+      <div className="welcome-demo">
+        <span>Just looking around? Load synthetic sessions and apps:</span>
+        <code>aftertrace demo</code>
+        <CopyButton className="btn ghost copy-inline" text="aftertrace demo" label="Copy" done="Copied" />
       </div>
     </div>
   )

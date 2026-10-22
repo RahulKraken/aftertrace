@@ -72,7 +72,10 @@ export function appDetail(service: string): AppDetail | undefined {
 }
 
 export function sessionDetail(id: string): SessionDetail | undefined {
-  return sessionFiles[`./fixtures/sessions/${id}.json`]
+  const d = sessionFiles[`./fixtures/sessions/${id}.json`]
+  // The list carries the synthetic title; the detail should say the same.
+  const listed = sessions.find((s) => s.session_id === id)
+  return d && listed ? { ...d, session: { ...d.session, title: listed.title } } : d
 }
 
 export function getTrace(id: string): Trace | undefined {
