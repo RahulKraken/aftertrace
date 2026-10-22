@@ -66,10 +66,42 @@ test("sessions list", async ({ page }) => {
   await shot(page, "sessions", "dark")
 })
 
-test("waterfall default: bars own the page", async ({ page }) => {
+test("story default: a turn reads as steps", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}`)
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
+  await expect(page.locator(".seg-view button.on")).toHaveText("Story")
+  await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
+  await expect(page.locator(".st-bar i")).not.toHaveCount(0)
+  await expect(page.locator(".st-ch")).not.toHaveCount(0)
+  await expect(page.locator(".st-end")).toContainText("Done")
+  // Steps without Claude's words are named by the work they did.
+  await expect(page.locator(".st-title").first()).not.toHaveText("")
+  await shot(page, "story", "light")
+  await shot(page, "story", "dark")
+})
+
+test("story step opens the inspector, and Timeline keeps the choice", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await waitFonts(page)
+  const step = page.locator(".st-ch").filter({ hasText: "subagent" }).first()
+  await step.locator(".st-ch-head").click()
+  await expect(step.locator(".st-act").first()).toBeVisible()
+  await expect(step.locator(".st-acts-nested .st-act").first()).toBeVisible()
+  await step.locator(".st-act").first().click()
+  await expect(page.locator(".pane-col")).toBeVisible()
+  await shot(page, "story-open", "light")
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".pane-col")).toHaveCount(0)
+  await page.locator(".seg-view").getByRole("tab", { name: "Timeline" }).click()
+  await expect(page.locator(".wf-body")).toBeVisible()
+  await page.reload()
+  await expect(page.locator(".seg-view button.on")).toHaveText("Timeline")
+})
+
+test("waterfall default: bars own the page", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
+  await waitFonts(page)
+  await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
   await expect(page.locator(".pane")).toHaveCount(0)
   await expect(page.locator(".minimap")).toHaveCount(0)
   await expect(page.locator(".chips")).toHaveCount(0)
@@ -81,7 +113,7 @@ test("waterfall default: bars own the page", async ({ page }) => {
 })
 
 test("waterfall hover popover", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
   const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "opus" }) }).first()
   await model.hover()
@@ -95,7 +127,7 @@ test("waterfall hover popover", async ({ page }) => {
 })
 
 test("waterfall collapsed +N pill", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
   await page.locator(".row").first().locator(".caret").click()
   await expect(page.locator(".n-pill").first()).toBeVisible()
@@ -106,7 +138,7 @@ test("waterfall collapsed +N pill", async ({ page }) => {
 })
 
 test("waterfall cost toggle", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
   await page.locator(".seg-metric").getByRole("tab", { name: "Cost" }).click()
   await expect(page.locator(".seg-metric button.on")).toHaveText("Cost")
@@ -116,7 +148,7 @@ test("waterfall cost toggle", async ({ page }) => {
 })
 
 test("waterfall selected: pane takes the budget", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   const bash = page.locator(".row").filter({ has: page.locator(".name", { hasText: "Bash" }) }).first()
   if (await bash.locator(".n-pill").count()) await bash.locator(".caret").click()
   const waitRow = page.locator(".row").filter({ hasText: "waiting on you" }).first()

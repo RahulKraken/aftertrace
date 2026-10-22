@@ -31,50 +31,17 @@ import { useReplay } from "../../hooks/useReplay"
 import { barClass, glyphClass, SpanIcon } from "../SpanIcon"
 import { IconLegend } from "../IconLegend"
 import { DetailPane } from "./DetailPane"
+import { PaneColumn } from "./PaneColumn"
+import { readPx, startDrag, writePx } from "../../lib/drag"
+import { TraceViewSwitch } from "../story/TraceViewSwitch"
+import type { TraceView } from "../../lib/traceView"
 import { SpanPopover } from "./SpanPopover"
 import { TREE_DEPTH, TREE_PAD, TreeConnectors } from "./TreeConnectors"
 
 const ROW = 32
-const PANE_KEY = "aftertrace-pane-w"
 const LAB_KEY = "aftertrace-lab-w"
-const PANE_MIN = 320
 const LAB_MIN = 180
-// The waterfall keeps at least this much room when the pane grows.
-const MAIN_MIN = 420
 
-function readPx(key: string, fallback: number | null): number | null {
-  try {
-    const v = Number(window.localStorage.getItem(key))
-    return Number.isFinite(v) && v > 0 ? v : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writePx(key: string, v: number | null) {
-  try {
-    if (v == null) window.localStorage.removeItem(key)
-    else window.localStorage.setItem(key, String(Math.round(v)))
-  } catch {
-    // Storage can be blocked. Width just resets next time.
-  }
-}
-
-// Pointer drag with body-level cursor and no text selection while it runs.
-function startDrag(e: React.PointerEvent, onMove: (dx: number) => void, onEnd: () => void) {
-  e.preventDefault()
-  const x0 = e.clientX
-  document.body.classList.add("is-col-resize")
-  const move = (ev: PointerEvent) => onMove(ev.clientX - x0)
-  const up = () => {
-    document.body.classList.remove("is-col-resize")
-    window.removeEventListener("pointermove", move)
-    window.removeEventListener("pointerup", up)
-    onEnd()
-  }
-  window.addEventListener("pointermove", move)
-  window.addEventListener("pointerup", up)
-}
 export type MetricMode = "time" | "cost"
 
 export function Waterfall({
@@ -82,11 +49,15 @@ export function Waterfall({
   findings,
   initialSpan,
   replay: replayProp,
+  traceView,
+  onView,
 }: {
   trace: Trace
   findings: Finding[]
   initialSpan?: string | null
   replay?: boolean
+  traceView?: TraceView
+  onView?: (v: TraceView) => void
 }) {
   const { root, byId } = useMemo(() => buildForest(trace.spans), [trace])
   const mark = useMemo(() => bottleneckFor(trace, findings), [trace, findings])
@@ -119,7 +90,6 @@ export function Waterfall({
   const [scrollTop, setScrollTop] = useState(0)
   const [trackW, setTrackW] = useState(0)
   const [labW, setLabW] = useState(0)
-  const [paneW, setPaneW] = useState(() => readPx(PANE_KEY, 520) as number)
   const [labPx, setLabPx] = useState<number | null>(() => readPx(LAB_KEY, null))
   const wfRef = useRef<HTMLDivElement>(null)
   const content = useMemo(() => indexContent(trace), [trace])
@@ -327,6 +297,7 @@ export function Waterfall({
             <button type="button" className="replay-btn" onClick={restart} hidden={live}>
               Replay
             </button>
+            {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
             <div className="seg seg-metric" role="tablist" aria-label="Row metric">
               <button type="button" role="tab" aria-selected={metric === "time"} className={metric === "time" ? "on" : ""} onClick={() => setMetric("time")}>
                 Time
@@ -598,28 +569,7 @@ export function Waterfall({
         </div>
       </div>
       {paneOpen && (
-        <div className="pane-col" style={{ width: paneW }}>
-          <div
-            className="pane-resizer"
-            title="Drag to resize. Double-click to reset."
-            onDoubleClick={() => {
-              setPaneW(520)
-              writePx(PANE_KEY, null)
-            }}
-            onPointerDown={(e) => {
-              const total = wfRef.current?.getBoundingClientRect().width || window.innerWidth
-              const w0 = paneW
-              let last = w0
-              startDrag(
-                e,
-                (dx) => {
-                  last = Math.max(PANE_MIN, Math.min(total - MAIN_MIN, w0 - dx))
-                  setPaneW(last)
-                },
-                () => writePx(PANE_KEY, last),
-              )
-            }}
-          />
+        <PaneColumn>
           <DetailPane
             node={selected}
             trace={trace}
@@ -628,7 +578,7 @@ export function Waterfall({
             onSelect={(id) => setSel(id)}
             onClose={() => setPaneOpen(false)}
           />
-        </div>
+        </PaneColumn>
       )}
     </div>
   )

@@ -31,8 +31,20 @@ export function turnStory(t: Trace): string {
   const bd = t.breakdown
   const wait = bd?.permission_wait || 0
   const retry = bd?.retry || 0
+  // AskUserQuestion holds the turn the same way a permission prompt does, but
+  // it is Claude asking you something, not you approving a tool.
+  const asks = t.spans.filter((s) => s.name === "claude_code.tool" && s.attrs.tool_name === "AskUserQuestion")
+  const askIds = new Set(asks.map((s) => s.span_id))
+  const askWait = t.spans
+    .filter((s) => s.name === "claude_code.tool.blocked_on_user" && askIds.has(s.parent_span_id || ""))
+    .reduce((n, s) => n + s.duration_ms, 0)
+  if (askWait / tot >= 0.08 && askWait >= wait - askWait) {
+    const work = Math.max(tot - wait, 0)
+    const what = asks.length === 1 ? "your answer" : `your answers to ${asks.length} questions`
+    return `Claude waited ${dur(askWait)} for ${what}. The work itself took ${dur(work)}.`
+  }
   if (wait / tot >= 0.08) {
-    return `You spent ${pct(wait / tot)} of this turn waiting on approvals.`
+    return `You spent ${pct(wait / tot)} of this turn approving tool calls.`
   }
   if (retry / tot >= 0.08) {
     return `Retries cost ${dur(retry)} before a successful request.`
