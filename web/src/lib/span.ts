@@ -149,6 +149,8 @@ export function defaultCollapsed(root: SpanNode): Set<string> {
     const k = spanKind(s)
     if (k === "tool" && s.kids.length) out.add(s.span_id)
     if (k === "agent" && s.kids.length) out.add(s.span_id)
+    // Steps from groupSteps start closed: the turn reads as a list of steps.
+    if (s.name === "aftertrace.step") out.add(s.span_id)
     s.kids.forEach(walk)
   }
   walk(root)
@@ -225,7 +227,7 @@ export function kindLabel(s: Span): string {
   if (k === "model") return "LLM call"
   if (k === "wait") return "Permission wait"
   if (k === "agent") return "Subagent"
-  if (k === "tool") return "Tool"
+  if (k === "tool") return "Tool call"
   if (k === "run") return "Run"
   if (k === "hook") return "Hook"
   return "Span"

@@ -217,7 +217,9 @@ func cmdDemo(args []string) int {
 		return 1
 	}
 	defer st.Close()
-	c, err := otlp.ImportDir(st, dir, false)
+	// Demo data is synthetic, so its content is kept: one session carries
+	// made-up prompts and replies to show what content capture adds.
+	c, err := otlp.ImportDir(st, dir, true)
 	if err != nil {
 		log.Printf("ingest: %v", err)
 		return 1

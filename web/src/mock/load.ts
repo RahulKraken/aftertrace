@@ -44,14 +44,13 @@ import toolsJson from "./fixtures/tables/tools.json"
 import qSpansJson from "./fixtures/tables/q_spans.json"
 import spansJson from "./fixtures/tables/spans.json"
 
-// Synthetic first prompts, so the demo reads like real use. Keyed by repo.
 // Synthetic first prompts, so the demo reads like real use.
 const TITLES = [
   "Tidy up my zsh aliases and add a git log alias",
   "Set up a pre-commit hook for the dotfiles repo",
   "Fix the flaky orders test and make npm test pass",
   "Generate the monthly PDF report for the dashboard",
-  "Add rate limiting to the /v1/orders endpoint",
+  "Customers are getting charged twice when checkout times out. Find out why and fix it (ORD-142).",
   "Why is the checkout page slow? Profile the bundle",
 ]
 

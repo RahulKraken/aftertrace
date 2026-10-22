@@ -54,17 +54,39 @@ func buildSessions(rng *rand.Rand) []*Session {
 	s2 := newSession(rng, "acme-api", "claude-opus-5", "xhigh", BaseNS+int64(26*3600e9), "cli")
 	sessions = append(sessions, s2)
 	s2.start([][2]any{{"release-notes", 2}}, [][2]string{{"linear", "connected"}, {"sentry", "failed"}}, nil)
+	// The showcase session: synthetic prompts and narration, so the demo shows
+	// what the story view reads like with content capture on.
+	prompts := []string{
+		"Customers are getting charged twice when checkout times out. Find out why and fix it (ORD-142).",
+		"Log which retry attempt charged the card, so we can see this in production.",
+		"ORD-150 and ORD-151 look like the same bug. Check, and fix them too if so.",
+		"Tidy up the error messages in orders.go before I open the PR.",
+	}
+	opening := []string{
+		"I'll pull the open Linear issues for the orders API first.",
+		"Adding the attempt number to the charge log line in orders.go.",
+		"Reading ORD-150 and ORD-151 before touching anything.",
+		"Rewording the errors so each says what failed and what to do next.",
+	}
+	finals := []string{
+		"Fixed the double charge in `api/handlers/orders.go`: a retry now reuses the original idempotency key, so a timeout can't charge twice.\n\nThe reviewer flagged the same pattern in refunds. I left that for you.",
+		"The charge log now includes `attempt=N` and the idempotency key, so a double charge shows up as two lines with one key.",
+		"ORD-150 is fixed by the same change. ORD-151 is a separate race: the webhook can arrive before the order is saved. I added a note to the issue rather than guess at a fix.",
+		"Error messages in `orders.go` now name the order and the next step. No behaviour changed.",
+	}
 	for i := 0; i < 4; i++ {
 		ii := i
+		s2.prompt = prompts[ii]
 		s2.interaction(func(ctx [4]string, t int64) int64 {
-			t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s"})
+			t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", say: opening[ii]})
 			if ii == 0 {
 				t, _, _ = s2.tool(ctx, t, "mcp__linear__list_issues", toolOpt{
 					execMS: 1500 + s2.rng.Intn(1501), resultTokens: 18000 + s2.rng.Intn(8001), mcp: "user",
 					params: map[string]any{"mcp_server_name": "linear", "mcp_tool_name": "list_issues"},
 				})
 				added := 22000
-				t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", added: &added, attribution: map[string]any{"mcp_server.name": "linear", "mcp_tool.name": "list_issues"}})
+				t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", added: &added, attribution: map[string]any{"mcp_server.name": "linear", "mcp_tool.name": "list_issues"},
+					say: "ORD-142 is the double charge. Sending one agent to trace the retry path and a reviewer to read the handler."})
 				starts := t
 				var ends []int64
 				for _, spec := range []struct {
@@ -82,7 +104,7 @@ func buildSessions(rng *rand.Rand) []*Session {
 					ends = append(ends, e)
 				}
 				t = max64(ends)
-				t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s"})
+				t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", say: "Both agents point at the retry wrapper: it re-sends the charge without the idempotency key. Fixing it in orders.go."})
 			}
 			if ii == 2 {
 				for n := 0; n < 2; n++ {
@@ -95,7 +117,7 @@ func buildSessions(rng *rand.Rand) []*Session {
 				}
 			}
 			t, _, _ = s2.tool(ctx, t, "Edit", toolOpt{execMS: 80, extra: map[string]any{"file_path": "api/handlers/orders.go"}})
-			t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", stop: "end_turn"})
+			t, _, _ = s2.llm(ctx, t, llmOpt{effort: "__s", stop: "end_turn", say: finals[ii]})
 			return t
 		}, 0, nil)
 	}

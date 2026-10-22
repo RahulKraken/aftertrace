@@ -16,11 +16,15 @@ test("every page renders against the real server", async ({ page, request }) => 
   await page.locator(".sessions-grid tbody tr:not(.day-row)").first().click()
   await expect(page).toHaveURL(/#\/session\//)
   await page.locator("table.grid tbody tr").first().click()
-  await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
-  await page.locator(".wf .row[data-span]").nth(1).click()
+  // A turn opens as a story: steps that open into actions, each with an inspector.
+  await expect(page.locator(".st-ch").first()).toBeVisible()
+  await page.locator(".st-ch").filter({ has: page.locator(".st-sub") }).first().locator(".st-ch-head").click()
+  await page.locator(".st-act").first().click()
   await expect(page.locator("#pane")).toBeVisible()
   await page.getByRole("button", { name: "Close panel" }).click()
   await expect(page.locator("#pane")).toHaveCount(0)
+  await page.locator(".seg-view").getByRole("tab", { name: "Timeline" }).click()
+  await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
   await page.goto("/#/findings")
   await expect(page.locator(".frow.hero")).toBeVisible()

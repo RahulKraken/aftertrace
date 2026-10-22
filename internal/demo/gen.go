@@ -81,7 +81,9 @@ type Session struct {
 	cacheModel string
 	skill      string
 	entry      string
-	Batches    []batch
+	// The next turn's prompt text, for the showcase session; empty means redacted.
+	prompt  string
+	Batches []batch
 }
 
 type batch struct {
@@ -215,6 +217,8 @@ type llmOpt struct {
 	ttft                                                   int
 	fail                                                   bool
 	statusCode                                             int
+	// What Claude says on this call, kept for the demo's showcase session.
+	say string
 }
 
 func (s *Session) llm(ctx [4]string, start int64, opt llmOpt) (int64, string, float64) {
@@ -402,8 +406,17 @@ func (s *Session) llm(ctx [4]string, start int64, opt llmOpt) (int64, string, fl
 	}
 	s.event("api_request", end, ea, ctx[0], ctx[3], ctx[2])
 	if stop != "tool_use" {
-		s.event("assistant_response", end, map[string]any{"response_length": outTokens * 4, "response": "<REDACTED>",
+		resp := "<REDACTED>"
+		if opt.say != "" {
+			resp = opt.say
+		}
+		s.event("assistant_response", end, map[string]any{"response_length": outTokens * 4, "response": resp,
 			"model": model, "request_id": rid, "message.uuid": uid(s.rng), "query_source": qs}, ctx[0], ctx[3], ctx[2])
+	} else if opt.say != "" {
+		// Narration before a tool call. Its id comes from the request id, not the
+		// rng, so adding words never shifts the rest of the synthetic data.
+		s.event("assistant_response", end, map[string]any{"response_length": len(opt.say), "response": opt.say,
+			"model": model, "request_id": rid, "message.uuid": "msg-" + rid, "query_source": qs}, ctx[0], ctx[3], ctx[2])
 	}
 	mqs := "main"
 	if opt.agent != "" {
@@ -560,7 +573,12 @@ func (s *Session) interaction(body func(ctx [4]string, t int64) int64, promptLen
 	if pl == 0 {
 		pl = 40 + s.rng.Intn(561)
 	}
-	s.event("user_prompt", start, map[string]any{"prompt_length": pl, "prompt": "<REDACTED>", "message.uuid": uid(s.rng)}, trace, root, promptID)
+	prompt := "<REDACTED>"
+	if s.prompt != "" {
+		prompt = s.prompt
+		s.prompt = ""
+	}
+	s.event("user_prompt", start, map[string]any{"prompt_length": pl, "prompt": prompt, "message.uuid": uid(s.rng)}, trace, root, promptID)
 	ctx := [4]string{trace, root, promptID, root}
 	end := body(ctx, start+15_000_000)
 	end += 10_000_000

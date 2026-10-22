@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "wouter"
 import { bottleneckFor } from "../../lib/bottleneck"
-import { dur, niceTicks, usd, wallClock } from "../../lib/format"
+import { dur, niceTicks, tok, usd, wallClock } from "../../lib/format"
 import { hueVar } from "../../lib/hue"
 import { hashFlag, tickLabel } from "../../lib/replay"
 import {
@@ -15,7 +15,6 @@ import {
   buildForest,
   errorCount,
   hasError,
-  labelOf,
   rollup,
   isAppTrace,
   spanKind,
@@ -25,70 +24,47 @@ import {
   type SpanNode,
 } from "../../lib/span"
 import { appStory, turnStory } from "../../lib/story"
-import { indexContent, snippet, type ContentIndex } from "../../lib/content"
+import { indexContent, type ContentIndex } from "../../lib/content"
+import { groupSteps, PAUSE_MS, STEP } from "../../lib/steps"
+import { rowLabel } from "../../lib/labels"
+import { foldedAxis, linearAxis, type Gap } from "../../lib/timeaxis"
 import type { Finding, Trace } from "../../lib/types"
 import { useReplay } from "../../hooks/useReplay"
 import { barClass, glyphClass, SpanIcon } from "../SpanIcon"
 import { IconLegend } from "../IconLegend"
 import { DetailPane } from "./DetailPane"
-import { SpanPopover } from "./SpanPopover"
+import { PaneColumn } from "./PaneColumn"
+import { readPx, startDrag, writePx } from "../../lib/drag"
+import { TraceViewSwitch } from "../story/TraceViewSwitch"
+import type { TraceView } from "../../lib/traceView"
+import { SpanCard } from "./SpanCard"
 import { TREE_DEPTH, TREE_PAD, TreeConnectors } from "./TreeConnectors"
 
 const ROW = 32
-const PANE_KEY = "aftertrace-pane-w"
 const LAB_KEY = "aftertrace-lab-w"
-const PANE_MIN = 320
 const LAB_MIN = 180
-// The waterfall keeps at least this much room when the pane grows.
-const MAIN_MIN = 420
 
-function readPx(key: string, fallback: number | null): number | null {
-  try {
-    const v = Number(window.localStorage.getItem(key))
-    return Number.isFinite(v) && v > 0 ? v : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writePx(key: string, v: number | null) {
-  try {
-    if (v == null) window.localStorage.removeItem(key)
-    else window.localStorage.setItem(key, String(Math.round(v)))
-  } catch {
-    // Storage can be blocked. Width just resets next time.
-  }
-}
-
-// Pointer drag with body-level cursor and no text selection while it runs.
-function startDrag(e: React.PointerEvent, onMove: (dx: number) => void, onEnd: () => void) {
-  e.preventDefault()
-  const x0 = e.clientX
-  document.body.classList.add("is-col-resize")
-  const move = (ev: PointerEvent) => onMove(ev.clientX - x0)
-  const up = () => {
-    document.body.classList.remove("is-col-resize")
-    window.removeEventListener("pointermove", move)
-    window.removeEventListener("pointerup", up)
-    onEnd()
-  }
-  window.addEventListener("pointermove", move)
-  window.addEventListener("pointerup", up)
-}
-export type MetricMode = "time" | "cost"
 
 export function Waterfall({
   trace,
   findings,
   initialSpan,
   replay: replayProp,
+  traceView,
+  onView,
 }: {
   trace: Trace
   findings: Finding[]
   initialSpan?: string | null
   replay?: boolean
+  traceView?: TraceView
+  onView?: (v: TraceView) => void
 }) {
-  const { root, byId } = useMemo(() => buildForest(trace.spans), [trace])
+  const content = useMemo(() => indexContent(trace), [trace])
+  const { root, byId } = useMemo(() => {
+    const f = buildForest(trace.spans)
+    return isAppTrace(trace.service) ? f : groupSteps(f.root, f.byId, content)
+  }, [trace, content])
   const mark = useMemo(() => bottleneckFor(trace, findings), [trace, findings])
   const wantReplay = replayProp ?? hashFlag("replay")
   const t0 = root.start_ns
@@ -112,17 +88,16 @@ export function Waterfall({
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverNs, setHoverNs] = useState<number | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
-  const [metric, setMetric] = useState<MetricMode>("time")
+  // The call whose card is open, anchored under its bar.
+  const [card, setCard] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const labRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [trackW, setTrackW] = useState(0)
   const [labW, setLabW] = useState(0)
-  const [paneW, setPaneW] = useState(() => readPx(PANE_KEY, 520) as number)
   const [labPx, setLabPx] = useState<number | null>(() => readPx(LAB_KEY, null))
   const wfRef = useRef<HTMLDivElement>(null)
-  const content = useMemo(() => indexContent(trace), [trace])
   const [view, setView] = useState<{ lo: number; hi: number } | null>(null)
   const [brush, setBrush] = useState<{ a: number; b: number } | null>(null)
   const [flash, setFlash] = useState(false)
@@ -133,6 +108,10 @@ export function Waterfall({
   const lo = live ? t0 : (view?.lo ?? t0)
   const hi = live ? liveHi : (view?.hi ?? t1)
   const total = Math.max((hi - lo) / 1e6, 1)
+  // Long waits for a person fold into a labelled break; the work around them keeps its width.
+  const [fold, setFold] = useState(true)
+  const gaps = useMemo(() => humanGaps(trace), [trace])
+  const axis = useMemo(() => (fold && !live && gaps.length ? foldedAxis(lo, hi, gaps) : linearAxis(lo, hi)), [fold, live, gaps, lo, hi])
 
   // Reset when a different trace or span is requested. A running trace is
   // re-fetched every few seconds; that must not wipe selection or expansion.
@@ -160,9 +139,8 @@ export function Waterfall({
 
   const rows = useMemo(() => visibleRows(root, collapsed, live ? nowNs : Number.POSITIVE_INFINITY), [root, collapsed, live, nowNs])
   const selected = byId.get(sel) || root
-  const hoverSpan = hoverId ? byId.get(hoverId) : undefined
 
-  const xOf = useCallback((ns: number) => ((ns - lo) / 1e6 / total) * 100, [lo, total])
+  const xOf = useCallback((ns: number) => axis.toPct(ns), [axis])
   const fullX = useCallback((ns: number) => ((ns - t0) / 1e6 / fullMs) * 100, [t0, fullMs])
 
   useEffect(() => {
@@ -242,9 +220,11 @@ export function Waterfall({
         e.preventDefault()
       } else if (e.key === "Enter") {
         setPaneOpen(true)
+        setCard(null)
         e.preventDefault()
       } else if (e.key === "Escape") {
-        setPaneOpen(false)
+        if (card) setCard(null)
+        else setPaneOpen(false)
         e.preventDefault()
       } else if (e.key === "[" && trace.prev) {
         location.hash = `#/trace/${trace.prev}`
@@ -257,12 +237,24 @@ export function Waterfall({
   }, [rows, sel, trace.prev, trace.next])
 
   const comps = compactionEvents(trace)
-  const ticks = niceTicks(total)
+  // With waits folded, ticks are spaced for the time that is drawn, and none sit inside a fold.
+  const foldedMs = axis.breaks.reduce((n, b) => n + (b.b - b.a) / 1e6, 0)
+  const tickStep = niceTicks(Math.max(total - foldedMs, 1))[1] || total
+  const tickPct = (t: number) => axis.toPct(lo + t * 1e6)
+  const ticks: number[] = []
+  for (let t = 0, last = -Infinity; t <= total; t += tickStep) {
+    const ns = lo + t * 1e6
+    if (axis.breaks.some((b) => ns > b.a - (b.b - b.a) * 0.02 && ns < b.b)) continue
+    const p = tickPct(t)
+    if (p - last < 6) continue
+    ticks.push(t)
+    last = p
+  }
   const showMinimap = !live && (view != null || rows.length > 50)
   const errors = errorCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
   const calls = callCount(trace.spans, live ? nowNs : Number.POSITIVE_INFINITY)
+  const { llmCalls, tokens, slowest } = useMemo(() => callStats(trace.spans), [trace])
   const sumCost = live ? costUntil(root, nowNs) : rollup(root).cost
-  const hoverRow = hoverId ? rows.findIndex((r) => r.span.span_id === hoverId) : -1
   const markHost = mark ? hostRow(mark.spanId, rows, byId) : null
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -276,10 +268,10 @@ export function Waterfall({
     }
     const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width)
     setHoverX(x)
-    setHoverNs(lo + (x / rect.width) * (hi - lo))
+    setHoverNs(axis.toNs((x / rect.width) * 100))
   }
 
-  const pctToNs = (p: number) => lo + (p / 100) * (hi - lo)
+  const pctToNs = (p: number) => axis.toNs(p)
   const commitBrush = (a: number, b: number) => {
     const left = Math.min(a, b)
     const right = Math.max(a, b)
@@ -327,14 +319,7 @@ export function Waterfall({
             <button type="button" className="replay-btn" onClick={restart} hidden={live}>
               Replay
             </button>
-            <div className="seg seg-metric" role="tablist" aria-label="Row metric">
-              <button type="button" role="tab" aria-selected={metric === "time"} className={metric === "time" ? "on" : ""} onClick={() => setMetric("time")}>
-                Time
-              </button>
-              <button type="button" role="tab" aria-selected={metric === "cost"} className={metric === "cost" ? "on" : ""} onClick={() => setMetric("cost")}>
-                Cost
-              </button>
-            </div>
+            {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
             <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
               ‹
             </button>
@@ -345,26 +330,31 @@ export function Waterfall({
           <h1 className="story-line" style={{ margin: "8px 0 0" }}>
             {isAppTrace(trace.service) ? appStory(root) : turnStory(trace)}
           </h1>
-          <div className="wf-sum">
-            {dur(live ? nowMs : root.duration_ms)} · {usd(sumCost)} · {calls} calls
+          <div className="wf-stats">
+            <Stat k="Duration" v={dur(live ? nowMs : root.duration_ms)} />
+            {!isAppTrace(trace.service) && trace.breakdown?.permission_wait ? <Stat k="Waiting on you" v={dur(trace.breakdown.permission_wait)} tone="wait" /> : null}
+            <Stat k="Cost" v={usd(sumCost)} />
+            <Stat k="Tokens" v={tok(tokens)} />
+            <Stat k="LLM calls" v={String(llmCalls)} />
+            <Stat k="Tool calls" v={String(Math.max(calls - llmCalls, 0))} />
             {errors > 0 ? (
-              <>
-                {" · "}
-                <button
-                  type="button"
-                  className="sum-err"
-                  title="Jump to the next error"
-                  onClick={() => {
-                    const errs = trace.spans.filter((x) => x.is_error).sort((a, b) => a.start_ns - b.start_ns)
-                    const cur = errs.findIndex((x) => x.span_id === sel)
-                    const next = errs[(cur + 1) % errs.length]
-                    if (next) jumpTo(next.span_id)
-                  }}
-                >
-                  {errors} error{errors === 1 ? "" : "s"}
-                </button>
-              </>
-            ) : null}
+              <button
+                type="button"
+                className="wf-stat is-err"
+                title="Jump to the next error"
+                onClick={() => {
+                  const errs = trace.spans.filter((x) => x.is_error).sort((a, b) => a.start_ns - b.start_ns)
+                  const cur = errs.findIndex((x) => x.span_id === sel)
+                  const next = errs[(cur + 1) % errs.length]
+                  if (next) jumpTo(next.span_id)
+                }}
+              >
+                <span className="k">Errors</span>
+                <span className="v">{errors}</span>
+              </button>
+            ) : (
+              <Stat k="Errors" v="0" />
+            )}
           </div>
           {showMinimap && (
           <div className="minimap" title="Scrub the turn. Double-click to reset zoom.">
@@ -492,10 +482,27 @@ export function Waterfall({
               }}
             >
               {ticks.map((t) => (
-                <span key={t} className="tick" style={{ left: `${(t / total) * 100}%` }}>
+                <span key={t} className="tick" style={{ left: `${tickPct(t)}%` }}>
                   {tickLabel(t)}
                 </span>
               ))}
+              {axis.breaks.map((b) => (
+                <button
+                  type="button"
+                  key={b.a}
+                  className="ax-break-label"
+                  style={{ left: `${b.at + b.w / 2}%` }}
+                  title="Folded so the work around it stays readable. Click to show to scale."
+                  onClick={() => setFold(false)}
+                >
+                  {b.label}
+                </button>
+              ))}
+              {!fold && gaps.length && !live ? (
+                <button type="button" className="ax-fold" onClick={() => setFold(true)} title="Fold long waits for you">
+                  Fold waits
+                </button>
+              ) : null}
               {comps.map((c, i) => (
                 <span key={i} className="comp-mark" style={{ left: `${xOf(c.ts_ns)}%` }} title="compaction" />
               ))}
@@ -536,7 +543,10 @@ export function Waterfall({
             >
               <div className="trk-grid" style={{ left: labW || undefined }}>
                 {ticks.map((t) => (
-                  <i key={t} style={{ left: `${(t / total) * 100}%` }} />
+                  <i key={t} style={{ left: `${tickPct(t)}%` }} />
+                ))}
+                {axis.breaks.map((b) => (
+                  <b key={b.a} className="ax-break" style={{ left: `${b.at}%`, width: `${b.w}%` }} />
                 ))}
               </div>
               <div className="tree-layer">
@@ -568,7 +578,7 @@ export function Waterfall({
                     xOf={xOf}
                     trackW={trackW}
                     nowNs={live ? nowNs : null}
-                    metric={metric}
+                    slowest={slowest === span.span_id}
                     content={content}
                     mark={mark && markHost === span.span_id ? mark.label : null}
                     markLeft={
@@ -579,7 +589,9 @@ export function Waterfall({
                     onToggle={() => toggle(span.span_id)}
                     onSelect={(id) => {
                       setSel(id)
-                      setPaneOpen(true)
+                      // With the inspector open, a click retargets it; otherwise it opens the card.
+                      if (paneOpen) setCard(null)
+                      else setCard((c) => (c === id ? null : id))
                     }}
                     onHover={setHoverId}
                     onMark={() => mark && jumpTo(mark.spanId)}
@@ -588,38 +600,28 @@ export function Waterfall({
               </AnimatePresence>
             </motion.div>
           </div>
-          <SpanPopover
-            content={content}
-            span={hoverSpan && !(paneOpen && hoverSpan.span_id === sel) ? hoverSpan : null}
-            running={Boolean(hoverSpan && live && hoverSpan.end_ns > nowNs)}
-            top={hoverRow >= 0 ? 24 + hoverRow * ROW - scrollTop + ROW + 2 : 0}
-            left={(labW || 280) + 12}
-          />
+          {card && byId.get(card) ? (
+            <SpanCard
+              span={byId.get(card)!}
+              content={content}
+              running={Boolean((live && byId.get(card)!.end_ns > nowNs) || (trace.in_progress && byId.get(card)!.end_ns >= root.end_ns))}
+              t0={t0}
+              top={(() => {
+                const i = rows.findIndex((r) => r.span.span_id === card)
+                return i < 0 ? 0 : 24 + i * ROW - scrollTop + ROW + 4
+              })()}
+              left={(labW || 280) + Math.max(0, Math.min((xOf(byId.get(card)!.start_ns) / 100) * trackW, trackW - 380))}
+              onClose={() => setCard(null)}
+              onDetails={() => {
+                setPaneOpen(true)
+                setCard(null)
+              }}
+            />
+          ) : null}
         </div>
       </div>
       {paneOpen && (
-        <div className="pane-col" style={{ width: paneW }}>
-          <div
-            className="pane-resizer"
-            title="Drag to resize. Double-click to reset."
-            onDoubleClick={() => {
-              setPaneW(520)
-              writePx(PANE_KEY, null)
-            }}
-            onPointerDown={(e) => {
-              const total = wfRef.current?.getBoundingClientRect().width || window.innerWidth
-              const w0 = paneW
-              let last = w0
-              startDrag(
-                e,
-                (dx) => {
-                  last = Math.max(PANE_MIN, Math.min(total - MAIN_MIN, w0 - dx))
-                  setPaneW(last)
-                },
-                () => writePx(PANE_KEY, last),
-              )
-            }}
-          />
+        <PaneColumn>
           <DetailPane
             node={selected}
             trace={trace}
@@ -628,7 +630,7 @@ export function Waterfall({
             onSelect={(id) => setSel(id)}
             onClose={() => setPaneOpen(false)}
           />
-        </div>
+        </PaneColumn>
       )}
     </div>
   )
@@ -667,7 +669,7 @@ function Row({
   xOf,
   trackW,
   nowNs,
-  metric,
+  slowest,
   content,
   mark,
   markLeft,
@@ -686,7 +688,7 @@ function Row({
   xOf: (ns: number) => number
   trackW: number
   nowNs: number | null
-  metric: MetricMode
+  slowest: boolean
   content: ContentIndex
   mark: string | null
   markLeft: string | null
@@ -696,12 +698,16 @@ function Row({
   onMark: () => void
 }) {
   const k = spanKind(span)
-  const label = labelOf(span)
-  const name = label.name
-  // A turn reads better as what you asked than as "153 chars".
-  const target = k === "turn" && content.prompt ? snippet(content.prompt, 120) : label.target
+  const isStep = span.name === STEP
+  const { name, target } = rowLabel(span, content)
   const kids = span.kids.length
-  const ro = collapsed && kids ? rollup(span) : null
+  // A tool's own children are its wait and run phases, already drawn in its bar.
+  const phasesOnly = span.kids.every((c) => {
+    const ck = spanKind(c)
+    return ck === "wait" || ck === "run"
+  })
+  const ro = collapsed && kids && !phasesOnly ? rollup(span) : null
+  const pill = ro ? (isStep ? `${span.kids.length} ${span.kids.length === 1 ? "call" : "calls"}` : `+${ro.n}`) : ""
   const endNs = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
   const L = xOf(span.start_ns)
   const W = Math.max(xOf(endNs) - L, 0)
@@ -720,7 +726,10 @@ function Row({
   const box = barBox(L, W, trackW)
   const shownMs = Math.max(0, (endNs - span.start_ns) / 1e6)
   const cost = costOf(span)
-  const met = metric === "cost" ? (cost ? usd(cost) : "—") : dur(shownMs)
+  // Time and cost beside the bar they describe; before it when the bar runs to the edge.
+  const barLabel = [dur(shownMs), cost >= 0.001 ? usd(cost) : ""].filter(Boolean).join(" · ")
+  const barEndPx = trackW > 0 ? parseFloat(box.left) + parseFloat(box.width) : 0
+  const labelBefore = trackW > 0 && barEndPx > trackW - 120
 
   const onBarClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -738,15 +747,15 @@ function Row({
 
   return (
     <motion.div
-      className={`row ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered ? "hov" : ""}`}
+      className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered ? "hov" : ""}`}
       data-span={span.span_id}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0, top: index * ROW }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ type: "spring", bounce: 0.16, visualDuration: 0.32 }}
       style={{ position: "absolute", left: 0, right: 0, height: ROW }}
-      onClick={() => onSelect(span.span_id)}
-      onMouseEnter={() => onHover(span.span_id)}
+      onClick={() => (isStep ? onToggle() : onSelect(span.span_id))}
+      onMouseEnter={() => onHover(isStep ? null : span.span_id)}
     >
       <div className="lab">
         <span className="tree-pad" style={{ width: TREE_PAD + depth * TREE_DEPTH }} />
@@ -763,9 +772,13 @@ function Row({
         ) : (
           <span className="caret" />
         )}
-        <span className={`glyph ${glyphClass(span)}`}>
-          <SpanIcon span={span} />
-        </span>
+        {isStep ? (
+          <span className="glyph g-step">{String(span.attrs.step ?? "")}</span>
+        ) : (
+          <span className={`glyph ${glyphClass(span)}`}>
+            <SpanIcon span={span} />
+          </span>
+        )}
         <span className="name">
           {name}
           {attempt > 1 ? <span className="badge">×{attempt}</span> : null}
@@ -781,14 +794,16 @@ function Row({
               exit={{ opacity: 0, scale: 0.84 }}
               transition={{ type: "spring", bounce: 0.22, visualDuration: 0.28 }}
             >
-              +{ro.n}
+              {pill}
             </motion.span>
           ) : null}
         </AnimatePresence>
         {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
-        <span className="met">{met}</span>
       </div>
       <div className="trk">
+        {isStep ? (
+          <StepBar span={span} xOf={xOf} trackW={trackW} nowNs={nowNs} />
+        ) : (
         <div
           className={`bar ${k === "wait" ? "is-wait" : ""} ${err ? "err" : ""}`}
           style={{ ...box, ["--bar-hue" as string]: hueVar(span) }}
@@ -796,6 +811,16 @@ function Row({
         >
           <Phases span={span} />
         </div>
+        )}
+        {!mark && k !== "turn" && trackW > 0 ? (
+          <span
+            className={`bar-lab ${labelBefore ? "is-before" : ""} ${err ? "is-err" : ""}`}
+            style={labelBefore ? { right: trackW - parseFloat(isStep ? stepBox(span, xOf, trackW, nowNs).left : box.left) + 6 } : { left: (isStep ? stepEnd(span, xOf, trackW, nowNs) : barEndPx) + 6 }}
+          >
+            {barLabel}
+            {slowest ? <b className="slowest">Slowest</b> : null}
+          </span>
+        ) : null}
         {mark ? (
           <button
             type="button"
@@ -846,4 +871,87 @@ function Phases({ span }: { span: SpanNode }) {
   if (k === "turn") return <i className="ph-turn" style={{ width: "100%" }} />
   if (k === "hook") return <i className="ph-hook" style={{ width: "100%" }} />
   return <i className={barClass(span)} style={{ width: "100%" }} />
+}
+
+// Waits on a person long enough to drown out the work: a question or an approval left open.
+function humanGaps(trace: Trace): Gap[] {
+  const out: Gap[] = []
+  for (const s of trace.spans) {
+    if (s.name !== "claude_code.tool.blocked_on_user" || s.duration_ms < PAUSE_MS) continue
+    const src = String(s.attrs.source || "")
+    if (src && !src.startsWith("user")) continue
+    out.push({ a: s.start_ns, b: s.end_ns, label: `${dur(s.duration_ms)} waiting for you` })
+  }
+  return out
+}
+
+// A step's own bar: each call inside it at its place in time, thinking and
+// tools in their colours, so a closed step still shows its rhythm.
+function StepBar({ span, xOf, trackW, nowNs }: { span: SpanNode; xOf: (ns: number) => number; trackW: number; nowNs: number | null }) {
+  const end = (n: number) => (nowNs != null ? Math.min(n, nowNs) : n)
+  const box = barBox(xOf(span.start_ns), Math.max(xOf(end(span.end_ns)) - xOf(span.start_ns), 0), trackW)
+  return (
+    <div className="step-bar" style={box}>
+      {span.kids.map((c) => {
+        if (nowNs != null && c.start_ns > nowNs) return null
+        const l = xOf(c.start_ns) - xOf(span.start_ns)
+        const w = Math.max(xOf(end(c.end_ns)) - xOf(c.start_ns), 0)
+        const whole = Math.max(xOf(end(span.end_ns)) - xOf(span.start_ns), 0.0001)
+        const wait = waitChild(c)
+        const waitW = wait ? Math.max(xOf(end(wait.end_ns)) - xOf(c.start_ns), 0) : 0
+        return (
+          <i
+            key={c.span_id}
+            className={`sb-seg ${spanKind(c) === "model" ? "sb-model" : "sb-tool"} ${c.is_error ? "sb-err" : ""}`}
+            style={{ left: `${(l / whole) * 100}%`, width: `max(2px, ${(w / whole) * 100}%)` }}
+          >
+            {waitW > 0 ? <b className="sb-wait" style={{ width: `${(waitW / Math.max(w, 0.0001)) * 100}%` }} /> : null}
+          </i>
+        )
+      })}
+    </div>
+  )
+}
+
+function Stat({ k, v, tone }: { k: string; v: string; tone?: "wait" }) {
+  return (
+    <div className={`wf-stat ${tone === "wait" ? "is-wait" : ""}`}>
+      <span className="k">{k}</span>
+      <span className="v">{v}</span>
+    </div>
+  )
+}
+
+// Model calls, tokens, and the one call worth a "slowest" badge: the longest
+// model or tool call by its own work time, once there are enough to compare.
+function callStats(spans: SpanNode[] | Trace["spans"]): { llmCalls: number; tokens: number; slowest: string | null } {
+  let llmCalls = 0
+  let tokens = 0
+  let best: { id: string; ms: number } | null = null
+  let leaves = 0
+  const waitOf = new Map<string, number>()
+  for (const s of spans) if (s.name === "claude_code.tool.blocked_on_user" && s.parent_span_id) waitOf.set(s.parent_span_id, s.duration_ms)
+  for (const s of spans) {
+    const k = spanKind(s)
+    if (k === "model") {
+      llmCalls++
+      const u = usageOf(s)
+      tokens += (u.input || 0) + (u.output || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0)
+    }
+    if (k !== "model" && k !== "tool") continue
+    leaves++
+    const ms = s.duration_ms - (waitOf.get(s.span_id) || 0)
+    if (!best || ms > best.ms) best = { id: s.span_id, ms }
+  }
+  return { llmCalls, tokens, slowest: leaves >= 4 && best ? best.id : null }
+}
+
+function stepBox(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null) {
+  const end = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
+  return barBox(xOf(span.start_ns), Math.max(xOf(end) - xOf(span.start_ns), 0), trackW)
+}
+
+function stepEnd(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null): number {
+  const b = stepBox(span, xOf, trackW, nowNs)
+  return parseFloat(b.left) + parseFloat(b.width)
 }

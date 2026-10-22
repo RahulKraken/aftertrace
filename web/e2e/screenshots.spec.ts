@@ -37,6 +37,17 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
   })
 }
 
+// The timeline opens on closed steps; open them all to reach individual calls.
+async function openSteps(page: Page) {
+  await expect(page.locator(".row.is-step").first()).toBeVisible()
+  const n = await page.locator(".row.is-step").count()
+  for (let i = 0; i < n; i++) {
+    const caret = page.locator(".row.is-step").nth(i).locator(".caret")
+    if ((await caret.textContent()) === "▸") await page.locator(".row.is-step").nth(i).dispatchEvent("click")
+    await expect(caret).toHaveText("▾")
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
@@ -66,36 +77,79 @@ test("sessions list", async ({ page }) => {
   await shot(page, "sessions", "dark")
 })
 
-test("waterfall default: bars own the page", async ({ page }) => {
+test("story default: a turn reads as steps", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}`)
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: /waiting on approvals/ })).toBeVisible()
+  await expect(page.locator(".seg-view button.on")).toHaveText("Story")
+  await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
+  await expect(page.locator(".st-bar i")).not.toHaveCount(0)
+  await expect(page.locator(".st-ch")).not.toHaveCount(0)
+  await expect(page.locator(".st-end")).toContainText("Done")
+  // The showcase session carries synthetic prompts and narration.
+  await expect(page.locator(".st-prompt")).toContainText("charged twice")
+  await expect(page.locator(".st-title").first()).toContainText("Reproducing it first")
+  await expect(page.locator(".st-outcome")).toContainText("idempotency key")
+  await shot(page, "story", "light")
+  await shot(page, "story", "dark")
+})
+
+test("story step opens the inspector, and Timeline keeps the choice", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await waitFonts(page)
+  // Pin the step by id: its summary line goes away once it opens.
+  const id = await page.locator(".st-ch").filter({ hasText: "subagent" }).first().getAttribute("data-item")
+  const step = page.locator(`.st-ch[data-item="${id}"]`)
+  await step.locator(".st-ch-head").click()
+  await expect(step.locator(".st-act").first()).toBeVisible()
+  await expect(step.locator(".st-acts-nested .st-act").first()).toBeVisible()
+  await step.locator(".st-act").first().click()
+  await expect(page.locator(".pane-col")).toBeVisible()
+  await shot(page, "story-open", "light")
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".pane-col")).toHaveCount(0)
+  await page.locator(".seg-view").getByRole("tab", { name: "Timeline" }).click()
+  await expect(page.locator(".wf-body")).toBeVisible()
+  await page.reload()
+  await expect(page.locator(".seg-view button.on")).toHaveText("Timeline")
+})
+
+test("waterfall default: bars own the page", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
+  await waitFonts(page)
+  await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
   await expect(page.locator(".pane")).toHaveCount(0)
   await expect(page.locator(".minimap")).toHaveCount(0)
   await expect(page.locator(".chips")).toHaveCount(0)
-  await expect(page.locator(".wf-sum")).toBeVisible()
+  await expect(page.locator(".wf-stats")).toBeVisible()
   await expect(page.locator(".kpis")).toHaveCount(0)
   await expect(page.locator(".live-badge")).toContainText("Done")
+  // Calls are grouped into steps, closed by default, each saying how many calls it holds.
+  await expect(page.locator(".row.is-step").first()).toBeVisible()
+  await expect(page.locator(".row.is-step .n-pill").first()).toContainText("call")
   await shot(page, "waterfall", "light")
   await shot(page, "waterfall", "dark")
 })
 
-test("waterfall hover popover", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+test("waterfall click card", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
-  const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "opus" }) }).first()
-  await model.hover()
-  await expect(page.locator(".span-pop")).toBeVisible()
-  await expect(page.locator(".span-pop")).not.toContainText("content hidden")
-  await expect(page.locator(".span-pop")).toContainText("Duration")
-  await shot(page, "waterfall-hover", "light", true)
-  await model.hover()
-  await expect(page.locator(".span-pop")).toBeVisible()
-  await shot(page, "waterfall-hover", "dark", true)
+  await openSteps(page)
+  // Model calls are named by what Claude said, with the model beside it.
+  const model = page.locator(".row").filter({ has: page.locator(".name", { hasText: "Opus" }) }).first()
+  await page.waitForTimeout(400)
+  await model.dispatchEvent("click")
+  await expect(page.locator(".span-card")).toBeVisible()
+  await expect(page.locator(".span-card")).toContainText("Duration")
+  await expect(page.locator(".span-card")).toContainText("LLM call")
+  await expect(page.locator(".span-card .sc-status")).toHaveText("Done")
+  await shot(page, "waterfall-card", "light", true)
+  await shot(page, "waterfall-card", "dark", true)
+  await page.keyboard.press("Escape")
+  await expect(page.locator(".span-card")).toHaveCount(0)
 })
 
 test("waterfall collapsed +N pill", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
   await page.locator(".row").first().locator(".caret").click()
   await expect(page.locator(".n-pill").first()).toBeVisible()
@@ -105,38 +159,43 @@ test("waterfall collapsed +N pill", async ({ page }) => {
   await shot(page, "waterfall-collapsed", "dark")
 })
 
-test("waterfall cost toggle", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
+test("waterfall numbers sit beside their bars", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
-  await page.locator(".seg-metric").getByRole("tab", { name: "Cost" }).click()
-  await expect(page.locator(".seg-metric button.on")).toHaveText("Cost")
-  await expect(page.locator(".row").first().locator(".met")).toContainText("$")
-  await shot(page, "waterfall-cost", "light")
-  await shot(page, "waterfall-cost", "dark")
+  await expect(page.locator(".wf-stat").filter({ hasText: "Cost" })).toContainText("$")
+  await expect(page.locator(".wf-stat").filter({ hasText: "LLM calls" })).toBeVisible()
+  await expect(page.locator(".row.is-step .bar-lab").first()).toContainText("$")
+  await openSteps(page)
+  await expect(page.locator(".slowest")).toHaveCount(1)
+  await page.waitForTimeout(600)
+  await shot(page, "waterfall-open", "light")
+  await shot(page, "waterfall-open", "dark")
 })
 
 test("waterfall selected: pane takes the budget", async ({ page }) => {
-  await page.goto(`/#/trace/${HERO_TRACE}`)
-  const bash = page.locator(".row").filter({ has: page.locator(".name", { hasText: "Bash" }) }).first()
-  if (await bash.locator(".n-pill").count()) await bash.locator(".caret").click()
+  await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
+  await openSteps(page)
+  const bash = page.locator(".row").filter({ has: page.locator(".glyph.g-bash") }).first()
+  // A tool's wait and run phases are in its bar; opening it lists them as rows.
+  await expect(bash.locator(".n-pill")).toHaveCount(0)
+  await bash.locator(".caret").dispatchEvent("click")
   const waitRow = page.locator(".row").filter({ hasText: "waiting on you" }).first()
   await expect(waitRow).toBeVisible()
-  await expect(bash).not.toContainText("blocked")
-
-  for (let i = 0; i < 2; i++) {
-    const agent = page
-      .locator(".row")
-      .filter({ has: page.locator(".name", { hasText: "Agent" }) })
-      .filter({ has: page.locator(".n-pill") })
-      .first()
-    if (await agent.count()) await agent.locator(".caret").click()
-  }
-
-  await waitRow.click()
+  // Rows spring into place after each expand; click once they settle.
+  await page.waitForTimeout(500)
+  await waitRow.dispatchEvent("click")
+  // A click opens the card; its link opens the full inspector.
+  await page.locator(".span-card .sc-more").click()
   await expect(page.locator(".pane")).toBeVisible()
   await expect(page.locator(".wf")).toHaveClass(/has-pane/)
   await expect(page.locator(".pane")).toContainText("waiting on you")
-  await expect(page.locator(".row").filter({ has: page.locator(".name", { hasText: "Agent" }) }).nth(1)).toBeVisible()
+
+  for (let i = 0; i < 2; i++) {
+    const agent = page.locator(".row").filter({ has: page.locator(".glyph.g-agent") }).filter({ has: page.locator(".n-pill") }).first()
+    if (await agent.count()) await agent.locator(".caret").dispatchEvent("click")
+    await page.waitForTimeout(300)
+  }
+  await expect(page.locator(".row").filter({ has: page.locator(".glyph.g-agent") }).nth(1)).toBeVisible()
   await page.waitForTimeout(400)
   await shot(page, "waterfall-selected", "light")
   await shot(page, "waterfall-selected", "dark")
@@ -296,6 +355,9 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
   await expect(page.locator(".crumbs")).toContainText("support-bot")
   await expect(page.locator(".story-line")).toContainText("model call")
   await expect(page.locator(".side-item.on")).toContainText("Apps")
+  await page.waitForTimeout(400)
+  await shot(page, "app-trace", "light")
+  await shot(page, "app-trace", "dark")
 })
 
 test("recap: story, lanes, receipt, week switch", async ({ page }) => {

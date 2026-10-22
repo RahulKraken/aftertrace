@@ -20,7 +20,7 @@ http://127.0.0.1:5173. `VITE_USE_MOCK` defaults on. Fixtures in `web/src/mock/` 
 
 `npm run lint` is oxlint. `npx playwright test` drives the mock app (see `web/playwright.config.ts`).
 
-There is no Vite proxy to the Go API, and the API does not send CORS headers. Live data is the embedded binary.
+For live data with hot reload, run `aftertrace serve` (or `aftertrace demo` first) and then `npm run dev:live`: http://127.0.0.1:5199 proxies `/api` to the server on :7311. Testing against your own data is how most real bugs here have been found.
 
 ### Embedded binary (real `/api`)
 

@@ -1,6 +1,16 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  Asterisk,
   Bot,
+  Bug,
+  Calendar,
+  CreditCard,
+  Database,
+  GitBranch,
+  Kanban,
+  Mail,
+  Notebook,
+  PenTool,
   FilePenLine,
   FileText,
   Globe,
@@ -77,8 +87,36 @@ export function barClass(s: Span): string {
   return "ph-turn"
 }
 
+// Connector servers get an icon for what they are, so a Linear call looks
+// different from a database query at a glance. Unknown servers keep the plug.
+const SERVERS: [RegExp, LucideIcon][] = [
+  [/linear|jira|asana|trello/i, Kanban],
+  [/github|gitlab|git\b/i, GitBranch],
+  [/notion|confluence|docs/i, Notebook],
+  [/sentry|bugsnag/i, Bug],
+  [/stripe|billing|pay/i, CreditCard],
+  [/postgres|mysql|sqlite|supabase|database|db\b|bigquery|snowflake/i, Database],
+  [/browser|playwright|puppeteer|chrome/i, Globe],
+  [/figma|design/i, PenTool],
+  [/gmail|mail/i, Mail],
+  [/calendar/i, Calendar],
+  [/slack|discord|teams/i, MessageSquare],
+]
+
+function serverOf(span: Span): string {
+  const a = span.attrs
+  const t = String(a.tool_name || "")
+  return String(a["anthropic.mcp.server.name"] || span.joined?.["mcp_server.name"] || (t.startsWith("mcp__") ? t.split("__")[1] : "") || "")
+}
+
 export function SpanIcon({ span }: { span: Span }) {
   const key = String(familyOf(span))
-  const Icon = ICONS[key] || Wrench
+  let Icon = ICONS[key] || Wrench
+  if (key === "mcp") {
+    const server = serverOf(span)
+    Icon = SERVERS.find(([re]) => re.test(server))?.[1] || Plug
+  }
+  // Claude's mark for Claude model calls, as the model's own sign.
+  if (key === "model" && /claude|opus|sonnet|haiku|fable/i.test(String(span.attrs.model || span.attrs["gen_ai.request.model"] || span.joined?.model || ""))) Icon = Asterisk
   return <Icon strokeWidth={1.75} aria-hidden />
 }

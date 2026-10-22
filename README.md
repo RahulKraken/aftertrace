@@ -91,7 +91,7 @@ Run `aftertrace serve`. Your next turn shows up in the Sessions view.
 
 Details for each rule: [docs/findings.md](docs/findings.md).
 
-**Trace.** One trace is one turn. Wall-clock time is split into model, tool run, waiting on you, retry waste, hooks and permission checks, and the critical path is highlighted. Click any span for its metrics, cost, input and output (when you opt into content), joined events and the findings that cite it. A turn opens as a transcript.
+**Trace.** One trace is one turn, and it opens as a story: what you asked, where the time went, where it ended, then each step in Claude's words with its actions in plain English and the moments it waited for you. The Timeline view puts the same steps on one time axis, folds long waits, and splits wall-clock time into model, tool run, waiting on you, retry waste, hooks and permission checks. Click any action or span for its metrics, cost, input and output (when you opt into content), joined events and the findings that cite it.
 
 **Sessions.** One row per session, titled by your first prompt, with filters, search, agent time, waiting time and cost. Turns in progress appear while they run.
 

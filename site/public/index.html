@@ -50,7 +50,7 @@
     <div class="qs">
       <div class="q"><div class="q-n">01</div><h3>Which session needs me right now?</h3><p>Live lanes show every turn still running across your parallel sessions, what each is doing, and when one has gone quiet.</p></div>
       <div class="q"><div class="q-n">02</div><h3>Where did my time go?</h3><p>Wall clock split into model, tool runs, retries, hooks and the part that matters most: time waiting on you to approve something.</p></div>
-      <div class="q"><div class="q-n">03</div><h3>What did the agent actually do?</h3><p>A waterfall of every model call and tool, and, if you opt in, the prompt, each reply, every command and its output, as a transcript.</p></div>
+      <div class="q"><div class="q-n">03</div><h3>What did the agent actually do?</h3><p>Each turn as a story: the steps in Claude's own words, every file it read or changed and every command it ran, and the moments it stopped to wait for you.</p></div>
       <div class="q"><div class="q-n">04</div><h3>What one change saves the most?</h3><p>Findings are SQL rules with an impact in seconds or dollars, the spans behind them, and a fix you can copy: an allow rule, a cheaper model, a cache.</p></div>
       <div class="q"><div class="q-n">05</div><h3>What do my own apps cost?</h3><p>Point any app or agent that speaks OpenTelemetry at it. Calls, cost, latency and failures per app and per operation.</p></div>
       <div class="q"><div class="q-n">06</div><h3>Did my plan pay for itself?</h3><p>A weekly recap: hours of agent work, what shipped, API-equivalent value against your plan, as a receipt you can share.</p></div>
@@ -60,11 +60,11 @@
   <section class="feature">
     <div class="f-text">
       <div class="eyebrow">Trace</div>
-      <h2>Every turn, on one time axis.</h2>
-      <p>Model calls split into time to first token and streaming. Tool calls split into waiting on you and running. The critical path in full colour. Click any span for its metrics, its input and output, the events joined to it, and the findings that cite it.</p>
-      <ul><li>Resizable inspector and label column, remembered</li><li>A transcript of the whole turn</li><li>Running turns appear while they run</li></ul>
+      <h2>Every turn, told as a story.</h2>
+      <p>What you asked, where the time went in plain words, where it ended and which files changed. Then each step in Claude's own words, with its actions underneath: "Read orders.go", "Ran the orders tests". When Claude stopped to ask you something, that's a moment of its own, with the question and your answer.</p>
+      <ul><li>A Timeline view with the same steps on one axis, long waits folded</li><li>Click any action for its input, output and cost</li><li>Running turns appear while they run</li></ul>
     </div>
-    <figure class="shot"><picture><source srcset="assets/shots/waterfall-selected-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/waterfall-selected-light.png" alt="A Claude Code turn as a waterfall with the inspector open." loading="lazy" /></picture></figure>
+    <figure class="shot"><picture><source srcset="assets/shots/story-dark.png" media="(prefers-color-scheme: dark)" /><img src="assets/shots/story-light.png" alt="A Claude Code turn as a story: the prompt, where the time went, where it ended, and the steps in Claude's words." loading="lazy" /></picture></figure>
   </section>
 
   <section class="feature flip">
