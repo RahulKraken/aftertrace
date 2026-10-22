@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "wouter"
 import { ModelName } from "../components/SpanIcon"
+import { RequestScatter } from "../components/RequestScatter"
 import { api } from "../lib/api"
 import { dur, impactParts, int, pct, tok, usd, when, modelName } from "../lib/format"
 import type { AppDetail, AppGroup, Finding } from "../lib/types"
@@ -98,6 +99,7 @@ export function AppPage() {
         </section>
       )}
 
+      <RequestScatter rows={d.recent} />
       <Groups title="Operations" hint="Grouped by the root span of each request, or the AI SDK function id" rows={d.operations} />
       <Groups title="Models" rows={d.models} />
 

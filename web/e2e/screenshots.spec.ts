@@ -73,6 +73,11 @@ test("sessions list", async ({ page }) => {
   await page.getByPlaceholder("Search prompts, repos, models").fill("zsh")
   await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(1)
   await page.getByPlaceholder("Search prompts, repos, models").fill("")
+  // A day on the activity chart filters the list to it, and clicking again clears it.
+  await page.locator(".act-col:not(.is-empty)").last().click()
+  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(1)
+  await page.locator(".act-col.is-on").click()
+  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(6)
   await expect(page.locator(".story-card")).toHaveCount(0)
   await expect(page.locator(".kpis")).toHaveCount(0)
   await shot(page, "sessions", "light")
