@@ -204,7 +204,8 @@ test("waterfall selected: pane takes the budget", async ({ page }) => {
 
 test("session detail", async ({ page }) => {
   await page.goto("/#/session/e61c32c0-0193-4bab-9096-4e952c6c8a0c")
-  await expect(page.locator(".story-line")).toBeVisible()
+  await expect(page.locator(".session-title")).toContainText("charged twice")
+  await expect(page.locator(".session-story")).toBeVisible()
   await expect(page.locator(".kpis")).toHaveCount(0)
   await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
   await shot(page, "session", "light")
@@ -275,8 +276,10 @@ test("query ask", async ({ page }) => {
 
 test("empty state", async ({ page }) => {
   await page.goto("/#/empty")
-  await expect(page.getByRole("heading", { name: "Nothing on the wire yet" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Copy settings.json" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Welcome to Aftertrace" })).toBeVisible()
+  await expect(page.getByRole("link", { name: /Connect Claude Code/ })).toBeVisible()
+  await expect(page.locator(".welcome-demo code")).toHaveText("aftertrace demo")
+  await page.waitForTimeout(500)
   await shot(page, "empty", "light")
   await shot(page, "empty", "dark")
 })

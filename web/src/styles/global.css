@@ -1496,3 +1496,43 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .model-name, .tool-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .model-name svg, .tool-name svg { flex: none; }
 .tool-name svg { color: var(--mute); }
+
+/* First run: a welcome, not an error page. The steps arrive one after another. */
+.welcome { max-width: 600px; margin: 9vh auto 64px; padding: 0 24px; }
+.welcome-mark {
+  width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); margin-bottom: 22px;
+}
+.welcome h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.04em; margin: 0; }
+.welcome-lede { color: var(--mute); font-size: 15.5px; line-height: 1.6; margin: 10px 0 30px; max-width: 34em; }
+.welcome-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; position: relative; }
+.welcome-steps li {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 14px; padding: 0 0 22px; position: relative;
+  animation: page-in var(--dur-3) var(--ease-out) both;
+}
+.welcome-steps li:nth-child(2) { animation-delay: 70ms; }
+.welcome-steps li:nth-child(3) { animation-delay: 140ms; }
+.welcome-steps li:not(:last-child)::before { content: ""; position: absolute; left: 13.5px; top: 30px; bottom: 2px; width: 1.5px; background: var(--line); }
+.ws-node {
+  width: 28px; height: 28px; border-radius: 99px; display: grid; place-items: center; font: 600 12px var(--sans);
+  background: var(--surface); border: 1.5px solid var(--line-2); color: var(--ink-2);
+}
+.welcome-steps li.is-done .ws-node { background: var(--hue-ok); border-color: var(--hue-ok); color: var(--surface); }
+.welcome-steps li.is-waiting .ws-node { border-color: color-mix(in oklab, var(--hue-model) 40%, var(--line)); }
+.ws-t { font-size: 15px; font-weight: 600; letter-spacing: -0.015em; padding-top: 4px; }
+.ws-d { color: var(--mute); font-size: 13.5px; margin-top: 2px; }
+.welcome-cta { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; height: 36px; padding: 0 14px; border-radius: 10px; text-decoration: none; }
+.welcome-demo {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; padding: 14px 16px;
+  border-radius: 12px; background: var(--bg-recessed); color: var(--mute); font-size: 13.5px;
+  animation: page-in var(--dur-3) var(--ease-out) 210ms both;
+}
+.welcome-demo code { font: 12.5px var(--mono); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+
+.session-title {
+  font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -0.035em; margin: 10px 0 0; max-width: 34em; text-wrap: balance;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.session-story { margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
+.session-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 22px; font-size: 13px; }
+.welcome-demo .copy-inline { margin: 0 0 0 auto; }

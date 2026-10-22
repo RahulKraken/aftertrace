@@ -77,7 +77,7 @@ function page({ title, body, current, depth }) {
 </html>`
 }
 
-const LOGO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#f5a524"/></svg>`
+const LOGO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#e29a2e"/></svg>`
 
 marked.setOptions({ gfm: true })
 for (const [, items] of NAV) {

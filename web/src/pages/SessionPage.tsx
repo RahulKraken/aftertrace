@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { ModelName } from "../components/SpanIcon"
 import { Link, useLocation, useParams } from "wouter"
 import { api } from "../lib/api"
 import { dur, usd, when } from "../lib/format"
@@ -41,7 +42,20 @@ export function SessionPage() {
       <div className="crumbs">
         <Link href="/sessions">Sessions</Link> › <span className="mono">{s.session_id.slice(0, 8)}</span>
       </div>
-      <h1 className="story-line week-line">{sessionStory(s)}</h1>
+      {/* Lead with what you asked; the numbers explain it underneath. */}
+      <h1 className="session-title">{s.title || `Session ${s.session_id.slice(0, 8)}`}</h1>
+      <p className="session-story">{sessionStory(s)}</p>
+      <div className="session-meta">
+        {s.repo ? <span className="chip">{s.repo}</span> : null}
+        {s.models.map((m) => (
+          <span key={m} className="chip">
+            <ModelName model={m} size={12} />
+          </span>
+        ))}
+        <span className="num mute">
+          {s.turns} {s.turns === 1 ? "turn" : "turns"} · {dur(s.turn_ms)} · {usd(s.cost_usd)}
+        </span>
+      </div>
       <table className="grid">
         <thead>
           <tr>

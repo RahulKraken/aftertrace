@@ -4,33 +4,39 @@
 
 :root {
   color-scheme: light;
-  --bg: #fafaf9;
-  --surface: #ffffff;
-  --surface-2: #f4f4f3;
-  --ink: #0a0a0a;
-  --ink-2: #262626;
-  --mute: #6b6b6b;
-  --faint: #a3a3a3;
-  --line: #e7e7e5;
-  --accent: #2563eb;
-  --wait: #f5a524;
-  --ok: #16a34a;
+  --bg: #f6f5f1;
+  --surface: #fffefb;
+  --surface-2: #efede8;
+  --ink: #1f1d1a;
+  --ink-2: #34312c;
+  --mute: #75716a;
+  --faint: #a8a39a;
+  --line: #e7e4dd;
+  --accent: #6359e0;
+  --wait: #e29a2e;
+  --ok: #3a9566;
+  --shadow-1: 0 1px 2px rgb(31 29 26 / 0.05);
+  --shadow-2: 0 2px 6px rgb(31 29 26 / 0.06), 0 24px 60px -28px rgb(31 29 26 / 0.35);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #0a0a0a;
-    --surface: #141414;
-    --surface-2: #1b1b1b;
-    --ink: #fafafa;
-    --ink-2: #e5e5e5;
-    --mute: #a3a3a3;
-    --faint: #737373;
-    --line: #262626;
-    --accent: #60a5fa;
-    --ok: #4ade80;
+    --bg: #141312;
+    --surface: #1b1a18;
+    --surface-2: #23211f;
+    --ink: #edebe6;
+    --ink-2: #d8d5ce;
+    --mute: #9d988e;
+    --faint: #6d6962;
+    --line: #2b2926;
+    --accent: #9a92f4;
+    --wait: #f0b45a;
+    --ok: #67bf8e;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-2: 0 2px 6px rgb(0 0 0 / 0.35), 0 24px 60px -28px rgb(0 0 0 / 0.7);
   }
 }
 
@@ -61,7 +67,7 @@ main { padding: 0 16px; }
 .copy { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: 500 13px var(--sans); cursor: pointer; flex: none; }
 .install-note { margin-top: 10px; font-size: 13px; color: var(--faint); }
 
-.shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 30px 80px -40px color-mix(in oklab, var(--ink) 45%, transparent); }
+.shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow-2); }
 .shot img { display: block; width: 100%; height: auto; }
 .hero-shot { max-width: 1120px; margin: 24px auto 0; }
 
@@ -141,3 +147,16 @@ main { padding: 0 16px; }
   .band { margin-top: 80px; }
   .top-links { gap: 14px; }
 }
+
+/* Calm interactions, matching the app. */
+a, .btn, .copy, .docs-nav a { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease, transform 140ms var(--ease-out); }
+.btn:active, .copy:active { transform: scale(0.97); }
+.q, .ps div, .steps li, .install, .table-wrap { box-shadow: var(--shadow-1); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+.hero > * { animation: rise 420ms var(--ease-out) both; }
+.hero > *:nth-child(2) { animation-delay: 60ms; }
+.hero > *:nth-child(3) { animation-delay: 120ms; }
+.hero > *:nth-child(4) { animation-delay: 180ms; }
+.hero > *:nth-child(5) { animation-delay: 240ms; }
+.hero-shot { animation: rise 600ms var(--ease-out) 260ms both; }
+@media (prefers-reduced-motion: reduce) { .hero > *, .hero-shot { animation: none; } }
