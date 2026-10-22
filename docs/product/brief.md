@@ -53,7 +53,7 @@ Aftertrace is not a better cost table. It wins on what those cannot do:
 | **Home** | One sentence about your week, a strip of numbers, live lanes for running sessions, the top finding, recent work | 1, 2, 4, 6 |
 | **Live lanes** | One lane per running session: what it is doing, for how long, what it has cost, and when it has gone quiet | 1 |
 | **Sessions and turns** | Every session, titled by its first prompt; every turn, labelled by its prompt | 3, 5 |
-| **Trace** | Waterfall with a resizable inspector; a transcript of the turn; real input and output per span | 2, 3 |
+| **Trace** | Story view (steps in Claude's words, waits as moments, the outcome first); Timeline view (steps on one axis, long waits folded); a resizable inspector with real input and output per span | 2, 3 |
 | **Findings** | Ranked by impact, each with evidence, a fix to copy, and a savings ledger once resolved | 4 |
 | **Cost** | Spend by model, skill, subagent, MCP server, tool, repo, source | 5 |
 | **Apps** | Your own services sending OpenTelemetry GenAI spans: calls, cost, latency, errors, per operation | 7, 8 |

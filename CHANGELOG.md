@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+**A turn reads as a story**
+- Claude Code turns open on a new Story view: what you asked, where the time went in plain words, where it ended and which files changed, then each step in Claude's own words (with content capture on) and its actions as "Read service.go" or "Refactor serve flags and add service dispatch". Long waits for you are their own card, with the questions Claude asked and your answers. Without content capture, steps are grouped by the kind of work.
+- The waterfall is now the Timeline view. Calls are grouped into the same steps, closed by default; waits on a person over a minute fold into a labelled band so the work around them stays readable; rows say "Thinking" and "Wrote service.go" instead of model ids and raw commands.
+- The headline no longer calls a question Claude asked you an approval: "Claude waited 29m 38s for your answer. The work itself took 12m 54s."
+- Session titles and turn labels drop injected `<system-reminder>` text.
+- `aftertrace demo` and the website demo include one session with synthetic prompts and narration.
+
 ## v0.2.0
 
 **Run it at login**

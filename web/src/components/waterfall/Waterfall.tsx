@@ -881,7 +881,23 @@ function rowLabel(span: SpanNode, content: ContentIndex): { name: string; target
     const d = describe(span, content)
     return { name: d.verb, target: d.object || d.detail }
   }
+  if (span.name === "claude_code.tool.blocked_on_user") return { name: "waiting on you", target: decisionWords(span) }
+  if (span.name === "claude_code.tool.execution") return { name: "running", target: span.is_error ? String(span.attrs.error_class || "failed") : "" }
   return labelOf(span)
+}
+
+// Permission decisions as a person would say them.
+function decisionWords(span: SpanNode): string {
+  const d = String(span.attrs.decision || "")
+  const src = String(span.attrs.source || "")
+  if (d === "reject" || d === "deny") return src.startsWith("user") ? "you declined" : "declined by your settings"
+  if (src === "user_temporary") return "you approved it once"
+  if (src === "user_permanent") return "you approved it for good"
+  if (src.startsWith("user")) return "you approved it"
+  if (src === "config") return "allowed by your settings"
+  if (src === "hook") return "a hook decided"
+  if (src) return `decided by ${src.replace(/_/g, " ")}`
+  return ""
 }
 
 // A step's own bar: each call inside it at its place in time, thinking and

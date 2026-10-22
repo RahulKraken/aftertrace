@@ -38,7 +38,8 @@ Each principle names the concrete decisions it drives. A design change that brea
 - Drag handles are cursor `col-resize` with a visible line; disabled controls say why in a tooltip.
 
 **Mapping.** Controls sit next to what they change, and the layout mirrors the thing it shows.
-- The waterfall's time axis is shared by every row; the inspector is to the right of the row it describes.
+- A turn is told the way you think about it: steps, each an intent ("Now writing the service command") with the actions under it, not spans. The span tree is one click away as the Timeline.
+- The Timeline's time axis is shared by every row; the inspector is to the right of the row it describes. A long wait for a person folds into a labelled band, so the axis maps to the work, not to the half hour you were away.
 - The metric toggle (Time | Cost) sits above the column it switches.
 - Live lanes are ordered by start time, left to right in time, top to bottom by session.
 - Colour maps to one meaning each: amber waiting on you, rose failure or retry waste, blue model, green tools.
@@ -53,6 +54,8 @@ Each principle names the concrete decisions it drives. A design change that brea
 - One duration format (`1m 06s`), one money format (`$0.42`), one token format (`39.0k`), all tabular mono.
 - One status vocabulary: Running, Quiet, Done, Incomplete, Failed.
 - A session is titled by its first prompt everywhere it appears.
+
+**The gulf of evaluation on a trace.** The first waterfall answered "what happened?" with 146 identical rows on a linear axis; a 30-minute question to the user was a green sliver nobody could find, and the headline called it "waiting on approvals". The Story view closes that gulf: the headline says what happened ("Claude waited 29m 38s for your answer. The work itself took 12m 54s."), the time bar says where it went in words, the outcome comes before the steps, and the wait is a card with the questions and answers. Steps use Claude's own narration (the `assistant_response` text on each model call) when content capture is on, and a summary of the work ("Read 4 files · Ran 2 commands") when it is off.
 
 **Conceptual model.** The user's mental model is: *sources* send *sessions*; a session has *turns*; a turn is a *trace* of *spans*. Apps send *calls* grouped by *operation*. Findings point at spans. Every screen uses these words and no others.
 

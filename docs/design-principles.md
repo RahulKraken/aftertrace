@@ -117,7 +117,7 @@ If two things both look important, the budget is already blown. Cut one.
 13. **Aftertrace remembers the win.** After a fix, all ten units go to the number that finding earned, as a bottom-right toast with settle motion. The list stays visible underneath. About 1.5s later the toast goes, with that finding marked resolved.
     *Aftertrace: `WinStage` reads `fixFor(f).win` — for the npm-test allow rule, **6** prompts removed, **1m 29s** saved. Mock seeds finding id 4 as already resolved.*
 14. **A sentence at the top of a session and a turn.** The instrument speaks in English first.
-    *Aftertrace: `sessionStory` / `turnStory` — e.g. “You spent 23% of this turn waiting on approvals.”*
+    *Aftertrace: `sessionStory` / `turnStory` — e.g. “Claude waited 29m 38s for your answer. The work itself took 12m 54s.”*
 15. **The sessions page tells a weekly story in one line.** Not three tiles. The 23% carries one crisp orange underline, proportional to the value.
     *Aftertrace: `weekStory()` / `.week-pct` — “You spent 23% of this week waiting on approvals, and saved 11 min.”*
 
