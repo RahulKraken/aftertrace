@@ -9,7 +9,7 @@ At ingest, `internal/redact` deletes keys from every span, span event, log recor
 Content keys, dropped unless `--store-content`. The full list is `ContentKeys` and `ContentPrefixes` in [`internal/redact/redact.go`](../internal/redact/redact.go):
 
 ```
-Claude Code     user_prompt prompt prompt_text response tool_input tool.output output new_context body
+Claude Code     user_prompt prompt prompt_text response response.model_output tool_input tool.output output new_context body
 GenAI semconv   gen_ai.input.messages gen_ai.output.messages gen_ai.system_instructions gen_ai.tool.definitions
                 gen_ai.tool.call.arguments gen_ai.tool.call.result gen_ai.retrieval.query.text gen_ai.retrieval.documents
                 gen_ai.prompt gen_ai.completion gen_ai.request.stop_sequences  gen_ai.prompt.* gen_ai.completion.*

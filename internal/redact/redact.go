@@ -6,8 +6,9 @@ import "strings"
 // ContentKeys are attribute names that hold prompt, response or tool
 // content. Dropped unless the user sets store_content.
 var ContentKeys = []string{
-	// Claude Code (and the Agent SDK). tool.output span events carry "output".
-	"user_prompt", "prompt", "prompt_text", "response",
+	// Claude Code (and the Agent SDK). tool.output span events carry "output";
+	// detailed beta tracing puts model output on the request span.
+	"user_prompt", "prompt", "prompt_text", "response", "response.model_output",
 	"tool_input", "tool.output", "output", "new_context", "body",
 	// OpenTelemetry GenAI conventions, current and deprecated.
 	"gen_ai.input.messages", "gen_ai.output.messages", "gen_ai.system_instructions",
