@@ -101,6 +101,31 @@ Details for each rule: [docs/findings.md](docs/findings.md).
 
 **Recap.** Your week as a short report and a receipt you can copy as an image: hours of agent work, what shipped, minutes waiting, API value against your plan.
 
+## How it works
+
+<a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig1-dark.webp"><img alt="Fig 1, How Aftertrace works: an instrument bench. Sources feed a junction box (the OTLP receivers), light runs along a trough through a sieve (redaction) into a cabinet of four drawers (the DuckDB tables), a carriage of 13 rule templates reads the drawers and drops finding cards in a tray, and a screen (the UI) and a locked outbox (Ask) sit at the end." src="docs/images/readme/fig1-light.webp"></picture></a>
+
+One Go binary with DuckDB and the web UI embedded. Sources send OpenTelemetry to `127.0.0.1:4317` (gRPC) or `:4318` (HTTP). Identity is dropped at the door, and content is too unless you ask to keep it. What is left goes into one DuckDB file, 13 SQL rules turn it into findings, and the UI on `127.0.0.1:7311` reads the same file. Nothing leaves your machine unless you switch on Ask.
+
+Each part, up close. Click one to open it live: point at its parts, press its keys, and watch the light run through it.
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/receive.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig2-dark.webp"><img alt="Fig 2, Receiving: a sorting bench where exports enter two sockets, pass a size gauge and a decoder, and are unpacked into four bins, one per table" src="docs/images/readme/fig2-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/receive.html">Receiving</a></b><br>OTLP over gRPC on 4317 and HTTP on 4318; each signal becomes rows</td>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/redaction.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig3-dark.webp"><img alt="Fig 3, Redaction: a coin sorter where red identity tokens always fall out, indigo content tokens fall out unless a shutter covers the slot, and the rest roll on to the store" src="docs/images/readme/fig3-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/redaction.html">Redaction</a></b><br>Identity always dropped, content dropped unless you keep it</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/store.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig4-dark.webp"><img alt="Fig 4, The store: a lift carries batches into a cabinet of four drawers, with a rack of reading frames for the views" src="docs/images/readme/fig4-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/store.html">The store</a></b><br>One DuckDB file, four tables, five views, one writer</td>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig5-dark.webp"><img alt="Fig 5, Findings: a rack of rule cards, a gantry that reads the store bed with light, and a printer that drops finding tickets into a tray by severity" src="docs/images/readme/fig5-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html">Findings</a></b><br>13 SQL rules read the store and print findings with evidence</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/turn.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig6-dark.webp"><img alt="Fig 6, Reading a turn: a chart recorder whose pens draw model requests, tools, retries and waits on you, with beads counting where each second went" src="docs/images/readme/fig6-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/turn.html">Reading a turn</a></b><br>How one Claude Code turn becomes the story and the waterfall</td>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/ask.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig7-dark.webp"><img alt="Fig 7, Ask: a terminal and the store on your bench, a read-only stamp and a cutter on the channel out, and a locked gate before the model" src="docs/images/readme/fig7-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/ask.html">Ask</a></b><br>Off by default; read-only SQL, trimmed rows, nothing else leaves</td>
+</tr>
+</table>
+
+It can also import an OpenTelemetry Collector's file-exporter JSONL (`aftertrace import`). Commands and flags: [docs/cli.md](docs/cli.md). JSON API: [docs/api.md](docs/api.md).
+
 ## Private by default
 
 - Binds to `127.0.0.1`. No telemetry, no update check, no phone-home.
@@ -123,25 +148,13 @@ SELECT 'medium' AS severity, 'Hook ... averages 2.2s per run' AS headline, ...
 
 The format, the views you can query (`llm`, `tools`, `calls`, `turn_roots`, `q_spans`) and a worked example: [docs/writing-rules.md](docs/writing-rules.md). New rules are the most useful contribution you can make.
 
-## How it works
-
-```
-Claude Code, your apps ── OTLP gRPC :4317 / HTTP :4318 ──▶ aftertrace ──▶ DuckDB (local file)
-                                                    │
-                                     SQL rules ─────┤
-                                                    ▼
-                                    UI + JSON API on 127.0.0.1:7311
-```
-
-One Go binary with DuckDB and the web UI embedded. It can also import an OpenTelemetry Collector's file-exporter JSONL (`aftertrace import`). Commands and flags: [docs/cli.md](docs/cli.md). JSON API: [docs/api.md](docs/api.md).
-
 ## Status
 
-v0.1. Aftertrace is built and tested against Claude Code's documented telemetry and real sessions from Claude Code 2.1.x (version 2.1.0 or later, with the enhanced telemetry beta). Some of that telemetry is in beta and may change. Expect rough edges, and please [open an issue](https://github.com/RahulKraken/aftertrace/issues) when something looks wrong.
+Early: v0.4. Aftertrace is built and tested against Claude Code's documented telemetry and real sessions from Claude Code 2.1.x (version 2.1.0 or later, with the enhanced telemetry beta). Some of that telemetry is in beta and may change. Expect rough edges, and please [open an issue](https://github.com/RahulKraken/aftertrace/issues) when something looks wrong.
 
 ## Docs
 
-[Install](docs/install.md) · [Claude Code setup](docs/claude-code-setup.md) · [Apps and agents](docs/apps.md) · [Behind a collector](docs/behind-a-collector.md) · [CLI](docs/cli.md) · [Findings](docs/findings.md) · [Writing rules](docs/writing-rules.md) · [JSON API](docs/api.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md) · [Product brief](docs/product/brief.md) · [Contributing](CONTRIBUTING.md)
+[How it works](docs/how-it-works.md) · [Install](docs/install.md) · [Claude Code setup](docs/claude-code-setup.md) · [Apps and agents](docs/apps.md) · [Behind a collector](docs/behind-a-collector.md) · [CLI](docs/cli.md) · [Findings](docs/findings.md) · [Writing rules](docs/writing-rules.md) · [JSON API](docs/api.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md) · [Product brief](docs/product/brief.md) · [Contributing](CONTRIBUTING.md)
 
 ## License
 
