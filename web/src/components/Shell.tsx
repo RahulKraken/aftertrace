@@ -36,9 +36,9 @@ const GROUPS: { label: string; items: Item[] }[] = [
         label: "Sessions",
         icon: Rows3,
         key: "s",
-        match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || l.startsWith("/trace/"),
+        match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || (l.startsWith("/trace/") && !fromApps()),
       },
-      { href: "/apps", label: "Apps", icon: Boxes, key: "a" },
+      { href: "/apps", label: "Apps", icon: Boxes, key: "a", match: (l) => l.startsWith("/apps") || (l.startsWith("/trace/") && fromApps()) },
     ],
   },
   {
@@ -61,6 +61,11 @@ const BOTTOM: Item[] = [
   { href: "/settings", label: "Settings", icon: Settings, key: "," },
 ]
 const ALL = [TOP, ...GROUPS.flatMap((g) => g.items), ...BOTTOM]
+
+// App pages open traces with ?app=1 so the sidebar keeps Apps selected.
+function fromApps(): boolean {
+  return /[?&]app=1/.test(window.location.hash) || /[?&]app=1/.test(window.location.search)
+}
 
 export function Shell({
   children,

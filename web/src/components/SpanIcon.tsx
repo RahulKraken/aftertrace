@@ -73,7 +73,8 @@ export function barClass(s: Span): string {
     if (f === "read" || f === "edit" || f === "search") return "ph-file"
     return "ph-tool"
   }
-  return "ph-tool"
+  // Generic spans (an HTTP handler, a job) are structure, not work: neutral.
+  return "ph-turn"
 }
 
 export function SpanIcon({ span }: { span: Span }) {

@@ -205,6 +205,7 @@ export function callCount(spans: Span[], nowNs = Number.POSITIVE_INFINITY): numb
   for (const s of spans) {
     if (s.start_ns > nowNs) continue
     if (s.name === "claude_code.llm_request" || s.name === "claude_code.tool") n++
+    else if (s.joined?.app_call || (!s.name.startsWith("claude_code.") && spanKind(s) === "tool")) n++
   }
   return n
 }

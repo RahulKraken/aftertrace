@@ -81,6 +81,8 @@ Details for each rule: [docs/findings.md](docs/findings.md).
 
 **Sessions.** One row per session, with time, cost, cache hit rate and where the time went.
 
+**Apps.** Your own services and agents sending OpenTelemetry GenAI spans (Claude SDK, Vercel AI SDK, Pydantic AI, OpenLLMetry, OpenInference): calls, cost, latency and failures per app and per operation. [docs/apps.md](docs/apps.md).
+
 **Cost and Query.** Spend by model, skill, subagent, MCP server, tool and repo. A query builder and read-only SQL against the same store, and every result links back to its traces.
 
 ## Private by default

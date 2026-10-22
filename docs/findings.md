@@ -112,6 +112,36 @@ Evidence: those tool spans, largest first. Impact: USD on `llm` requests attribu
 
 Do this: ask the server for narrower results (filters, limits, fields), or call it from a subagent so only a summary reaches the main thread.
 
+## `app.model_downgrade`
+
+**A smaller model would do.** Pillar: cost. Apps only.
+
+Detects an app operation with at least 10 successful calls to an Opus, Sonnet or Fable model where 90% of outputs are under 60 tokens: classification, routing, extraction.
+
+Evidence: the costliest calls. Impact: USD, the difference between what the calls cost and what the same tokens cost on `claude-haiku-5-5` (from `prices`).
+
+Do this: switch the operation to Haiku, run your own examples through both, and keep the bigger model only where answers differ.
+
+## `app.errors`
+
+**Model calls failing.** Pillar: bottleneck. Apps only.
+
+Detects an app where at least 3 model calls, and at least 5% of them, failed (`is_error` or `error.type`).
+
+Evidence: the five newest failures. Impact: calls failed. The detail names the most common `error.type`.
+
+Do this: for `rate_limit_error`, retry with backoff and jitter, spread bursts, or raise the usage tier; for `overloaded_error`, retry and consider a fallback model; otherwise open a failure and read the status message.
+
+## `app.no_prompt_cache`
+
+**Prompt caching is off.** Pillar: cost. Apps only.
+
+Detects an Anthropic operation with at least 10 calls averaging over 2,000 input tokens and no cache reads or writes at all.
+
+Evidence: the largest calls. Impact: USD at most, 90% of the input cost after the first call, assuming the whole input repeats. Real savings are lower; the finding is low severity for that reason.
+
+Do this: mark the stable prefix (system prompt, tools, documents) with `cache_control` and put per-call content after it. If `gen_ai.usage.cache_read.input_tokens` stays zero, something early in the prompt changes on every call.
+
 ## Adding a rule
 
 [writing-rules.md](writing-rules.md).

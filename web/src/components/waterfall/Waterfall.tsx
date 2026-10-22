@@ -17,13 +17,14 @@ import {
   hasError,
   labelOf,
   rollup,
+  isAppTrace,
   spanKind,
   usageOf,
   visibleRows,
   waitChild,
   type SpanNode,
 } from "../../lib/span"
-import { turnStory } from "../../lib/story"
+import { appStory, turnStory } from "../../lib/story"
 import { indexContent, snippet, type ContentIndex } from "../../lib/content"
 import type { Finding, Trace } from "../../lib/types"
 import { useReplay } from "../../hooks/useReplay"
@@ -301,11 +302,23 @@ export function Waterfall({
       <div className="wf-main">
         <div className="wf-head">
           <div className="crumbs">
-            <Link href="/sessions">Sessions</Link> ›{" "}
-            <Link href={`/session/${trace.session_id}`} className="mono">
-              {trace.session_id.slice(0, 8)}
-            </Link>{" "}
-            › Turn {trace.turn_index} of {trace.turn_count}
+            {isAppTrace(trace.service) ? (
+              <>
+                <Link href="/apps">Apps</Link> ›{" "}
+                <Link href={`/apps/${encodeURIComponent(trace.service || "")}`} className="mono">
+                  {trace.service}
+                </Link>{" "}
+                › <span className="mono">{root.name}</span>
+              </>
+            ) : (
+              <>
+                <Link href="/sessions">Sessions</Link> ›{" "}
+                <Link href={`/session/${trace.session_id}`} className="mono">
+                  {trace.session_id.slice(0, 8)}
+                </Link>{" "}
+                › Turn {trace.turn_index} of {trace.turn_count}
+              </>
+            )}
             <span className="spacer" />
             <span className={`live-badge ${live || trace.in_progress ? "is-live" : "is-done"}`}>
               {live || trace.in_progress ? <i className="live-dot" /> : null}
@@ -330,7 +343,7 @@ export function Waterfall({
             </button>
           </div>
           <h1 className="story-line" style={{ margin: "8px 0 0" }}>
-            {turnStory(trace)}
+            {isAppTrace(trace.service) ? appStory(root) : turnStory(trace)}
           </h1>
           <div className="wf-sum">
             {dur(live ? nowMs : root.duration_ms)} · {usd(sumCost)} · {calls} calls

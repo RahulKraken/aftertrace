@@ -6,6 +6,7 @@ import { Shell } from "./components/Shell"
 import { EmptyState } from "./components/EmptyState"
 import { ToastHost } from "./lib/toast"
 import { applyTheme, readTheme, type Theme } from "./lib/theme"
+import { AppPage } from "./pages/AppPage"
 import { AppsPage } from "./pages/AppsPage"
 import { ConnectPage } from "./pages/ConnectPage"
 import { CostPage } from "./pages/CostPage"
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/" component={HomePage} />
             <Route path="/sessions" component={SessionsPage} />
             <Route path="/apps" component={AppsPage} />
+            <Route path="/apps/:service" component={AppPage} />
             <Route path="/recap" component={RecapPage} />
             <Route path="/connect" component={ConnectPage} />
             <Route path="/settings" component={SettingsPage} />

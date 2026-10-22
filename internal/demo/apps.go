@@ -98,6 +98,8 @@ func supportBot(rng *rand.Rand, t0 int64) *app {
 				attrsm["error.type"] = "rate_limit_error"
 				delete(attrsm, "gen_ai.usage.output_tokens")
 				attrsm["gen_ai.usage.input_tokens"] = 0
+				delete(attrsm, "gen_ai.usage.cache_read.input_tokens")
+				delete(attrsm, "gen_ai.usage.cache_write.input_tokens")
 				errMsg = "429 rate_limit_error"
 			}
 			a.span(trace, parent, "anthropic.messages.create", kindClient, at, at+dur, attrsm, errMsg)

@@ -304,3 +304,47 @@ export type Status = {
   sources: number
   last_ns: number
 }
+
+export type AppSummary = {
+  service: string
+  spans: number
+  traces: number
+  calls: number
+  failed: number
+  cost_usd: number
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  p50_ms: number | null
+  p95_ms: number | null
+  ttft_p50_ms: number | null
+  models: string[]
+  operations: number
+  first_ns: number
+  last_ns: number
+  live: boolean
+  daily_cost: number[]
+  daily_calls: number[]
+}
+
+export type AppGroup = {
+  key: string
+  calls: number
+  failed: number
+  cost_usd: number | null
+  p50_ms: number | null
+  p95_ms: number | null
+  ttft_p50_ms: number | null
+  avg_input_tokens: number | null
+  avg_output_tokens: number | null
+  models: string[]
+  cost_estimated: boolean
+}
+
+export type AppDetail = {
+  app: AppSummary
+  operations: AppGroup[]
+  models: AppGroup[]
+  recent: { trace_id: string; name: string; start_ns: number; duration_ms: number; error: boolean; calls: number; cost_usd: number | null; tokens: number | null; models: string | null }[]
+  errors: { trace_id: string; span_id: string; name: string; start_ns: number; message: string; error_type: string }[]
+}

@@ -3,7 +3,7 @@ import { X } from "lucide-react"
 import { contentFor, snippet, type ContentIndex } from "../../lib/content"
 import { ContentBlock } from "./ContentBlock"
 import { CAT_LABEL, CATS, dur, pct, tok, usd } from "../../lib/format"
-import { labelOf, rollup, runChild, spanKind, usageOf, waitChild, type SpanNode } from "../../lib/span"
+import { isAppTrace, labelOf, rollup, runChild, spanKind, usageOf, waitChild, type SpanNode } from "../../lib/span"
 import type { Finding, SpanKind, Trace } from "../../lib/types"
 import { hueVar } from "../../lib/hue"
 import { CACHE_TIP, EFFORT_TIP, Tip } from "../Tip"
@@ -133,10 +133,16 @@ export function DetailPane({
           <pre>{JSON.stringify({ ...node, kids: undefined }, null, 2)}</pre>
         </details>
       </div>
-      {!content.any && (
+      {!content.any && !isAppTrace(trace.service) && (
         <div className="note" style={{ marginTop: 14 }}>
           Prompt, response and tool content are not captured. Set OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES and
           OTEL_LOG_TOOL_CONTENT in Claude Code, and run aftertrace serve --store-content.
+        </div>
+      )}
+      {isAppTrace(trace.service) && hasIO && !io.input && !io.output && (
+        <div className="note" style={{ marginTop: 14 }}>
+          Messages are not captured. Turn on your SDK's content mode (for the Claude SDK,
+          ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE=content) and run aftertrace serve --store-content.
         </div>
       )}
       {k === "agent" && (
