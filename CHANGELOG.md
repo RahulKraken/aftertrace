@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.2
+
+**Privacy**
+- Model output on detailed-beta request spans (`response.model_output`) is now redacted unless you run with `--store-content`. Before this, it was stored whenever Claude Code sent it. To remove it from rows already stored: `UPDATE spans SET attrs = json_merge_patch(attrs, '{"response.model_output": null}') WHERE json_exists(attrs, '$."response.model_output"');`
+
+**Waterfall**
+- Parent rows show a count of what sits directly inside them, and the tree line runs from those counts.
+- A ⋯ menu on each row (or a right click) collapses or expands everything at that level or every span of that kind, shows only that span, or copies its ID.
+- Keys: `-` and `=` fold and open a level, `f` shows only the selected span, Esc goes back.
+
+**Findings**
+- "Mark as done" stays on the finding you marked, even as its numbers change. Marks saved by earlier versions are cleared once.
+
+**Docs**
+- The docs open on How it works. One interactive figure shows the whole system, and clicking any part opens a page about it, with its own figure and details checked against the source. The pages cover receiving, redaction, the store, findings, reading a turn, and Ask.
+- The landing page shows the live figure. The API docs now describe Ask as it works.
+
 ## v0.4.1
 
 - Sessions opens on four weeks of activity: point at a day to read it, click to show only its sessions.
