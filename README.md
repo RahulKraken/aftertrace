@@ -10,7 +10,7 @@ One binary on your machine. Your data never leaves it.
 
 <sub>How it works, in one machine. Click it to explore it live.</sub>
 
-![Aftertrace Home: a sentence about the week, agent time, waiting on you, API value, what shipped, a running session, the next finding and where the time went](docs/images/home.png)
+<picture><source media="(prefers-color-scheme: dark)" srcset="web/screenshots/home-dark.png"><img alt="Aftertrace Home: a sentence about the week, agent time, waiting on you, API value, what shipped, a running session, the next finding and where the time went" src="web/screenshots/home-light.png"></picture>
 
 It reads the OpenTelemetry that Claude Code (and any OTel-instrumented app) already exports, keeps it in a local DuckDB file, and turns it into findings like these, each linked to the spans behind it:
 
