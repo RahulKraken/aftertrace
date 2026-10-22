@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/api"
+	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/demo"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
 	"github.com/RahulKraken/aftertrace/internal/rules"
@@ -47,14 +48,16 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `Aftertrace — local profiler for Claude Code.
 
 Usage:
-  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content]
+  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
   aftertrace import  [--db PATH] [--store-content] <dir>
   aftertrace demo    [--db PATH]
 
 Default bind is 127.0.0.1. Pass --listen 0.0.0.0 to accept remote OTLP (team mode).
 Prompt, response and tool content attributes are dropped at ingest unless --store-content.
 user.email and account IDs are always dropped.
-There is no telemetry and no phone-home.
+There is no telemetry and no phone-home. --ask is the only path that sends
+anything out: the schema and query results go to the Anthropic API
+(ANTHROPIC_API_KEY; AFTERTRACE_ASK_MODEL to pick the model).
 `)
 }
 
@@ -74,7 +77,20 @@ func cmdServe(args []string) int {
 	httpPort := fs.Int("http-port", 4318, "OTLP HTTP port")
 	uiPort := fs.Int("ui-port", 7311, "UI and JSON API port")
 	storeContent := fs.Bool("store-content", false, "keep prompt/response/tool content attributes")
+	askOn := fs.Bool("ask", false, "answer English questions with Claude (sends schema and query results to the Anthropic API)")
 	_ = fs.Parse(args)
+
+	var opts []api.Option
+	askState := "off"
+	if *askOn {
+		agent, err := ask.FromEnv()
+		if err != nil {
+			log.Printf("--ask: %v", err)
+			return 1
+		}
+		opts = append(opts, api.WithAsk(agent))
+		askState = agent.Model + " (sends schema and query results to the Anthropic API)"
+	}
 
 	st, err := store.Open(*dbPath)
 	if err != nil {
@@ -96,7 +112,7 @@ func cmdServe(args []string) int {
 		log.Printf("ui: %v", err)
 		return 1
 	}
-	srv := &http.Server{Handler: api.New(st, web.FS), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: api.New(st, web.FS, opts...), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := srv.Serve(apiLn); err != nil && err != http.ErrServerClosed {
 			log.Printf("api: %v", err)
@@ -110,6 +126,7 @@ func cmdServe(args []string) int {
 	log.Printf("  OTLP HTTP   %s", httpLn.Addr())
 	log.Printf("  UI / API    http://%s", apiLn.Addr())
 	log.Printf("redact=on store_content=%v  (no telemetry)", *storeContent)
+	log.Printf("ask=%s", askState)
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

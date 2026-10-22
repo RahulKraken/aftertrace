@@ -15,6 +15,7 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/api"
+	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/demo"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
 	"github.com/RahulKraken/aftertrace/internal/query"
@@ -22,6 +23,7 @@ import (
 	"github.com/RahulKraken/aftertrace/internal/rules"
 	"github.com/RahulKraken/aftertrace/internal/store"
 	"github.com/RahulKraken/aftertrace/web"
+	"github.com/anthropics/anthropic-sdk-go/option"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -581,5 +583,76 @@ func TestRunningTurnHasStandInRoot(t *testing.T) {
 		if r.ParentSpanID != "turn" {
 			t.Fatalf("%s parent %q, want it under the stand-in root", r.SpanID, r.ParentSpanID)
 		}
+	}
+}
+
+// Ask end to end: a fake Anthropic API asks for one query, then answers
+// citing a demo turn. The API runs the SQL in the sandbox and labels evidence.
+func TestAskEndToEnd(t *testing.T) {
+	st := loadDemo(t)
+	var tid string
+	if err := st.DB.QueryRow(`SELECT trace_id FROM turn_roots ORDER BY duration_ms DESC LIMIT 1`).Scan(&tid); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("content-type", "application/json")
+		var block map[string]any
+		if calls == 1 {
+			block = map[string]any{"type": "tool_use", "id": "tu1", "name": "run_sql",
+				"input": map[string]any{"sql": "SELECT count(*) AS turns FROM turn_roots"}}
+		} else {
+			block = map[string]any{"type": "tool_use", "id": "tu2", "name": "final_answer",
+				"input": map[string]any{"answer": "You ran some turns.", "sql": "SELECT count(*) AS turns FROM turn_roots", "trace_ids": []string{tid, "nope"}}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": fmt.Sprint("m", calls), "type": "message", "role": "assistant",
+			"model": "claude-opus-5-5", "content": []any{block}, "stop_reason": "tool_use", "stop_sequence": nil,
+			"usage": map[string]any{"input_tokens": 1, "output_tokens": 1}})
+	}))
+	t.Cleanup(fake.Close)
+	agent, err := ask.New("k", ask.DefaultModel, option.WithBaseURL(fake.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(api.New(st, web.FS, api.WithAsk(agent)))
+	t.Cleanup(srv.Close)
+
+	res, err := http.Post(srv.URL+"/api/ask", "application/json", strings.NewReader(`{"question":"how many turns?"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var out struct {
+		Answer   string           `json:"answer"`
+		Enabled  bool             `json:"enabled"`
+		Result   *query.SQLResult `json:"result"`
+		Evidence []map[string]any `json:"evidence"`
+		Steps    []map[string]any `json:"steps"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if !out.Enabled || out.Answer != "You ran some turns." || len(out.Steps) != 1 {
+		t.Fatalf("ask: %+v", out)
+	}
+	if out.Result == nil || len(out.Result.Rows) != 1 {
+		t.Fatalf("result: %+v", out.Result)
+	}
+	if len(out.Evidence) != 1 || out.Evidence[0]["trace_id"] != tid || out.Evidence[0]["label"] == "" {
+		t.Fatalf("evidence: %+v", out.Evidence)
+	}
+
+	// Without --ask the endpoint explains how to turn it on and calls nothing.
+	off := httptest.NewServer(api.New(st, web.FS))
+	t.Cleanup(off.Close)
+	r2, err := http.Post(off.URL+"/api/ask", "application/json", strings.NewReader(`{"question":"q"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Body.Close()
+	b, _ := io.ReadAll(r2.Body)
+	if !strings.Contains(string(b), `"enabled":false`) || !strings.Contains(string(b), "--ask") {
+		t.Fatalf("ask off: %s", b)
 	}
 }

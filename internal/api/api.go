@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/query"
 	"github.com/RahulKraken/aftertrace/internal/rules"
 	"github.com/RahulKraken/aftertrace/internal/store"
@@ -16,10 +17,19 @@ import (
 type Server struct {
 	Store *store.Store
 	Web   fs.FS
+	Ask   *ask.Agent
 }
 
-func New(st *store.Store, web fs.FS) http.Handler {
+type Option func(*Server)
+
+// WithAsk turns on POST /api/ask. Without it the endpoint explains how to enable it.
+func WithAsk(a *ask.Agent) Option { return func(s *Server) { s.Ask = a } }
+
+func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	s := &Server{Store: st, Web: web}
+	for _, o := range opts {
+		o(s)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sessions", s.getSessions)
 	mux.HandleFunc("GET /api/session/{id}", s.getSession)
@@ -159,14 +169,6 @@ func (s *Server) getRange(w http.ResponseWriter, r *http.Request) {
 	s.json(w, map[string]any{"lo": lo.Int64, "hi": hi.Int64}, 200)
 }
 
-func (s *Server) getAskSuggestions(w http.ResponseWriter, r *http.Request) {
-	s.json(w, map[string]any{
-		"agent":     "stub (Ask is opt-in and out of scope in this build)",
-		"questions": []string{},
-		"schema":    schemaText,
-	}, 200)
-}
-
 func (s *Server) postQuery(w http.ResponseWriter, r *http.Request) {
 	var q query.Builder
 	if err := json.NewDecoder(r.Body).Decode(&q); err != nil {
@@ -231,20 +233,6 @@ func (s *Server) postSQL(w http.ResponseWriter, r *http.Request) {
 	s.json(w, out, 200)
 }
 
-func (s *Server) postAsk(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Question string `json:"question"`
-	}
-	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body)
-	s.json(w, map[string]any{
-		"answer":   "Ask is not enabled in this build. It is opt-in and out of scope for the backend foundation; Aftertrace never sends data out unless you turn it on later.",
-		"sql":      nil,
-		"result":   nil,
-		"evidence": []any{},
-		"builder":  nil,
-	}, 200)
-}
-
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		s.json(w, map[string]string{"error": "not found"}, 404)
@@ -271,11 +259,3 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 	}
 	http.ServeContent(w, r, p, stat.ModTime(), f.(io.ReadSeeker))
 }
-
-const schemaText = `Tables (DuckDB):
-spans(trace_id, span_id, parent_span_id, name, start_ns, end_ns, duration_ms, is_error, status_message, session_id, attrs JSON, resource JSON)
-span_events(trace_id, span_id, name, time_ns, attrs JSON)
-events(ts_ns, name, session_id, prompt_id, trace_id, span_id, request_id, tool_use_id, attrs JSON, resource JSON)
-metric_points(name, unit, ts_ns, value, session_id, attrs JSON, resource JSON)
-Views: llm, tools, q_spans.
-Macros: a(json, key) -> string attribute, n(json, key) -> numeric attribute.`
