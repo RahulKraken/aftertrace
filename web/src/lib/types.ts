@@ -303,6 +303,7 @@ export type Status = {
   apps: number
   sources: number
   last_ns: number
+  monthly_usd?: number
 }
 
 export type AppSummary = {
@@ -365,4 +366,68 @@ export type Recap = {
   longest: RecapTurn | null
   busiest_day: { day: string; turn_ms: number; lanes: { session_id: string; title: string | null; turns: [number, number][] }[] } | null
   peak_parallel: number
+  plans?: PlansSummary
+}
+
+export type BillingPeriod = "monthly" | "yearly" | "usage"
+
+export type CatalogPlan = {
+  id: string
+  vendor: string
+  plan_name: string
+  brand: string
+  price: number | null
+  currency: string
+  billing_period: BillingPeriod
+  source_url: string
+  sourced_at: string
+  notes?: string
+  usage_kind: string
+}
+
+export type Subscription = {
+  id: string
+  catalog_id?: string
+  vendor: string
+  plan_name: string
+  brand?: string
+  price: number | null
+  currency: string
+  billing_period: BillingPeriod
+  renewal_day: number | null
+  start_date?: string
+  status: "active" | "cancelled"
+  notes?: string
+  usage_kind: string
+  cancelled_at?: string
+  created_ns: number
+  updated_ns: number
+  monthly_usd: number | null
+}
+
+export type PlansRenewal = {
+  id: string
+  vendor: string
+  plan_name: string
+  on: string
+  in_days: number
+  amount: number | null
+}
+
+export type PlansSummary = {
+  monthly_usd: number
+  usage_usd: number
+  total_usd: number
+  currency: string
+  active: number
+  unpriced: number
+  usage_based: number
+  next_renewal: PlansRenewal | null
+  usage: { kind: string; label: string; usd: number; from: string }[]
+}
+
+export type PlansLedger = {
+  catalog: CatalogPlan[]
+  subscriptions: Subscription[]
+  summary: PlansSummary
 }

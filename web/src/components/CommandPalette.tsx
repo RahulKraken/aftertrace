@@ -28,6 +28,7 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
       { id: "p-a", group: "Pages", label: "Apps", href: "/apps", hint: "g a" },
       { id: "p-f", group: "Pages", label: "Findings", href: "/findings", hint: "g f" },
       { id: "p-c", group: "Pages", label: "Cost", href: "/cost", hint: "g c" },
+      { id: "p-p", group: "Pages", label: "Plans", href: "/plans", hint: "g p" },
       { id: "p-q", group: "Pages", label: "Query", href: "/query", hint: "g q" },
       { id: "p-r", group: "Pages", label: "Recap", href: "/recap", hint: "g r" },
       { id: "p-n", group: "Pages", label: "Connect a source", href: "/connect", hint: "g n" },

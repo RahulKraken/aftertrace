@@ -15,6 +15,7 @@ import {
 } from "./load"
 import { mockOverview, mockSources, mockStatus } from "./overview"
 import { fieldValues, queryTraces, runQuery } from "./query"
+import { mockAdd, mockCancel, mockLedger, mockPatch } from "./plans"
 import { runSql } from "./sql"
 
 function json<T>(data: T, status = 200): T {
@@ -34,8 +35,9 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
     if (p === "/api/apps") return json(apps)
     if (p === "/api/recap") {
       const wk = Number(url.searchParams.get("week") || 0)
-      return json({ ...recaps[Math.min(wk, recaps.length - 1)], has_older: wk < recaps.length - 1 })
+      return json({ ...recaps[Math.min(wk, recaps.length - 1)], has_older: wk < recaps.length - 1, plans: mockLedger().summary })
     }
+    if (p === "/api/subscriptions") return json(mockLedger())
     if (p.startsWith("/api/app/")) {
       const d = appDetail(decodeURIComponent(p.slice("/api/app/".length)))
       if (!d) return json({ error: "not found" }, 404)
@@ -97,6 +99,21 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
       }
       return json(fallback)
     }
+    if (p === "/api/subscriptions") return json(mockAdd(body), 201)
+    if (p.endsWith("/cancel") && p.startsWith("/api/subscriptions/")) {
+      const id = p.split("/")[3]
+      return json(mockCancel(id))
+    }
+    if (p.endsWith("/restore") && p.startsWith("/api/subscriptions/")) {
+      const id = p.split("/")[3]
+      return json(mockCancel(id, true))
+    }
+  }
+
+  if (method === "PATCH" && p.startsWith("/api/subscriptions/")) {
+    const id = p.slice("/api/subscriptions/".length)
+    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {}
+    return json(mockPatch(id, body))
   }
 
   return json({ error: "not found" }, 404)

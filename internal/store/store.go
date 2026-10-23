@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/RahulKraken/aftertrace/internal/plans"
 	"github.com/RahulKraken/aftertrace/internal/pricing"
 	"os"
 	"path/filepath"
@@ -107,6 +108,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("prices: %w", err)
 	}
+	if err := plans.SeedCatalog(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("plan catalog: %w", err)
+	}
 	if _, err := db.Exec(viewsSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("views: %w", err)
@@ -199,6 +204,22 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 			}
 		}
 		stmt.Close()
+	}
+	return tx.Commit()
+}
+
+// Mutate runs fn in a write transaction. Ingest and subscription edits share
+// this lock so two writers cannot conflict on the same DuckDB instance.
+func (s *Store) Mutate(fn func(tx *sql.Tx) error) error {
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

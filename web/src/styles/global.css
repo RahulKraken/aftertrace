@@ -1765,3 +1765,49 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: 420ms; }
 .sdot.is-err:hover, .sdot.is-err.is-hot { background: var(--hue-retry); }
 .n-pill, .err-dot { transition: opacity 140ms ease; }
 .row:hover .n-pill, .row.hov .n-pill, .row.sel .n-pill { opacity: 0; }
+
+/* plans — the monthly total is the page; list and catalog stay quiet */
+.plans { max-width: 640px; }
+.plans-hero { margin: 22px 0 28px; }
+.plans-total { font: 600 52px/1 var(--sans); letter-spacing: -0.045em; font-variant-numeric: tabular-nums; margin: 8px 0 10px; }
+.plans-hero-sub, .plans-next { color: var(--mute); font-size: 13px; }
+.plans-next { margin-top: 6px; color: var(--ink-2); }
+.plans-actions { margin-bottom: 16px; }
+.plans-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.plans-list li + li, .plans-cancelled .plans-row + .plans-row { border-top: 1px solid var(--line); }
+.plans-row {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  width: 100%; text-align: left; padding: 10px 14px; background: transparent; border: 0; color: inherit;
+}
+.plans-row:hover { background: var(--sel); }
+.plans-row.is-plain { grid-template-columns: minmax(0, 1fr) auto; }
+.plans-row.is-quiet { cursor: default; }
+.plans-row.is-quiet:hover { background: transparent; }
+.plans-row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.plans-row-name { font-weight: 550; font-size: 13.5px; }
+.plans-row-amt { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.plans-mark {
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2);
+  display: grid; place-items: center; color: var(--ink);
+}
+.plans-letter { font: 600 11px var(--sans); color: var(--mute); }
+.plans-cancelled { margin-top: 28px; }
+.plans-cancelled .stat-label { margin-bottom: 8px; }
+.plans-vendors { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px; }
+.plans-vendor {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px;
+  border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); color: var(--mute); font-size: 12.5px;
+}
+.plans-vendor.on { color: var(--ink); border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.plans-custom {
+  margin-top: 14px; background: none; border: 0; color: var(--mute); padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px;
+}
+.plans-custom:hover { color: var(--ink); }
+.plans-form { margin-top: 8px; display: flex; flex-direction: column; gap: 12px; max-width: 360px; }
+.plans-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--mute); }
+.plans-confirm-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.plans-form-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plans-form a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 600px) {
+  .plans-total { font-size: 40px; }
+}

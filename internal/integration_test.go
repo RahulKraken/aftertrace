@@ -2,6 +2,7 @@ package internal_test
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/demo"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
+	"github.com/RahulKraken/aftertrace/internal/plans"
 	"github.com/RahulKraken/aftertrace/internal/query"
 	"github.com/RahulKraken/aftertrace/internal/redact"
 	"github.com/RahulKraken/aftertrace/internal/rules"
@@ -44,6 +46,9 @@ func loadDemo(t *testing.T) *store.Store {
 	}
 	t.Cleanup(func() { st.Close() })
 	if _, err := otlp.ImportDir(st, dir, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := demo.SeedPlans(st); err != nil {
 		t.Fatal(err)
 	}
 	c, err := st.Counts()
@@ -78,6 +83,9 @@ func TestRulesFireOnIntendedScenariosAndStaySilentOnCleanSession(t *testing.T) {
 		"app.errors",
 		"app.no_prompt_cache",
 	}
+	// plan.barely_used is covered by TestPlanBarelyUsedRule. Demo Claude
+	// sessions span six days in October 2026, so this calendar-month rule
+	// stays quiet while those days are "this month".
 	for _, id := range need {
 		if len(got[id]) == 0 {
 			t.Errorf("rule %s did not fire", id)
@@ -224,6 +232,14 @@ func TestAPIGolden(t *testing.T) {
 		t.Fatal("query traces empty")
 	}
 
+	var ledger map[string]any
+	if err := json.Unmarshal(get("/api/subscriptions"), &ledger); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ledger["summary"].(map[string]any); !ok {
+		t.Fatalf("subscriptions %+v", ledger)
+	}
+
 	var sqlres query.SQLResult
 	if err := json.Unmarshal(post("/api/sql", map[string]string{"sql": "SELECT count(*) AS n FROM spans"}), &sqlres); err != nil {
 		t.Fatal(err)
@@ -276,6 +292,11 @@ func TestAPIGolden(t *testing.T) {
 	seen := map[string]bool{}
 	for _, f := range findings {
 		id := f["rule_id"].(string)
+		// Calendar-month rule: demo traces are dated October 2026, so this
+		// fires or stays quiet depending on when the test runs.
+		if id == "plan.barely_used" {
+			continue
+		}
 		if !seen[id] {
 			seen[id] = true
 			ids = append(ids, id)
@@ -632,6 +653,196 @@ func TestFindingsEmptyStoreIsEmptyArray(t *testing.T) {
 	}
 }
 
+func TestPlanBarelyUsedRule(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "p.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Now().UTC()
+	day := 1
+	if err := st.Mutate(func(tx *sql.Tx) error {
+		_, err := plans.Insert(tx, plans.Draft{CatalogID: "claude-max-20x", RenewalDay: &day}, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fs := rules.RunAll(st.DB)
+	for _, f := range fs {
+		if f.RuleID == "plan.barely_used" {
+			t.Fatalf("fired without telemetry: %s", f.Headline)
+		}
+	}
+
+	addTurn := func(id string, d time.Time) {
+		ns := d.UnixNano()
+		if err := st.Insert([]store.Span{{
+			TraceID: id, SpanID: "turn", Name: "claude_code.interaction",
+			StartNS: ns, EndNS: ns + 1e6, DurationMS: 1, SessionID: "s-" + id,
+			Resource: map[string]any{"service.name": "claude-code"},
+		}}, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	addTurn("a", time.Date(now.Year(), now.Month(), 2, 12, 0, 0, 0, time.UTC))
+	fs = rules.RunAll(st.DB)
+	var hit *rules.Finding
+	for i := range fs {
+		if fs[i].RuleID == "plan.barely_used" {
+			hit = &fs[i]
+		}
+	}
+	if hit == nil {
+		t.Fatal("expected barely-used finding after 1 day")
+	}
+	if hit.Headline != "You paid $200 for Claude Max 20x and used it on 1 day this month" {
+		t.Fatalf("headline: %s", hit.Headline)
+	}
+	if hit.ImpactValue != 200 {
+		t.Fatalf("impact %v", hit.ImpactValue)
+	}
+
+	for i, n := range []int{4, 5, 6, 7} {
+		addTurn(fmt.Sprintf("d%d", i), time.Date(now.Year(), now.Month(), n, 12, 0, 0, 0, time.UTC))
+	}
+	fs = rules.RunAll(st.DB)
+	for _, f := range fs {
+		if f.RuleID == "plan.barely_used" {
+			t.Fatalf("still firing after 5 days: %s", f.Headline)
+		}
+	}
+}
+
+func TestUsageEstimateFromCalls(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "u.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	ns := now.UnixNano()
+	if err := st.Insert([]store.Span{{
+		TraceID: "t1", SpanID: "c1", Name: "ai.generateText.doGenerate",
+		StartNS: ns, EndNS: ns + 1e6, DurationMS: 1,
+		Resource: map[string]any{"service.name": "notes-app"},
+		Attrs: map[string]any{
+			"ai.model.id":       "gpt-5-mini",
+			"ai.model.provider": "openai.chat",
+			"llm.cost.total":    1.25,
+		},
+	}}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Mutate(func(tx *sql.Tx) error {
+		_, err := plans.Insert(tx, plans.Draft{CatalogID: "openai-api"}, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := plans.Compute(st.DB, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.UsageUSD != 1.25 || sum.TotalUSD != 1.25 || sum.MonthlyUSD != 0 {
+		t.Fatalf("summary %+v", sum)
+	}
+	if len(sum.Usage) != 1 || sum.Usage[0].Kind != plans.UsageOpenAIAPI {
+		t.Fatalf("usage lines %+v", sum.Usage)
+	}
+}
+
+func TestSubscriptionsAPI(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "s.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	srv := httptest.NewServer(api.New(st, web.FS))
+	t.Cleanup(srv.Close)
+
+	res, err := http.Get(srv.URL + "/api/subscriptions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	cat := body["catalog"].([]any)
+	if len(cat) < 10 {
+		t.Fatalf("catalog %d", len(cat))
+	}
+	sum := body["summary"].(map[string]any)
+	if sum["total_usd"].(float64) != 0 {
+		t.Fatalf("empty total %v", sum["total_usd"])
+	}
+
+	raw, _ := json.Marshal(map[string]any{"catalog_id": "chatgpt-plus", "renewal_day": 28})
+	res, err = http.Post(srv.URL+"/api/subscriptions", "application/json", bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 201 {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("create -> %d %s", res.StatusCode, b)
+	}
+	var sub map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&sub); err != nil {
+		t.Fatal(err)
+	}
+	if sub["plan_name"] != "ChatGPT Plus" || sub["monthly_usd"].(float64) != 20 {
+		t.Fatalf("created %+v", sub)
+	}
+	id := sub["id"].(string)
+
+	req, _ := http.NewRequest("PATCH", srv.URL+"/api/subscriptions/"+id, bytes.NewReader([]byte(`{"price":18}`)))
+	req.Header.Set("content-type", "application/json")
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("patch %d", res.StatusCode)
+	}
+
+	res, err = http.Post(srv.URL+"/api/subscriptions/"+id+"/cancel", "application/json", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(res.Body).Decode(&sub); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if sub["status"] != "cancelled" {
+		t.Fatalf("cancel %+v", sub)
+	}
+
+	res, err = http.Post(srv.URL+"/api/subscriptions/"+id+"/restore", "application/json", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("restore %d", res.StatusCode)
+	}
+
+	res, err = http.Get(srv.URL + "/api/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stBody map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&stBody); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if stBody["monthly_usd"].(float64) != 18 {
+		t.Fatalf("status monthly %v", stBody["monthly_usd"])
+	}
+}
+
 // A turn that is still running has no claude_code.interaction span yet. It
 // must still show up as a turn, with a stand-in root for the waterfall.
 func TestRunningTurnHasStandInRoot(t *testing.T) {
@@ -792,7 +1003,8 @@ func TestEndpointsDoNotDeadlock(t *testing.T) {
 	_ = st.DB.QueryRow(`SELECT session_id FROM turn_roots WHERE session_id IS NOT NULL LIMIT 1`).Scan(&sid)
 	paths := []string{"/api/status", "/api/overview", "/api/sources", "/api/sessions", "/api/session/" + sid, "/api/trace/" + tid,
 		"/api/findings", "/api/fields", "/api/cost?dim=model", "/api/range", "/api/ask/suggestions",
-		"/api/recap", "/api/recap?week=1", "/api/apps", "/api/app/support-bot", "/api/cost?dim=source"}
+		"/api/recap", "/api/recap?week=1", "/api/apps", "/api/app/support-bot", "/api/cost?dim=source",
+		"/api/subscriptions"}
 	for round := 0; round < 2; round++ {
 		for _, p := range paths {
 			res, err := client.Get(srv.URL + p)

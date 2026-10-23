@@ -155,6 +155,8 @@ func schemaText(db *sql.DB) string {
 		{"llm", "one row per model request with cost_usd, tokens, ttft_ms, attempt, model, effort, skill_name, agent_name, mcp_server_name, repo"},
 		{"tools", "one row per tool call with tool_name, wait_ms (blocked on the user), exec_ms, decision, decision_source, result_tokens"},
 		{"turn_roots", "one row per turn (trace_id, session_id, start_ns, end_ns, duration_ms, in_progress)"},
+		{"subscriptions", "plans you pay for: vendor, plan_name, price, currency, billing_period, status, usage_kind"},
+		{"plan_catalog", "bundled AI plan list with sourced prices; rewritten when the store opens"},
 	}
 	for _, r := range rel {
 		rows, err := db.Query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_name=? ORDER BY ordinal_position`, r.name)

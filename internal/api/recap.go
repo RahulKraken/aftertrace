@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/RahulKraken/aftertrace/internal/plans"
 )
 
 // GET /api/recap?week=N: the Nth week back (0 = the 7 days ending now, or at
@@ -103,6 +105,9 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 		out["busiest_day"] = map[string]any{"day": busiest, "turn_ms": byDay[busiest], "lanes": dayLanes(db, turns, busiest)}
 	}
 	out["peak_parallel"] = peakParallel(turns)
+	if sum, err := plans.Compute(db, time.Now()); err == nil {
+		out["plans"] = sum
+	}
 	s.json(w, out, 200)
 }
 

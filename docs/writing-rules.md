@@ -64,6 +64,8 @@ Tables:
 | `span_events` | `gen_ai.request.attempt`, `tool.output`, ... |
 | `events` | One log record. `name` has the `claude_code.` prefix stripped. `request_id` / `tool_use_id` / `prompt_id` promoted to columns. |
 | `metric_points` | One number data point. |
+| `subscriptions` | Plans you added on the Plans page. |
+| `plan_catalog` | Bundled AI plan list; rewritten when the store opens. |
 
 Views:
 

@@ -1,4 +1,5 @@
 import type { Breakdown, DayPoint, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import { mockMonthlyUsd } from "./plans"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -143,5 +144,6 @@ export function mockStatus(): Status {
     apps: apps.length,
     sources: 1 + apps.length,
     last_ns: now - 3e9,
+    monthly_usd: mockMonthlyUsd(),
   }
 }

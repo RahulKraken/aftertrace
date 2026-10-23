@@ -48,6 +48,9 @@ export function receiptLines(r: Recap, plan: Plan | null, showPrompts: boolean):
     lines.push({ kind: "row", left: `Plan, prorated 7 days`, right: usd((plan.monthly * 7) / 30) })
     if (mult != null) lines.push({ kind: "big", left: "Paid for itself", right: `${mult.toFixed(1)}×` })
   }
+  if (r.plans && r.plans.total_usd > 0) {
+    lines.push({ kind: "row", left: "This month's AI total", right: usd(r.plans.total_usd) })
+  }
   const top = r.tools[0]
   lines.push({ kind: "rule" })
   if (top) lines.push({ kind: "row", left: "Top tool", right: `${top.tool} × ${int(top.calls)}` })

@@ -4,13 +4,13 @@ How Aftertrace looks and behaves, and why. The attention budget in [design-princ
 
 ## Information architecture
 
-A left sidebar with three labelled groups, so the eight destinations read as three jobs instead of a flat list.
+A left sidebar with three labelled groups, so the nine destinations read as three jobs instead of a flat list.
 
 | Group | Pages | The job |
 | - | - | - |
 | (top) | **Home** | What is happening, and what happened this week |
 | Observe | **Sessions**, **Apps** | Look at what ran |
-| Improve | **Findings**, **Cost** | Decide what to change |
+| Improve | **Findings**, **Cost**, **Plans** | Decide what to change; see what you pay |
 | Explore | **Query**, **Recap** | Ask anything; see the week |
 | (bottom) | **Connect**, **Settings** | Add a source; tune the instrument |
 

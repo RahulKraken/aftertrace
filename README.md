@@ -92,6 +92,7 @@ Run `aftertrace serve`. Your next turn shows up in the Sessions view.
 | `app.model_downgrade` | An app operation using a large model for short answers |
 | `app.errors` | An app whose model calls fail often |
 | `app.no_prompt_cache` | Large Anthropic prompts sent with no caching |
+| `plan.barely_used` | A plan you pay for and barely used this month |
 
 Details for each rule: [docs/findings.md](docs/findings.md).
 
@@ -103,11 +104,13 @@ Details for each rule: [docs/findings.md](docs/findings.md).
 
 **Cost and Query.** Spend by source, model, skill, subagent, MCP server, tool and repo. A query builder and read-only SQL against the same store, and every result links back to its traces. **Ask** (opt-in, `aftertrace serve --ask`) answers plain-English questions with SQL written by Claude.
 
-**Recap.** Your week as a short report and a receipt you can copy as an image: hours of agent work, what shipped, minutes waiting, API value against your plan.
+**Plans.** Everything you pay for AI, kept in the same local DuckDB file. Tick a catalog plan (ChatGPT, Claude, Gemini, Grok, Perplexity, Cursor, Copilot, Midjourney, or an API) and confirm the listed price, or add something else. The monthly total is the page: yearly plans are divided by 12, usage-based spend is estimated from traces Aftertrace already has. Prices come from official pages with a date and URL; blank when the page did not list one.
+
+**Recap.** Your week as a short report and a receipt you can copy as an image: hours of agent work, what shipped, minutes waiting, API value against your plan, and this month's AI total from Plans.
 
 ## How it works
 
-The figure at the top is the whole system. One Go binary with DuckDB and the web UI embedded. Sources send OpenTelemetry to `127.0.0.1:4317` (gRPC) or `:4318` (HTTP). Identity is dropped at the door, and content is too unless you ask to keep it. What is left goes into one DuckDB file, 13 SQL rules turn it into findings, and the UI on `127.0.0.1:7311` reads the same file. Nothing leaves your machine unless you switch on Ask.
+The figure at the top is the whole system. One Go binary with DuckDB and the web UI embedded. Sources send OpenTelemetry to `127.0.0.1:4317` (gRPC) or `:4318` (HTTP). Identity is dropped at the door, and content is too unless you ask to keep it. What is left goes into one DuckDB file, 14 SQL rules turn it into findings, and the UI on `127.0.0.1:7311` reads the same file. Nothing leaves your machine unless you switch on Ask.
 
 Each part, up close. Click one to open it live: point at its parts, press its keys, and watch the light run through it.
 
@@ -118,7 +121,7 @@ Each part, up close. Click one to open it live: point at its parts, press its ke
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/store.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig4-dark.webp"><img alt="Fig 4, The store: a lift carries batches into a cabinet of four drawers, with a rack of reading frames for the views" src="docs/images/readme/fig4-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/store.html">The store</a></b><br>One DuckDB file, four tables, five views, one writer</td>
-<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig5-dark.webp"><img alt="Fig 5, Findings: a rack of rule cards, a gantry that reads the store bed with light, and a printer that drops finding tickets into a tray by severity" src="docs/images/readme/fig5-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html">Findings</a></b><br>13 SQL rules read the store and print findings with evidence</td>
+<td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig5-dark.webp"><img alt="Fig 5, Findings: a rack of rule cards, a gantry that reads the store bed with light, and a printer that drops finding tickets into a tray by severity" src="docs/images/readme/fig5-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/findings.html">Findings</a></b><br>14 SQL rules read the store and print findings with evidence</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/turn.html"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/fig6-dark.webp"><img alt="Fig 6, Reading a turn: a chart recorder whose pens draw model requests, tools, retries and waits on you, with beads counting where each second went" src="docs/images/readme/fig6-light.webp"></picture></a><br><b><a href="https://rahulkraken.github.io/aftertrace/docs/how-it-works/turn.html">Reading a turn</a></b><br>How one Claude Code turn becomes the story and the waterfall</td>

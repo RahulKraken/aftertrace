@@ -6,7 +6,7 @@ Each finding is one row from a SQL file in [`rules/`](../rules/). The engine emb
 
 A finding always has a severity (`high` / `medium` / `low`), a headline, an impact (number + unit), a detail, a recommendation, evidence `{trace_id, span_id, label}`, and session ids. Evidence chips in the UI open the waterfall on that span.
 
-`aftertrace demo` fires every shipped rule. Screenshot:
+`aftertrace demo` fires every shipped rule that has a matching scenario in the synthetic data. `plan.barely_used` needs an observed plan used on three or fewer days this calendar month; the demo Claude sessions span six days in October 2026, so it stays quiet then. Screenshot:
 
 ![Findings page after `aftertrace demo`](images/findings.png)
 
@@ -143,6 +143,16 @@ Detects an Anthropic operation with at least 10 calls averaging over 2,000 input
 Evidence: the largest calls. Impact: USD at most, 90% of the input cost after the first call, assuming the whole input repeats. Real savings are lower; the finding is low severity for that reason.
 
 Do this: mark the stable prefix (system prompt, tools, documents) with `cache_control` and put per-call content after it. If `gen_ai.usage.cache_read.input_tokens` stays zero, something early in the prompt changes on every call.
+
+## `plan.barely_used`
+
+**Paying for a plan you barely use.** Pillar: cost.
+
+Looks at active monthly and yearly rows in `subscriptions` that Aftertrace can observe (`usage_kind` `claude_code` via Claude Code turns, or an API kind via the `calls` view). If that source has ever sent traces, and it was used on 3 or fewer distinct days this calendar month, the rule fires.
+
+Headline is money in English: `You paid $200 for Claude Max 20x and used it on 1 day this month`. Impact is the monthly equivalent of the list price. Evidence is empty: this is about the plan, not a span.
+
+Do this: cancel or downgrade on Plans if you are not using it. Aftertrace cannot see ChatGPT chat, Perplexity, Copilot or Midjourney usage, so those plans never trigger this rule.
 
 ## Adding a rule
 

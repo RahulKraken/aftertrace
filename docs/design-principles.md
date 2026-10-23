@@ -73,6 +73,14 @@ If two things both look important, the budget is already blown. Cut one.
 | Table | 8 | The breakdown *is* the page. |
 | Dimension switcher | 2 | How you slice it. |
 
+### Plans
+
+| Element | Units | Why |
+|---|---:|---|
+| Monthly AI total | 8 | The number is the page. Yearly plans already divided by 12. |
+| Next renewal | 1 | When the next bill hits, in English. |
+| Plan list and Add | 1 | Quiet inventory. Catalog pick and confirm take the same budget when they replace the list. |
+
 ### Empty
 
 | Element | Units | Why |

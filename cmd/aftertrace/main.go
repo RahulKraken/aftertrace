@@ -224,6 +224,10 @@ func cmdDemo(args []string) int {
 		log.Printf("ingest: %v", err)
 		return 1
 	}
+	if err := demo.SeedPlans(st); err != nil {
+		log.Printf("plans: %v", err)
+		return 1
+	}
 	log.Printf("loaded %d synthetic sessions into %s", len(sessions), st.Path)
 	log.Printf("spans=%d span_events=%d events=%d metric_points=%d  (aftertrace.synthetic=true)", c.Spans, c.SpanEvents, c.Events, c.MetricPoints)
 	findings := rules.RunAll(st.DB)
