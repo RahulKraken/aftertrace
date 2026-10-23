@@ -18,6 +18,8 @@ import type {
   SqlResult,
   Trace,
   TraceHit,
+  PlansLedger,
+  Subscription,
 } from "./types"
 
 const mockOn = import.meta.env.VITE_USE_MOCK !== "0"
@@ -73,4 +75,13 @@ export const api = {
   ask: (question: string) =>
     request<AskResult>("/api/ask", { method: "POST", body: JSON.stringify({ question }) }),
   fieldValues: (field: string) => request<string[]>(`/api/field-values?field=${encodeURIComponent(field)}`),
+  subscriptions: () => request<PlansLedger>("/api/subscriptions"),
+  addSubscription: (body: Record<string, unknown>) =>
+    request<Subscription>("/api/subscriptions", { method: "POST", body: JSON.stringify(body) }),
+  updateSubscription: (id: string, body: Record<string, unknown>) =>
+    request<Subscription>(`/api/subscriptions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  cancelSubscription: (id: string) =>
+    request<Subscription>(`/api/subscriptions/${id}/cancel`, { method: "POST", body: "{}" }),
+  restoreSubscription: (id: string) =>
+    request<Subscription>(`/api/subscriptions/${id}/restore`, { method: "POST", body: "{}" }),
 }

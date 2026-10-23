@@ -1,6 +1,6 @@
 # Findings
 
-A finding is one row returned by a SQL rule. Aftertrace ships 13 rules. Each time you look, it runs every one of them against your store and shows you the rows that come back.
+A finding is one row returned by a SQL rule. Aftertrace ships 14 rules. Each time you look, it runs every one of them against your store and shows you the rows that come back.
 
 <!-- figure:findings -->
 ![Fig 5, Findings: a card-reading machine. A rack of thirteen thin cards with coloured index tabs stands on the left. The card being read lifts; a gantry sweeps a beam of coloured light across a bed of four panels, one per table, and the matching rows glow. A printer feeds a ticket into a tray with four compartments, high, medium, low and error, and a thread runs from the ticket back to the row it cites.](../images/figure-findings.png)
@@ -73,7 +73,7 @@ Rules run when something asks for findings:
 - **The sidebar count** (`/api/status`) counts findings that are not errors. It reuses the last results for up to 10 seconds, so polling it does not re-run every rule. In the figure, that is the dial on the printer.
 - **`aftertrace import <dir>`** prints every finding after it loads the files.
 
-## The 13 rules
+## The 14 rules
 
 The **Reads** column lists what each query selects from: tables, or the views built on them. No shipped rule reads `metric_points`.
 
@@ -86,6 +86,7 @@ The **Reads** column lists what each query selects from: tables, or the views bu
 | `hook.overhead` | Slow hooks | bottleneck | A hook averaging 1 s or more per run | `events` | s in hooks | |
 | `mcp.large_results` | Large MCP tool results | cost | MCP tool results over 10,000 tokens | `tools`, `llm` | USD on requests that consumed them | `OTEL_LOG_TOOL_DETAILS=1` for server names |
 | `model.switch_cache_rebuild` | Model switch rebuilt the cache | cost | A model switch that rebuilt the prompt cache | `llm` | USD on the rebuild request | |
+| `plan.barely_used` | Paying for a plan you barely use | cost | An observed plan used on 0–3 days this month | `subscriptions`, `turn_roots`, `calls` | USD / month | A matching `subscriptions.usage_kind` |
 | `permission.allow_rule_candidate` | Allow rule would remove repeated prompts | bottleneck | The same permission approved 3+ times | `tools` | s waited | `OTEL_LOG_TOOL_DETAILS=1` for exact Bash patterns |
 | `plugin.skills_unused` | Plugin skills never used | config | A plugin's skills loaded in 3+ sessions, never used | `events` | sessions | `OTEL_LOG_TOOL_DETAILS=1` for plugin names |
 | `retry.exhausted` | Retries exhausted | bottleneck | A request that ran out of retries | `events`, `spans` | s stalled | |
@@ -93,7 +94,7 @@ The **Reads** column lists what each query selects from: tables, or the views bu
 | `skill.cost` | Expensive skill | cost | A skill that is 25%+ of cost, or $1+ per use | `llm`, `events` | USD | `OTEL_LOG_TOOL_DETAILS=1` for skill names |
 | `tool.repeated_errors` | Repeated tool failures | bottleneck | The same tool failing the same way twice in a session | `tools` | s spent on failing runs | `OTEL_LOG_TOOL_DETAILS=1` for the full command |
 
-The three `app.*` rules look only at model calls from your own apps: the `calls` view leaves out Claude Code's spans. The other ten look at Claude Code's telemetry. [Findings reference](../findings.md) has each rule's exact condition, evidence and advice.
+The three `app.*` rules look only at model calls from your own apps: the `calls` view leaves out Claude Code's spans. `plan.barely_used` reads the local subscriptions ledger. The other ten look at Claude Code's telemetry. [Findings reference](../findings.md) has each rule's exact condition, evidence and advice.
 
 ## Reading one, and acting on it
 

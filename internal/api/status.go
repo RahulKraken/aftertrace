@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RahulKraken/aftertrace/internal/plans"
 	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
@@ -73,16 +74,18 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	if s.Ask != nil {
 		ask["model"] = s.Ask.Model
 	}
+	sum, _ := plans.Compute(db, time.Now())
 	s.json(w, map[string]any{
-		"now":      now,
-		"info":     s.Info,
-		"ask":      ask,
-		"counts":   c,
-		"running":  running,
-		"sessions": sessions,
-		"findings": open,
-		"apps":     apps,
-		"sources":  len(srcs),
-		"last_ns":  last,
+		"now":         now,
+		"info":        s.Info,
+		"ask":         ask,
+		"counts":      c,
+		"running":     running,
+		"sessions":    sessions,
+		"findings":    open,
+		"apps":        apps,
+		"sources":     len(srcs),
+		"last_ns":     last,
+		"monthly_usd": sum.TotalUSD,
 	}, 200)
 }

@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   House,
   Lightbulb,
+  Wallet,
   Moon,
   Plug,
   Receipt,
@@ -46,6 +47,7 @@ const GROUPS: { label: string; items: Item[] }[] = [
     items: [
       { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
       { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
+      { href: "/plans", label: "Plans", icon: Wallet, key: "p" },
     ],
   },
   {

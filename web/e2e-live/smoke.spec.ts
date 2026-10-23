@@ -39,6 +39,10 @@ test("every page renders against the real server", async ({ page, request }) => 
   await page.goto("/#/cost")
   await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
 
+  await page.goto("/#/plans")
+  await expect(page.locator(".plans-total")).toBeVisible()
+  await expect(page.locator(".plans-row").first()).toBeVisible()
+
   await page.goto("/#/connect")
   await expect(page.locator(".code pre")).toContainText(/http:\/\/127\.0\.0\.1:\d+/)
 

@@ -23,7 +23,10 @@ export function SettingsPage() {
 
       <section className="set-sec">
         <h2>Your plan</h2>
-        <p className="mute">Used only to say whether your subscription paid for itself. Stored in this browser.</p>
+        <p className="mute">
+          Used only to say whether a single Claude plan paid for itself. For everything you pay for, use{" "}
+          <Link href="/plans">Plans</Link>. Stored in this browser.
+        </p>
         <div className="plan-opts" role="radiogroup" aria-label="Plan">
           <button type="button" role="radio" aria-checked={!plan} className={`plan-opt${!plan ? " on" : ""}`} onClick={() => writePlan(null)}>
             Not set

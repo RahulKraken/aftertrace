@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Plans**
+- A local subscriptions ledger: tick a catalog plan (ChatGPT, Claude, Gemini, Grok / The X Subscription, Perplexity, Cursor, Copilot, Midjourney, or an API) and confirm the listed price, or add a custom row. Yearly prices divide by 12; usage-based spend is estimated from traces Aftertrace already has.
+- Catalog prices are copied from official pages with a source URL and date (`2026-10-23`). The price is left blank when the official page did not list one.
+- The monthly AI total is on `/api/status` as `monthly_usd` so a later menu-bar shell can read it without a new endpoint.
+- Recap's receipt prints this month's AI total.
+
+**Findings**
+- `plan.barely_used`: you paid for a plan Aftertrace can observe and used it on 0–3 days this calendar month. Headline is money in English (`You paid $200 for Claude Max 20x and used it on 1 day this month`).
+
 ## v0.4.2
 
 **Privacy**

@@ -2,7 +2,7 @@
 
 > [What the API reads, with a figure →](how-it-works/store.md)
 
-Read-only HTTP API served by `aftertrace serve` on `127.0.0.1:7311` (the UI port). Shapes match the throwaway prototype so the web UI can consume them. Attribute names come from Claude Code's monitoring docs; Aftertrace does not invent them.
+HTTP API served by `aftertrace serve` on `127.0.0.1:7311` (the UI port). Almost all of it is read-only. The subscriptions ledger is the exception: it writes to a local DuckDB table on this machine. Attribute names on traces come from Claude Code's monitoring docs; Aftertrace does not invent them.
 
 Ask (`POST /api/ask`) is off unless the server was started with `--ask` and `ANTHROPIC_API_KEY`. When on, it sends the schema and trimmed query results to the Anthropic API, never raw traces. See [Ask](how-it-works/ask.md).
 
@@ -21,6 +21,11 @@ Ask (`POST /api/ask`) is off unless the server was started with `--ask` and `ANT
 | GET | `/api/trace/{trace_id}` | One turn: full span tree, events, breakdown, prev/next |
 | GET | `/api/findings` | Findings from `rules/*.sql` |
 | GET | `/api/cost?dim=` | Cost (or tool volume) by dimension |
+| GET | `/api/subscriptions` | Catalog, your plans, and the monthly AI total |
+| POST | `/api/subscriptions` | Add a plan (`catalog_id` or a custom vendor/name) |
+| PATCH | `/api/subscriptions/{id}` | Edit price, name, renewal day, notes |
+| POST | `/api/subscriptions/{id}/cancel` | Mark cancelled (kept, so you can undo) |
+| POST | `/api/subscriptions/{id}/restore` | Undo a cancel |
 | GET | `/api/fields` | Query-builder field catalog |
 | GET | `/api/field-values?field=` | Up to 30 distinct values of one field |
 | GET | `/api/range` | `{lo, hi}` span time range in unix ns |
@@ -229,7 +234,8 @@ The query cannot touch anything outside the tables and views:
             "service": "" },
   "ask": { "enabled": false },
   "counts": { "Spans": 1206, "SpanEvents": 30, "Events": 1770, "MetricPoints": 382 },
-  "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000
+  "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000,
+  "monthly_usd": 420
 }
 ```
 
@@ -249,4 +255,16 @@ In `GET /api/trace/{id}`, model calls from apps carry `joined: {cost_usd, model,
 
 `GET /api/recap?week=N` (N from 0, the current week, to 52). The week is the 7 days ending now, or ending at the newest data when nothing arrived in the last week, minus N weeks.
 
-`{week, lo, hi, has_older, stats, prev, tools, models, apps, priciest, longest, busiest_day, peak_parallel}`. `stats` and `prev` are shaped like `week` in `/api/overview`. `busiest_day` is `{day, turn_ms, lanes: [{session_id, title, turns: [[start_ns, end_ns], ...]}]}`. `priciest` and `longest` are turns `{trace_id, session_id, start_ns, duration_ms, cost_usd, prompt?}`; `prompt` only when prompt text is captured.
+`{week, lo, hi, has_older, stats, prev, tools, models, apps, priciest, longest, busiest_day, peak_parallel, plans}`. `stats` and `prev` are shaped like `week` in `/api/overview`. `busiest_day` is `{day, turn_ms, lanes: [{session_id, title, turns: [[start_ns, end_ns], ...]}]}`. `priciest` and `longest` are turns `{trace_id, session_id, start_ns, duration_ms, cost_usd, prompt?}`; `prompt` only when prompt text is captured. `plans` is the same summary as `/api/subscriptions` (`monthly_usd`, `usage_usd`, `total_usd`, `next_renewal`) so the receipt can print this month's AI total.
+
+## Subscriptions
+
+Local ledger of what you pay for. Nothing is sent anywhere. `GET /api/subscriptions` returns `{catalog, subscriptions, summary}`.
+
+`catalog` is the bundled list of common AI plans. Each row has `id`, `vendor`, `plan_name`, `brand`, `price` (null when the official page did not list one), `currency`, `billing_period` (`monthly`, `yearly`, `usage`), `source_url`, `sourced_at`, `notes`, `usage_kind`. Prices are copied from official pages on the date in `sourced_at`; Aftertrace does not invent them.
+
+`subscriptions` are the rows you added. `monthly_usd` is `price` for monthly plans, `price / 12` for yearly, and null for usage-based. `status` is `active` or `cancelled`.
+
+`summary` is `{monthly_usd, usage_usd, total_usd, currency, active, unpriced, usage_based, next_renewal, usage}`. Yearly plans are normalised to monthly. Usage-based plans are estimated from this calendar month's `calls` when Aftertrace already has that provider's traces. `next_renewal` is `{id, vendor, plan_name, on, in_days, amount}` or null.
+
+`POST /api/subscriptions` with `{catalog_id}` copies vendor, name and the listed price (you can override `price`, `renewal_day`, `start_date`). A custom row needs `vendor`, `plan_name` and `billing_period`. `PATCH` edits. Cancel keeps the row; restore undoes it.

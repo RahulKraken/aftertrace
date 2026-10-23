@@ -1,6 +1,6 @@
 # The store
 
-Everything Aftertrace keeps is in one DuckDB file on your machine. Four tables hold what arrived, and five views join them into what the UI, the rules and Ask read.
+Everything Aftertrace keeps is in one DuckDB file on your machine. Four tables hold what arrived, two small tables hold the AI plans you pay for, and five views join traces into what the UI, the rules and Ask read.
 
 <!-- figure:store -->
 ![Fig 4, the store: a card-catalogue cabinet on a base plate that is the DuckDB file. Batches wait in a trough at a gate; a single lift car carries one at a time up to its drawer. Four drawers are the four tables; the top two have a rod through their cards (a key), the bottom two do not. A rack of five standing reading frames is the views, a small box of price cards sits behind them, a ledger in front is the write-ahead log, and a sealed hatch on the cabinet's side is the sandbox.](../images/figure-store.png)
@@ -83,6 +83,10 @@ One row per data point of a sum or a gauge. Histograms and summaries are not sto
 ### `prices`
 
 The price list for model calls that do not report a cost. It is rewritten from the binary every time the store opens: one row per model-id prefix for Anthropic, OpenAI and Google models, with input, cache write, cache read and output prices in USD per million tokens. The longest matching prefix wins. Claude Code reports its own cost, so this is only used for your apps ([Apps and agents](../apps.md)).
+
+### `plan_catalog` and `subscriptions`
+
+A bundled list of common AI plans (ChatGPT, Claude, Gemini, Grok / The X Subscription, Perplexity, Cursor, GitHub Copilot, Midjourney, and API pay-as-you-go) and the rows you add on **Plans**. `plan_catalog` is rewritten from the binary on every open, like `prices`; every listed amount has a `source_url` and `sourced_at`, and the price is left blank when the official page did not show one. `subscriptions` is yours: vendor, plan name, price, currency, billing period, renewal day, start date, active or cancelled. Yearly prices are divided by 12 for the monthly total. Usage-based rows are estimated from `calls` when Aftertrace already has that provider's traces.
 
 ## The five views
 

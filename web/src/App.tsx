@@ -16,6 +16,7 @@ import { QueryPage } from "./pages/QueryPage"
 import { RecapPage } from "./pages/RecapPage"
 import { SessionPage } from "./pages/SessionPage"
 import { SessionsPage } from "./pages/SessionsPage"
+import { PlansPage } from "./pages/PlansPage"
 import { SettingsPage } from "./pages/SettingsPage"
 import { TracePage } from "./pages/TracePage"
 
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/findings" component={FindingsPage} />
             <Route path="/query" component={QueryPage} />
             <Route path="/cost" component={CostPage} />
+            <Route path="/plans" component={PlansPage} />
             <Route path="/empty">
               <div className="page">
                 <EmptyState />
