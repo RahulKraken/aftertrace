@@ -6,8 +6,9 @@
 Aftertrace — local profiler for Claude Code.
 
 Usage:
-  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask]
+  aftertrace serve   [--db PATH] [--listen HOST] [--grpc-port N] [--http-port N] [--ui-port N] [--store-content] [--ask] [--no-history] [--history-dir DIR]
   aftertrace import  [--db PATH] [--store-content] <dir>
+  aftertrace import  --history [--db PATH] [DIR]
   aftertrace demo    [--db PATH]
   aftertrace service install [--dry-run] [serve flags]
   aftertrace service uninstall [--dry-run]
@@ -31,10 +32,14 @@ Usage of serve:
     	DuckDB file (default "$HOME/.aftertrace/aftertrace.duckdb")
   -grpc-port int
     	OTLP gRPC port (default 4317)
+  -history-dir string
+    	Claude Code projects directory to import (default "$HOME/.claude/projects")
   -http-port int
     	OTLP HTTP port (default 4318)
   -listen string
     	bind address (use 0.0.0.0 for team mode) (default "127.0.0.1")
+  -no-history
+    	do not import Claude Code session transcripts on start
   -store-content
     	keep prompt/response/tool content attributes
   -ui-port int
@@ -64,6 +69,8 @@ ask=off
 | `--ui-port` | `7311` | UI and `/api`. |
 | `--store-content` | off | Keep the content keys in [privacy.md](privacy.md). Identity keys are still dropped. |
 | `--ask` | off | Turn on Ask on the Query page. Needs `ANTHROPIC_API_KEY`; exits 1 without it. `AFTERTRACE_ASK_MODEL` picks the model (default `claude-opus-5-5`). See [privacy.md](privacy.md#ask). |
+| `--no-history` | off | Skip importing Claude Code session JSONL from `--history-dir` on start. |
+| `--history-dir` | `$HOME/.claude/projects` | Projects tree to scan. Missing dir is not an error. |
 
 A bound port exits 1:
 
@@ -73,20 +80,23 @@ otlp grpc: listen tcp 127.0.0.1:4317: bind: address already in use
 
 ## `aftertrace import`
 
-Read a collector file-exporter directory into DuckDB, then run every rule and print findings. Exits when it is done.
+Two modes. Without `--history`, read a collector file-exporter directory into DuckDB, then run every rule and print findings. With `--history`, read Claude Code session transcripts (usage metadata only) from `~/.claude/projects` or DIR. Both are idempotent. Exits when it is done.
 
 ```
 Usage of import:
   -db string
     	DuckDB file (default "$HOME/.aftertrace/aftertrace.duckdb")
+  -history
+    	import Claude Code session transcripts instead of collector JSONL
   -store-content
     	keep prompt/response/tool content attributes
 ```
 
-Positional: exactly one directory. Missing dir or extra args exit 2 from the flag parser / usage line:
+Without `--history`, positional: exactly one directory. Missing dir or extra args exit 2:
 
 ```
 usage: aftertrace import [--db PATH] [--store-content] <dir>
+       aftertrace import --history [--db PATH] [DIR]
 ```
 
 A path that does not exist exits 1:
@@ -102,6 +112,15 @@ import: stat /tmp/does-not-exist-aftertrace: no such file or directory
 Expected files, all optional if the directory exists: `traces.jsonl`, `logs.jsonl`, `metrics.jsonl`. Format: [behind-a-collector.md](behind-a-collector.md#aftertrace-import).
 
 `--store-content` is the same ingest gate as on `serve`.
+
+### `import --history`
+
+```bash
+aftertrace import --history --db ./data/aftertrace.duckdb
+aftertrace import --history --db ./data/aftertrace.duckdb /path/to/projects
+```
+
+Scans `*.jsonl` at the top of each project slug, plus `*/subagents/*.jsonl`. Does not walk `memory/` or other nested files. Writes spans and `api_request` events so the `llm`, `tools` and `turn_roots` views work; marks every row `aftertrace.source=history`. Cost is estimated from the price table. Prompt and response text are never stored, even if `--store-content` is also passed. Files whose size and mtime have not changed are skipped. Sessions that already have live OTel rows are skipped. Details: [claude-code-setup.md](claude-code-setup.md#local-session-history).
 
 ## `aftertrace demo`
 

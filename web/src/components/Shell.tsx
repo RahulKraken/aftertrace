@@ -99,6 +99,21 @@ export function Shell({
   }, [])
 
   useEffect(() => {
+    if (mock || !status || loc !== "/") return
+    try {
+      if (localStorage.getItem("aftertrace.welcome")) return
+      if (!status.live_otel) {
+        localStorage.setItem("aftertrace.welcome", status.history?.found ? "found" : "empty")
+        nav("/connect", { replace: true })
+      } else {
+        localStorage.setItem("aftertrace.welcome", "done")
+      }
+    } catch {
+      /* private mode */
+    }
+  }, [mock, status, loc, nav])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()

@@ -9,7 +9,7 @@ Point at a drawer to open it, or at a frame to see which tables that view reads.
 
 ## The file
 
-- **Where.** `~/.aftertrace/aftertrace.duckdb` by default. `serve`, `import`, `demo` and `service install` all take `--db` to use another path.
+- **Where.** `~/.aftertrace/aftertrace.duckdb` by default. `serve`, `import`, `demo` and `service install` all take `--db` to use another path. `serve` also imports Claude Code session JSONL from `~/.claude/projects` unless `--no-history`.
 - **The WAL.** Next to it is `aftertrace.duckdb.wal`, DuckDB's write-ahead log. Each write is logged there before it reaches the file, which is why deleting the store means deleting both ([Privacy](../privacy.md#how-to-delete-it)).
 - **One process at a time.** DuckDB takes an exclusive lock on the file. A second `serve`, `import` or `demo` on the same path fails with `Conflicting lock is held` ([Troubleshooting](../troubleshooting.md#duckdb-lock)).
 - **A sealed file.** Aftertrace opens it with `enable_external_access=false` and `lock_configuration=true`. No query can read another file, `ATTACH` a database or `INSTALL` an extension, and no `SET` can turn that back on.
@@ -17,7 +17,7 @@ Point at a drawer to open it, or at a frame to see which tables that view reads.
 
 ## How data goes in
 
-The receivers turn every OTLP export into rows ([Receiving](receive.md)), and redaction removes keys first ([Redaction](redaction.md)). Then one call writes the batch:
+The receivers turn every OTLP export into rows ([Receiving](receive.md)), and redaction removes keys first ([Redaction](redaction.md)). Local session history is a second writer: it synthesises the same span and event rows from Claude Code JSONL, with `aftertrace.source=history` on the resource, and never copies prompt or response text ([Connect Claude Code](../claude-code-setup.md#local-session-history)). Then one call writes the batch:
 
 1. It takes the store's one write lock. Only one batch is written at a time. Batches that arrive meanwhile wait their turn.
 2. It opens a transaction and inserts the batch's spans, span events, events and metric points.
@@ -79,6 +79,10 @@ One row per data point of a sum or a gauge. Histograms and summaries are not sto
 | `value` | DOUBLE | Integer points are stored as doubles. |
 | `session_id` | VARCHAR | From `session.id` on the point or its resource. |
 | `attrs`, `resource` | JSON | The point's attributes, such as `model` or `type`. |
+
+### `history_files`
+
+One row per Claude Code transcript file that `serve` or `import --history` has looked at (`path`, size, mtime, `session_id`, `status`). It is how a later scan skips unchanged files. Not a signal table; views and the UI do not read it. Imported signal rows themselves live in `spans` and `events` with `aftertrace.source=history` on `resource`.
 
 ### `prices`
 

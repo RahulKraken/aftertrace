@@ -11,7 +11,7 @@ Point at a station to read it, and click it to open its page. With the figure fo
 
 Here is what happens when Claude Code finishes one API request.
 
-1. **Claude Code sends it.** Its OpenTelemetry exporter batches the `claude_code.llm_request` span with other recent spans and sends them to `127.0.0.1:4317` over gRPC or `:4318` over HTTP. [Receiving →](how-it-works/receive.md)
+1. **Claude Code sends it, or Aftertrace reads it from disk.** Live, the OpenTelemetry exporter batches the `claude_code.llm_request` span and sends it to `127.0.0.1:4317` over gRPC or `:4318` over HTTP. On first launch, session JSONL already under `~/.claude/projects` is imported as the same kind of rows, without prompt text. [Receiving →](how-it-works/receive.md) · [Local history →](claude-code-setup.md#local-session-history)
 2. **The receiver decodes it.** The batch is OTLP protobuf or JSON. It is turned into rows: traces become `spans` and `span_events`, logs become `events`, metrics become `metric_points`. [Receiving →](how-it-works/receive.md)
 3. **Redaction strips it.** Account identifiers such as `user.email` are always deleted. Prompt, response and tool content is deleted unless you started with `--store-content`. Token counts, durations, model names and costs stay. [Redaction →](how-it-works/redaction.md)
 4. **The store keeps it.** The rows go into `~/.aftertrace/aftertrace.duckdb` in one write. If the same span arrives twice, it replaces itself. Views such as `llm` and `tools` turn the JSON attributes into columns. [The store →](how-it-works/store.md)

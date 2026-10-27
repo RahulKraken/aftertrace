@@ -1,4 +1,4 @@
-import type { Breakdown, DayPoint, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import type { Breakdown, DayPoint, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -130,8 +130,62 @@ export function mockSources(): Source[] {
   ]
 }
 
+export const MOCK_HISTORY_FOUND: HistorySummary = {
+  dir: "~/.claude/projects",
+  found: true,
+  sessions: 42,
+  turns: 318,
+  days: 18,
+  first_ns: Date.now() * 1e6 - 17 * DAY,
+  last_ns: Date.now() * 1e6 - 2 * 3600e9,
+  cost_usd: 38.4,
+  tokens: 12_400_000,
+  models: ["claude-opus-4-6", "claude-sonnet-4"],
+  projects: [
+    { name: "aftertrace", sessions: 12, cost_usd: 20.1, tokens: 6_200_000 },
+    { name: "notes-app", sessions: 8, cost_usd: 11.2, tokens: 3_900_000 },
+    { name: "dotfiles", sessions: 5, cost_usd: 4.4, tokens: 1_300_000 },
+  ],
+  series: Array.from({ length: 18 }, (_, i) => {
+    const d = new Date(Date.now() - (17 - i) * 86400e3)
+    const sessions = [2, 0, 3, 1, 4, 2, 0, 3, 5, 1, 2, 0, 4, 3, 2, 1, 6, 3][i]
+    return {
+      day: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`,
+      sessions,
+      cost_usd: sessions * 0.51,
+      tokens: sessions * 160_000,
+    }
+  }),
+  files: 42,
+}
+
+export const MOCK_HISTORY_EMPTY: HistorySummary = {
+  dir: "~/.claude/projects",
+  found: false,
+  sessions: 0,
+  turns: 0,
+  days: 0,
+  cost_usd: 0,
+  tokens: 0,
+  models: [],
+  projects: [],
+  series: [],
+  files: 0,
+}
+
+function welcomeFromHash(): "found" | "empty" | null {
+  if (typeof window === "undefined") return null
+  const hash = window.location.hash || ""
+  if (hash.startsWith("#/empty")) return "empty"
+  const q = (hash.split("?")[1] || window.location.search.replace(/^\?/, "")).toString()
+  const w = new URLSearchParams(q).get("welcome")
+  if (w === "found" || w === "empty") return w
+  return null
+}
+
 export function mockStatus(): Status {
   const now = Date.now() * 1e6
+  const welcome = welcomeFromHash()
   return {
     now,
     info: { version: "demo", db_path: "(in-browser demo data)", store_content: false, otlp_grpc: "127.0.0.1:4317", otlp_http: "127.0.0.1:4318", ui: "", service: "" },
@@ -143,5 +197,7 @@ export function mockStatus(): Status {
     apps: apps.length,
     sources: 1 + apps.length,
     last_ns: now - 3e9,
+    live_otel: welcome ? false : true,
+    history: welcome === "found" ? MOCK_HISTORY_FOUND : MOCK_HISTORY_EMPTY,
   }
 }

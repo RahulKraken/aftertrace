@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowRight, Check, SquareTerminal } from "lucide-react"
 import { siAnthropic, siClaude, siGooglegemini, siOpentelemetry } from "simple-icons"
 import { BrandIcon } from "../components/BrandIcon"
+import { Logo } from "../components/Logo"
 import { Num } from "../components/Num"
-import { Link } from "wouter"
+import { Link, useLocation } from "wouter"
 import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
 import { CopyButton } from "../components/CopyButton"
 import { api } from "../lib/api"
-import { ago, int } from "../lib/format"
-import type { Source } from "../lib/types"
+import { ago, int, modelName, tok, usd } from "../lib/format"
+import type { Source, Status } from "../lib/types"
 
 type Variant = { label: string; lang: string; code: (ep: Endpoints) => string; note?: string }
 type SourceDef = {
@@ -231,7 +232,157 @@ log_user_prompt = false`,
   },
 ]
 
+function welcomeQuery(): "found" | "empty" | null {
+  if (typeof window === "undefined") return null
+  const hash = window.location.hash || ""
+  if (hash.startsWith("#/empty")) return "empty"
+  const q = hash.split("?")[1] || window.location.search.replace(/^\?/, "")
+  const w = new URLSearchParams(q).get("welcome")
+  if (w === "found" || w === "empty") return w
+  return null
+}
+
+function connectMode(status: Status | null): "found" | "empty" | "full" {
+  const forced = welcomeQuery()
+  if (forced) return forced
+  if (status?.live_otel) return "full"
+  if (typeof window !== "undefined" && localStorage.getItem("aftertrace.welcome") === "done") return "full"
+  if (status?.history?.found) return "found"
+  if (status && !status.history?.found) return "empty"
+  return "full"
+}
+
+const WELCOME_KEY = "aftertrace.welcome"
+
 export function ConnectPage() {
+  const status = useStatus()
+  const mode = connectMode(status)
+  if (mode === "found") return <FoundHistory status={status} />
+  if (mode === "empty") return <EmptyHistory status={status} />
+  return <ConnectSources />
+}
+
+function FoundHistory({ status }: { status: Status | null }) {
+  const [, nav] = useLocation()
+  const [setup, setSetup] = useState(false)
+  const h = status?.history
+  if (!h?.found) return <EmptyHistory status={status} />
+  const models = h.models.map((m) => modelName(m)).filter(Boolean).join(", ")
+  const maxDay = Math.max(1, ...h.series.map((d) => d.sessions))
+  const go = () => {
+    localStorage.setItem(WELCOME_KEY, "done")
+    nav("/")
+  }
+  return (
+    <div className="page connect-first">
+      <div className="found">
+        <div className="found-mark">
+          <Logo size={22} />
+        </div>
+        <h1>
+          Found {h.days} {h.days === 1 ? "day" : "days"} of Claude Code sessions
+        </h1>
+        <p className="found-lede">
+          <Num value={h.cost_usd} format={usd} />
+          <span className="found-dot">·</span>
+          <Num value={h.tokens} format={tok} /> tokens
+          <span className="found-dot">·</span>
+          <Num value={h.sessions} format={(n) => int(Math.round(n))} /> {h.sessions === 1 ? "session" : "sessions"}
+          {models ? (
+            <>
+              <span className="found-dot">·</span>
+              {models}
+            </>
+          ) : null}
+        </p>
+        {h.series.length > 1 && (
+          <div className="found-days" aria-hidden="true">
+            {h.series.map((d) => (
+              <i key={d.day} style={{ height: `${Math.max((d.sessions / maxDay) * 100, d.sessions ? 8 : 2)}%` }} />
+            ))}
+          </div>
+        )}
+        {h.projects.length > 0 && (
+          <ul className="found-proj">
+            {h.projects.slice(0, 4).map((p) => (
+              <li key={p.name}>
+                <span>{p.name}</span>
+                <span className="mute">
+                  {p.sessions} {p.sessions === 1 ? "session" : "sessions"}
+                  {p.cost_usd ? ` · ${usd(p.cost_usd)}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" className="btn found-cta" onClick={go}>
+          See your usage <ArrowRight size={14} />
+        </button>
+        <p className="found-next mute">
+          Timing, cost and models from files already on this machine. Live turns and time waiting on you need the optional export.
+        </p>
+        {setup ? (
+          <div className="found-setup">
+            <ClaudeCodeSnippet status={status} />
+          </div>
+        ) : (
+          <button type="button" className="found-link" onClick={() => setSetup(true)}>
+            Set up live export
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EmptyHistory({ status }: { status: Status | null }) {
+  const dir = status?.history?.dir || status?.info.history_dir || "~/.claude/projects"
+  return (
+    <div className="page connect-first">
+      <div className="found is-empty">
+        <div className="found-mark">
+          <Logo size={22} />
+        </div>
+        <h1>No Claude Code sessions on this machine</h1>
+        <p className="found-lede">
+          Aftertrace looked in <code>{dir}</code>. Nothing was there, so the next step is the live export — then your first turn shows up here.
+        </p>
+        <ClaudeCodeSnippet status={status} />
+      </div>
+    </div>
+  )
+}
+
+function ClaudeCodeSnippet({ status }: { status: Status | null }) {
+  const [content, setContent] = useState(false)
+  const ep: Endpoints = {
+    grpc: status?.info.otlp_grpc || "127.0.0.1:4317",
+    http: status?.info.otlp_http || "127.0.0.1:4318",
+  }
+  const code = JSON.stringify({ env: CC_ENV(ep, content) }, null, 2)
+  const src = SOURCES[0]
+  return (
+    <div className="found-otel">
+      <div className="code">
+        <div className="code-bar">
+          <span className="mute">{src.where}</span>
+          <CopyButton text={code} label="Copy" className="btn ghost btn-sm" />
+          {src.prompt && <CopyButton text={src.prompt(ep, content)} label="Copy as a prompt for Claude Code" done="Prompt copied" className="btn ghost btn-sm" />}
+        </div>
+        <pre>{code}</pre>
+      </div>
+      <label className="opt">
+        <input type="checkbox" checked={content} onChange={(e) => setContent(e.target.checked)} />
+        <span>
+          Also capture prompts, responses and tool output. Off by default; it needs <code>aftertrace serve --store-content</code> too.
+        </span>
+      </label>
+      <div className="note">Restart Claude Code after saving. Merge these keys into any env block you already have.</div>
+    </div>
+  )
+}
+
+function ConnectSources() {
   const status = useStatus()
   const [pick, setPick] = useState(SOURCES[0].id)
   const [variant, setVariant] = useState(0)

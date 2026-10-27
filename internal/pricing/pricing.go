@@ -85,6 +85,23 @@ func isLetters(s string) bool {
 	return true
 }
 
+// Cost estimates USD for a model call from token counts. input is uncached
+// input (Claude Code and the Anthropic API both exclude cache from that
+// figure). cacheWrite is used when the 5-minute / 1-hour split is unknown;
+// pass the split instead when the transcript has it (1-hour writes are 2×
+// input). Returns ok=false when the model is not in the table.
+func Cost(model string, input, output, cacheRead, cacheWrite, cacheWrite5m, cacheWrite1h float64) (float64, bool) {
+	p, ok := Lookup(model)
+	if !ok {
+		return 0, false
+	}
+	write := cacheWrite5m*p.CacheWrite + cacheWrite1h*(p.Input*2)
+	if cacheWrite5m == 0 && cacheWrite1h == 0 {
+		write = cacheWrite * p.CacheWrite
+	}
+	return (input*p.Input + cacheRead*p.CacheRead + write + output*p.Output) / 1e6, true
+}
+
 // Lookup returns the longest-prefix price for a model, if any.
 func Lookup(model string) (Price, bool) {
 	m := Normalize(model)

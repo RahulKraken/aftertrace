@@ -292,9 +292,40 @@ export type Overview = {
   has_data: boolean
 }
 
+export type HistoryProject = {
+  name: string
+  sessions: number
+  cost_usd: number
+  tokens: number
+}
+
+export type HistoryDay = {
+  day: string
+  sessions: number
+  cost_usd: number
+  tokens: number
+}
+
+export type HistorySummary = {
+  dir: string
+  found: boolean
+  sessions: number
+  turns: number
+  days: number
+  first_ns?: number
+  last_ns?: number
+  cost_usd: number
+  tokens: number
+  models: string[]
+  projects: HistoryProject[]
+  series: HistoryDay[]
+  skipped_otel?: number
+  files: number
+}
+
 export type Status = {
   now: number
-  info: { version: string; db_path: string; store_content: boolean; otlp_grpc: string; otlp_http: string; ui: string; service: string }
+  info: { version: string; db_path: string; store_content: boolean; otlp_grpc: string; otlp_http: string; ui: string; service: string; history_dir?: string }
   ask: { enabled: boolean; model?: string }
   counts: { Spans: number; SpanEvents: number; Events: number; MetricPoints: number }
   running: number
@@ -303,6 +334,8 @@ export type Status = {
   apps: number
   sources: number
   last_ns: number
+  live_otel?: boolean
+  history?: HistorySummary
 }
 
 export type AppSummary = {

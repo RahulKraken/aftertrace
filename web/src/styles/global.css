@@ -1136,6 +1136,50 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 .verify.is-ok > svg { color: var(--hue-ok); flex: none; }
 @media (max-width: 900px) { .connect-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* First-run Connect: one fact (what was found) and one next action. */
+.connect-first { display: flex; justify-content: center; }
+.found {
+  max-width: 520px;
+  margin: 10vh auto 64px;
+  text-align: center;
+}
+.found-mark {
+  width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+  margin: 0 auto 18px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.found h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.25; margin: 0; }
+.found-lede { color: var(--mute); font-size: 14.5px; line-height: 1.55; margin: 12px 0 0; }
+.found-lede code { font: 12px var(--mono); background: var(--surface-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
+.found-dot { margin: 0 0.45em; color: var(--faint); }
+.found-days {
+  display: flex; align-items: flex-end; gap: 3px; height: 36px;
+  margin: 22px auto 0; max-width: 280px;
+}
+.found-days i {
+  flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
+  background: color-mix(in oklab, var(--hue-model) 55%, var(--line));
+}
+.found-proj {
+  list-style: none; margin: 18px auto 0; padding: 0; max-width: 320px;
+  text-align: left; display: grid; gap: 6px;
+}
+.found-proj li {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--line);
+}
+.found-proj li:last-child { border-bottom: 0; }
+.found-cta { margin-top: 22px; height: 36px; padding: 0 16px; border-radius: 10px; }
+.found-next { margin: 16px auto 0; max-width: 36em; font-size: 12.5px; line-height: 1.5; }
+.found-link {
+  margin-top: 10px; background: none; border: 0; padding: 0;
+  color: var(--mute); font-size: 12.5px; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.found-link:hover { color: var(--ink); }
+.found-setup, .found-otel { margin-top: 18px; text-align: left; }
+.found.is-empty { max-width: 560px; }
+.found.is-empty .found-lede { margin-bottom: 22px; }
+
 /* settings */
 .settings { max-width: 860px; }
 .set-sec { margin-top: 28px; }

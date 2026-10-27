@@ -29,7 +29,9 @@ curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
 aftertrace serve
 ```
 
-Open http://127.0.0.1:7311 and go to **Connect**. macOS and Linux; Windows and building from source: [docs/install.md](docs/install.md). `aftertrace demo` loads synthetic sessions and apps if you want to look around first.
+Open http://127.0.0.1:7311. On first launch Aftertrace reads Claude Code's local session files (`~/.claude/projects`) and shows your recent usage — sessions, tokens, cost estimates, models, by day and by project — without turning anything on. Prompt and response text stay on disk; only usage metadata is stored. Live export is an optional next step for richer, real-time data.
+
+macOS and Linux; Windows and building from source: [docs/install.md](docs/install.md). `aftertrace demo` loads synthetic sessions and apps if you want to look around first.
 
 To keep it running across logouts and restarts, stop it and run `aftertrace service install` instead (a LaunchAgent on macOS, a systemd user unit on Linux). It takes the same flags as `serve`: [docs/install.md](docs/install.md#run-it-at-login).
 
@@ -48,7 +50,7 @@ Open http://127.0.0.1:7311. `aftertrace demo` loads six synthetic Claude Code se
 
 ## Connect Claude Code
 
-Add this to `~/.claude/settings.json` (Claude Code ignores these keys in a repository `.claude/settings.json`), then restart Claude Code:
+History is already in. To stream new turns live (waiting-on-you, retries, the waterfall as it happens), add this to `~/.claude/settings.json` (Claude Code ignores these keys in a repository `.claude/settings.json`), then restart Claude Code:
 
 ```json
 {

@@ -229,11 +229,16 @@ The query cannot touch anything outside the tables and views:
             "service": "" },
   "ask": { "enabled": false },
   "counts": { "Spans": 1206, "SpanEvents": 30, "Events": 1770, "MetricPoints": 382 },
-  "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000
+  "running": 1, "sessions": 3, "findings": 4, "apps": 0, "sources": 1, "last_ns": 1792628786886000000,
+  "live_otel": false,
+  "history": { "dir": "/Users/you/.claude/projects", "found": true, "sessions": 42, "turns": 318, "days": 18,
+               "cost_usd": 38.4, "tokens": 12400000, "models": ["claude-opus-4-6"], "projects": [], "series": [], "files": 42 }
 }
 ```
 
 `info.service` is `launchd` or `systemd` when the server was started by [`aftertrace service install`](cli.md#aftertrace-service), and empty otherwise. Connect uses it to suggest the service.
+
+`live_otel` is true when any span did not come from local history. `history` is the imported Claude Code transcript summary for the first-run Connect screen; `found` is false when `~/.claude/projects` was empty.
 
 Findings are cached for 10 seconds, so `findings` can lag a new rule match by that long.
 

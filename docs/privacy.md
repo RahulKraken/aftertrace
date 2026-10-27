@@ -24,7 +24,7 @@ Pydantic AI     pydantic_ai.all_messages
 Gemini CLI      request_text response_text function_args
 ```
 
-Those names are the ones Claude Code uses for prompt text, responses, tool input, tool output, detailed-beta context, and raw API bodies. See [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage).
+Those names are the ones Claude Code uses for prompt text, responses, tool input, tool output, detailed-beta context, and raw API bodies. See [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). Local history import never reads those fields into the store at all, even with `--store-content`: it keeps timestamps, model, tokens, tool names, ids and durations.
 
 Identity keys, **always** dropped, including with `--store-content`:
 

@@ -283,12 +283,30 @@ test("query ask", async ({ page }) => {
 
 test("empty state", async ({ page }) => {
   await page.goto("/#/empty")
-  await expect(page.getByRole("heading", { name: "Welcome to Aftertrace" })).toBeVisible()
-  await expect(page.getByRole("link", { name: /Connect Claude Code/ })).toBeVisible()
-  await expect(page.locator(".welcome-demo code")).toHaveText("aftertrace demo")
+  await expect(page.getByRole("heading", { name: "No Claude Code sessions on this machine" })).toBeVisible()
+  await expect(page.locator(".code pre")).toContainText("CLAUDE_CODE_ENABLE_TELEMETRY")
   await page.waitForTimeout(500)
   await shot(page, "empty", "light")
   await shot(page, "empty", "dark")
+})
+
+test("first-run connect: history found", async ({ page }) => {
+  await page.goto("/#/connect?welcome=found")
+  await expect(page.getByRole("heading", { name: /Found \d+ days of Claude Code sessions/ })).toBeVisible()
+  await expect(page.getByRole("button", { name: "See your usage" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Set up live export" })).toBeVisible()
+  await page.waitForTimeout(500)
+  await shot(page, "connect-found", "light")
+  await shot(page, "connect-found", "dark")
+})
+
+test("first-run connect: nothing found", async ({ page }) => {
+  await page.goto("/#/connect?welcome=empty")
+  await expect(page.getByRole("heading", { name: "No Claude Code sessions on this machine" })).toBeVisible()
+  await expect(page.locator(".code pre")).toContainText("CLAUDE_CODE_ENABLE_TELEMETRY")
+  await page.waitForTimeout(500)
+  await shot(page, "connect-empty", "light")
+  await shot(page, "connect-empty", "dark")
 })
 
 test("query sql is read-only", async ({ page }) => {

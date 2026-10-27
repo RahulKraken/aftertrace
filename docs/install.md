@@ -17,7 +17,7 @@ aftertrace version
 aftertrace serve
 ```
 
-Then open http://127.0.0.1:7311 and go to **Connect**.
+Then open http://127.0.0.1:7311. First launch imports usage from Claude Code's local session files (`~/.claude/projects`) if any are there, then offers the live OpenTelemetry export as an optional next step. See [Connect Claude Code](claude-code-setup.md).
 
 Windows is not packaged yet. Build from source below (DuckDB ships a `windows-amd64` library; you need a CGO toolchain such as MSYS2 MinGW).
 
