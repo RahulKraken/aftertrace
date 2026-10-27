@@ -348,10 +348,13 @@ function FirstRun() {
         <div className="fr-mark">
           <Plug size={18} />
         </div>
-        <h1>Nothing on the wire yet</h1>
-        <p>Aftertrace is running and listening on this machine. Connect Claude Code, an agent or one of your apps, and your first session shows up here within seconds.</p>
+        <h1>No sessions yet</h1>
+        <p>
+          No Claude Code history on this machine, and nothing on the wire. Connect Claude Code and your first turn shows up here
+          within seconds.
+        </p>
         <Link href="/connect" className="btn">
-          Connect a source <ArrowRight size={14} />
+          Connect Claude Code <ArrowRight size={14} />
         </Link>
         <div className="mute fr-alt">
           Just looking? Run <code>aftertrace demo</code> to load six synthetic sessions.

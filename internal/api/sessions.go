@@ -67,10 +67,16 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 			}
 		}
 		var title sql.NullString
-		// Read enough to get past injected reminder blocks; cleanTitle clips after cleaning.
-		if err := db.QueryRow(`SELECT substr(a(attrs,'prompt'), 1, 8000) FROM events
-			WHERE name='user_prompt' AND session_id=? AND `+notRedacted("a(attrs,'prompt')")+`
-			ORDER BY ts_ns LIMIT 1`, sid).Scan(&title); err != nil && err != sql.ErrNoRows {
+		// Prompt text when content is captured; otherwise the local-history
+		// session title (ai-title), which is a label, not the prompt.
+		if err := db.QueryRow(`SELECT coalesce(
+			(SELECT substr(a(attrs,'prompt'), 1, 8000) FROM events
+				WHERE name='user_prompt' AND session_id=? AND `+notRedacted("a(attrs,'prompt')")+`
+				ORDER BY ts_ns LIMIT 1),
+			(SELECT a(attrs,'session.title') FROM spans
+				WHERE name='claude_code.interaction' AND session_id=? AND a(attrs,'session.title') IS NOT NULL
+				ORDER BY start_ns LIMIT 1)
+		)`, sid, sid).Scan(&title); err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 		nf := 0

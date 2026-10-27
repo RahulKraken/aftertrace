@@ -2,13 +2,36 @@
 
 > [What happens to what Claude Code sends, with a figure →](how-it-works/receive.md)
 
-The quickest way: run `aftertrace serve`, open http://127.0.0.1:7311 and go to **Connect**. It shows the settings block below with your server's real endpoints, has a button that copies it as a prompt Claude Code can apply for you, and confirms on the same page when the first data arrives. This page explains every variable in that block.
+The quickest way: run `aftertrace serve` and open http://127.0.0.1:7311. First launch reads the session JSONL already on disk under `~/.claude/projects` and shows recent usage (sessions, tokens, cost estimates, models, by day and by project) without any settings change. Prompt and response text are not stored. **Connect** then offers the live OpenTelemetry export below as an optional next step, with a snippet that uses this server's real endpoints and a button that copies it as a prompt Claude Code can apply for you. This page explains every variable in that block, and what the local import keeps.
 
 Variable names in this page are taken from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart `claude`.
 
 Put the env in `~/.claude/settings.json` or in the shell you start Claude Code from. Claude Code **ignores** OpenTelemetry exporter variables in a repository `.claude/settings.json` and `.claude/settings.local.json`. A repo file can still turn a signal **off** by setting an exporter to `none`.
 
 Managed settings, if your organization has them, win. They can strip a developer-set endpoint at startup. If nothing arrives, check that first.
+
+## Local session history
+
+Claude Code writes one JSONL transcript per session at `~/.claude/projects/<path-slug>/<session-id>.jsonl`. Aftertrace imports those files on `serve` (and on `aftertrace import --history`) into the same DuckDB the live feed uses.
+
+What is stored: timestamps, model, token counts, estimated cost, tool names, session and project ids, durations. Rows are marked `aftertrace.source=history`. Re-running the import is idempotent. If a session later arrives over OTel, the history rows for that session are dropped so they are not counted twice.
+
+What is not stored: prompt text, assistant text, tool input, tool output, thinking. Unknown JSONL fields and new record types are ignored. Duplicate `uuid`s (session resume) collapse to one record; token counts are taken once per `message.id`.
+
+`serve --no-history` skips the scan. `serve --history-dir DIR` points at another tree (tests use this). `aftertrace import --history [DIR]` does the same job headless; DIR defaults to `~/.claude/projects`.
+
+To reverse it, without touching live OTel rows:
+
+```sql
+DELETE FROM span_events WHERE trace_id IN (
+  SELECT trace_id FROM spans WHERE json_extract_string(resource, '$."aftertrace.source"') = 'history');
+DELETE FROM spans WHERE json_extract_string(resource, '$."aftertrace.source"') = 'history';
+DELETE FROM events WHERE json_extract_string(resource, '$."aftertrace.source"') = 'history';
+DELETE FROM metric_points WHERE json_extract_string(resource, '$."aftertrace.source"') = 'history';
+DELETE FROM history_files;
+```
+
+Or delete the DuckDB file. History import never leaves the machine.
 
 ## Minimum that fills the waterfall
 

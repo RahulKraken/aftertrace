@@ -27,3 +27,30 @@ func TestLookupLongestPrefixAndNormalize(t *testing.T) {
 		t.Errorf("normalize stripped a version dot: %q", Normalize("gpt-5.4"))
 	}
 }
+
+func TestCostUncachedAndCacheSplit(t *testing.T) {
+	// claude-opus-4-6: input 5, cache write 6.25, cache read 0.50, output 25.
+	got, ok := Cost("claude-opus-4-6", 1_000_000, 1_000_000, 0, 0, 0, 0)
+	if !ok || got != 5+25 {
+		t.Fatalf("uncached: got %v ok=%v", got, ok)
+	}
+	got, ok = Cost("claude-opus-4-6", 0, 0, 1_000_000, 0, 0, 0)
+	if !ok || got != 0.50 {
+		t.Fatalf("cache read: got %v ok=%v", got, ok)
+	}
+	got, ok = Cost("claude-opus-4-6", 0, 0, 0, 1_000_000, 0, 0)
+	if !ok || got != 6.25 {
+		t.Fatalf("flat cache write: got %v ok=%v", got, ok)
+	}
+	got, ok = Cost("claude-opus-4-6", 0, 0, 0, 0, 1_000_000, 0)
+	if !ok || got != 6.25 {
+		t.Fatalf("5m cache write: got %v ok=%v", got, ok)
+	}
+	got, ok = Cost("claude-opus-4-6", 0, 0, 0, 0, 0, 1_000_000)
+	if !ok || got != 10 {
+		t.Fatalf("1h cache write: got %v ok=%v", got, ok)
+	}
+	if _, ok := Cost("llama-3-70b", 100, 100, 0, 0, 0, 0); ok {
+		t.Fatal("unknown model priced")
+	}
+}

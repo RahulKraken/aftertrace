@@ -53,3 +53,16 @@ CREATE INDEX IF NOT EXISTS events_name ON events (name);
 CREATE INDEX IF NOT EXISTS events_request ON events (request_id);
 CREATE INDEX IF NOT EXISTS events_tool ON events (tool_use_id);
 CREATE INDEX IF NOT EXISTS events_trace ON events (trace_id);
+
+-- Claude Code session transcripts imported from ~/.claude/projects.
+-- size+mtime skip unchanged files; status is imported, skipped_otel, empty or error.
+CREATE TABLE IF NOT EXISTS history_files (
+  path VARCHAR PRIMARY KEY,
+  size BIGINT NOT NULL,
+  mtime_ns BIGINT NOT NULL,
+  session_id VARCHAR,
+  status VARCHAR NOT NULL,
+  turns INTEGER,
+  requests INTEGER,
+  imported_at_ns BIGINT NOT NULL
+);

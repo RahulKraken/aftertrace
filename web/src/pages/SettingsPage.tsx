@@ -83,7 +83,9 @@ export function SettingsPage() {
           </dd>
         </dl>
         <p className="mute">
-          To wipe everything, stop the server and delete the database file and its <code>.wal</code>. To add a source, go to{" "}
+          Local Claude Code history is imported as usage metadata (no prompt or response text) and marked{" "}
+          <code>aftertrace.source=history</code>. Live OpenTelemetry replaces those rows for the same session. To wipe
+          everything, stop the server and delete the database file and its <code>.wal</code>. To add a source, go to{" "}
           <Link href="/connect">Connect</Link>.
         </p>
       </section>

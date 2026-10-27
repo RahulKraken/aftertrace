@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RahulKraken/aftertrace/internal/history"
 	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
@@ -19,6 +20,8 @@ type Info struct {
 	UI           string `json:"ui"`
 	// Service is "launchd" or "systemd" when started by aftertrace service install.
 	Service string `json:"service"`
+	// HistoryDir is the Claude Code projects tree serve imported on start.
+	HistoryDir string `json:"history_dir,omitempty"`
 }
 
 func WithInfo(i Info) Option { return func(s *Server) { s.Info = i } }
@@ -73,16 +76,22 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	if s.Ask != nil {
 		ask["model"] = s.Ask.Model
 	}
+	histDir := s.Info.HistoryDir
+	if histDir == "" {
+		histDir = history.DefaultDir()
+	}
 	s.json(w, map[string]any{
-		"now":      now,
-		"info":     s.Info,
-		"ask":      ask,
-		"counts":   c,
-		"running":  running,
-		"sessions": sessions,
-		"findings": open,
-		"apps":     apps,
-		"sources":  len(srcs),
-		"last_ns":  last,
+		"now":       now,
+		"info":      s.Info,
+		"ask":       ask,
+		"counts":    c,
+		"running":   running,
+		"sessions":  sessions,
+		"findings":  open,
+		"apps":      apps,
+		"sources":   len(srcs),
+		"last_ns":   last,
+		"live_otel": history.LiveOTel(db),
+		"history":   history.Summarize(db, histDir),
 	}, 200)
 }

@@ -6,10 +6,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/RahulKraken/aftertrace/internal/pricing"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+
+	"github.com/RahulKraken/aftertrace/internal/pricing"
 
 	_ "github.com/duckdb/duckdb-go/v2"
 )
@@ -84,6 +86,10 @@ type Counts struct {
 	MetricPoints int
 }
 
+// HistorySource is the resource attribute aftertrace.source on rows imported
+// from Claude Code session transcripts, so they can be told apart from OTel.
+const HistorySource = "history"
+
 // dsnOptions apply to the whole DuckDB instance, so they also cover user SQL from /api/sql.
 // No file, network, or extension access, and no SET to undo it. Nothing in Aftertrace reads
 // files through DuckDB; ingest goes through Go. A second read-only instance is not an
@@ -124,6 +130,23 @@ func (s *Store) Close() error {
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
+	if live := liveSessionIDs(spans, evs, pts); len(live) > 0 {
+		if err := s.dropHistoryLocked(live); err != nil {
+			return err
+		}
+	}
+	return s.insertLocked(spans, sevs, evs, pts)
+}
+
+// ReplaceHistory deletes previously imported history rows for one session
+// and writes the new batch in the same lock, so a re-import is idempotent
+// even for events and metric points, which have no primary key.
+func (s *Store) ReplaceHistory(sessionID string, spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+	if err := s.dropHistoryLocked([]string{sessionID}); err != nil {
+		return err
+	}
 	return s.insertLocked(spans, sevs, evs, pts)
 }
 
@@ -230,4 +253,109 @@ func nullEmpty(s string) any {
 		return nil
 	}
 	return s
+}
+
+func isHistory(res map[string]any) bool {
+	if res == nil {
+		return false
+	}
+	v, _ := res["aftertrace.source"].(string)
+	return v == HistorySource
+}
+
+func liveSessionIDs(spans []Span, evs []Event, pts []MetricPoint) []string {
+	seen := map[string]struct{}{}
+	add := func(id string, hist bool) {
+		if id == "" || hist {
+			return
+		}
+		seen[id] = struct{}{}
+	}
+	for _, sp := range spans {
+		add(sp.SessionID, isHistory(sp.Resource))
+	}
+	for _, e := range evs {
+		add(e.SessionID, isHistory(e.Resource))
+	}
+	for _, p := range pts {
+		add(p.SessionID, isHistory(p.Resource))
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	return out
+}
+
+const historyPred = `coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') = 'history'`
+
+func (s *Store) dropHistoryLocked(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ph := placeholders(len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	var one int
+	err := s.DB.QueryRow(`SELECT 1 FROM spans WHERE session_id IN (`+ph+`) AND `+historyPred+` LIMIT 1`, args...).Scan(&one)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := s.DB.Exec(`DELETE FROM span_events WHERE trace_id IN (
+		SELECT DISTINCT trace_id FROM spans WHERE session_id IN (`+ph+`) AND `+historyPred+`)`, args...); err != nil {
+		return fmt.Errorf("drop history span_events: %w", err)
+	}
+	if _, err := s.DB.Exec(`DELETE FROM spans WHERE session_id IN (`+ph+`) AND `+historyPred, args...); err != nil {
+		return fmt.Errorf("drop history spans: %w", err)
+	}
+	if _, err := s.DB.Exec(`DELETE FROM events WHERE session_id IN (`+ph+`) AND `+historyPred, args...); err != nil {
+		return fmt.Errorf("drop history events: %w", err)
+	}
+	if _, err := s.DB.Exec(`DELETE FROM metric_points WHERE session_id IN (`+ph+`) AND `+historyPred, args...); err != nil {
+		return fmt.Errorf("drop history metrics: %w", err)
+	}
+	if _, err := s.DB.Exec(`UPDATE history_files SET status = 'skipped_otel' WHERE session_id IN (`+ph+`) AND status = 'imported'`, args...); err != nil {
+		return fmt.Errorf("history_files: %w", err)
+	}
+	return nil
+}
+
+// LiveSessions reports which of the given session ids already have OTel rows
+// (aftertrace.source is not history). Those sessions are owned by the live feed.
+func (s *Store) LiveSessions(ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ph := placeholders(len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.DB.Query(`SELECT DISTINCT session_id FROM spans
+		WHERE session_id IN (`+ph+`) AND coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') <> 'history'`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
 }
