@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { BOOKKEEPING_TABLES } from "../model.mjs"
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const read = (p) => readFileSync(join(ROOT, p), "utf8")
@@ -25,7 +26,7 @@ const tables = [...schema.matchAll(/CREATE TABLE IF NOT EXISTS (\w+) \(([\s\S]*?
       return { name: col, type, json: type === "JSON", key: key.includes(col) }
     })
   return { name, columns, key }
-})
+}).filter((t) => !BOOKKEEPING_TABLES.includes(t.name))
 for (const t of tables) {
   t.indexes = [...schema.matchAll(new RegExp(`CREATE INDEX IF NOT EXISTS (\\w+) ON ${t.name} \\((\\w+)\\)`, "g"))].map((m) => ({ name: m[1], column: m[2] }))
   // A key means INSERT OR REPLACE in store.go: a row sent again replaces itself.
