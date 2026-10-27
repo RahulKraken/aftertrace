@@ -26,12 +26,20 @@ const main = read("cmd/aftertrace/main.go")
 const schema = read("internal/store/schema.sql")
 const views = read("internal/store/views.sql")
 
+// Import bookkeeping lives in schema.sql but is not a signal table: views,
+// the UI and the figures do not read it. History still writes spans and
+// events; this table is only which files have already been looked at.
+export const BOOKKEEPING_TABLES = ["history_files"]
+for (const name of BOOKKEEPING_TABLES) {
+  if (!new RegExp(`CREATE TABLE IF NOT EXISTS ${name}\\b`).test(schema)) throw new Error(`model: bookkeeping table ${name} not in schema.sql`)
+}
+
 export const MODEL = {
   ports: { grpc: flagDefault(main, "grpc-port"), http: flagDefault(main, "http-port"), ui: flagDefault(main, "ui-port") },
   identityKeys: goList(redact, "IdentityKeys"),
   contentKeys: goList(redact, "ContentKeys"),
   contentPrefixes: goList(redact, "ContentPrefixes"),
-  tables: [...schema.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]),
+  tables: [...schema.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).filter((n) => !BOOKKEEPING_TABLES.includes(n)),
   views: [...views.matchAll(/CREATE OR REPLACE VIEW (\w+)/g)].map((m) => m[1]),
   rules: readdirSync(join(ROOT, "internal/rules/files")).filter((f) => f.endsWith(".sql")).map((f) => f.replace(/\.sql$/, "")),
   // The three OpenTelemetry signals a source sends, and what each becomes.
