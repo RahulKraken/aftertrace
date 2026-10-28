@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.3
+
+**History**
+- First launch reads Claude Code session files already on this machine (`~/.claude/projects`) and shows recent usage: sessions, tokens, cost estimates, models, by day and by project. Prompt and response text stay on disk; only usage metadata is stored.
+- Imported rows are marked `aftertrace.source=history`. Unchanged files are skipped on later starts. If a session later arrives over live OpenTelemetry, the imported copy is dropped so it is not counted twice.
+
+**CLI**
+- `aftertrace serve` imports history on start. `--no-history` skips it; `--history-dir DIR` points at another folder.
+- `aftertrace import --history [DIR]` does the same job without starting the server.
+
+**Connect**
+- First open leads with what was found ("Found N days of Claude Code sessions") and a button to see your usage. Live export is an optional next step. With nothing on disk, it says so and shows the OpenTelemetry snippet.
+
+**Docs**
+- The website build no longer treats the `history_files` bookkeeping table as a signal table, so the pages deploy.
+
 ## v0.4.2
 
 **Privacy**
