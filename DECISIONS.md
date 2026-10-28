@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Cut v0.4.3 so history import reaches install.sh users (2026-10-28)
+
+**Choice.** Publish v0.4.3 from current main (history import, first-run Connect, `import --history` / `serve --no-history`, site facts fix). `install.sh` still downloads v0.4.2, which has none of that, while the README already says history is in on first launch.
+
+**Why.** People who install from the website get a binary that does not match the docs. The code is already on main.
+
+**How to reverse.** Publish a follow-up patch that drops or gates the import, or replace the GitHub release so `install.sh`'s latest points at a different tag.
+
 ## Local session import as first-run backfill (2026-10-27)
 
 **Choice.** On `serve`, Aftertrace reads Claude Code's local session JSONL (`~/.claude/projects/<slug>/*.jsonl` and `*/subagents/*.jsonl`) into the existing DuckDB. OTel stays the live feed. Imported rows are usage metadata only, marked `aftertrace.source=history`. The first-run Connect screen leads with what was found and treats live export as optional.
