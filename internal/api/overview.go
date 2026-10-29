@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
+	"github.com/RahulKraken/aftertrace/internal/history"
+	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
 const day = int64(24 * time.Hour)
@@ -410,6 +412,7 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findings := findingsFor(db)
+	historyOnly := history.Only(db)
 	var top any
 	open := 0
 	for _, f := range findings {
@@ -419,6 +422,14 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		open++
 		if top == nil {
 			top = f
+		}
+	}
+	if historyOnly {
+		monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
+		if f := rules.PickMoneyFinding(findings, monthAgo, true); f != nil {
+			top = *f
+		} else {
+			top = nil
 		}
 	}
 
@@ -431,21 +442,35 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		recent = recent[:6]
 	}
 
+	projects := []history.Project{}
+	if historyOnly {
+		histDir := s.Info.HistoryDir
+		if histDir == "" {
+			histDir = history.DefaultDir()
+		}
+		projects = history.Summarize(db, histDir).Projects
+		if projects == nil {
+			projects = []history.Project{}
+		}
+	}
+
 	s.json(w, map[string]any{
-		"now":       now,
-		"lo":        lo,
-		"hi":        hi,
-		"anchored":  anchored,
-		"week":      cur,
-		"prev":      prev,
-		"days":      days,
-		"live":      lanes,
-		"sources":   srcs,
-		"top":       top,
-		"open":      open,
-		"recent":    recent,
-		"has_data":  len(stats) > 0 || len(srcs) > 0,
-		"generated": time.Now().UnixNano(),
+		"now":          now,
+		"lo":           lo,
+		"hi":           hi,
+		"anchored":     anchored,
+		"week":         cur,
+		"prev":         prev,
+		"days":         days,
+		"live":         lanes,
+		"sources":      srcs,
+		"top":          top,
+		"open":         open,
+		"recent":       recent,
+		"projects":     projects,
+		"history_only": historyOnly,
+		"has_data":     len(stats) > 0 || len(srcs) > 0,
+		"generated":    time.Now().UnixNano(),
 	}, 200)
 }
 

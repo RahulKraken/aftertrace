@@ -1,10 +1,10 @@
 package rules
 
 import (
-	"fmt"
-	"math"
 	"strings"
 	"time"
+
+	"github.com/RahulKraken/aftertrace/internal/prose"
 )
 
 // ActionSentence is the first-open advice line: what to do, in plain speech,
@@ -45,13 +45,13 @@ func MoneyLabel(f Finding) string {
 	if f.RuleID == "cache.drop_after_compaction" {
 		span := dateSpan(f.FirstNS, f.LastNS)
 		if span != "" {
-			return "Cost " + usdAbout(f.ImpactValue, false) + " over " + span
+			return "Cost " + prose.Money(f.ImpactValue, false) + " over " + span
 		}
-		return "Cost " + usdAbout(f.ImpactValue, false)
+		return "Cost " + prose.Money(f.ImpactValue, false)
 	}
 	days := spanDays(f.FirstNS, f.LastNS)
 	monthly := f.ImpactValue * 30 / days
-	return "Saves about " + usdAbout(monthly, true) + " a month"
+	return "Saves about " + prose.Money(monthly, true) + " a month"
 }
 
 func decorateCopy(fs []Finding) {
@@ -155,21 +155,4 @@ func dateSpan(first, last int64) string {
 		return as
 	}
 	return as + " – " + bs
-}
-
-func usdAbout(v float64, whole bool) string {
-	if whole {
-		n := int(math.Round(v))
-		if n < 1 {
-			if math.Abs(v) >= 1 {
-				return fmt.Sprintf("$%.2f", v)
-			}
-			return fmt.Sprintf("$%.3f", v)
-		}
-		return fmt.Sprintf("$%d", n)
-	}
-	if math.Abs(v) >= 1 {
-		return fmt.Sprintf("$%.2f", v)
-	}
-	return fmt.Sprintf("$%.3f", v)
 }

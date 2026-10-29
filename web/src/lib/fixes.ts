@@ -1,4 +1,4 @@
-import { dur } from "./format"
+import { sayDur } from "./format"
 import type { Finding } from "./types"
 
 export const WIN_MS = 1500
@@ -17,7 +17,7 @@ export type Fix = {
 
 function savedFrom(f: Finding): string | undefined {
   if (f.impact_unit.startsWith("USD") || f.impact_unit === "sessions") return undefined
-  return dur(f.impact_value * 1000)
+  return sayDur(f.impact_value * 1000)
 }
 
 function countFrom(f: Finding, re: RegExp, fallback = 0): number {

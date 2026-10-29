@@ -82,9 +82,11 @@ export function mockOverview(): Overview {
   })
   const recent = [...sessions].sort((a, b) => b.start_ns - a.start_ns).slice(0, 6)
   const now = Date.now() * 1e6
+  const historyOnly = historyFromHash()
   const lead = recent[0]
-  const live: LiveLane[] = lead
-    ? [
+  const live: LiveLane[] = historyOnly || !lead
+    ? []
+    : [
         {
           session_id: lead.session_id,
           trace_id: firstTrace(),
@@ -98,20 +100,24 @@ export function mockOverview(): Overview {
           quiet: false,
         },
       ]
-    : []
+  const histWeek = historyOnly
+    ? { ...week, lines_added: 0, lines_removed: 0, commits: 0, pull_requests: 0, approvals: 0, breakdown: { ...ZERO } }
+    : week
   return {
     now,
     lo,
     hi,
     anchored: true,
-    week,
+    week: histWeek,
     prev,
     days,
     live,
-    sources: mockSources(),
-    top: findings[0] || null,
+    sources: mockSources().map((s) => (historyOnly ? { ...s, live: false } : s)),
+    top: historyOnly ? MOCK_WELCOME_FINDING : findings[0] || null,
     open: findings.length,
     recent,
+    projects: historyOnly ? MOCK_HISTORY_FOUND.projects : [],
+    history_only: historyOnly,
     has_data: true,
   }
 }
@@ -192,6 +198,13 @@ export const MOCK_HISTORY_EMPTY: HistorySummary = {
   projects: [],
   series: [],
   files: 0,
+}
+
+function historyFromHash(): boolean {
+  if (typeof window === "undefined") return false
+  const hash = window.location.hash || ""
+  const q = (hash.split("?")[1] || window.location.search.replace(/^\?/, "")).toString()
+  return new URLSearchParams(q).get("history") === "1"
 }
 
 function welcomeFromHash(): "found" | "empty" | null {

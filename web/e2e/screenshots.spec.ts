@@ -225,6 +225,9 @@ test("findings", async ({ page }) => {
   await expect(page.locator(".frow.hero")).toBeVisible()
   await expect(page.locator(".frow.hero")).toContainText("permission prompts")
   await expect(page.locator(".frow.hero .fix-btn")).toBeVisible()
+  await expect(page.locator(".frow.hero .pill")).toHaveCount(0)
+  await expect(page.locator(".pillar")).toHaveCount(0)
+  await expect(page.locator(".hero-imp")).toHaveCount(0)
   await expect(page.locator(".frow.quiet").first()).toBeVisible()
   await expect(page.locator(".frow.resolved")).toContainText("git commit")
   await expect(page.locator(".celebrate")).toHaveCount(0)
@@ -241,7 +244,7 @@ async function openPermissionWin(page: Page) {
   await expect(page.locator(".win-stage")).toBeVisible()
   await expect(page.locator(".win-figure")).toHaveText("6")
   await expect(page.locator(".win-label")).toContainText("prompts removed")
-  await expect(page.locator(".win-aside")).toContainText("1m 29s saved")
+  await expect(page.locator(".win-aside")).toContainText("1 min saved")
 }
 
 test("findings win state", async ({ page }) => {
@@ -258,6 +261,9 @@ test("findings win state", async ({ page }) => {
 test("cost", async ({ page }) => {
   await page.goto("/#/cost")
   await expect(page.getByRole("heading", { name: "Cost" })).toBeVisible()
+  await expect(page.locator(".sub")).toContainText("drove most of this period's spend")
+  await expect(page.locator(".sub")).not.toContainText("cost_usd")
+  await expect(page.locator(".ribbon-read")).not.toContainText("Point at a slice")
   await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
   await shot(page, "cost", "light")
   await shot(page, "cost", "dark")
@@ -337,12 +343,31 @@ test("home: story, stats, live lane, next finding", async ({ page }) => {
   await page.goto("/#/")
   await waitFonts(page)
   await expect(page.locator(".home-story")).toContainText("Your agents worked")
+  await expect(page.locator(".hero-mark")).toHaveCount(0)
   await expect(page.locator(".stat")).toHaveCount(5)
   await expect(page.locator(".lane").first()).toBeVisible()
   await expect(page.locator(".next-card")).toBeVisible()
   await expect(page.locator(".list-row").first()).toBeVisible()
   await shot(page, "home", "light")
   await shot(page, "home", "dark")
+})
+
+test("home: history-only", async ({ page }) => {
+  await page.goto("/#/?history=1")
+  await waitFonts(page)
+  await expect(page.locator(".home-story")).toContainText("Your agents worked")
+  await expect(page.locator(".home-story")).toContainText("tokens")
+  await expect(page.locator(".hero-mark")).toHaveCount(0)
+  await expect(page.locator(".stat")).toHaveCount(0)
+  await expect(page.locator(".lane")).toHaveCount(0)
+  await expect(page.locator(".split-card")).toHaveCount(0)
+  await expect(page.locator(".next-head")).toHaveText("Use Sonnet for quick replies in aftertrace.")
+  await expect(page.locator(".next-save")).toHaveText(/Saves about \$/)
+  await expect(page.locator(".proj-row").first()).toBeVisible()
+  await expect(page.locator(".list-row").first()).toBeVisible()
+  await expect(page.locator(".home-invite")).toContainText("Turn on live tracing")
+  await shot(page, "home-history", "light")
+  await shot(page, "home-history", "dark")
 })
 
 test("connect: snippet, prompt copy, live verification", async ({ page }) => {

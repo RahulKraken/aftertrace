@@ -66,6 +66,25 @@ If two things both look important, the budget is already blown. Cut one.
 | Builder (or Ask / SQL) | 6 | One way of asking. |
 | Result (chart *or* table) | 4 | The answer. Traces wait until you click a point. |
 
+### Home (live)
+
+| Element | Units | Why |
+|---|---:|---|
+| Week sentence | 3 | Time, cost, usage, in English. |
+| Stat strip | 2 | Quiet numbers; not a second story. |
+| Live lanes | 3 | What is running. |
+| Top finding | 2 | One change. |
+
+### Home (history-only)
+
+| Element | Units | Why |
+|---|---:|---|
+| Week sentence | 3 | Time, cost, tokens. No waiting-on-you or shipped lines. |
+| Top finding | 4 | Same pick as Connect: highest monthly USD. |
+| Cost by project | 2 | Where the money went. |
+| Recent sessions | 1 | A way into a session. |
+| Live-tracing invite | 0 | One quiet line. |
+
 ### Cost
 
 | Element | Units | Why |

@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Download, ImageIcon, FileText } from "lucide
 import { ModelName, ToolName } from "../components/SpanIcon"
 import { Link } from "wouter"
 import { api } from "../lib/api"
-import { CAT_LABEL, CATS, delta, dur, int, pct, plural, usd } from "../lib/format"
+import { CAT_LABEL, CATS, delta, dur, int, pct, plural, sayDur, sayUsd, usd } from "../lib/format"
 import { readPlan } from "../lib/plan"
 import { receiptLines, receiptMarkdown, receiptPNG, weekLabel } from "../lib/receipt"
 import { useToast } from "../lib/toast"
@@ -189,11 +189,11 @@ function Story({ r, plan }: { r: Recap; plan: number }) {
   const wait = s.breakdown.permission_wait || 0
   return (
     <>
-      Your agents put in <b>{dur(s.turn_ms)}</b> across {int(s.sessions)} {s.sessions === 1 ? "session" : "sessions"} and {int(s.turns)} turns
+      Your agents put in <b>{sayDur(s.turn_ms)}</b> across {int(s.sessions)} {s.sessions === 1 ? "session" : "sessions"} and {int(s.turns)} turns
       {d != null && Number.isFinite(d) && Math.abs(d) >= 0.05 ? (
         <>, {pct(Math.abs(d))} {d > 0 ? "more" : "less"} than the week before</>
       ) : null}
-      . You waited on them for <b>{dur(wait)}</b>
+      . You waited on them for <b>{sayDur(wait)}</b>
       {s.approvals ? <> over {int(s.approvals)} {s.approvals === 1 ? "approval" : "approvals"}</> : null}.
       {s.lines_added ? (
         <>
@@ -202,8 +202,8 @@ function Story({ r, plan }: { r: Recap; plan: number }) {
           {s.pull_requests ? <> and {plural(s.pull_requests, "pull request")}</> : null}.
         </>
       ) : null}{" "}
-      At API prices the week was worth <b>{usd(s.cost_usd)}</b>
-      {plan ? <>; your plan cost {usd((plan * 7) / 30)} of it.</> : "."}
+      At API prices the week was worth <b>{sayUsd(s.cost_usd, true)}</b>
+      {plan ? <>; your plan cost {sayUsd((plan * 7) / 30, true)} of it.</> : "."}
     </>
   )
 }

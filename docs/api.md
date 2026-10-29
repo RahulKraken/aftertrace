@@ -148,6 +148,8 @@ For cost dimensions: columns `dim, cost_usd, share, requests, input, output, cac
 
 For `tool`: columns `tool_name, calls, result_tokens, exec_s, wait_s`. Tools have no cost of their own.
 
+`note` is one sentence about which model or project drove most spend this period. `estimated` is true when that spend came from imported session files.
+
 ## Query builder
 
 `POST /api/query`
@@ -213,8 +215,10 @@ The query cannot touch anything outside the tables and views:
 - `days`: 14 local days ending at `hi`, each `{day, start_ns, cost_usd, turn_ms, wait_ms, turns}`.
 - `live`: turns in progress that received spans in the last 5 minutes, each `{session_id, trace_id, title, source, start_ns, last_ns, spans, cost_usd, doing, quiet}`. `doing` is the latest tool or model call; `quiet` means nothing new for 90 seconds.
 - `sources`: as `GET /api/sources`.
-- `top`, `open`: the highest-ranked finding and the number of findings.
+- `top`, `open`: the highest-ranked finding and the number of findings. When `history_only` is true, `top` is the same pick as Connect (`PickMoneyFinding`: highest USD, ties by severity).
 - `recent`: the six newest sessions, shaped like `GET /api/sessions` rows.
+- `history_only`: true when the store has imported history and no live OTel spans. Home then hides live-only tiles.
+- `projects`: cost by project from imported history, present when `history_only` is true.
 
 `GET /api/sources` lists every `service.name` seen in spans, events or metrics: `{name, kind, spans, events, metrics, first_ns, last_ns, live}`. `kind` is `claude-code` for any `claude-code*` service and `app` otherwise. `live` means data in the last 5 minutes.
 

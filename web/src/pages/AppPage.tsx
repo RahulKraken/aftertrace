@@ -3,7 +3,8 @@ import { Link, useLocation, useParams } from "wouter"
 import { ModelName } from "../components/SpanIcon"
 import { RequestScatter } from "../components/RequestScatter"
 import { api } from "../lib/api"
-import { dur, impactParts, int, pct, tok, usd, when, modelName } from "../lib/format"
+import { dur, int, pct, sayDur, sayUsd, tok, usd, when, modelName } from "../lib/format"
+import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { AppDetail, AppGroup, Finding } from "../lib/types"
 
 export function AppPage() {
@@ -50,8 +51,8 @@ export function AppPage() {
       <h1 className="app-story">
         {a.calls ? (
           <>
-            <b>{int(a.calls)}</b> model calls over {days} {days === 1 ? "day" : "days"} for <b>{usd(a.cost_usd)}</b>
-            {est ? <span className="est">est.</span> : null}, typically answering in <b>{dur(a.p50_ms)}</b>.
+            <b>{int(a.calls)}</b> model calls over {days} {days === 1 ? "day" : "days"} for <b>{sayUsd(a.cost_usd, true)}</b>
+            {est ? <span className="est">est.</span> : null}, typically answering in <b>{sayDur(a.p50_ms)}</b>.
             {a.failed ? (
               <>
                 {" "}
@@ -84,14 +85,12 @@ export function AppPage() {
           </div>
           <div className="app-findings">
             {mine.map((f) => {
-              const [imp, unit] = impactParts(f)
+              const action = (f.action || actionSentence(f)).replace(`${service} · `, "").replace(`${service}: `, "")
+              const save = f.money_label || moneyLabel(f, "")
               return (
                 <Link key={f.id} href={`/findings?focus=${f.id}`} className="card next-card">
-                  <div className="next-imp">
-                    <span className="next-num">{imp}</span> <span className="mute">{unit}</span>
-                  </div>
-                  <div className="next-head">{f.headline.replace(`${service} · `, "").replace(`${service}: `, "")}</div>
-                  <div className="next-rec">{f.recommendation}</div>
+                  <div className="next-head">{action}</div>
+                  {save ? <div className="next-save">{save}</div> : null}
                 </Link>
               )
             })}

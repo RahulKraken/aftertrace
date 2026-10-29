@@ -44,6 +44,70 @@ export function tok(v: number | null | undefined): string {
   return String(Math.round(v))
 }
 
+// Spoken forms for sentences and headlines. Tables keep dur / usd / tok.
+
+export function sayDur(ms: number | null | undefined): string {
+  if (ms == null || Number.isNaN(ms)) return ""
+  const neg = ms < 0
+  const abs = Math.abs(ms)
+  let s: string
+  if (abs < 1000) {
+    const n = Math.round(abs)
+    s = n === 0 ? "0s" : `${n}ms`
+  } else if (abs < 60_000) {
+    s = `${Math.round(abs / 1000)}s`
+  } else if (abs < 3_600_000) {
+    s = `${Math.round(abs / 60_000)} min`
+  } else {
+    let h = Math.floor(abs / 3_600_000)
+    let min = Math.round((abs % 3_600_000) / 60_000)
+    if (min === 60) {
+      h++
+      min = 0
+    }
+    if (h >= 24) {
+      const d = Math.floor(h / 24)
+      h = h % 24
+      s = h === 0 ? `${d}d` : `${d}d ${h}h`
+    } else {
+      s = min === 0 ? `${h}h` : `${h}h ${min} min`
+    }
+  }
+  return neg ? `-${s}` : s
+}
+
+export function sayUsd(v: number | null | undefined, whole = false): string {
+  if (v == null || Number.isNaN(v)) return ""
+  const neg = v < 0
+  const abs = Math.abs(v)
+  let s: string
+  if (abs < 1) {
+    let cents = Math.round(abs * 100)
+    if (cents === 0 && abs > 0) cents = 1
+    s = `${cents}¢`
+  } else if (whole) {
+    s = `$${Math.round(abs)}`
+  } else {
+    s = `$${abs.toFixed(2)}`
+  }
+  return neg ? `-${s}` : s
+}
+
+export function sayTok(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return ""
+  const neg = v < 0
+  const abs = Math.abs(v)
+  const compact = (n: number, suffix: string) => {
+    if (n >= 10 || Math.abs(n - Math.round(n)) < 0.05) return `${Math.round(n)}${suffix}`
+    return `${n.toFixed(1)}${suffix}`.replace(`.0${suffix}`, suffix)
+  }
+  let s: string
+  if (abs >= 1e6) s = compact(abs / 1e6, "M")
+  else if (abs >= 1e3) s = compact(abs / 1e3, "k")
+  else s = String(Math.round(abs))
+  return neg ? `-${s}` : s
+}
+
 export function pct(v: number | null | undefined): string {
   if (v == null) return "—"
   return `${Math.round(v * 100)}%`

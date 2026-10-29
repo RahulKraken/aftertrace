@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
+	"github.com/RahulKraken/aftertrace/internal/history"
 	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
@@ -426,11 +427,13 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 		if out == nil {
 			out = [][]any{}
 		}
+		note, estimated := spendInsight(db)
 		return map[string]any{
-			"dim":     dim,
-			"columns": []string{"tool_name", "calls", "result_tokens", "exec_s", "wait_s"},
-			"rows":    out,
-			"note":    "Tools carry no cost of their own. result_tokens is what the tool added to context.",
+			"dim":       dim,
+			"columns":   []string{"tool_name", "calls", "result_tokens", "exec_s", "wait_s"},
+			"rows":      out,
+			"note":      note,
+			"estimated": estimated,
 		}, nil
 	}
 	// source: Claude Code next to each app. App input tokens include cache
@@ -484,19 +487,64 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 	if out == nil {
 		out = [][]any{}
 	}
+	note, estimated := spendInsight(db)
 	return map[string]any{
-		"dim":     dim,
-		"columns": []string{dim, "cost_usd", "share", "requests", "input", "output", "cache_read", "cache_write", "cache_hit"},
-		"rows":    out,
-		"note":    costNote(dim),
+		"dim":       dim,
+		"columns":   []string{dim, "cost_usd", "share", "requests", "input", "output", "cache_read", "cache_write", "cache_hit"},
+		"rows":      out,
+		"note":      note,
+		"estimated": estimated,
 	}, nil
 }
 
-func costNote(dim string) string {
-	if dim == "source" {
-		return "Claude Code cost is its own estimate. App cost is what the app reported, or estimated from tokens with the price table."
+// spendInsight is one sentence about who drove spend this period.
+// History-only stores mark that the dollars are estimated from session files.
+func spendInsight(db *sql.DB) (string, bool) {
+	estimated := history.Only(db)
+	var total sql.NullFloat64
+	if err := db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE NOT is_error`).Scan(&total); err != nil || !total.Valid || total.Float64 <= 0 {
+		if estimated {
+			return "No spend this period, estimated from session files.", estimated
+		}
+		return "No spend this period.", estimated
 	}
-	return "Cost is cost_usd from api_request events, joined to spans on request_id."
+	tot := total.Float64
+
+	var model string
+	var mCost sql.NullFloat64
+	_ = db.QueryRow(`SELECT coalesce(model,'(none)'), sum(cost_usd) FROM llm WHERE NOT is_error GROUP BY 1 ORDER BY 2 DESC LIMIT 1`).Scan(&model, &mCost)
+	var repo string
+	var rCost sql.NullFloat64
+	_ = db.QueryRow(`SELECT coalesce(repo,'(none)'), sum(cost_usd) FROM llm WHERE NOT is_error GROUP BY 1 ORDER BY 2 DESC LIMIT 1`).Scan(&repo, &rCost)
+
+	mShare, rShare := 0.0, 0.0
+	if mCost.Valid {
+		mShare = mCost.Float64 / tot
+	}
+	if rCost.Valid {
+		rShare = rCost.Float64 / tot
+	}
+
+	lead := ""
+	if repo != "" && repo != "(none)" && rShare > mShare {
+		lead = repo
+	} else {
+		lead = modelDisplay(model)
+		if lead == "" || lead == "the model" {
+			lead = model
+		}
+	}
+	if lead == "" || lead == "(none)" {
+		if estimated {
+			return "No spend this period, estimated from session files.", estimated
+		}
+		return "No spend this period.", estimated
+	}
+	msg := lead + " drove most of this period's spend."
+	if estimated {
+		msg = lead + " drove most of this period's spend, estimated from session files."
+	}
+	return msg, estimated
 }
 
 type dimError string

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Home for history-only, spoken numbers, quieter findings (2026-10-29)
+
+**Choice.** Users with only imported Claude Code session files (`aftertrace.source=history`, no live OTel) get a Home that is not the live dashboard: the top money finding (same pick as Connect: highest USD, ties by severity), cost by project, recent sessions, and one quiet line to turn on live tracing. Live-only tiles stay off — Live now, waiting-on-you, Shipped (it reads `metric_points`, which history never writes), time split, sources. The decorative HeroMark bars come off Home for everyone. Findings drop high/Bottleneck/Cost chips and the "35.7s of waiting" banner; the hero is the action sentence with the monthly saving line under it. Severity still sorts the list. Cost's subtitle is one generated sentence (which model or project drove most spend); history-derived dollars are labelled estimated from session files; the ribbon no longer says "Point at a slice or a row". Sentence copy uses one spoken formatter (`sayDur` / `sayUsd` / `sayTok`, and `internal/prose` on the Go side): "49 min", "41¢", "12M". Tables keep `dur` / `usd` / `tok`.
+
+**Why.** History-only Home was empty or lying (Shipped at zero, live lanes quiet). First open already spent its ten units on one finding; Home should not spend them again on live chrome the data cannot fill. Chips and wait banners are a second focal point. Schema notes and hover hints are not the product. "12.40M tokens" is a table number in a sentence.
+
+**How to reverse.** Home: restore `HeroMark` and the five-tile strip for history-only in `web/src/pages/HomePage.tsx`; drop `history_only` / `projects` from `GET /api/overview`. Findings: put the severity pill, pillar chips and `hero-imp` back in `FindingsPage.tsx`. Cost: restore `costNote` in `internal/api/sessions.go` and the "Point at a slice or a row" caption. Copy: switch sentences back from `sayDur`/`sayUsd`/`sayTok` to `dur`/`usd`/`tok`.
+
 ## Show one finding on first open instead of a list (2026-10-29)
 
 **Choice.** The first-run Connect screen keeps the spend summary, then shows exactly one finding: the highest monthly USD impact, ties to the higher-severity (confidence) finding. A plain action sentence (not the rule title), a labelled monthly saving (or an honest cost over the dates), the project and time span, and Show me. Below that, a quiet "See all findings" link and a one-line nudge that live tracing also catches slow hooks and retry waste. No list, no severity colours. If nothing qualifies: "Nothing worth changing in last month's history". History findings are labelled "estimated from session files".

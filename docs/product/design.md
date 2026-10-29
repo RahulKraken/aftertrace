@@ -51,7 +51,7 @@ Each principle names the concrete decisions it drives. A design change that brea
 - Destructive actions (purge) need typing the word.
 
 **Consistency.** Same thing, same look, everywhere.
-- One duration format (`1m 06s`), one money format (`$0.42`), one token format (`39.0k`), all tabular mono.
+- Tables use one duration format (`1m 06s`), one money format (`$0.42`), one token format (`39.0k`), all tabular mono. Sentences use spoken forms (`49 min`, `41¢`, `12M`).
 - One status vocabulary: Running, Quiet, Done, Incomplete, Failed.
 - A session is titled by its first prompt everywhere it appears.
 

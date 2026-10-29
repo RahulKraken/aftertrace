@@ -201,3 +201,19 @@ func LiveOTel(db *sql.DB) bool {
 		WHERE coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') <> 'history'`).Scan(&n)
 	return n > 0
 }
+
+// HasHistory is true when any span was imported from session files.
+func HasHistory(db *sql.DB) bool {
+	if db == nil {
+		return false
+	}
+	var n int
+	_ = db.QueryRow(`SELECT count(*) FROM spans
+		WHERE coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') = 'history'`).Scan(&n)
+	return n > 0
+}
+
+// Only is true when the store has imported history and no live OTel spans.
+func Only(db *sql.DB) bool {
+	return HasHistory(db) && !LiveOTel(db)
+}
