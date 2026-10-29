@@ -121,6 +121,7 @@ export function FindingsPage() {
                   <span className="hl">
                     <span className={`pillar pillar-${f.pillar}`}>{f.pillar}</span>
                     {f.headline}
+                    {f.estimated ? <span className="est-label">estimated from session files</span> : null}
                   </span>
                   <span className="imp">
                     {v}
@@ -183,6 +184,7 @@ function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) =
     <div className="frow hero" data-finding={f.id}>
       <div className="pill-row">
         <span className={`pill ${f.severity}`}>{f.severity}</span>
+        {f.estimated ? <span className="est-label">estimated from session files</span> : null}
       </div>
       <h1>{f.headline}</h1>
       <div className="imp hero-imp">

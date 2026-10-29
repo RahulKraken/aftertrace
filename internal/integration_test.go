@@ -77,6 +77,7 @@ func TestRulesFireOnIntendedScenariosAndStaySilentOnCleanSession(t *testing.T) {
 		"app.model_downgrade",
 		"app.errors",
 		"app.no_prompt_cache",
+		"model.opus_downgrade",
 	}
 	for _, id := range need {
 		if len(got[id]) == 0 {
@@ -144,8 +145,8 @@ func TestAPIGolden(t *testing.T) {
 	if err := json.Unmarshal(get("/api/sessions"), &sessions); err != nil {
 		t.Fatal(err)
 	}
-	if len(sessions) != 6 {
-		t.Fatalf("sessions=%d want 6", len(sessions))
+	if len(sessions) != 7 {
+		t.Fatalf("sessions=%d want 7", len(sessions))
 	}
 	sid := sessions[0]["session_id"].(string)
 	var sess map[string]any

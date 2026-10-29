@@ -248,6 +248,19 @@ func buildSessions(rng *rand.Rand) []*Session {
 	s6.interaction(turn, 0, nil)
 	s6.interaction(turn, 0, nil)
 
+	// Tiny Opus turns: short answers, no tools. Fires model.opus_downgrade.
+	s7 := newSession(rng, "inbox", "claude-opus-5", "low", BaseNS+int64(130*3600e9), "cli")
+	sessions = append(sessions, s7)
+	s7.start(nil, nil, nil)
+	for i := 0; i < 12; i++ {
+		s7.interaction(func(ctx [4]string, t int64) int64 {
+			out := 18 + s7.rng.Intn(20)
+			added := 80
+			t, _, _ = s7.llm(ctx, t, llmOpt{effort: "__s", outTokens: out, added: &added, stop: "end_turn"})
+			return t
+		}, 0, nil)
+	}
+
 	return sessions
 }
 

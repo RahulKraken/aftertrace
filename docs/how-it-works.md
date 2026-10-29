@@ -15,7 +15,7 @@ Here is what happens when Claude Code finishes one API request.
 2. **The receiver decodes it.** The batch is OTLP protobuf or JSON. It is turned into rows: traces become `spans` and `span_events`, logs become `events`, metrics become `metric_points`. [Receiving →](how-it-works/receive.md)
 3. **Redaction strips it.** Account identifiers such as `user.email` are always deleted. Prompt, response and tool content is deleted unless you started with `--store-content`. Token counts, durations, model names and costs stay. [Redaction →](how-it-works/redaction.md)
 4. **The store keeps it.** The rows go into `~/.aftertrace/aftertrace.duckdb` in one write. If the same span arrives twice, it replaces itself. Views such as `llm` and `tools` turn the JSON attributes into columns. [The store →](how-it-works/store.md)
-5. **Rules read it.** Thirteen SQL rules run against the store each time the app asks for findings, with results reused for up to 10 seconds. Each returns findings with a severity, an impact and the spans that prove it. [Findings →](how-it-works/findings.md)
+5. **Rules read it.** Fourteen SQL rules run against the store each time the app asks for findings, with results reused for up to 10 seconds. Each returns findings with a severity, an impact and the spans that prove it. [Findings →](how-it-works/findings.md)
 6. **You read it.** The app on `127.0.0.1:7311` shows the turn as a story: model thinking, tools running, time spent waiting on you. [Reading a turn →](how-it-works/turn.md)
 7. **Ask, if you want it.** Ask is off by default. With `--ask` and an Anthropic API key, a question in plain English is answered by Claude. It writes read-only SQL that runs here, and only the schema and trimmed result rows are sent to it. [Ask →](how-it-works/ask.md)
 
@@ -31,7 +31,7 @@ Everything above is one process, `aftertrace serve`. It opens three ports and on
 | Content keys | 41 keys and 4 prefixes, dropped | `--store-content` | [Redaction](how-it-works/redaction.md) |
 | Database | `~/.aftertrace/aftertrace.duckdb` | `--db` | [The store](how-it-works/store.md) |
 | Tables | `spans`, `span_events`, `events`, `metric_points` | | [The store](how-it-works/store.md) |
-| Rules | 13, compiled into the binary | [Writing rules](writing-rules.md) | [Findings](how-it-works/findings.md) |
+| Rules | 14, compiled into the binary | [Writing rules](writing-rules.md) | [Findings](how-it-works/findings.md) |
 | UI and JSON API | `127.0.0.1:7311` | `--ui-port`, `--listen` | [Reading a turn](how-it-works/turn.md) |
 | Ask | off | `--ask` and `ANTHROPIC_API_KEY` | [Ask](how-it-works/ask.md) |
 

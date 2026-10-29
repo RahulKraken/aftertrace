@@ -1,4 +1,4 @@
-import type { Breakdown, DayPoint, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import type { Breakdown, DayPoint, Finding, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -159,6 +159,25 @@ export const MOCK_HISTORY_FOUND: HistorySummary = {
   files: 42,
 }
 
+export const MOCK_WELCOME_FINDING: Finding = {
+  id: 8,
+  rule_id: "model.opus_downgrade",
+  rule_title: "Opus on tiny turns",
+  pillar: "cost",
+  severity: "medium",
+  headline: "aftertrace uses claude-opus-4-6 for 28-token turns with no tools",
+  impact_value: 12.4,
+  impact_unit: "USD",
+  detail: "12 Opus turns with no tool use. 90% of outputs are under 28 tokens, cost $14.10. The same tokens on claude-sonnet-5-5 would cost $4.20, on claude-haiku-5-5 $1.70.",
+  recommendation: "Short turns that never reach for a tool rarely need Opus.",
+  evidence: [],
+  sessions: ["e61c32c0-0193-4bab-9096-4e952c6c8a0c"],
+  estimated: true,
+  project: "aftertrace",
+  first_ns: Date.now() * 1e6 - 17 * DAY,
+  last_ns: Date.now() * 1e6 - 2 * 3600e9,
+}
+
 export const MOCK_HISTORY_EMPTY: HistorySummary = {
   dir: "~/.claude/projects",
   found: false,
@@ -199,5 +218,6 @@ export function mockStatus(): Status {
     last_ns: now - 3e9,
     live_otel: welcome ? false : true,
     history: welcome === "found" ? MOCK_HISTORY_FOUND : MOCK_HISTORY_EMPTY,
+    welcome_finding: welcome === "found" ? MOCK_WELCOME_FINDING : null,
   }
 }

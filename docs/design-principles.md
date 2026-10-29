@@ -80,6 +80,14 @@ If two things both look important, the budget is already blown. Cut one.
 | Setup recipe + copy | 8 | The next action. |
 | Page heading | 2 | Why the machine is quiet. |
 
+### First-run Connect (history found)
+
+| Element | Units | Why |
+|---|---:|---|
+| Spend total | 3 | What was already on this machine: dollars, tokens, sessions. |
+| The one finding | 5 | Highest monthly money impact. A title, a dollar amount, the project and span, Show me. |
+| See all findings + live-tracing nudge | 2 | The rest of the list waits. Connecting OTel is optional. |
+
 ## Emotional Design
 
 ### Visceral — beautiful before you read

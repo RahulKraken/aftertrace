@@ -32,8 +32,8 @@ func TestListSkipsMemoryAndNonJSONL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 4 {
-		t.Fatalf("files=%d want 4 (3 sessions + 1 subagent)", len(files))
+	if len(files) != 6 {
+		t.Fatalf("files=%d want 6 (5 sessions + 1 subagent)", len(files))
 	}
 	for _, f := range files {
 		if strings.Contains(f.Path, "memory") || strings.HasSuffix(f.Path, ".txt") {
@@ -48,7 +48,7 @@ func TestImportUsageNotContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Sessions != 3 || res.Turns < 4 || res.Requests < 6 {
+	if res.Sessions != 5 || res.Turns < 4 || res.Requests < 6 {
 		t.Fatalf("import %+v", res)
 	}
 
@@ -75,7 +75,7 @@ func TestImportUsageNotContent(t *testing.T) {
 	if err := st.DB.QueryRow(`SELECT sum(output_tokens) FROM llm WHERE session_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`).Scan(&out); err != nil {
 		t.Fatal(err)
 	}
-	if out != 120 { // 80 + 40, not 10+80+40
+	if out != 142 { // 80+40+12+10, not the streaming partial 10
 		t.Fatalf("session A output tokens = %v, streaming copies were double-counted", out)
 	}
 
@@ -103,13 +103,13 @@ func TestImportUsageNotContent(t *testing.T) {
 	}
 
 	sum := Summarize(st.DB, fixtureDir(t))
-	if !sum.Found || sum.Sessions != 3 || sum.Days < 5 {
+	if !sum.Found || sum.Sessions != 5 || sum.Days < 5 {
 		t.Fatalf("summary %+v", sum)
 	}
 	if sum.CostUSD <= 0 || sum.Tokens <= 0 {
 		t.Fatalf("summary cost/tokens %+v", sum)
 	}
-	if len(sum.Models) < 2 || len(sum.Projects) != 2 {
+	if len(sum.Models) < 2 || len(sum.Projects) != 3 {
 		t.Fatalf("models=%v projects=%v", sum.Models, sum.Projects)
 	}
 }

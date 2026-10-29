@@ -10,7 +10,6 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/query"
-	"github.com/RahulKraken/aftertrace/internal/rules"
 	"github.com/RahulKraken/aftertrace/internal/store"
 )
 
@@ -104,7 +103,7 @@ func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFindings(w http.ResponseWriter, r *http.Request) {
-	s.json(w, rules.RunAll(s.db()), 200)
+	s.json(w, findingsFor(s.db()), 200)
 }
 
 func (s *Server) getFields(w http.ResponseWriter, r *http.Request) {

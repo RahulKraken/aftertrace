@@ -1,5 +1,5 @@
 {
-  "session_count": 6,
+  "session_count": 7,
   "rule_ids": [
     "retry.exhausted",
     "permission.allow_rule_candidate",
@@ -9,6 +9,7 @@
     "app.errors",
     "skill.cost",
     "mcp.large_results",
+    "model.opus_downgrade",
     "cache.drop_after_compaction",
     "app.model_downgrade",
     "plugin.skills_unused",

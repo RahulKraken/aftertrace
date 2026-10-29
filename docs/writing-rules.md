@@ -26,7 +26,7 @@ SELECT
 | `-- @id` | yes | Stable id, dotted. Becomes `rule_id` on the finding. |
 | `-- @title` | no | Shown in the UI as `rule_title`. |
 | `-- @pillar` | no | `bottleneck`, `cost`, or `config`. |
-| `-- @min_version` | no | Claude Code version whose attributes you need. Parsed, not used to skip yet. |
+| `-- @min_version` | no | Claude Code version whose attributes you need. Parsed, not used to skip: a missing column yields no rows. History import reconstructs attributes from session files, so older transcripts can still match. |
 
 The SELECT must alias these columns (missing ones become empty / 0):
 

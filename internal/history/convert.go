@@ -86,6 +86,7 @@ func Convert(sessionID string, recs []Record, subagent bool) sessionOut {
 		if subagent {
 			qs = "subagent"
 		}
+		var mcpServer, mcpTool string
 		for _, call := range t.calls {
 			reqID := call.requestID
 			if reqID == "" {
@@ -141,19 +142,29 @@ func Convert(sessionID string, recs []Record, subagent bool) sessionOut {
 				evAttrs["cost_usd"] = usd
 				evAttrs["cost_estimated"] = true
 			}
+			if mcpServer != "" {
+				evAttrs["mcp_server.name"] = mcpServer
+				evAttrs["mcp_tool.name"] = mcpTool
+			}
 			out.Events = append(out.Events, store.Event{
 				TsNS: cs, Name: "api_request", SessionID: sessionID,
 				PromptID: t.promptID, TraceID: trace, SpanID: spanID, RequestID: reqID,
 				Attrs: evAttrs, Resource: res,
 			})
 			out.Requests++
+			mcpServer, mcpTool = "", ""
 			for _, tu := range call.tools {
+				if name := tu.Name; strings.HasPrefix(name, "mcp__") {
+					parts := strings.Split(name, "__")
+					if len(parts) >= 3 {
+						mcpServer, mcpTool = parts[1], parts[2]
+					}
+				}
 				toolID := hid(16, "hist", sessionID, "tool", tu.ID)
 				ts, te := cs, ce
-				if tr, ok := t.results[tu.ID]; ok {
-					if tr.at > ts {
-						te = tr.at
-					}
+				tr, hasRes := t.results[tu.ID]
+				if hasRes && tr.at > ts {
+					te = tr.at
 				}
 				if te <= ts {
 					te = ts + 1e6
@@ -163,6 +174,9 @@ func Convert(sessionID string, recs []Record, subagent bool) sessionOut {
 					"span.type":   "claude_code.tool",
 					"tool_name":   tu.Name,
 					"tool_use_id": tu.ID,
+				}
+				if hasRes && tr.tokens > 0 {
+					toolAttrs["result_tokens"] = tr.tokens
 				}
 				if project != "" {
 					toolAttrs["vcs.repository.name"] = project
@@ -174,7 +188,7 @@ func Convert(sessionID string, recs []Record, subagent bool) sessionOut {
 					SessionID: sessionID, Attrs: toolAttrs, Resource: res,
 				})
 				execID := hid(16, "hist", sessionID, "exec", tu.ID)
-				err := t.results[tu.ID].err
+				err := hasRes && tr.err
 				execAttrs := map[string]any{
 					"session.id":  sessionID,
 					"span.type":   "claude_code.tool.execution",
@@ -193,7 +207,7 @@ func Convert(sessionID string, recs []Record, subagent bool) sessionOut {
 			out.Events = append(out.Events, store.Event{
 				TsNS: t.compactNS, Name: "compaction", SessionID: sessionID,
 				PromptID: t.promptID, TraceID: trace, SpanID: ix,
-				Attrs:    map[string]any{"event.name": "compaction", "trigger": "auto"},
+				Attrs:    map[string]any{"event.name": "compaction", "trigger": "auto", "success": "true"},
 				Resource: res,
 			})
 		}
@@ -238,8 +252,9 @@ type llmCall struct {
 }
 
 type toolEnd struct {
-	at  int64
-	err bool
+	at     int64
+	err    bool
+	tokens int
 }
 
 func (c llmCall) cacheWriteTokens() float64 {
@@ -301,7 +316,7 @@ func groupTurns(recs []Record, subagent bool) []*turn {
 				if cur != nil {
 					for _, tr := range rec.ToolResults {
 						if tr.ID != "" {
-							cur.results[tr.ID] = toolEnd{at: at, err: tr.IsError}
+							cur.results[tr.ID] = toolEnd{at: at, err: tr.IsError, tokens: tr.ResultTokens}
 						}
 					}
 					if at > cur.end {

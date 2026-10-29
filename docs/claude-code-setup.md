@@ -2,7 +2,7 @@
 
 > [What happens to what Claude Code sends, with a figure →](how-it-works/receive.md)
 
-The quickest way: run `aftertrace serve` and open http://127.0.0.1:7311. First launch reads the session JSONL already on disk under `~/.claude/projects` and shows recent usage (sessions, tokens, cost estimates, models, by day and by project) without any settings change. Prompt and response text are not stored. **Connect** then offers the live OpenTelemetry export below as an optional next step, with a snippet that uses this server's real endpoints and a button that copies it as a prompt Claude Code can apply for you. This page explains every variable in that block, and what the local import keeps.
+The quickest way: run `aftertrace serve` and open http://127.0.0.1:7311. First launch reads the session JSONL already on disk under `~/.claude/projects` and shows last month's spend, then the one finding with the highest money impact. Prompt and response text are not stored. Findings from those files are labelled estimated from session files. **Connect** then offers the live OpenTelemetry export below as an optional next step, with a snippet that uses this server's real endpoints and a button that copies it as a prompt Claude Code can apply for you. This page explains every variable in that block, and what the local import keeps.
 
 Variable names in this page are taken from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart `claude`.
 
@@ -14,7 +14,7 @@ Managed settings, if your organization has them, win. They can strip a developer
 
 Claude Code writes one JSONL transcript per session at `~/.claude/projects/<path-slug>/<session-id>.jsonl`. Aftertrace imports those files on `serve` (and on `aftertrace import --history`) into the same DuckDB the live feed uses.
 
-What is stored: timestamps, model, token counts, estimated cost, tool names, session and project ids, durations. Rows are marked `aftertrace.source=history`. Re-running the import is idempotent. If a session later arrives over OTel, the history rows for that session are dropped so they are not counted twice.
+What is stored: timestamps, model, token counts, estimated cost, tool names, tool result size (not the text), session and project ids, durations. Rows are marked `aftertrace.source=history`. Re-running the import is idempotent. If a session later arrives over OTel, the history rows for that session are dropped so they are not counted twice. Findings from those rows are labelled estimated from session files.
 
 What is not stored: prompt text, assistant text, tool input, tool output, thinking. Unknown JSONL fields and new record types are ignored. Duplicate `uuid`s (session resume) collapse to one record; token counts are taken once per `message.id`.
 

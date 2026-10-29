@@ -357,7 +357,7 @@ function FirstRun() {
           Connect Claude Code <ArrowRight size={14} />
         </Link>
         <div className="mute fr-alt">
-          Just looking? Run <code>aftertrace demo</code> to load six synthetic sessions.
+          Just looking? Run <code>aftertrace demo</code> to load seven synthetic sessions.
         </div>
       </div>
     </div>

@@ -9,8 +9,8 @@ import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
 import { CopyButton } from "../components/CopyButton"
 import { api } from "../lib/api"
-import { ago, int, modelName, tok, usd } from "../lib/format"
-import type { Source, Status } from "../lib/types"
+import { ago, int, tok, usd } from "../lib/format"
+import type { Finding, Source, Status } from "../lib/types"
 
 type Variant = { label: string; lang: string; code: (ep: Endpoints) => string; note?: string }
 type SourceDef = {
@@ -262,38 +262,45 @@ export function ConnectPage() {
   return <ConnectSources />
 }
 
+function spanLabel(first?: number, last?: number): string {
+  if (!first) return ""
+  const a = new Date(first / 1e6)
+  const b = new Date((last || first) / 1e6)
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }
+  const as = a.toLocaleDateString("en-GB", opts)
+  const bs = b.toLocaleDateString("en-GB", opts)
+  return as === bs ? as : `${as} – ${bs}`
+}
+
+function sessionsHref(f: Finding): string {
+  const ids = (f.sessions || []).filter(Boolean)
+  if (ids.length === 1) return `/session/${ids[0]}`
+  if (ids.length > 1) return `/sessions?ids=${ids.join(",")}`
+  return "/sessions"
+}
+
 function FoundHistory({ status }: { status: Status | null }) {
   const [, nav] = useLocation()
-  const [setup, setSetup] = useState(false)
   const h = status?.history
   if (!h?.found) return <EmptyHistory status={status} />
-  const models = h.models.map((m) => modelName(m)).filter(Boolean).join(", ")
+  const done = () => localStorage.setItem(WELCOME_KEY, "done")
   const maxDay = Math.max(1, ...h.series.map((d) => d.sessions))
-  const go = () => {
-    localStorage.setItem(WELCOME_KEY, "done")
-    nav("/")
-  }
+  const f = status?.welcome_finding ?? null
   return (
     <div className="page connect-first">
       <div className="found">
         <div className="found-mark">
           <Logo size={22} />
         </div>
-        <h1>
+        <p className="found-kicker">
           Found {h.days} {h.days === 1 ? "day" : "days"} of Claude Code sessions
-        </h1>
-        <p className="found-lede">
+        </p>
+        <p className="found-spend">
           <Num value={h.cost_usd} format={usd} />
           <span className="found-dot">·</span>
           <Num value={h.tokens} format={tok} /> tokens
           <span className="found-dot">·</span>
           <Num value={h.sessions} format={(n) => int(Math.round(n))} /> {h.sessions === 1 ? "session" : "sessions"}
-          {models ? (
-            <>
-              <span className="found-dot">·</span>
-              {models}
-            </>
-          ) : null}
         </p>
         {h.series.length > 1 && (
           <div className="found-days" aria-hidden="true">
@@ -302,34 +309,54 @@ function FoundHistory({ status }: { status: Status | null }) {
             ))}
           </div>
         )}
-        {h.projects.length > 0 && (
-          <ul className="found-proj">
-            {h.projects.slice(0, 4).map((p) => (
-              <li key={p.name}>
-                <span>{p.name}</span>
-                <span className="mute">
-                  {p.sessions} {p.sessions === 1 ? "session" : "sessions"}
-                  {p.cost_usd ? ` · ${usd(p.cost_usd)}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button type="button" className="btn found-cta" onClick={go}>
-          See your usage <ArrowRight size={14} />
-        </button>
-        <p className="found-next mute">
-          Timing, cost and models from files already on this machine. Live turns and time waiting on you need the optional export.
-        </p>
-        {setup ? (
-          <div className="found-setup">
-            <ClaudeCodeSnippet status={status} />
+
+        {f ? (
+          <div className="found-one">
+            <h1>{f.rule_title || f.headline}</h1>
+            <p className="found-dollars">
+              <Num value={f.impact_value} format={usd} />
+            </p>
+            <p className="found-meta">
+              {[f.project, spanLabel(f.first_ns, f.last_ns)].filter(Boolean).join(" · ")}
+            </p>
+            {f.estimated ? <p className="found-est">estimated from session files</p> : null}
+            <button
+              type="button"
+              className="btn found-cta"
+              onClick={() => {
+                done()
+                nav(sessionsHref(f))
+              }}
+            >
+              Show me <ArrowRight size={14} />
+            </button>
           </div>
         ) : (
-          <button type="button" className="found-link" onClick={() => setSetup(true)}>
-            Set up live export
-          </button>
+          <div className="found-one">
+            <h1>Nothing worth changing in last month&apos;s history</h1>
+            <button
+              type="button"
+              className="btn found-cta"
+              onClick={() => {
+                done()
+                nav("/")
+              }}
+            >
+              See your usage <ArrowRight size={14} />
+            </button>
+          </div>
         )}
+
+        <p className="found-foot">
+          <Link
+            href="/findings"
+            className="found-all"
+            onClick={done}
+          >
+            See all findings
+          </Link>
+          <span className="found-nudge">Connecting live tracing also catches slow hooks and retry waste.</span>
+        </p>
       </div>
     </div>
   )

@@ -132,6 +132,10 @@ export type Finding = {
   recommendation: string
   evidence: Evidence[]
   sessions: string[]
+  estimated?: boolean
+  project?: string
+  first_ns?: number
+  last_ns?: number
 }
 
 export type Field = { key: string; kind: "num" | "str" }
@@ -336,6 +340,7 @@ export type Status = {
   last_ns: number
   live_otel?: boolean
   history?: HistorySummary
+  welcome_finding?: Finding | null
 }
 
 export type AppSummary = {
