@@ -10,7 +10,7 @@ A finding always has a severity (`high` / `medium` / `low`), a headline, an impa
 
 ![Findings page after `aftertrace demo`](images/findings.png)
 
-`-- @min_version` on each file is the Claude Code version whose attributes the query needs. The engine does not skip on version yet; a missing column just yields no rows.
+`-- @min_version` on each file is the Claude Code version whose attributes the query needs. The engine does not skip on version: a missing column just yields no rows. History import reconstructs those attributes from session files, so a transcript whose `service.version` is below the header can still match.
 
 Several rules need `OTEL_LOG_TOOL_DETAILS=1` for real names. Without it, skill / plugin / MCP names collapse to `custom` or `third-party`, and Bash patterns cannot use `full_command`. See [claude-code-setup.md](claude-code-setup.md).
 
@@ -48,7 +48,7 @@ Do this: re-run the turn. If it repeats, raise `CLAUDE_CODE_MAX_RETRIES` (cap 15
 
 **Cache drop after compaction.** Pillar: cost. Min version: 2.1.0.
 
-Detects a successful `compaction` event whose next main-thread `llm` request (not `query_source = compact`) has a cache hit rate at least 30 points below the mean of the five requests before.
+Detects a successful `compaction` event whose next main-thread `llm` request (not `query_source = compact`) has a cache hit rate at least 30 points below the mean of the five requests before. History import has the compact_boundary but not `pre_tokens`/`post_tokens`; those numbers then come from the cache reads on the calls immediately before and after. Live OTel still uses the event's own counts.
 
 Evidence: the compaction event and the rewrite request. Impact: USD on the compact requests in a 120s window plus the rewrite.
 
@@ -108,11 +108,21 @@ Do this: narrow the matcher so it runs on fewer calls, or move slow work to `Pos
 
 **Large MCP tool results.** Pillar: cost. Min version: 2.1.273.
 
-Detects `tools` rows whose `tool_name` starts with `mcp__` and `result_tokens > 10000`, grouped by tool.
+Detects `tools` rows whose `tool_name` starts with `mcp__` and `result_tokens > 10000`, grouped by tool. History import fills `result_tokens` from the length of `tool_result` content in the session file (characters / 4), without storing the text.
 
 Evidence: those tool spans, largest first. Impact: USD on `llm` requests attributed to that `mcp_server.name` / `mcp_tool.name`.
 
 Do this: ask the server for narrower results (filters, limits, fields), or call it from a subagent so only a summary reaches the main thread.
+
+## `model.opus_downgrade`
+
+**Opus on tiny turns.** Pillar: cost. Min version: 2.1.0.
+
+Detects Claude Code turns on an Opus model that never call a tool, grouped by project. At least 10 such turns, and 90% of their main-thread outputs under 80 tokens.
+
+Evidence: the five costliest of those turns. Impact: USD, the difference between what the turns cost and what the same tokens cost on `claude-haiku-5-5`. The detail also shows `claude-sonnet-5-5`.
+
+Do this: default that project to Sonnet, or to Haiku for routing and yes/no, and keep Opus for turns that actually explore. Runs on imported session files as well as live OTel.
 
 ## `app.model_downgrade`
 

@@ -17,6 +17,14 @@ const FILTERS: { id: Filter; label: string; test: (s: Session) => boolean }[] = 
   { id: "errors", label: "With errors", test: (s) => s.errors > 0 },
 ]
 
+function idsFromHash(): string[] {
+  if (typeof window === "undefined") return []
+  const h = window.location.hash || ""
+  const q = h.includes("?") ? h.slice(h.indexOf("?") + 1) : ""
+  const raw = new URLSearchParams(q).get("ids")
+  return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : []
+}
+
 function dayLabel(ns: number): string {
   const d = new Date(ns / 1e6)
   const today = new Date()
@@ -49,9 +57,12 @@ export function SessionsPage() {
   const shown = useMemo(() => {
     const f = FILTERS.find((x) => x.id === filter) || FILTERS[0]
     const needle = q.trim().toLowerCase()
+    const ids = idsFromHash()
+    const idSet = ids.length ? new Set(ids) : null
     return (rows || []).filter(
       (s) =>
         f.test(s) &&
+        (!idSet || idSet.has(s.session_id)) &&
         (!day || dayKey(s.start_ns) === day) &&
         (!needle ||
           [s.title, s.repo, s.session_id, ...(s.models || [])].some((v) => String(v || "").toLowerCase().includes(needle))),

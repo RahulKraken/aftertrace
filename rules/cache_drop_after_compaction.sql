@@ -3,13 +3,20 @@
 -- @pillar cost
 -- @min_version 2.1.0
 
+-- Live OTel compaction events carry success, pre_tokens and post_tokens.
+-- History import has the compact_boundary but not those numbers; missing
+-- success is treated as true, and missing pre/post are the cache reads on
+-- the calls immediately before and after. The hit-rate window (five calls
+-- before, one after, 30 point drop) is unchanged, so live OTel matches as
+-- before.
+
 WITH comps AS (
   SELECT session_id, ts_ns, trace_id, span_id,
     n(attrs,'pre_tokens') AS pre_tokens,
     n(attrs,'post_tokens') AS post_tokens,
-    a(attrs,'trigger') AS trigger
+    coalesce(a(attrs,'trigger'), 'auto') AS trigger
   FROM events
-  WHERE name='compaction' AND a(attrs,'success')='true'
+  WHERE name='compaction' AND coalesce(a(attrs,'success'), 'true')='true'
 ),
 main_llm AS (
   SELECT * FROM llm
@@ -28,9 +35,20 @@ before AS (
   ) t
   GROUP BY c.session_id, c.ts_ns
 ),
+prev_read AS (
+  SELECT c.session_id, c.ts_ns, m.cache_read_tokens AS pre_read
+  FROM comps c,
+  LATERAL (
+    SELECT cache_read_tokens FROM main_llm
+    WHERE session_id = c.session_id AND end_ns < c.ts_ns
+    ORDER BY end_ns DESC
+    LIMIT 1
+  ) m
+),
 after AS (
   SELECT c.session_id, c.ts_ns, m.trace_id, m.span_id,
     m.cache_read_tokens / nullif(m.cache_read_tokens+m.cache_creation_tokens+m.input_tokens, 0) AS cache_hit,
+    m.cache_read_tokens,
     m.cost_usd
   FROM comps c,
   LATERAL (
@@ -48,7 +66,8 @@ SELECT
             AND end_ns BETWEEN c.ts_ns - 120000000000 AND c.ts_ns), 0)
     + coalesce(a.cost_usd, 0) AS impact_value,
   'USD on compaction and cache rewrite' AS impact_unit,
-  'Compaction cut context from ' || CAST(c.pre_tokens AS BIGINT) || ' to ' || CAST(c.post_tokens AS BIGINT) ||
+  'Compaction cut context from ' || CAST(coalesce(c.pre_tokens, p.pre_read) AS BIGINT) || ' to ' ||
+    CAST(coalesce(c.post_tokens, a.cache_read_tokens) AS BIGINT) ||
     ' tokens. The next request rewrote the prompt cache.' AS detail,
   'Expected once per compaction. If it happens often, start a fresh session at natural breakpoints, run /compact yourself between tasks, and keep large tool output out of the main thread by delegating exploration to a subagent.' AS recommendation,
   json_array(
@@ -59,4 +78,5 @@ SELECT
 FROM comps c
 JOIN before b ON b.session_id=c.session_id AND b.ts_ns=c.ts_ns
 JOIN after a ON a.session_id=c.session_id AND a.ts_ns=c.ts_ns
+LEFT JOIN prev_read p ON p.session_id=c.session_id AND p.ts_ns=c.ts_ns
 WHERE b.avg_hit IS NOT NULL AND a.cache_hit IS NOT NULL AND (b.avg_hit - a.cache_hit) >= 0.3;

@@ -124,7 +124,7 @@ Scans `*.jsonl` at the top of each project slug, plus `*/subagents/*.jsonl`. Doe
 
 ## `aftertrace demo`
 
-Generate six synthetic Claude Code sessions, import them, print counts and findings. No OTLP ports. `--store-content` is not a flag; demo ingest always redacts.
+Generate seven synthetic Claude Code sessions, import them, print counts and findings. No OTLP ports. `--store-content` is not a flag; demo ingest always redacts.
 
 ```
 Usage of demo:
@@ -137,15 +137,17 @@ Usage of demo:
 ```
 
 ```
-loaded 6 synthetic sessions into ./data/aftertrace.duckdb
-spans=493 span_events=169 events=549 metric_points=764  (aftertrace.synthetic=true)
-12 findings
+loaded 7 synthetic sessions into ./data/aftertrace.duckdb
+spans=1257 span_events=181 events=591 metric_points=861  (aftertrace.synthetic=true)
+16 findings
 [high] retry.exhausted  An API request gave up after 11 attempts
+...
+[medium] model.opus_downgrade  inbox uses claude-opus-5 for 35-token turns with no tools
 ...
 run: aftertrace serve --db ./data/aftertrace.duckdb
 ```
 
-Every record has resource attribute `aftertrace.synthetic=true`. The generator is `internal/demo`. All ten shipped rules fire on this data; the clean haiku session is left uncited.
+Every record has resource attribute `aftertrace.synthetic=true`. The generator is `internal/demo`. Every shipped rule fires on this data; the clean haiku session is left uncited.
 
 Demo and serve cannot share a DB at the same time:
 

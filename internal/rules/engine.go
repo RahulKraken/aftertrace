@@ -42,6 +42,17 @@ type Finding struct {
 	Recommendation string     `json:"recommendation"`
 	Evidence       []Evidence `json:"evidence"`
 	Sessions       []string   `json:"sessions"`
+	// Estimated is true when every cited session is history import
+	// (aftertrace.source=history), not live OTel. The UI labels those
+	// "estimated from session files".
+	Estimated bool   `json:"estimated"`
+	Project   string `json:"project,omitempty"`
+	FirstNS   int64  `json:"first_ns,omitempty"`
+	LastNS    int64  `json:"last_ns,omitempty"`
+	// Action is a plain-speech "do this" line for the first-open screen.
+	Action string `json:"action,omitempty"`
+	// MoneyLabel is "Saves about $N a month" or "Cost $X over …".
+	MoneyLabel string `json:"money_label,omitempty"`
 }
 
 func Load() ([]Rule, error) {
@@ -88,6 +99,10 @@ func parse(src string) (Rule, error) {
 			case "pillar":
 				r.Pillar = v
 			case "min_version":
+				// Recorded for docs. The engine does not skip on it: a missing
+				// column yields no rows. History import reconstructs the
+				// attributes from session files, so a transcript whose
+				// service.version is below min_version can still match.
 				r.MinVersion = v
 			}
 			continue
@@ -119,6 +134,7 @@ func RunAll(db *sql.DB) []Finding {
 		}
 		out = append(out, fs...)
 	}
+	enrich(db, out)
 	sev := map[string]int{"high": 0, "medium": 1, "low": 2, "error": 3}
 	sort.SliceStable(out, func(i, j int) bool {
 		si, sj := sev[out[i].Severity], sev[out[j].Severity]
@@ -127,10 +143,142 @@ func RunAll(db *sql.DB) []Finding {
 		}
 		return out[i].ImpactValue > out[j].ImpactValue
 	})
+	decorateCopy(out)
 	for i := range out {
 		out[i].ID = i
 	}
 	return out
+}
+
+type sessMeta struct {
+	project string
+	first   int64
+	last    int64
+	history bool
+}
+
+func enrich(db *sql.DB, fs []Finding) {
+	ids := map[string]struct{}{}
+	for _, f := range fs {
+		for _, s := range f.Sessions {
+			if s != "" {
+				ids[s] = struct{}{}
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	var b strings.Builder
+	args := make([]any, 0, len(ids))
+	b.WriteString(`SELECT session_id,
+		coalesce(any_value(a(attrs, 'vcs.repository.name')), ''),
+		min(start_ns), max(end_ns),
+		bool_and(coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') = 'history')
+		FROM spans WHERE session_id IN (`)
+	i := 0
+	for id := range ids {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte('?')
+		args = append(args, id)
+		i++
+	}
+	b.WriteString(`) GROUP BY session_id`)
+	rows, err := db.Query(b.String(), args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	meta := map[string]sessMeta{}
+	for rows.Next() {
+		var id, proj string
+		var first, last int64
+		var hist bool
+		if err := rows.Scan(&id, &proj, &first, &last, &hist); err != nil {
+			continue
+		}
+		meta[id] = sessMeta{project: proj, first: first, last: last, history: hist}
+	}
+	for i := range fs {
+		fs[i].Estimated = true
+		projects := map[string]int{}
+		var first, last int64
+		n := 0
+		for _, sid := range fs[i].Sessions {
+			m, ok := meta[sid]
+			if !ok {
+				fs[i].Estimated = false
+				continue
+			}
+			n++
+			if !m.history {
+				fs[i].Estimated = false
+			}
+			if m.project != "" {
+				projects[m.project]++
+			}
+			if first == 0 || (m.first > 0 && m.first < first) {
+				first = m.first
+			}
+			if m.last > last {
+				last = m.last
+			}
+		}
+		if n == 0 {
+			fs[i].Estimated = false
+		}
+		fs[i].FirstNS = first
+		fs[i].LastNS = last
+		best, bestN := "", 0
+		for p, c := range projects {
+			if c > bestN || (c == bestN && p < best) {
+				best, bestN = p, c
+			}
+		}
+		if len(projects) > 1 {
+			fs[i].Project = fmt.Sprintf("%d projects", len(projects))
+		} else {
+			fs[i].Project = best
+		}
+	}
+}
+
+var sevRank = map[string]int{"high": 3, "medium": 2, "low": 1}
+
+// PickMoneyFinding returns the USD finding with the highest impact whose
+// sessions overlap [sinceNS, inf). Ties go to the higher-confidence
+// (severity) finding. historyOnly keeps findings estimated from session files.
+func PickMoneyFinding(fs []Finding, sinceNS int64, historyOnly bool) *Finding {
+	var best *Finding
+	for i := range fs {
+		f := &fs[i]
+		if f.Severity == "error" {
+			continue
+		}
+		if !strings.HasPrefix(f.ImpactUnit, "USD") {
+			continue
+		}
+		if historyOnly && !f.Estimated {
+			continue
+		}
+		if sinceNS > 0 && f.LastNS > 0 && f.LastNS < sinceNS {
+			continue
+		}
+		if best == nil {
+			best = f
+			continue
+		}
+		if f.ImpactValue > best.ImpactValue {
+			best = f
+			continue
+		}
+		if f.ImpactValue == best.ImpactValue && sevRank[f.Severity] > sevRank[best.Severity] {
+			best = f
+		}
+	}
+	return best
 }
 
 func run(db *sql.DB, r Rule) ([]Finding, error) {

@@ -54,8 +54,10 @@ type ToolUse struct {
 }
 
 type ToolResult struct {
-	ID      string
-	IsError bool
+	ID           string
+	IsError      bool
+	ResultChars  int // UTF-8 runes in tool_result content; text is discarded
+	ResultTokens int // ResultChars / 4, the attribute mcp.large_results reads
 }
 
 // ParseFile reads a JSONL transcript. Unknown types and malformed lines are
@@ -218,12 +220,45 @@ func parseContent(raw json.RawMessage, rec *Record) {
 			}
 		case "tool_result":
 			rec.HasToolRes = true
+			chars := contentChars(b["content"])
 			rec.ToolResults = append(rec.ToolResults, ToolResult{
-				ID:      str(b, "tool_use_id", "toolUseId"),
-				IsError: boolVal(b, "is_error", "isError"),
+				ID:           str(b, "tool_use_id", "toolUseId"),
+				IsError:      boolVal(b, "is_error", "isError"),
+				ResultChars:  chars,
+				ResultTokens: chars / 4,
 			})
 		}
 	}
+}
+
+// contentChars counts tool_result / message content without keeping the text.
+// A string is counted as runes; a block list sums each block's "text"; other
+// JSON (structured MCP payloads) is counted by raw byte length.
+func contentChars(raw json.RawMessage) int {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return 0
+	}
+	if raw[0] == '"' {
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			return utf8.RuneCountInString(s)
+		}
+		return 0
+	}
+	var blocks []map[string]json.RawMessage
+	if json.Unmarshal(raw, &blocks) == nil {
+		n := 0
+		for _, b := range blocks {
+			if t := str(b, "text"); t != "" {
+				n += utf8.RuneCountInString(t)
+			}
+		}
+		if n > 0 {
+			return n
+		}
+	}
+	return len(raw)
 }
 
 func mergeRecord(first, later Record) Record {

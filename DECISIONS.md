@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Show one finding on first open instead of a list (2026-10-29)
+
+**Choice.** The first-run Connect screen keeps the spend summary, then shows exactly one finding: the highest monthly USD impact, ties to the higher-severity (confidence) finding. A plain action sentence (not the rule title), a labelled monthly saving (or an honest cost over the dates), the project and time span, and Show me. Below that, a quiet "See all findings" link and a one-line nudge that live tracing also catches slow hooks and retry waste. No list, no severity colours. If nothing qualifies: "Nothing worth changing in last month's history". History findings are labelled "estimated from session files".
+
+**Why.** First open has about ten units of attention. A list of findings competes with the spend total and with the next action. One change is the product: the Findings page already ranks a hero. Repeating a list here would spend the budget twice.
+
+**How to reverse.** In `web/src/pages/ConnectPage.tsx`, restore the project list and "See your usage" CTA from v0.4.3, and drop the `found-one` block. `GET /api/status` can stop sending `welcome_finding` (`rules.PickMoneyFinding`). The Findings page is unchanged.
+
 ## Cut v0.4.3 so history import reaches install.sh users (2026-10-28)
 
 **Choice.** Publish v0.4.3 from current main (history import, first-run Connect, `import --history` / `serve --no-history`, site facts fix). `install.sh` still downloads v0.4.2, which has none of that, while the README already says history is in on first launch.

@@ -144,6 +144,10 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 14px; }
 .pill.medium { background: color-mix(in oklab, var(--hue-wait) 14%, var(--surface)); color: color-mix(in oklab, var(--hue-wait) 70%, var(--ink)); }
 [data-theme="dark"] .pill.medium { color: var(--hue-wait); }
 .pill.low { background: color-mix(in oklab, var(--hue-model) 16%, var(--surface)); color: var(--hue-model); }
+.est-label {
+  color: var(--faint); font-size: 11.5px; font-weight: 400; letter-spacing: 0.01em;
+  margin-left: 8px;
+}
 
 .celebrate {
   margin: 12px 0 4px; padding: 10px 12px; border-radius: 10px;
@@ -1148,27 +1152,39 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
   margin: 0 auto 18px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
 }
 .found h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.25; margin: 0; }
+.found-kicker { color: var(--mute); font-size: 13px; letter-spacing: -0.01em; margin: 0 0 6px; }
+.found-spend { font-size: 15px; line-height: 1.5; margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
 .found-lede { color: var(--mute); font-size: 14.5px; line-height: 1.55; margin: 12px 0 0; }
 .found-lede code { font: 12px var(--mono); background: var(--surface-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
 .found-dot { margin: 0 0.45em; color: var(--faint); }
 .found-days {
-  display: flex; align-items: flex-end; gap: 3px; height: 36px;
-  margin: 22px auto 0; max-width: 280px;
+  display: flex; align-items: flex-end; gap: 3px; height: 28px;
+  margin: 16px auto 0; max-width: 240px;
 }
 .found-days i {
   flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
-  background: color-mix(in oklab, var(--hue-model) 55%, var(--line));
+  background: color-mix(in oklab, var(--ink) 18%, var(--line));
 }
-.found-proj {
-  list-style: none; margin: 18px auto 0; padding: 0; max-width: 320px;
-  text-align: left; display: grid; gap: 6px;
+.found-one { margin-top: 36px; }
+.found-one h1 { font-size: 22px; max-width: 22em; margin-left: auto; margin-right: auto; }
+.found-save {
+  font-size: 15px; font-weight: 500; margin: 12px 0 0;
+  color: var(--ink); font-variant-numeric: tabular-nums;
 }
-.found-proj li {
-  display: flex; justify-content: space-between; gap: 12px;
-  font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--line);
+.found-dollars {
+  font-size: 34px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.1;
+  margin: 10px 0 0; font-variant-numeric: tabular-nums;
 }
-.found-proj li:last-child { border-bottom: 0; }
+.found-meta { color: var(--mute); font-size: 13.5px; margin: 10px 0 0; }
+.found-est { color: var(--faint); font-size: 12px; margin: 6px 0 0; letter-spacing: 0.01em; }
 .found-cta { margin-top: 22px; height: 36px; padding: 0 16px; border-radius: 10px; }
+.found-foot { margin: 28px auto 0; max-width: 36em; }
+.found-all {
+  display: inline-block; color: var(--mute); font-size: 12.5px;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.found-all:hover { color: var(--ink); }
+.found-nudge { display: block; margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: var(--faint); }
 .found-next { margin: 16px auto 0; max-width: 36em; font-size: 12.5px; line-height: 1.5; }
 .found-link {
   margin-top: 10px; background: none; border: 0; padding: 0;
@@ -1179,6 +1195,7 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 .found-setup, .found-otel { margin-top: 18px; text-align: left; }
 .found.is-empty { max-width: 560px; }
 .found.is-empty .found-lede { margin-bottom: 22px; }
+.found.is-empty h1 { font-size: 26px; }
 
 /* settings */
 .settings { max-width: 860px; }

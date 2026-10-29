@@ -2,7 +2,7 @@
 // Data enters on the left and moves right: sources plug into a junction box
 // (the receivers), batches run down a trough into a sieve (redaction), drop
 // into a four-drawer card cabinet (the DuckDB file), a reading carriage over
-// the cabinet checks them against 13 templates (the rules) and drops finding
+// the cabinet checks them against the rule templates and drops finding
 // cards in a tray, and a screen shows it all (the UI). A locked outbox at the
 // end is Ask, the only thing that can send anything off the bench.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -421,7 +421,7 @@ const front = [
 ]
 
 const LABEL =
-  "An instrument bench that explains how Aftertrace works. On the left, three small transmitters (Claude Code, the Agent SDK and your app) are cabled into a junction box with two sockets, the OpenTelemetry receivers on ports 4317 and 4318. Batches of light run down an open trough into a sieve, where identity always falls into a reject drawer and content falls too unless its lever is up. What passes drops into a four-drawer card cabinet, one drawer per table of the DuckDB file. A carriage on rails over the cabinet carries thirteen templates, the rules, and drops finding cards into a tray. A screen on the right shows the UI, and a locked outbox beside it is Ask, the only way anything leaves the bench."
+  `An instrument bench that explains how Aftertrace works. On the left, three small transmitters (Claude Code, the Agent SDK and your app) are cabled into a junction box with two sockets, the OpenTelemetry receivers on ports 4317 and 4318. Batches of light run down an open trough into a sieve, where identity always falls into a reject drawer and content falls too unless its lever is up. What passes drops into a four-drawer card cabinet, one drawer per table of the DuckDB file. A carriage on rails over the cabinet carries ${MODEL.rules.length} templates, the rules, and drops finding cards into a tray. A screen on the right shows the UI, and a locked outbox beside it is Ask, the only way anything leaves the bench.`
 
 const backSvg = k.figureSvg({ width: W, height: H, label: LABEL, body: back.join("") })
 const frontSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="iso-svg fx-layer fx-front" viewBox="0 0 ${W} ${H}" aria-hidden="true">${front.join("")}</svg>`

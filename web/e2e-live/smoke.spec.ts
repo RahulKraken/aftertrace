@@ -12,12 +12,24 @@ test("every page renders against the real server", async ({ page, request }) => 
   await expect(page.locator(".stat")).toHaveCount(5)
 
   await page.goto("/#/sessions")
-  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)").first()).toBeVisible()
-  await page.locator(".sessions-grid tbody tr:not(.day-row)").first().click()
-  await expect(page).toHaveURL(/#\/session\//)
-  await page.locator("table.grid tbody tr").first().click()
+  const sessionRows = page.locator(".sessions-grid tbody tr:not(.day-row)")
+  await expect(sessionRows.first()).toBeVisible()
+  const n = await sessionRows.count()
+  let opened = false
+  for (let i = 0; i < n; i++) {
+    await sessionRows.nth(i).click()
+    await expect(page).toHaveURL(/#\/session\//)
+    await page.locator("table.grid tbody tr").first().click()
+    await expect(page.locator(".st-ch").first()).toBeVisible()
+    if ((await page.locator(".st-ch").filter({ has: page.locator(".st-sub") }).count()) > 0) {
+      opened = true
+      break
+    }
+    await page.goto("/#/sessions")
+    await expect(sessionRows.first()).toBeVisible()
+  }
+  expect(opened).toBeTruthy()
   // A turn opens as a story: steps that open into actions, each with an inspector.
-  await expect(page.locator(".st-ch").first()).toBeVisible()
   await page.locator(".st-ch").filter({ has: page.locator(".st-sub") }).first().locator(".st-ch-head").click()
   await page.locator(".st-act").first().click()
   await expect(page.locator("#pane")).toBeVisible()

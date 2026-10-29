@@ -32,6 +32,7 @@ const WORDS = {
   "cache.drop_after_compaction": { detects: "a compaction, then a cache hit rate 30+ points lower", needs: "", sample: { severity: "medium", value: 0.42, headline: "Compaction rewrote 180k tokens of cache" } },
   "hook.overhead": { detects: "a hook averaging 1 s or more per run", needs: "", sample: null },
   "mcp.large_results": { detects: "MCP tool results over 10,000 tokens", needs: "OTEL_LOG_TOOL_DETAILS for server names", sample: { severity: "medium", value: 0.96, headline: "mcp__docs__search returned 38k tokens, 4 times" } },
+  "model.opus_downgrade": { detects: "Opus turns with no tools, 90% of outputs under 80 tokens", needs: "", sample: { severity: "medium", value: 12.4, headline: "inbox uses Opus for 28-token turns with no tools" } },
   "model.switch_cache_rebuild": { detects: "a model switch that rebuilt the prompt cache", needs: "", sample: null },
   "permission.allow_rule_candidate": { detects: "the same permission approved 3+ times", needs: "OTEL_LOG_TOOL_DETAILS for exact Bash patterns", sample: { severity: "high", value: 84, headline: "Bash(npm test:*) approved 7 times" } },
   "plugin.skills_unused": { detects: "a plugin's skills loaded in 3+ sessions, never used", needs: "OTEL_LOG_TOOL_DETAILS for plugin names", sample: null },

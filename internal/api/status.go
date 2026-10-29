@@ -55,8 +55,9 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	var running, sessions int
 	_ = db.QueryRow(`SELECT count(*) FROM turn_roots WHERE in_progress AND end_ns > ?`, now-int64(5*time.Minute)).Scan(&running)
 	_ = db.QueryRow(`SELECT count(DISTINCT session_id) FROM turn_roots`).Scan(&sessions)
+	fs := findingsFor(db)
 	open := 0
-	for _, f := range findingsFor(db) {
+	for _, f := range fs {
 		if f.Severity != "error" {
 			open++
 		}
@@ -80,18 +81,21 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	if histDir == "" {
 		histDir = history.DefaultDir()
 	}
+	monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
+	welcome := rules.PickMoneyFinding(fs, monthAgo, true)
 	s.json(w, map[string]any{
-		"now":       now,
-		"info":      s.Info,
-		"ask":       ask,
-		"counts":    c,
-		"running":   running,
-		"sessions":  sessions,
-		"findings":  open,
-		"apps":      apps,
-		"sources":   len(srcs),
-		"last_ns":   last,
-		"live_otel": history.LiveOTel(db),
-		"history":   history.Summarize(db, histDir),
+		"now":             now,
+		"info":            s.Info,
+		"ask":             ask,
+		"counts":          c,
+		"running":         running,
+		"sessions":        sessions,
+		"findings":        open,
+		"apps":            apps,
+		"sources":         len(srcs),
+		"last_ns":         last,
+		"live_otel":       history.LiveOTel(db),
+		"history":         history.Summarize(db, histDir),
+		"welcome_finding": welcome,
 	}, 200)
 }
