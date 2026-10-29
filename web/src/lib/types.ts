@@ -136,6 +136,8 @@ export type Finding = {
   project?: string
   first_ns?: number
   last_ns?: number
+  action?: string
+  money_label?: string
 }
 
 export type Field = { key: string; kind: "num" | "str" }

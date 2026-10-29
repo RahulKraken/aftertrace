@@ -49,6 +49,10 @@ type Finding struct {
 	Project   string `json:"project,omitempty"`
 	FirstNS   int64  `json:"first_ns,omitempty"`
 	LastNS    int64  `json:"last_ns,omitempty"`
+	// Action is a plain-speech "do this" line for the first-open screen.
+	Action string `json:"action,omitempty"`
+	// MoneyLabel is "Saves about $N a month" or "Cost $X over …".
+	MoneyLabel string `json:"money_label,omitempty"`
 }
 
 func Load() ([]Rule, error) {
@@ -139,6 +143,7 @@ func RunAll(db *sql.DB) []Finding {
 		}
 		return out[i].ImpactValue > out[j].ImpactValue
 	})
+	decorateCopy(out)
 	for i := range out {
 		out[i].ID = i
 	}

@@ -10,6 +10,7 @@ import { useNow } from "../hooks/useNow"
 import { CopyButton } from "../components/CopyButton"
 import { api } from "../lib/api"
 import { ago, int, tok, usd } from "../lib/format"
+import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { Finding, Source, Status } from "../lib/types"
 
 type Variant = { label: string; lang: string; code: (ep: Endpoints) => string; note?: string }
@@ -286,6 +287,9 @@ function FoundHistory({ status }: { status: Status | null }) {
   const done = () => localStorage.setItem(WELCOME_KEY, "done")
   const maxDay = Math.max(1, ...h.series.map((d) => d.sessions))
   const f = status?.welcome_finding ?? null
+  const span = f ? spanLabel(f.first_ns, f.last_ns) : ""
+  const action = f ? actionSentence(f) : ""
+  const save = f ? moneyLabel(f, span) : ""
   return (
     <div className="page connect-first">
       <div className="found">
@@ -312,12 +316,10 @@ function FoundHistory({ status }: { status: Status | null }) {
 
         {f ? (
           <div className="found-one">
-            <h1>{f.rule_title || f.headline}</h1>
-            <p className="found-dollars">
-              <Num value={f.impact_value} format={usd} />
-            </p>
+            <h1>{action}</h1>
+            {save ? <p className="found-save">{save}</p> : null}
             <p className="found-meta">
-              {[f.project, spanLabel(f.first_ns, f.last_ns)].filter(Boolean).join(" · ")}
+              {[f.project, span].filter(Boolean).join(" · ")}
             </p>
             {f.estimated ? <p className="found-est">estimated from session files</p> : null}
             <button

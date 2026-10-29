@@ -85,6 +85,29 @@ func TestHistoryCapableRulesFireOnFixtures(t *testing.T) {
 	if opus.Project != "inbox" {
 		t.Errorf("opus project=%q", opus.Project)
 	}
+	wantAction := map[string]string{
+		"model.opus_downgrade":        "Use Sonnet for quick replies in inbox.",
+		"tool.repeated_errors":        "Fix the Bash that keeps failing in app.",
+		"model.switch_cache_rebuild":  "Don't switch from Sonnet to Opus mid-session in app.",
+		"cache.drop_after_compaction": "Start a new session between tasks in app.",
+		"mcp.large_results":           "Ask docs for less at a time in app.",
+	}
+	for id, want := range wantAction {
+		if len(got[id]) == 0 {
+			continue
+		}
+		// Bash is session A; Read on session C is a second repeated-errors row.
+		found := false
+		for _, f := range got[id] {
+			if f.Action == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s action=%q want %q (all: %v)", id, got[id][0].Action, want, actions(got[id]))
+		}
+	}
 
 	silent := []string{
 		"hook.overhead", "permission.allow_rule_candidate", "retry.waste", "retry.exhausted",
@@ -146,6 +169,14 @@ func TestHistoryFindingsDedupWhenLiveOTelArrives(t *testing.T) {
 	if nAfter >= nBefore && nBefore > 0 {
 		t.Errorf("findings citing session B: before=%d after=%d (duplicates?)", nBefore, nAfter)
 	}
+}
+
+func actions(fs []rules.Finding) []string {
+	out := make([]string, len(fs))
+	for i, f := range fs {
+		out[i] = f.Action
+	}
+	return out
 }
 
 func TestPickMoneyFindingPrefersUSDAndConfidence(t *testing.T) {

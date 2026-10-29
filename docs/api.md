@@ -233,14 +233,17 @@ The query cannot touch anything outside the tables and views:
   "live_otel": false,
   "history": { "dir": "/Users/you/.claude/projects", "found": true, "sessions": 42, "turns": 318, "days": 18,
                "cost_usd": 38.4, "tokens": 12400000, "models": ["claude-opus-4-6"], "projects": [], "series": [], "files": 42 },
-  "welcome_finding": { "rule_id": "model.opus_downgrade", "rule_title": "Opus on tiny turns", "impact_value": 12.4,
-                       "impact_unit": "USD", "estimated": true, "project": "aftertrace", "sessions": ["uuid"] }
+  "welcome_finding": { "rule_id": "model.opus_downgrade", "rule_title": "Opus on tiny turns",
+                       "headline": "aftertrace uses claude-opus-4-6 for 28-token turns with no tools",
+                       "impact_value": 12.4, "impact_unit": "USD", "estimated": true, "project": "aftertrace",
+                       "action": "Use Sonnet for quick replies in aftertrace.",
+                       "money_label": "Saves about $22 a month", "sessions": ["uuid"] }
 }
 ```
 
 `info.service` is `launchd` or `systemd` when the server was started by [`aftertrace service install`](cli.md#aftertrace-service), and empty otherwise. Connect uses it to suggest the service.
 
-`live_otel` is true when any span did not come from local history. `history` is the imported Claude Code transcript summary for the first-run Connect screen; `found` is false when `~/.claude/projects` was empty. `welcome_finding` is the highest monthly USD finding estimated from those session files, or `null` when nothing qualifies. Findings from history carry `estimated: true` (labelled "estimated from session files"); live OTel replacing a session drops the imported copy so the same finding is not counted twice.
+`live_otel` is true when any span did not come from local history. `history` is the imported Claude Code transcript summary for the first-run Connect screen; `found` is false when `~/.claude/projects` was empty. `welcome_finding` is the highest monthly USD finding estimated from those session files, or `null` when nothing qualifies. `action` is a plain-speech next step (not the rule title); `money_label` is a monthly saving, or an honest cost over the dates when the impact is not a saving. Findings from history carry `estimated: true` (labelled "estimated from session files"); live OTel replacing a session drops the imported copy so the same finding is not counted twice.
 
 Findings are cached for 10 seconds, so `findings` can lag a new rule match by that long.
 

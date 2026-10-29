@@ -176,6 +176,8 @@ export const MOCK_WELCOME_FINDING: Finding = {
   project: "aftertrace",
   first_ns: Date.now() * 1e6 - 17 * DAY,
   last_ns: Date.now() * 1e6 - 2 * 3600e9,
+  action: "Use Sonnet for quick replies in aftertrace.",
+  money_label: "Saves about $22 a month",
 }
 
 export const MOCK_HISTORY_EMPTY: HistorySummary = {

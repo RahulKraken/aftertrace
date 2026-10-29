@@ -1166,7 +1166,11 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
   background: color-mix(in oklab, var(--ink) 18%, var(--line));
 }
 .found-one { margin-top: 36px; }
-.found-one h1 { font-size: 22px; }
+.found-one h1 { font-size: 22px; max-width: 22em; margin-left: auto; margin-right: auto; }
+.found-save {
+  font-size: 15px; font-weight: 500; margin: 12px 0 0;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
 .found-dollars {
   font-size: 34px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.1;
   margin: 10px 0 0; font-variant-numeric: tabular-nums;
