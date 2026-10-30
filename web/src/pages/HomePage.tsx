@@ -215,7 +215,7 @@ function HistoryHome({ ov }: { ov: Overview }) {
               Cost <ArrowRight size={13} />
             </Link>
           </div>
-          <ProjectList projects={projects} />
+          <ProjectList projects={projects} total={w.cost_usd} />
         </section>
       )}
 
@@ -237,8 +237,8 @@ function HistoryHome({ ov }: { ov: Overview }) {
   )
 }
 
-function ProjectList({ projects }: { projects: HistoryProject[] }) {
-  const tot = projects.reduce((a, p) => a + (p.cost_usd || 0), 0) || 1
+function ProjectList({ projects, total }: { projects: HistoryProject[]; total: number }) {
+  const tot = total || projects.reduce((a, p) => a + (p.cost_usd || 0), 0) || 1
   return (
     <div className="card list-card">
       {projects.map((p) => (

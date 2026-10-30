@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -875,6 +876,15 @@ func TestOverviewHistoryOnly(t *testing.T) {
 	}
 	if n, _ := week["lines_added"].(float64); n != 0 {
 		t.Fatalf("lines_added=%v (history import does not write metrics)", n)
+	}
+	weekCost, _ := week["cost_usd"].(float64)
+	var projSum float64
+	for _, p := range projects {
+		m, _ := p.(map[string]any)
+		projSum += m["cost_usd"].(float64)
+	}
+	if math.Abs(projSum-weekCost) > 1e-6 {
+		t.Fatalf("project rows sum to %v, headline week spend is %v", projSum, weekCost)
 	}
 	cost, err := http.Get(srv.URL + "/api/cost?dim=model")
 	if err != nil {

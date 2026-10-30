@@ -438,17 +438,23 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		s.err(w, err, 500)
 		return
 	}
+	if historyOnly {
+		kept := recent[:0]
+		for _, sess := range recent {
+			st, _ := sess["start_ns"].(int64)
+			if st >= lo && st < hi {
+				kept = append(kept, sess)
+			}
+		}
+		recent = kept
+	}
 	if len(recent) > 6 {
 		recent = recent[:6]
 	}
 
 	projects := []history.Project{}
 	if historyOnly {
-		histDir := s.Info.HistoryDir
-		if histDir == "" {
-			histDir = history.DefaultDir()
-		}
-		projects = history.Summarize(db, histDir).Projects
+		projects = history.ProjectsIn(db, lo, hi)
 		if projects == nil {
 			projects = []history.Project{}
 		}

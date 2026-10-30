@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.4
+
+**Home**
+- History-only Home (imported Claude Code session files, no live tracing) shows the top money finding, cost by project, and recent sessions, instead of empty live tiles.
+- Cost by project and recent sessions use the same week as the headline, so the project rows add up to the spend in the sentence.
+
+**Connect / Findings**
+- First open shows one finding: the highest monthly USD impact, as an action and a labelled saving. Live export stays optional.
+- Findings drop severity chips and the wait banner. The hero is the action sentence, with the monthly saving underneath.
+
+**Copy**
+- Spoken numbers in sentences: "49 min", "41¢", "12M". Tables keep exact figures.
+- Cost's subtitle is which model or project drove most of this period's spend. History dollars are labelled estimated from session files.
+
+**Rules**
+- 14 SQL rules, up from 13: `model.opus_downgrade` flags Opus on tiny turns that never reach for a tool.
+
 ## v0.4.3
 
 **History**

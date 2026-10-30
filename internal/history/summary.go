@@ -175,6 +175,33 @@ func Summarize(db *sql.DB, dir string) Summary {
 	return s
 }
 
+// ProjectsIn is cost by project over [lo, hi), the same llm window Home uses
+// for the week headline. The rows sum to that week's cost_usd.
+func ProjectsIn(db *sql.DB, lo, hi int64) []Project {
+	if db == nil {
+		return []Project{}
+	}
+	rows, err := db.Query(`SELECT coalesce(nullif(repo, ''), 'unknown'),
+		count(DISTINCT session_id),
+		coalesce(sum(cost_usd), 0),
+		coalesce(sum(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens), 0)
+		FROM llm WHERE start_ns >= ? AND start_ns < ?
+		GROUP BY 1 ORDER BY 3 DESC, 1`, lo, hi)
+	if err != nil {
+		return []Project{}
+	}
+	defer rows.Close()
+	out := []Project{}
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.Name, &p.Sessions, &p.CostUSD, &p.Tokens); err != nil {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
 func asStrings(v any) []string {
 	switch t := v.(type) {
 	case []string:

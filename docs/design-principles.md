@@ -81,7 +81,7 @@ If two things both look important, the budget is already blown. Cut one.
 |---|---:|---|
 | Week sentence | 3 | Time, cost, tokens. No waiting-on-you or shipped lines. |
 | Top finding | 4 | Same pick as Connect: highest monthly USD. |
-| Cost by project | 2 | Where the money went. |
+| Cost by project | 2 | Where this week's money went. |
 | Recent sessions | 1 | A way into a session. |
 | Live-tracing invite | 0 | One quiet line. |
 

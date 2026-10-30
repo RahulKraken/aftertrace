@@ -216,9 +216,9 @@ The query cannot touch anything outside the tables and views:
 - `live`: turns in progress that received spans in the last 5 minutes, each `{session_id, trace_id, title, source, start_ns, last_ns, spans, cost_usd, doing, quiet}`. `doing` is the latest tool or model call; `quiet` means nothing new for 90 seconds.
 - `sources`: as `GET /api/sources`.
 - `top`, `open`: the highest-ranked finding and the number of findings. When `history_only` is true, `top` is the same pick as Connect (`PickMoneyFinding`: highest USD, ties by severity).
-- `recent`: the six newest sessions, shaped like `GET /api/sessions` rows.
+- `recent`: the six newest sessions, shaped like `GET /api/sessions` rows. When `history_only` is true, only sessions that started in `lo`–`hi`.
 - `history_only`: true when the store has imported history and no live OTel spans. Home then hides live-only tiles.
-- `projects`: cost by project from imported history, present when `history_only` is true.
+- `projects`: cost by project in the same `lo`–`hi` week as `week`, present when `history_only` is true. The rows sum to `week.cost_usd`.
 
 `GET /api/sources` lists every `service.name` seen in spans, events or metrics: `{name, kind, spans, events, metrics, first_ns, last_ns, live}`. `kind` is `claude-code` for any `claude-code*` service and `app` otherwise. `live` means data in the last 5 minutes.
 

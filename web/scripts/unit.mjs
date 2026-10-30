@@ -14,6 +14,8 @@ const vite = await createServer({
 
 const { dur, tok, usd, sayDur, sayUsd, sayTok } = await vite.ssrLoadModule("/src/lib/format.ts")
 const { actionSentence, moneyLabel } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
+const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
 
 let failed = 0
@@ -59,6 +61,21 @@ const opus = {
 eq(actionSentence(opus), "Use Sonnet for quick replies in aftertrace.", "actionSentence opus")
 eq(moneyLabel(opus, ""), "Saves about $12 a month", "moneyLabel $12")
 eq(moneyLabel({ ...opus, impact_value: 0.41 }, ""), "Saves about 41¢ a month", "moneyLabel 41¢")
+
+const DAY = 86400e9
+const hi = Math.max(...sessions.map((s) => s.end_ns)) + 1
+const lo = hi - 7 * DAY
+const weekProjects = projectsInWindow(sessions, lo, hi)
+const weekSpend = sessions.filter((s) => s.start_ns >= lo && s.start_ns < hi).reduce((a, s) => a + (s.cost_usd || 0), 0)
+const projSpend = weekProjects.reduce((a, p) => a + p.cost_usd, 0)
+if (Math.abs(projSpend - weekSpend) > 1e-6) {
+  console.error(`fail project rows sum to headline: got ${projSpend} want ${weekSpend}`)
+  failed++
+}
+if (weekProjects.length < 2) {
+  console.error(`fail week projects: ${weekProjects.length}`)
+  failed++
+}
 
 if (failed) {
   console.error(`${failed} failed`)

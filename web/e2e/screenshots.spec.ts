@@ -363,7 +363,7 @@ test("home: history-only", async ({ page }) => {
   await expect(page.locator(".split-card")).toHaveCount(0)
   await expect(page.locator(".next-head")).toHaveText("Use Sonnet for quick replies in aftertrace.")
   await expect(page.locator(".next-save")).toHaveText(/Saves about \$/)
-  await expect(page.locator(".proj-row").first()).toBeVisible()
+  await expect(page.locator(".proj-row")).toHaveCount(3)
   await expect(page.locator(".list-row").first()).toBeVisible()
   await expect(page.locator(".home-invite")).toContainText("Turn on live tracing")
   await shot(page, "home-history", "light")

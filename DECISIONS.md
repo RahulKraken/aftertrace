@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Home cost is one week (2026-10-30)
+
+**Choice.** History-only Home's cost-by-project rows and recent sessions use the same `lo`/`hi` as the headline week (`GET /api/overview` `projects` from `history.ProjectsIn`, not all-time `Summarize`). Project row dollars sum to `week.cost_usd`. Connect's history summary stays all imported history.
+
+**Why.** The sentence said this week's spend; the rows under it summed last month. Two windows on one screen.
+
+**How to reverse.** In `internal/api/overview.go`, set `projects` from `history.Summarize` again and stop filtering `recent` to `lo`/`hi`. Drop `ProjectsIn`.
+
 ## Home for history-only, spoken numbers, quieter findings (2026-10-29)
 
 **Choice.** Users with only imported Claude Code session files (`aftertrace.source=history`, no live OTel) get a Home that is not the live dashboard: the top money finding (same pick as Connect: highest USD, ties by severity), cost by project, recent sessions, and one quiet line to turn on live tracing. Live-only tiles stay off — Live now, waiting-on-you, Shipped (it reads `metric_points`, which history never writes), time split, sources. The decorative HeroMark bars come off Home for everyone. Findings drop high/Bottleneck/Cost chips and the "35.7s of waiting" banner; the hero is the action sentence with the monthly saving line under it. Severity still sorts the list. Cost's subtitle is one generated sentence (which model or project drove most spend); history-derived dollars are labelled estimated from session files; the ribbon no longer says "Point at a slice or a row". Sentence copy uses one spoken formatter (`sayDur` / `sayUsd` / `sayTok`, and `internal/prose` on the Go side): "49 min", "41¢", "12M". Tables keep `dur` / `usd` / `tok`.

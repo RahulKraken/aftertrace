@@ -1,4 +1,4 @@
-import type { Breakdown, DayPoint, Finding, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import type { Breakdown, DayPoint, Finding, HistoryProject, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -116,10 +116,29 @@ export function mockOverview(): Overview {
     top: historyOnly ? MOCK_WELCOME_FINDING : findings[0] || null,
     open: findings.length,
     recent,
-    projects: historyOnly ? MOCK_HISTORY_FOUND.projects : [],
+    projects: historyOnly ? projectsInWindow(sessions, lo, hi) : [],
     history_only: historyOnly,
     has_data: true,
   }
+}
+
+// Cost by project in [lo, hi), the same window as the Home headline.
+export function projectsInWindow(
+  rows: { repo?: string | null; start_ns: number; cost_usd: number | null; tokens: number | null }[],
+  lo: number,
+  hi: number,
+): HistoryProject[] {
+  const m = new Map<string, HistoryProject>()
+  for (const s of rows) {
+    if (s.start_ns < lo || s.start_ns >= hi) continue
+    const name = s.repo || "unknown"
+    const p = m.get(name) || { name, sessions: 0, cost_usd: 0, tokens: 0 }
+    p.sessions++
+    p.cost_usd += s.cost_usd || 0
+    p.tokens += s.tokens || 0
+    m.set(name, p)
+  }
+  return [...m.values()].sort((a, b) => b.cost_usd - a.cost_usd || a.name.localeCompare(b.name))
 }
 
 function firstTrace(): string {
