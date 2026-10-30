@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, ChevronRight, CircleAlert, MessageCircleQuestion, ShieldQuestion, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "wouter"
-import { dur, usd } from "../../lib/format"
+import { dur, sayDur, usd } from "../../lib/format"
 import { indexContent } from "../../lib/content"
 import { buildForest } from "../../lib/span"
 import { buildStory, cleanPrompt, relPaths, summarize, type Action, type Chapter, type Pause, type StoryItem } from "../../lib/steps"
@@ -362,8 +362,8 @@ function PauseCard({ p, t0, onOpen, selected }: { p: Pause; t0: number; onOpen: 
   const q = p.reason === "question"
   const Icon = q ? MessageCircleQuestion : ShieldQuestion
   const title = q
-    ? `Claude waited ${dur(p.ms)} for ${p.qa.length > 1 ? "your answers" : "your answer"}`
-    : `Claude waited ${dur(p.ms)} for you to approve ${p.action.verb.toLowerCase()} ${p.action.object}`
+    ? `Claude waited ${sayDur(p.ms)} for ${p.qa.length > 1 ? "your answers" : "your answer"}`
+    : `Claude waited ${sayDur(p.ms)} for you to approve ${p.action.verb.toLowerCase()} ${p.action.object}`
   return (
     <li className="st-pause" data-item={p.id}>
       <span className="st-rail">

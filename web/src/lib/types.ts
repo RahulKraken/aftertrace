@@ -147,6 +147,7 @@ export type CostTable = {
   columns: string[]
   rows: unknown[][]
   note: string
+  estimated?: boolean
 }
 
 export type QuerySpec = {
@@ -295,6 +296,8 @@ export type Overview = {
   top: Finding | null
   open: number
   recent: Session[]
+  projects?: HistoryProject[]
+  history_only?: boolean
   has_data: boolean
 }
 

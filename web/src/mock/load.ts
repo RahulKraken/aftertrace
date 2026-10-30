@@ -1,3 +1,5 @@
+import { actionSentence, moneyLabel } from "../lib/welcome"
+import { modelName } from "../lib/format"
 import type {
   AppDetail,
   AppSummary,
@@ -58,7 +60,11 @@ export const sessions = (sessionsJson as Session[]).map((s, i) => ({
   ...s,
   title: TITLES[i % TITLES.length],
 }))
-export const findings = findingsJson as Finding[]
+export const findings = (findingsJson as Finding[]).map((f) => ({
+  ...f,
+  action: actionSentence(f),
+  money_label: moneyLabel(f, ""),
+}))
 export const fields = fieldsJson as Field[]
 export const range = rangeJson as Range
 
@@ -83,7 +89,36 @@ export function getTrace(id: string): Trace | undefined {
 }
 
 export function getCost(dim: string): CostTable | undefined {
-  return costFiles[`./fixtures/cost/${dim}.json`]
+  const c = costFiles[`./fixtures/cost/${dim}.json`]
+  if (!c) return undefined
+  const estimated = historyQuery()
+  return { ...c, note: mockSpendInsight(), estimated }
+}
+
+function historyQuery(): boolean {
+  if (typeof window === "undefined") return false
+  const hash = window.location.hash || ""
+  const q = (hash.split("?")[1] || window.location.search.replace(/^\?/, "")).toString()
+  return new URLSearchParams(q).get("history") === "1"
+}
+
+function mockSpendInsight(): string {
+  const model = costFiles["./fixtures/cost/model.json"]
+  const repo = costFiles["./fixtures/cost/repo.json"]
+  const top = (table: CostTable | undefined) => {
+    const rows = table?.rows || []
+    const shareI = table?.columns.indexOf("share") ?? -1
+    if (!rows.length || shareI < 0) return { key: "", share: 0 }
+    const row = rows[0]
+    return { key: String(row[0] ?? ""), share: Number(row[shareI]) || 0 }
+  }
+  const m = top(model)
+  const r = top(repo)
+  const estimated = historyQuery()
+  const useRepo = r.key && r.share > m.share
+  const lead = useRepo ? r.key : modelName(m.key) || m.key
+  if (!lead) return estimated ? "No spend this period, estimated from session files." : "No spend this period."
+  return estimated ? `${lead} drove most of this period's spend, estimated from session files.` : `${lead} drove most of this period's spend.`
 }
 
 const askIndex = askIndexJson as Record<string, string>

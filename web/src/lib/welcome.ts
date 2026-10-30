@@ -1,3 +1,4 @@
+import { sayUsd } from "./format"
 import type { Finding } from "./types"
 
 // First-open advice: a plain action, then a labelled monthly saving (or an
@@ -78,10 +79,5 @@ function spanDays(first?: number, last?: number): number {
 }
 
 function usdAbout(v: number, whole: boolean): string {
-  if (whole) {
-    const n = Math.round(v)
-    if (n < 1) return Math.abs(v) >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`
-    return `$${n}`
-  }
-  return Math.abs(v) >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`
+  return sayUsd(v, whole)
 }

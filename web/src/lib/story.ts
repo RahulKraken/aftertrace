@@ -1,4 +1,4 @@
-import { dur, pct } from "./format"
+import { pct, sayDur } from "./format"
 import { spanKind, type SpanNode } from "./span"
 import type { Breakdown, Session, Trace } from "./types"
 
@@ -11,7 +11,7 @@ export function sessionStory(s: Session): string {
     return `You spent ${pct(waitShare)} of this session waiting on approvals.`
   }
   if (retry > tot * 0.08) {
-    return `Retries ate ${dur(retry)} of this session — ${pct(retry / tot)} of wall clock.`
+    return `Retries ate ${sayDur(retry)} of this session — ${pct(retry / tot)} of wall clock.`
   }
   if ((s.cache_hit ?? 1) < 0.5) {
     return `Cache hit was ${pct(s.cache_hit)}. Most tokens were paid at full price.`
@@ -20,9 +20,9 @@ export function sessionStory(s: Session): string {
     return "Quiet session. Nothing to fix — the model spent its time working."
   }
   if (s.agents.length) {
-    return `Main thread plus ${s.agents.join(" and ")} — ${s.turns} turns, ${dur(s.turn_ms)}.`
+    return `Main thread plus ${s.agents.join(" and ")} — ${s.turns} turns, ${sayDur(s.turn_ms)}.`
   }
-  return `${s.turns} turns, ${dur(s.turn_ms)}, ${pct(s.cache_hit)} cache hit.`
+  return `${s.turns} turns, ${sayDur(s.turn_ms)}, ${pct(s.cache_hit)} cache hit.`
 }
 
 export function turnStory(t: Trace): string {
@@ -41,19 +41,19 @@ export function turnStory(t: Trace): string {
   if (askWait / tot >= 0.08 && askWait >= wait - askWait) {
     const work = Math.max(tot - wait, 0)
     const what = asks.length === 1 ? "your answer" : `your answers to ${asks.length} questions`
-    return `Claude waited ${dur(askWait)} for ${what}. The work itself took ${dur(work)}.`
+    return `Claude waited ${sayDur(askWait)} for ${what}. The work itself took ${sayDur(work)}.`
   }
   if (wait / tot >= 0.08) {
     return `You spent ${pct(wait / tot)} of this turn approving tool calls.`
   }
   if (retry / tot >= 0.08) {
-    return `Retries cost ${dur(retry)} before a successful request.`
+    return `Retries cost ${sayDur(retry)} before a successful request.`
   }
   const model = bd?.model || 0
   if (model / tot >= 0.6) {
     return `Most of this turn was the model thinking (${pct(model / tot)}).`
   }
-  return `Turn ${t.turn_index} of ${t.turn_count} · ${dur(tot)} of wall clock.`
+  return `Turn ${t.turn_index} of ${t.turn_count} · ${sayDur(tot)} of wall clock.`
 }
 
 const WEEK_NS = 7 * 24 * 3600 * 1e9
@@ -121,7 +121,7 @@ export function appStory(root: SpanNode): string {
   if (curE > curS) modelNs += curE - curS
   const share = modelNs / 1e6 / total
   const head = calls.length
-    ? `${calls.length} model ${calls.length === 1 ? "call" : "calls"} took ${pct(Math.min(share, 1))} of this ${dur(total)} request.`
-    : `${dur(total)}, no model calls in this trace.`
+    ? `${calls.length} model ${calls.length === 1 ? "call" : "calls"} took ${pct(Math.min(share, 1))} of this ${sayDur(total)} request.`
+    : `${sayDur(total)}, no model calls in this trace.`
   return errors ? `${head} ${errors} ${errors === 1 ? "span" : "spans"} failed.` : head
 }

@@ -71,6 +71,16 @@ func TestMoneyLabelSavingVsCost(t *testing.T) {
 	if cost == "" || cost[:4] != "Cost" {
 		t.Errorf("compaction should be a cost, got %q", cost)
 	}
+	if !strings.Contains(cost, "¢") {
+		t.Errorf("under a dollar should be cents, got %q", cost)
+	}
+	cents := MoneyLabel(Finding{
+		RuleID: "mcp.large_results", ImpactValue: 0.41, ImpactUnit: "USD",
+		FirstNS: 1, LastNS: 1 + month,
+	})
+	if cents != "Saves about 41¢ a month" {
+		t.Errorf("cents monthly: %q", cents)
+	}
 }
 
 func hasJargon(s string) bool {

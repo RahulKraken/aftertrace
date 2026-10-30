@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"github.com/RahulKraken/aftertrace/internal/api"
 	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/demo"
+	"github.com/RahulKraken/aftertrace/internal/history"
 	"github.com/RahulKraken/aftertrace/internal/otlp"
 	"github.com/RahulKraken/aftertrace/internal/query"
 	"github.com/RahulKraken/aftertrace/internal/redact"
@@ -188,6 +190,24 @@ func TestAPIGolden(t *testing.T) {
 		if _, ok := c["rows"].([]any); !ok {
 			t.Fatalf("cost %s missing rows", dim)
 		}
+		note, _ := c["note"].(string)
+		if strings.Contains(note, "cost_usd") || strings.Contains(note, "api_request") {
+			t.Fatalf("cost %s note still reads like a schema: %q", dim, note)
+		}
+		if !strings.Contains(note, "drove most") && !strings.Contains(note, "No spend") {
+			t.Fatalf("cost %s note is not an insight: %q", dim, note)
+		}
+		if c["estimated"] == true {
+			t.Fatalf("demo cost %s should not be estimated", dim)
+		}
+	}
+
+	var ov map[string]any
+	if err := json.Unmarshal(get("/api/overview"), &ov); err != nil {
+		t.Fatal(err)
+	}
+	if ov["history_only"] == true {
+		t.Fatal("demo overview should be live, not history-only")
 	}
 
 	var fields []any
@@ -805,5 +825,82 @@ func TestEndpointsDoNotDeadlock(t *testing.T) {
 				t.Fatalf("%s -> %d", p, res.StatusCode)
 			}
 		}
+	}
+}
+
+func TestOverviewHistoryOnly(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	dir, err := filepath.Abs("history/testdata/projects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := history.Import(st, dir); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(api.New(st, web.FS, api.WithInfo(api.Info{HistoryDir: dir})))
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/api/overview")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 200 {
+		t.Fatalf("overview -> %d %s", res.StatusCode, b)
+	}
+	var ov map[string]any
+	if err := json.Unmarshal(b, &ov); err != nil {
+		t.Fatal(err)
+	}
+	if ov["history_only"] != true {
+		t.Fatalf("history_only=%v want true", ov["history_only"])
+	}
+	if ov["has_data"] != true {
+		t.Fatal("has_data should be true")
+	}
+	live, _ := ov["live"].([]any)
+	if len(live) != 0 {
+		t.Fatalf("live lanes=%d want 0", len(live))
+	}
+	projects, _ := ov["projects"].([]any)
+	if len(projects) == 0 {
+		t.Fatal("history-only overview should include cost by project")
+	}
+	week, _ := ov["week"].(map[string]any)
+	if week == nil {
+		t.Fatal("missing week")
+	}
+	if n, _ := week["lines_added"].(float64); n != 0 {
+		t.Fatalf("lines_added=%v (history import does not write metrics)", n)
+	}
+	weekCost, _ := week["cost_usd"].(float64)
+	var projSum float64
+	for _, p := range projects {
+		m, _ := p.(map[string]any)
+		projSum += m["cost_usd"].(float64)
+	}
+	if math.Abs(projSum-weekCost) > 1e-6 {
+		t.Fatalf("project rows sum to %v, headline week spend is %v", projSum, weekCost)
+	}
+	cost, err := http.Get(srv.URL + "/api/cost?dim=model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cost.Body.Close()
+	cb, _ := io.ReadAll(cost.Body)
+	var c map[string]any
+	if err := json.Unmarshal(cb, &c); err != nil {
+		t.Fatal(err)
+	}
+	if c["estimated"] != true {
+		t.Fatalf("history cost estimated=%v", c["estimated"])
+	}
+	note, _ := c["note"].(string)
+	if !strings.Contains(note, "estimated from session files") {
+		t.Fatalf("history cost note should mark estimated, got %q", note)
 	}
 }

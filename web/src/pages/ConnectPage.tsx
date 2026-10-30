@@ -9,7 +9,7 @@ import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
 import { CopyButton } from "../components/CopyButton"
 import { api } from "../lib/api"
-import { ago, int, tok, usd } from "../lib/format"
+import { ago, int, sayTok, sayUsd } from "../lib/format"
 import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { Finding, Source, Status } from "../lib/types"
 
@@ -300,9 +300,9 @@ function FoundHistory({ status }: { status: Status | null }) {
           Found {h.days} {h.days === 1 ? "day" : "days"} of Claude Code sessions
         </p>
         <p className="found-spend">
-          <Num value={h.cost_usd} format={usd} />
+          <Num value={h.cost_usd} format={(n) => sayUsd(n, true)} />
           <span className="found-dot">·</span>
-          <Num value={h.tokens} format={tok} /> tokens
+          <Num value={h.tokens} format={sayTok} /> tokens
           <span className="found-dot">·</span>
           <Num value={h.sessions} format={(n) => int(Math.round(n))} /> {h.sessions === 1 ? "session" : "sessions"}
         </p>

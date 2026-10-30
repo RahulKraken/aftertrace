@@ -88,7 +88,10 @@ export function CostPage() {
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
       <h1>Cost</h1>
-      <div className="sub">{d?.note || "Cost is cost_usd from api_request events, joined to spans on request_id."}</div>
+      <div className="sub">
+        {d?.note || "Spend by model, project and tool."}
+        {d?.estimated ? <span className="est-label">estimated from session files</span> : null}
+      </div>
       <div className="seg" style={{ marginTop: 14 }}>
         {DIMS.map((x) => (
           <button type="button" key={x} className={x === dim ? "on" : undefined} onClick={() => setDim(x)}>
@@ -173,7 +176,14 @@ function ShareRibbon({ d, hot, onHot }: { d: CostTable; hot: number | null; onHo
             {ci >= 0 ? <> · {usd(rows.find((r) => r.i === hot)!.cost)}</> : null}
           </>
         ) : (
-          <span className="mute">Point at a slice or a row</span>
+          <span className="mute">
+            {rows[0] ? (
+              <>
+                <b>{rows[0].key}</b> · {pct(rows[0].share)} of spend
+                {ci >= 0 ? <> · {usd(rows[0].cost)}</> : null}
+              </>
+            ) : null}
+          </span>
         )}
       </div>
     </div>

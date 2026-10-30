@@ -3,10 +3,10 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, Wrench } from "lucide-react"
 import { Link } from "wouter"
 import { WinStage } from "../components/WinStage"
-import { dur, impactFormat, impactParts, usd } from "../lib/format"
-import { Num } from "../components/Num"
+import { sayDur, sayUsd } from "../lib/format"
 import { api } from "../lib/api"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
+import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { Finding } from "../lib/types"
 import { findingKey, onWins, resolveFinding, resolvedKeys } from "../lib/wins"
 
@@ -107,7 +107,8 @@ export function FindingsPage() {
               </motion.div>
             ))}
             {rest.map((f) => {
-              const [v, u] = impactParts(f)
+              const action = f.action || actionSentence(f)
+              const save = f.money_label || moneyLabel(f, "")
               return (
                 <motion.button
                   layout="position"
@@ -119,14 +120,10 @@ export function FindingsPage() {
                   onClick={() => setFocus(f.id)}
                 >
                   <span className="hl">
-                    <span className={`pillar pillar-${f.pillar}`}>{f.pillar}</span>
-                    {f.headline}
+                    {action}
                     {f.estimated ? <span className="est-label">estimated from session files</span> : null}
                   </span>
-                  <span className="imp">
-                    {v}
-                    <span>{u}</span>
-                  </span>
+                  {save ? <span className="imp save">{save}</span> : null}
                 </motion.button>
               )
             })}
@@ -146,7 +143,7 @@ function Ledger({ done }: { done: Finding[] }) {
     if (f.impact_unit.startsWith("USD")) usdSaved += f.impact_value
     else if (/^s\b|waited|lost|^s /.test(f.impact_unit)) secs += f.impact_value
   }
-  const parts = [secs > 0 ? `${dur(secs * 1000)} of waiting` : "", usdSaved > 0 ? `${usd(usdSaved)}` : ""].filter(Boolean)
+  const parts = [secs > 0 ? `${sayDur(secs * 1000)} of waiting` : "", usdSaved > 0 ? sayUsd(usdSaved, true) : ""].filter(Boolean)
   return (
     <div className="ledger">
       <Check size={14} />
@@ -159,9 +156,10 @@ function Ledger({ done }: { done: Finding[] }) {
 }
 
 function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) => void; onDone: () => void }) {
-  const [, u] = impactParts(f)
   const fx = fixFor(f)
   const [copied, setCopied] = useState(false)
+  const action = f.action || actionSentence(f)
+  const save = f.money_label || moneyLabel(f, "")
 
   const copyFix = async () => {
     if (!fx) return
@@ -182,15 +180,9 @@ function HeroFinding({ f, onFixed, onDone }: { f: Finding; onFixed: (win: Win) =
 
   return (
     <div className="frow hero" data-finding={f.id}>
-      <div className="pill-row">
-        <span className={`pill ${f.severity}`}>{f.severity}</span>
-        {f.estimated ? <span className="est-label">estimated from session files</span> : null}
-      </div>
-      <h1>{f.headline}</h1>
-      <div className="imp hero-imp">
-        <Num value={f.impact_value} format={impactFormat(f)} />
-        <span>{u}</span>
-      </div>
+      <h1>{action}</h1>
+      {save ? <p className="found-save">{save}</p> : null}
+      {f.estimated ? <p className="found-est">estimated from session files</p> : null}
       <p className="rec">{f.recommendation}</p>
       {fx && <pre className="fix-preview">{fx.snippet}</pre>}
       <div className="acts">

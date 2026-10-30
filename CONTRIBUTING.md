@@ -58,7 +58,7 @@ There is no Homebrew tap yet. `sh scripts/homebrew-formula.sh vX.Y.Z` prints `Fo
 
 ```bash
 go test ./...
-cd web && npm run lint && npx playwright test
+cd web && npm run lint && npm test && npx playwright test
 ```
 
 CI also runs a smoke test against the real binary on demo data (`web/e2e-live`, `playwright.live.config.ts`). Locally: build the embedded UI and the binary, `aftertrace demo`, `aftertrace serve`, then `npx playwright test -c playwright.live.config.ts` in `web/` (set `AFTERTRACE_URL` if you use another port).

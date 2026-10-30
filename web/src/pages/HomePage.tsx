@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from "motion/react"
 import { ArrowRight, Plug } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
-import { ago, CAT_LABEL, CATS, delta, dur, impactFormat, impactParts, int, pct, plural, usd, when } from "../lib/format"
+import { ago, CAT_LABEL, CATS, delta, dur, int, pct, plural, sayDur, sayTok, sayUsd, usd, when } from "../lib/format"
 import { planMultiple, readPlan } from "../lib/plan"
-import type { Breakdown, LiveLane, Overview, WindowStats } from "../lib/types"
+import { actionSentence, moneyLabel } from "../lib/welcome"
+import type { Breakdown, Finding, HistoryProject, LiveLane, Overview, WindowStats } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
 import { Sparkline } from "../components/Sparkline"
 import { Num } from "../components/Num"
@@ -46,12 +47,12 @@ export function HomePage() {
   }
   if (!ov) return <HomeSkeleton />
   if (!ov.has_data) return <FirstRun />
+  if (ov.history_only) return <HistoryHome ov={ov} />
 
   const w = ov.week
   return (
     <div className="page home">
       <div className={`home-head${live ? " is-live" : ""}`}>
-        <HeroMark live={live} />
         <div className="home-date">
           {ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}
           {live && (
@@ -144,23 +145,23 @@ function Story({ w, days }: { w: WindowStats; days: number }) {
   const mult = planMultiple(plan, w.cost_usd, days)
   return (
     <>
-      Your agents worked <b><Num value={w.turn_ms} format={dur} /></b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
+      Your agents worked <b><Num value={w.turn_ms} format={sayDur} /></b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
       {w.cost_usd > 0 && (
         <>
-          {" "}for <b><Num value={w.cost_usd} format={usd} /></b>
+          {" "}for <b><Num value={w.cost_usd} format={(n) => sayUsd(n, true)} /></b>
         </>
       )}
       .{" "}
       {wait / Math.max(w.turn_ms, 1) >= 0.08 ? (
         <>
-          <span className="hl-wait"><Num value={wait} format={dur} /></span> of that was waiting on you.
+          <span className="hl-wait"><Num value={wait} format={sayDur} /></span> of that was waiting on you.
         </>
       ) : w.lines_added > 0 ? (
         <>
           They wrote <b><Num value={w.lines_added} format={(n) => int(Math.round(n))} /></b> lines{w.commits > 0 && <> and made {plural(w.commits, "commit")}</>}.
         </>
       ) : (
-        <>You waited on them for only {dur(wait)}.</>
+        <>You waited on them for only {sayDur(wait)}.</>
       )}
       {mult != null && mult >= 1 && (
         <>
@@ -168,6 +169,87 @@ function Story({ w, days }: { w: WindowStats; days: number }) {
         </>
       )}
     </>
+  )
+}
+
+function HistoryStory({ w }: { w: WindowStats }) {
+  if (!w.turns) return <>No agent work this week yet. Your next session will show up here.</>
+  return (
+    <>
+      Your agents worked <b>{sayDur(w.turn_ms)}</b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
+      {w.cost_usd > 0 ? <> for <b>{sayUsd(w.cost_usd, true)}</b></> : null}
+      . They used <b>{sayTok(w.tokens)}</b> tokens.
+    </>
+  )
+}
+
+function HistoryHome({ ov }: { ov: Overview }) {
+  const w = ov.week
+  const projects = ov.projects || []
+  return (
+    <div className="page home is-history">
+      <div className="home-head">
+        <div className="home-date">{ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}</div>
+        <h1 className="home-story">
+          <HistoryStory w={w} />
+        </h1>
+      </div>
+
+      <section className="home-sec">
+        <div className="sec-hd">
+          <h2>Do this next</h2>
+          {ov.open > 1 && (
+            <Link href="/findings" className="sec-link">
+              {ov.open} findings <ArrowRight size={13} />
+            </Link>
+          )}
+        </div>
+        {ov.top ? <NextFinding f={ov.top} /> : <div className="card quiet-card">Nothing worth changing in last month&apos;s history.</div>}
+      </section>
+
+      {projects.length > 0 && (
+        <section className="home-sec">
+          <div className="sec-hd">
+            <h2>Cost by project</h2>
+            <Link href="/cost" className="sec-link">
+              Cost <ArrowRight size={13} />
+            </Link>
+          </div>
+          <ProjectList projects={projects} total={w.cost_usd} />
+        </section>
+      )}
+
+      <section className="home-sec">
+        <div className="sec-hd">
+          <h2>Recent sessions</h2>
+          <Link href="/sessions" className="sec-link">
+            All sessions <ArrowRight size={13} />
+          </Link>
+        </div>
+        <RecentList ov={ov} />
+      </section>
+
+      <p className="quiet-line home-invite">
+        Turn on live tracing to see waiting-on-you and retries as they happen.{" "}
+        <Link href="/connect">Connect</Link>
+      </p>
+    </div>
+  )
+}
+
+function ProjectList({ projects, total }: { projects: HistoryProject[]; total: number }) {
+  const tot = total || projects.reduce((a, p) => a + (p.cost_usd || 0), 0) || 1
+  return (
+    <div className="card list-card">
+      {projects.map((p) => (
+        <div className="list-row proj-row" key={p.name}>
+          <span className="list-title">{p.name}</span>
+          <span className="num mute">{p.sessions} {p.sessions === 1 ? "session" : "sessions"}</span>
+          <span className="num">{usd(p.cost_usd)}</span>
+          <span className="num mute">{pct(p.cost_usd / tot)}</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -262,17 +344,14 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
   )
 }
 
-function NextFinding({ f }: { f: NonNullable<Overview["top"]> }) {
-  const [, unit] = impactParts(f)
+function NextFinding({ f }: { f: Finding }) {
+  const action = f.action || actionSentence(f)
+  const save = f.money_label || moneyLabel(f, "")
   return (
     <Link href={`/findings?focus=${f.id}`} className="card next-card">
-      <div className="next-imp">
-        <span className="next-num">
-          <Num value={f.impact_value} format={impactFormat(f)} />
-        </span> <span className="mute">{unit}</span>
-      </div>
-      <div className="next-head">{f.headline}</div>
-      <div className="next-rec">{f.recommendation}</div>
+      <div className="next-head">{action}</div>
+      {save ? <div className="next-save">{save}</div> : null}
+      {f.estimated ? <div className="est-label next-est">estimated from session files</div> : null}
       <span className="sec-link">
         See the fix <ArrowRight size={13} />
       </span>
@@ -378,17 +457,5 @@ function HomeSkeleton() {
         ))}
       </div>
     </div>
-  )
-}
-
-// The brand mark, large and quiet behind the week's sentence: three bars draw
-// in once, and while a turn is running the amber one (waiting on you) breathes.
-function HeroMark({ live }: { live: boolean }) {
-  return (
-    <svg className={`hero-mark${live ? " is-live" : ""}`} viewBox="0 0 240 120" aria-hidden="true">
-      <rect className="hm-bar hm-1" x="10" y="16" width="130" height="22" rx="11" />
-      <rect className="hm-bar hm-2" x="60" y="49" width="160" height="22" rx="11" />
-      <rect className="hm-bar hm-3" x="110" y="82" width="86" height="22" rx="11" />
-    </svg>
   )
 }

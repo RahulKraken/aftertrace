@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
+	"github.com/RahulKraken/aftertrace/internal/history"
+	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
 const day = int64(24 * time.Hour)
@@ -410,6 +412,7 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findings := findingsFor(db)
+	historyOnly := history.Only(db)
 	var top any
 	open := 0
 	for _, f := range findings {
@@ -421,31 +424,59 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 			top = f
 		}
 	}
+	if historyOnly {
+		monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
+		if f := rules.PickMoneyFinding(findings, monthAgo, true); f != nil {
+			top = *f
+		} else {
+			top = nil
+		}
+	}
 
 	recent, err := sessions(db)
 	if err != nil {
 		s.err(w, err, 500)
 		return
 	}
+	if historyOnly {
+		kept := recent[:0]
+		for _, sess := range recent {
+			st, _ := sess["start_ns"].(int64)
+			if st >= lo && st < hi {
+				kept = append(kept, sess)
+			}
+		}
+		recent = kept
+	}
 	if len(recent) > 6 {
 		recent = recent[:6]
 	}
 
+	projects := []history.Project{}
+	if historyOnly {
+		projects = history.ProjectsIn(db, lo, hi)
+		if projects == nil {
+			projects = []history.Project{}
+		}
+	}
+
 	s.json(w, map[string]any{
-		"now":       now,
-		"lo":        lo,
-		"hi":        hi,
-		"anchored":  anchored,
-		"week":      cur,
-		"prev":      prev,
-		"days":      days,
-		"live":      lanes,
-		"sources":   srcs,
-		"top":       top,
-		"open":      open,
-		"recent":    recent,
-		"has_data":  len(stats) > 0 || len(srcs) > 0,
-		"generated": time.Now().UnixNano(),
+		"now":          now,
+		"lo":           lo,
+		"hi":           hi,
+		"anchored":     anchored,
+		"week":         cur,
+		"prev":         prev,
+		"days":         days,
+		"live":         lanes,
+		"sources":      srcs,
+		"top":          top,
+		"open":         open,
+		"recent":       recent,
+		"projects":     projects,
+		"history_only": historyOnly,
+		"has_data":     len(stats) > 0 || len(srcs) > 0,
+		"generated":    time.Now().UnixNano(),
 	}, 200)
 }
 
