@@ -1,0 +1,109 @@
+appId: com.rahulkraken.aftertrace
+productName: Aftertrace
+copyright: Copyright 2026 Aftertrace contributors. Apache-2.0.
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - src/**/*
+  - renderer/**/*
+  - resources/icons/**/*
+  - package.json
+  - "!resources/engine/**"
+  - "!dist/**"
+  - "!test/**"
+  - "!scripts/**"
+
+extraResources:
+  - from: resources/engine
+    to: engine
+    filter:
+      - aftertrace
+      - aftertrace.exe
+  - from: resources/icons
+    to: icons
+
+extraMetadata:
+  name: aftertrace-desktop
+
+asar: true
+asarUnpack:
+  - resources/icons/**
+compression: normal
+removePackageScripts: true
+removePackageKeywords: true
+
+beforePack: scripts/before-pack.cjs
+afterPack: scripts/after-pack.cjs
+afterSign: scripts/after-sign.cjs
+
+publish:
+  provider: github
+  owner: RahulKraken
+  repo: aftertrace
+  releaseType: release
+
+artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+
+mac:
+  category: public.app-category.developer-tools
+  icon: resources/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.inherit.plist
+  binaries:
+    - Contents/Resources/engine/aftertrace
+  # Notarize when Apple credentials are present; skip with a warning when they
+  # are not (the Developer account is pending). Do not set notarize: true —
+  # that would fail unsigned PR builds. No Mac App Store target.
+  target:
+    - dmg
+    - zip
+  extendInfo:
+    LSUIElement: true
+    NSHighResolutionCapable: true
+    NSAppTransportSecurity:
+      NSAllowsLocalNetworking: true
+      NSAllowsArbitraryLoads: false
+
+dmg:
+  title: Aftertrace
+
+win:
+  icon: resources/icon.png
+  target:
+    - nsis
+  artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+
+nsis:
+  oneClick: true
+  perMachine: false
+  shortcutName: Aftertrace
+  uninstallDisplayName: Aftertrace
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+
+linux:
+  executableName: Aftertrace
+  maintainer: Aftertrace contributors <aftertrace@users.noreply.github.com>
+  icon: resources/icon.png
+  category: Utility
+  synopsis: Time, cost and usage for your AI work
+  description: Aftertrace shows where your AI work goes — time, cost, and the one change worth making next. Everything stays on this machine.
+  desktop:
+    entry:
+      Name: Aftertrace
+      Comment: Time, cost and usage for your AI work
+      Categories: Utility;
+      StartupNotify: "false"
+  target:
+    - AppImage
+    - deb
+  artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+
+extraFiles:
+  - from: ../LICENSE
+    to: LICENSE

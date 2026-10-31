@@ -1,0 +1,35 @@
+{
+  "name": "aftertrace-desktop",
+  "productName": "Aftertrace",
+  "version": "0.5.0",
+  "description": "Time, cost and usage for your AI work. Local desktop shell around the Aftertrace engine.",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Aftertrace contributors <aftertrace@users.noreply.github.com>",
+  "homepage": "https://github.com/RahulKraken/aftertrace",
+  "desktopName": "Aftertrace",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RahulKraken/aftertrace.git"
+  },
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "pack": "electron-builder --publish never",
+    "pack:dir": "electron-builder --dir --publish never",
+    "pack:mac": "electron-builder --mac --universal --publish never",
+    "pack:win": "electron-builder --win --x64 --publish never",
+    "pack:linux": "electron-builder --linux --x64 --publish never"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.12"
+  },
+  "devDependencies": {
+    "electron": "45.2.0",
+    "electron-builder": "26.18.1"
+  }
+}

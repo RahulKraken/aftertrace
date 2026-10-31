@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Electron as the desktop shell (2026-10-31)
+
+**Choice.** Ship a thin Electron app in `desktop/` that starts the existing Go engine as a supervised sidecar, loads the existing React UI from `http://127.0.0.1:7311`, and lives in the menu bar / tray. Packaging is electron-builder (Mac dmg+zip, Windows nsis, Linux AppImage+deb) with electron-updater against GitHub Releases.
+
+**Why.** Cross-platform maturity and reliability over size, matching Rahul's Hush app. A non-terminal user can download Aftertrace, open it, and see their usage findings with no install.sh step. SwiftUI was rejected because it does not travel to Windows and Linux. Tauri was rejected because each OS gets a different webview, so the UI would not behave the same.
+
+**How to reverse.** Delete `desktop/` and `.github/workflows/desktop.yml`. The engine, the embedded UI, `install.sh` and `aftertrace service` stay as they are; the shell never forked them.
+
 ## One-line install that finishes setup (2026-10-31)
 
 **Choice.** `install.sh` downloads the latest release, runs `aftertrace service install` (launchd on macOS, systemd `--user` on Linux), waits until http://127.0.0.1:7311 answers, and opens the default browser. Opt out with `AFTERTRACE_NO_SERVICE` / `AFTERTRACE_NO_OPEN` or `--no-service` / `--no-open`.

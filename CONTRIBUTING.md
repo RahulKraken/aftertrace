@@ -36,6 +36,17 @@ http://127.0.0.1:7311. `npm run build:embed` writes `web/dist` with `VITE_USE_MO
 
 Rebuild `web/dist` and the Go binary after UI changes. `web/dist/**` is gitignored except the stub `index.html`.
 
+### Desktop shell (Electron)
+
+The downloadable app in `desktop/` is a thin wrapper: it spawns `aftertrace serve` and loads the UI from http://127.0.0.1:7311. Do not rebuild the React UI there.
+
+```bash
+go build -o aftertrace ./cmd/aftertrace
+cd desktop && npm ci && npm test && npm start
+```
+
+`npm start` uses the repo-root `aftertrace` binary if `desktop/resources/engine/` is empty. Packaging (CI does this per OS): put the engine in `desktop/resources/engine/` then `npm run pack`. The Desktop workflow uploads Mac/Windows/Linux artifacts on every PR.
+
 ## Website
 
 `site/` builds the website: the landing page (`site/public`), every doc in `docs/` rendered with a sidebar, and the mock UI as a live demo under `/demo/`. `.github/workflows/pages.yml` publishes it on every push to `main`.

@@ -34,6 +34,14 @@ macOS and Linux; Windows and building from source: [docs/install.md](docs/instal
 
 CI and headless installs: `AFTERTRACE_NO_SERVICE=1` (or `--no-service`) skips the login service; `AFTERTRACE_NO_OPEN=1` (or `--no-open`) skips the browser: `curl -fsSL ... | sh -s -- --no-service --no-open`. To pass flags such as `--store-content`, run `aftertrace service install` again: [docs/install.md](docs/install.md#run-it-at-login).
 
+## Desktop app
+
+A downloadable app (Mac first; Windows and Linux from the same code) that starts Aftertrace without a terminal. Open it and a menu-bar icon appears (tray on Windows and Linux). The app starts the same Go engine itself, waits until http://127.0.0.1:7311 is ready, and shows the existing UI — including first-open findings from Claude Code's local session files. Closing the window keeps Aftertrace in the menu bar. Start at login is off until you opt in, from the first-launch screen or the tray.
+
+While this is in preview, download a build from the **Desktop** workflow artifacts on a pull request (Actions → Desktop → `aftertrace-desktop-mac` / `windows` / `linux`). Unsigned Mac builds: right-click Aftertrace, choose Open, then Open again.
+
+The curl installer and the `aftertrace` CLI are unchanged. `desktop/` is a thin Electron wrapper around the same engine and UI.
+
 ## Build from source
 
 You need Go 1.24, a C compiler (DuckDB is linked with CGO), and Node 22. See [docs/install.md](docs/install.md).
