@@ -291,7 +291,12 @@ jobs:
             echo "Signing enabled."
           fi
       - name: Install MinGW (CGO / DuckDB)
-        run: choco install mingw -y --no-progress
+        run: |
+          # GCC 16 libstdc++ dropped emutls once_call symbols. DuckDB's
+          # prebuilt windows-amd64 archive still references them, so pin
+          # MinGW to 14.2.0 (posix/seh/ucrt).
+          choco install mingw --version=14.2.0 -y --no-progress --allow-downgrade
+          echo "C:\ProgramData\mingw64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build embedded UI
         working-directory: web
         shell: bash
