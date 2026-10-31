@@ -8,22 +8,24 @@ Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothi
 curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
 ```
 
-The script picks the archive for your OS and CPU (macOS arm64 or Intel, Linux amd64 or arm64) from the [latest release](https://github.com/RahulKraken/aftertrace/releases/latest), checks it against `checksums.txt`, and installs `aftertrace` to `/usr/local/bin` if you can write there, otherwise `~/.local/bin`. `AFTERTRACE_VERSION=v0.1.0` pins a version; `AFTERTRACE_BIN=/some/dir` picks the directory. Read [`install.sh`](../install.sh) first if you prefer; it is short.
+That is the whole install. The script picks the archive for your OS and CPU (macOS arm64 or Intel, Linux amd64 or arm64) from the [latest release](https://github.com/RahulKraken/aftertrace/releases/latest), checks it against `checksums.txt`, installs `aftertrace` to `/usr/local/bin` if you can write there, otherwise `~/.local/bin`, starts the login service (a LaunchAgent on macOS, a systemd user unit on Linux), waits until http://127.0.0.1:7311 answers, and opens it in your browser. First launch imports usage from Claude Code's local session files (`~/.claude/projects`) if any are there, then offers the live OpenTelemetry export as an optional next step. See [Connect Claude Code](claude-code-setup.md).
 
-Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`.
+`AFTERTRACE_VERSION=v0.1.0` pins a version; `AFTERTRACE_BIN=/some/dir` picks the directory. CI and headless installs can skip the service and the browser:
 
 ```bash
-aftertrace version
-aftertrace serve
+curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh -s -- --no-service --no-open
+# or: curl -fsSL ... | AFTERTRACE_NO_SERVICE=1 AFTERTRACE_NO_OPEN=1 sh
 ```
 
-Then open http://127.0.0.1:7311. First launch imports usage from Claude Code's local session files (`~/.claude/projects`) if any are there, then offers the live OpenTelemetry export as an optional next step. See [Connect Claude Code](claude-code-setup.md).
+Re-running upgrades the binary and restarts the service. If the install directory is not on your `PATH`, the script prints the `export PATH=...` line to add it. Read [`install.sh`](../install.sh) first if you prefer; it is short.
+
+Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`, then `aftertrace service install` (or `aftertrace serve`) and open http://127.0.0.1:7311.
 
 Windows is not packaged yet. Build from source below (DuckDB ships a `windows-amd64` library; you need a CGO toolchain such as MSYS2 MinGW).
 
 ## Run it at login
 
-`aftertrace serve` stops when you close the terminal, log out or restart. `aftertrace service install` runs it as a login service instead: a LaunchAgent on macOS, a systemd user unit on Linux. It starts at login, restarts if it exits, and appends its output to `~/.aftertrace/serve.log`.
+The curl installer already runs `aftertrace service install`. `aftertrace serve` stops when you close the terminal, log out or restart; the login service starts at login, restarts if it exits, and appends its output to `~/.aftertrace/serve.log`. Run `service install` yourself to change flags, or if you installed with `--no-service`.
 
 Pass the same flags you give `serve`:
 

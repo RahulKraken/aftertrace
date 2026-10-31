@@ -111,6 +111,64 @@ jobs:
         if: failure()
         run: cat "$RUNNER_TEMP/serve.log"
 
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck install.sh
+        run: shellcheck -s sh install.sh
+
+  install:
+    name: Installer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      AFTERTRACE_NO_OPEN: "1"
+      AFTERTRACE_BIN: ${{ runner.temp }}/aftertrace-bin
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Flags without a network
+        run: |
+          sh install.sh --help | grep -q -- --no-service
+          sh install.sh --help | grep -q -- --no-open
+          if sh install.sh --not-a-flag 2>/dev/null; then echo "unknown flag should fail"; exit 1; fi
+      - name: Linux user systemd
+        if: runner.os == 'Linux'
+        run: |
+          sudo loginctl enable-linger "$USER"
+          uid=$(id -u)
+          echo "XDG_RUNTIME_DIR=/run/user/$uid" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" >> "$GITHUB_ENV"
+          for i in $(seq 1 20); do [ -S "/run/user/$uid/bus" ] && break; sleep 1; done
+          [ -S "/run/user/$uid/bus" ]
+      - name: install.sh
+        run: |
+          mkdir -p "$AFTERTRACE_BIN"
+          sh install.sh | tee "$RUNNER_TEMP/install-out.txt"
+          echo "----- installer output -----"
+          cat "$RUNNER_TEMP/install-out.txt"
+      - name: Binary and server
+        run: |
+          test -x "$AFTERTRACE_BIN/aftertrace"
+          "$AFTERTRACE_BIN/aftertrace" version
+          curl -sf http://127.0.0.1:7311/api/status | grep -E '"service":"(launchd|systemd)"'
+          grep -q "Add .* to your PATH" "$RUNNER_TEMP/install-out.txt"
+          grep -q "Aftertrace is running at http://127.0.0.1:7311" "$RUNNER_TEMP/install-out.txt"
+          test "$(wc -l < "$RUNNER_TEMP/install-out.txt")" -le 8
+      - name: Re-run installer
+        run: |
+          sh install.sh | tee "$RUNNER_TEMP/install-out-2.txt"
+          curl -sf http://127.0.0.1:7311/api/status | grep -E '"service":"(launchd|systemd)"'
+          grep -q "Aftertrace is running at http://127.0.0.1:7311" "$RUNNER_TEMP/install-out-2.txt"
+      - name: Service log
+        if: failure()
+        run: cat ~/.aftertrace/serve.log || true
+
   e2e:
     name: Playwright e2e (mock UI)
     runs-on: ubuntu-latest

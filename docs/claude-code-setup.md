@@ -2,7 +2,7 @@
 
 > [What happens to what Claude Code sends, with a figure →](how-it-works/receive.md)
 
-The quickest way: run `aftertrace serve` and open http://127.0.0.1:7311. First launch reads the session JSONL already on disk under `~/.claude/projects` and shows last month's spend, then the one finding with the highest money impact. Prompt and response text are not stored. Findings from those files are labelled estimated from session files. **Connect** then offers the live OpenTelemetry export below as an optional next step, with a snippet that uses this server's real endpoints and a button that copies it as a prompt Claude Code can apply for you. This page explains every variable in that block, and what the local import keeps.
+The quickest way: the [install script](install.md) opens http://127.0.0.1:7311. First launch reads the session JSONL already on disk under `~/.claude/projects` and shows last month's spend, then the one finding with the highest money impact. Prompt and response text are not stored. Findings from those files are labelled estimated from session files. **Connect** then offers the live OpenTelemetry export below as an optional next step, with a snippet that uses this server's real endpoints and a button that copies it as a prompt Claude Code can apply for you. This page explains every variable in that block, and what the local import keeps.
 
 Variable names in this page are taken from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage). None are invented. Aftertrace does not configure Claude Code for you; you set the env and restart `claude`.
 
