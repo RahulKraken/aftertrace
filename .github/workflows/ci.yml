@@ -128,7 +128,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       AFTERTRACE_NO_OPEN: "1"
-      AFTERTRACE_BIN: ${{ runner.temp }}/aftertrace-bin
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -148,8 +147,10 @@ jobs:
           [ -S "/run/user/$uid/bus" ]
       - name: install.sh
         run: |
+          AFTERTRACE_BIN="$RUNNER_TEMP/aftertrace-bin"
           mkdir -p "$AFTERTRACE_BIN"
-          sh install.sh | tee "$RUNNER_TEMP/install-out.txt"
+          echo "AFTERTRACE_BIN=$AFTERTRACE_BIN" >> "$GITHUB_ENV"
+          AFTERTRACE_BIN="$AFTERTRACE_BIN" sh install.sh | tee "$RUNNER_TEMP/install-out.txt"
           echo "----- installer output -----"
           cat "$RUNNER_TEMP/install-out.txt"
       - name: Binary and server
