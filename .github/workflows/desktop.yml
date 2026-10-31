@@ -294,9 +294,9 @@ jobs:
         run: |
           # GCC 16 libstdc++ dropped emutls once_call symbols. DuckDB's
           # prebuilt windows-amd64 archive still references them, so pin
-          # MinGW to 14.2.0 (posix/seh/ucrt).
+          # MinGW to 14.2.0 (posix/seh/ucrt). Keep it off GITHUB_PATH so
+          # desktop unit tests do not inherit the toolchain.
           choco install mingw --version=14.2.0 -y --no-progress --allow-downgrade
-          echo "C:\ProgramData\mingw64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build embedded UI
         working-directory: web
         shell: bash

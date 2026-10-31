@@ -22,6 +22,10 @@ function listen(handler) {
   })
 }
 
+function refSleep(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 function fakeServeScript() {
   return `
     const http = require("http")
@@ -105,6 +109,7 @@ test("starts a sidecar, waits until healthy, stops it", async () => {
     args: [script],
     logFile: path.join(tmp, "log.txt"),
     readyTimeoutMs: 4000,
+    sleep: refSleep,
     spawn: (bin, args, opts) =>
       require("child_process").spawn(bin, args, {
         ...opts,
@@ -151,6 +156,7 @@ test("restarts a crashing sidecar with backoff", async () => {
     args: [script],
     logFile: path.join(tmp, "log.txt"),
     readyTimeoutMs: 3000,
+    sleep: refSleep,
     spawn: (bin, args, opts) => {
       starts += 1
       return require("child_process").spawn(bin, args, {
