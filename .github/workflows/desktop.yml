@@ -75,7 +75,12 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npx electron-builder --linux --x64 --publish never
+        run: |
+          # Missing secrets become empty strings; electron-builder then treats
+          # CSC_LINK="" as a cert path (the project directory) and fails.
+          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
+          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
+          npx electron-builder --linux --x64 --publish never
       - name: Idle memory
         continue-on-error: true
         working-directory: desktop
@@ -226,7 +231,18 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: npx electron-builder --mac --universal --publish never
+        run: |
+          # Missing secrets become empty strings; electron-builder then treats
+          # CSC_LINK="" as a cert path (the project directory) and fails.
+          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
+          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
+          [ -n "${APPLE_ID:-}" ] || unset APPLE_ID
+          [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || unset APPLE_APP_SPECIFIC_PASSWORD
+          [ -n "${APPLE_TEAM_ID:-}" ] || unset APPLE_TEAM_ID
+          [ -n "${APPLE_API_KEY:-}" ] || unset APPLE_API_KEY
+          [ -n "${APPLE_API_KEY_ID:-}" ] || unset APPLE_API_KEY_ID
+          [ -n "${APPLE_API_ISSUER:-}" ] || unset APPLE_API_ISSUER
+          npx electron-builder --mac --universal --publish never
       - name: List artifacts
         run: ls -lah desktop/dist && (codesign -dv --verbose=4 desktop/dist/mac-universal/Aftertrace.app || true)
       - uses: actions/upload-artifact@v7
@@ -278,9 +294,11 @@ jobs:
         run: choco install mingw -y --no-progress
       - name: Build embedded UI
         working-directory: web
+        shell: bash
         run: npm ci && npm run build:embed
       - name: Desktop unit tests
         working-directory: desktop
+        shell: bash
         run: npm ci && npm test
       - name: Build Go engine
         shell: bash
@@ -293,10 +311,16 @@ jobs:
           file desktop/resources/engine/aftertrace.exe || ls -lah desktop/resources/engine
       - name: Package
         working-directory: desktop
+        shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npx electron-builder --win --x64 --publish never
+        run: |
+          # Missing secrets become empty strings; electron-builder then treats
+          # CSC_LINK="" as a cert path (the project directory) and fails.
+          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
+          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
+          npx electron-builder --win --x64 --publish never
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-windows
