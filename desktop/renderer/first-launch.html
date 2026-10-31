@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none'" />
+    <title>Aftertrace</title>
+    <link rel="stylesheet" href="./first-launch.css" />
+  </head>
+  <body>
+    <main>
+      <svg class="mark" width="36" height="36" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="currentColor" class="plate" />
+        <rect x="5" y="8" width="14" height="4.5" rx="2.25" fill="#f6f5f1" />
+        <rect x="10" y="14" width="17" height="4.5" rx="2.25" fill="#f6f5f1" opacity="0.55" />
+        <rect x="15" y="20" width="9" height="4.5" rx="2.25" fill="#e29a2e" />
+      </svg>
+      <h1>Aftertrace</h1>
+      <p class="lede">See where your AI work goes — time, cost, and the one change worth making next.</p>
+      <p class="body">
+        Everything stays on this machine. If you already use Claude Code, last month’s sessions are waiting.
+      </p>
+      <label class="login">
+        <input id="login" type="checkbox" />
+        <span>
+          <strong>Open Aftertrace at login</strong>
+          <small>Starts in the <span data-tray>menu bar</span>. Off unless you choose it.</small>
+        </span>
+      </label>
+      <button id="open" type="button">Open Aftertrace</button>
+      <p class="foot">Closing the window keeps Aftertrace in the <span data-tray>menu bar</span>.</p>
+    </main>
+    <script src="./first-launch.js"></script>
+  </body>
+</html>
