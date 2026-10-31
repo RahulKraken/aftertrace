@@ -34,7 +34,7 @@
       <code id="cmd">curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code>
       <button type="button" class="copy" data-copy="cmd" aria-label="Copy install command">Copy</button>
     </div>
-    <div class="install-note">macOS and Linux. Then <code>aftertrace serve</code> and open <code>127.0.0.1:7311</code>.</div>
+    <div class="install-note">macOS and Linux. Opens <code>http://127.0.0.1:7311</code>. Skip the service or browser with <code>--no-service</code> / <code>--no-open</code>.</div>
   </section>
 
   <figure class="shot hero-shot">
@@ -126,7 +126,7 @@
           <tr><td>Live view of running sessions</td><td class="yes">Yes</td><td>No</td><td>No</td><td>No</td></tr>
           <tr><td>Coding agents and your apps together</td><td class="yes">Yes, over OTLP</td><td>Coding agents</td><td>One tool</td><td>Apps</td></tr>
           <tr><td>History beyond 30 days, across machines</td><td class="yes">Yes</td><td>One machine</td><td>Short window</td><td>Yes, hosted</td></tr>
-          <tr><td>Setup</td><td class="yes">One binary, one settings block</td><td>One command</td><td>Built in</td><td>SDK and a service</td></tr>
+          <tr><td>Setup</td><td class="yes">One line, then optional live export</td><td>One command</td><td>Built in</td><td>SDK and a service</td></tr>
           <tr><td>Data leaves your machine</td><td class="yes">Never</td><td>No</td><td>No</td><td>Yes</td></tr>
         </tbody>
       </table>
@@ -136,9 +136,8 @@
   <section class="band start">
     <h2>Start in a minute</h2>
     <ol class="steps">
-      <li><h3>Install</h3><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre></li>
-      <li><h3>Run it</h3><pre><code>aftertrace serve</code></pre><p>Open <code>127.0.0.1:7311</code>. Want to look around first? <code>aftertrace demo</code> loads synthetic sessions.</p></li>
-      <li><h3>Connect</h3><p>The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
+      <li><h3>Install</h3><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre><p>Opens <code>http://127.0.0.1:7311</code> with last month's usage. <code>aftertrace demo</code> loads synthetic sessions if you want to look around first.</p></li>
+      <li><h3>Connect</h3><p>Live export is optional. The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
     </ol>
   </section>
 </main>

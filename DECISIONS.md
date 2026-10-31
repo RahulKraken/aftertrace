@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## One-line install that finishes setup (2026-10-31)
+
+**Choice.** `install.sh` downloads the latest release, runs `aftertrace service install` (launchd on macOS, systemd `--user` on Linux), waits until http://127.0.0.1:7311 answers, and opens the default browser. Opt out with `AFTERTRACE_NO_SERVICE` / `AFTERTRACE_NO_OPEN` or `--no-service` / `--no-open`.
+
+**Why.** Every extra step before the first screen loses people. v0.4.4 already shows last month's Claude Code history and a finding on first open; getting there is the product.
+
+**How to reverse.** Pass the opt-out flags, or revert `install.sh`.
+
 ## Home cost is one week (2026-10-30)
 
 **Choice.** History-only Home's cost-by-project rows and recent sessions use the same `lo`/`hi` as the headline week (`GET /api/overview` `projects` from `history.ProjectsIn`, not all-time `Summarize`). Project row dollars sum to `week.cost_usd`. Connect's history summary stays all imported history.

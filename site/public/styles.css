@@ -100,7 +100,7 @@ main { padding: 0 16px; }
 .compare td:first-child { color: var(--mute); }
 .compare .yes { color: var(--ink); font-weight: 500; background: color-mix(in oklab, var(--accent) 6%, transparent); }
 
-.steps { list-style: none; padding: 0; margin: 28px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: s; }
+.steps { list-style: none; padding: 0; margin: 28px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; counter-reset: s; max-width: 760px; }
 .steps li { border: 1px solid var(--line); border-radius: 12px; padding: 22px; background: var(--surface); counter-increment: s; }
 .steps li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); font: 600 12px var(--mono); margin-bottom: 10px; }
 .steps h3 { margin: 0 0 8px; font-size: 16px; }

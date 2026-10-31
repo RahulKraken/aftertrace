@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Install**
+- `install.sh` starts the login service and opens http://127.0.0.1:7311, so the curl line is the only step. `AFTERTRACE_NO_SERVICE=1` / `--no-service` and `AFTERTRACE_NO_OPEN=1` / `--no-open` skip those.
+
 ## v0.4.4
 
 **Home**

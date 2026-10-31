@@ -26,14 +26,13 @@ It reads the OpenTelemetry that Claude Code (and any OTel-instrumented app) alre
 
 ```bash
 curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
-aftertrace serve
 ```
 
-Open http://127.0.0.1:7311. On first launch Aftertrace reads Claude Code's local session files (`~/.claude/projects`) and shows last month's spend, then the one finding with the highest money impact. Prompt and response text stay on disk; only usage metadata is stored. Findings from those files are labelled estimated from session files. Live export is an optional next step for richer, real-time data.
+That one line installs Aftertrace, starts it at login, and opens http://127.0.0.1:7311. On first launch it reads Claude Code's local session files (`~/.claude/projects`) and shows last month's spend, then the one finding with the highest money impact. Prompt and response text stay on disk; only usage metadata is stored. Findings from those files are labelled estimated from session files. Live export is an optional next step for richer, real-time data.
 
 macOS and Linux; Windows and building from source: [docs/install.md](docs/install.md). `aftertrace demo` loads synthetic sessions and apps if you want to look around first.
 
-To keep it running across logouts and restarts, stop it and run `aftertrace service install` instead (a LaunchAgent on macOS, a systemd user unit on Linux). It takes the same flags as `serve`: [docs/install.md](docs/install.md#run-it-at-login).
+CI and headless installs: `AFTERTRACE_NO_SERVICE=1` (or `--no-service`) skips the login service; `AFTERTRACE_NO_OPEN=1` (or `--no-open`) skips the browser: `curl -fsSL ... | sh -s -- --no-service --no-open`. To pass flags such as `--store-content`, run `aftertrace service install` again: [docs/install.md](docs/install.md#run-it-at-login).
 
 ## Build from source
 
@@ -67,7 +66,7 @@ History is already in. To stream new turns live (waiting-on-you, retries, the wa
 }
 ```
 
-Run `aftertrace serve`. Your next turn shows up in the Sessions view.
+Your next turn shows up in the Sessions view.
 
 - `OTEL_LOG_TOOL_DETAILS=1` gives real skill, MCP and Bash command names. It also records Bash commands and file paths. Aftertrace keeps those on your machine.
 - To send over HTTP instead of gRPC, or to check that data is arriving, see [docs/claude-code-setup.md](docs/claude-code-setup.md).

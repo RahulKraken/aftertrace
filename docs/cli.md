@@ -159,7 +159,7 @@ Stop `serve`, run `demo`, start `serve` again.
 
 ## `aftertrace service`
 
-Keep `aftertrace serve` running at login. Nothing is written or started until you run `install`, and every file and command is printed before it happens.
+Keep `aftertrace serve` running at login. The curl installer runs `service install` for you. From the CLI, nothing is written or started until you run `install`, and every file and command is printed before it happens.
 
 | | macOS | Linux |
 | - | - | - |
