@@ -53,16 +53,23 @@ function trayImage() {
   return loadPng(dark ? "tray-16-light.png" : "tray-16.png")
 }
 
-function buildMenu({ glance, openAtLogin, onOpen, onToggleLogin, onCheckUpdates, onQuit }) {
-  return Menu.buildFromTemplate([
-    { label: glance || "Open Aftertrace", enabled: false },
+function buildMenu({ glance, extra = {}, openAtLogin, onOpen, onToggleLogin, onCheckUpdates, onQuit }) {
+  const items = [{ label: glance || "Open Aftertrace", enabled: false }]
+  if (extra.runningTitle) {
+    items.push({ label: extra.runningTitle, enabled: false })
+  }
+  if (extra.topFinding) {
+    items.push({ type: "separator" }, { label: extra.topFinding, enabled: false })
+  }
+  items.push(
     { type: "separator" },
-    { label: "Open Aftertrace", click: onOpen },
+    { label: "Open Aftertrace", accelerator: "CommandOrControl+O", click: onOpen },
     { label: "Start at login", type: "checkbox", checked: Boolean(openAtLogin), click: onToggleLogin },
     { label: "Check for updates", click: onCheckUpdates },
     { type: "separator" },
     { label: "Quit Aftertrace", click: onQuit },
-  ])
+  )
+  return Menu.buildFromTemplate(items)
 }
 
 function createTray(handlers) {
@@ -80,6 +87,7 @@ function createTray(handlers) {
     glance = formatGlance(data)
     const menu = buildMenu({
       glance,
+      extra: { runningTitle: data.runningTitle, topFinding: data.topFinding },
       openAtLogin: handlers.isOpenAtLogin(),
       onOpen: handlers.onOpen,
       onToggleLogin: handlers.onToggleLogin,

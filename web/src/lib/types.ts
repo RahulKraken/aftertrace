@@ -251,6 +251,12 @@ export type WindowStats = {
   errors: number
 }
 
+export type ModelSpend = {
+  model: string
+  cost_usd: number
+  tokens?: number
+}
+
 export type DayPoint = {
   day: string
   start_ns: number
@@ -258,6 +264,7 @@ export type DayPoint = {
   turn_ms: number
   wait_ms: number
   turns: number
+  by_model?: ModelSpend[]
 }
 
 export type LiveLane = {

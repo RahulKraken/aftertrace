@@ -17,12 +17,12 @@ function sayUsd(v) {
   return neg ? `-${s}` : s
 }
 
-function formatGlance({ ok, weekCost, findings } = {}) {
+function formatGlance({ ok, todayCost, weekCost, findings, running } = {}) {
   if (!ok) return "Starting…"
   const parts = []
-  if (typeof weekCost === "number" && weekCost > 0) {
-    parts.push(`${sayUsd(weekCost)} this week`)
-  }
+  if (typeof todayCost === "number" && todayCost > 0) parts.push(`${sayUsd(todayCost)} today`)
+  else if (typeof weekCost === "number" && weekCost > 0) parts.push(`${sayUsd(weekCost)} this week`)
+  if (running) parts.push("running")
   if (typeof findings === "number" && findings > 0) {
     parts.push(findings === 1 ? "1 finding" : `${findings} findings`)
   }
@@ -65,15 +65,39 @@ async function readGlance(origin) {
   try {
     const status = await getJson(origin, "/api/status")
     let weekCost
+    let todayCost
+    let runningTitle
+    let topFinding
     try {
       const overview = await getJson(origin, "/api/overview", 2500)
       if (overview && overview.week && typeof overview.week.cost_usd === "number") {
         weekCost = overview.week.cost_usd
       }
+      const days = overview && overview.days
+      if (Array.isArray(days) && days.length) {
+        todayCost = days[days.length - 1].cost_usd
+      }
+      if (overview && Array.isArray(overview.live) && overview.live[0]) {
+        runningTitle = overview.live[0].title || overview.live[0].doing || "Running"
+      }
+      const shown = overview && overview.savings && overview.savings.shown
+      if (Array.isArray(shown) && shown[0] && shown[0].headline) {
+        topFinding = shown[0].headline
+      } else if (overview && overview.top && overview.top.headline) {
+        topFinding = overview.top.headline
+      }
     } catch {
       // Overview is heavier; findings from /api/status are enough for a glance.
     }
-    return { ok: true, findings: status.findings, weekCost }
+    return {
+      ok: true,
+      findings: status.findings,
+      weekCost,
+      todayCost,
+      running: Boolean(status.running || runningTitle),
+      runningTitle,
+      topFinding,
+    }
   } catch {
     return { ok: false }
   }

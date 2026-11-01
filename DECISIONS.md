@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 1 2026: UI redesign v4 grounded in AI-product usage consoles (OpenAI, Anthropic, Cursor, xAI, ElevenLabs etc.); budget meter only when user-set.
+
+**Choice.** Home, Findings, Sessions, Recap and the tray follow v4: hairline cards, Inter UI, Geist Mono for tokens and model chips (`opus` / `sonnet`), Newsreader only on the wordmark, system theme with a light fallback, amber only for savable money. Usage meters with a reset countdown (Claude Code 5h window) appear only when the engine can see a start; a spend-vs-budget meter appears only when the user has set a weekly cap in Settings. Numbers come from the engine. The Home honesty cap (savings never exceed spend, cards under a money headline, lean under $1) stays.
+
+**Why.** AI consoles share those five patterns (usage meter, mono model chips, token counts, runs+trace pane, Running/Done chips). A fake $60 cap or invented quota would lie the same way an uncapped savings headline did.
+
+**How to reverse.** Revert this commit. Tokens, honesty tests and the Settle logo stay.
+
 ## Nov 1 2026: Home savings are capped at observed spend and never invent days; reversible by reverting this commit
 
 **Choice.** Monthly savings on Home use a shared observation window (actual LLM spend and its first/last timestamp in the last month). Each finding is capped at the dollars it refers to — a one-day $0.02 cache drop stays $0.02, not ×30. The headline is the sum of shown cards plus folded, and that total cannot exceed observed spend over the same window (scaled down only when the window is longer than 30 days). If the honest total is under $1, Home says "Your setup looks lean. Here's what we saw this month." A money headline always has at least one card: top three even when every finding is sub-$1. "N smaller tweaks" is only for folded items that are truly under $1.

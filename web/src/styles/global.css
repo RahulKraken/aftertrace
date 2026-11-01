@@ -1,12 +1,13 @@
 @import "./fonts.css";
 @import "./tokens.css";
+@import "./v4.css";
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 html { background: var(--bg); }
 body {
-  font: 13.5px/1.45 var(--sans);
-  color: var(--ink);
+  font: 14px/20px var(--sans);
+  color: var(--t1);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "ss01" on, "cv11" on, "kern" on, "tnum" on;
@@ -939,10 +940,10 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 /* app shell: sidebar + main (docs/product/design.md, IA) */
 .app { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); min-height: 100vh; }
 .side {
-  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 10px 12px; border-right: 1px solid var(--line); background: var(--surface); z-index: 20;
+  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 12px 12px; border-right: 1px solid var(--line); background: var(--side-bg); z-index: 20;
 }
-.side .brand { display: flex; align-items: center; gap: 8px; padding: 4px 8px 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.03em; }
+.side .brand { display: flex; align-items: center; gap: 9px; padding: 6px 8px 18px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
 .side .brand .tag { margin-left: auto; font-size: 10px; padding: 1px 7px; }
 .logo { flex: none; color: var(--ink); }
 .side-search {
@@ -958,8 +959,8 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 .side-group { margin-top: 12px; display: flex; flex-direction: column; gap: 1px; }
 .side-label { font-size: 10.5px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 0 8px 4px; }
 .side-item {
-  display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 8px; border-radius: 7px;
-  color: var(--mute); font-size: 13px; font-weight: 500; transition: background 120ms ease, color 120ms ease;
+  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: 6px;
+  color: var(--mute); font-size: 13.5px; font-weight: 500; transition: background 120ms ease, color 120ms ease;
 }
 .side-item:hover { color: var(--ink); background: var(--sel); }
 .side-item.on { color: var(--ink); background: var(--sel-strong); }
@@ -979,7 +980,7 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 .recv.is-live .recv-dot { background: var(--hue-ok); }
 .recv.is-idle { color: var(--hue-wait); }
 .recv.is-idle .recv-dot { background: var(--hue-wait); animation: live-pulse 1.4s ease-in-out infinite; }
-.main { min-width: 0; }
+.main { min-width: 0; min-height: 0; }
 .cmd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 
 @media (max-width: 1100px) {
@@ -1617,7 +1618,7 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
-.page-in { animation: page-in var(--dur-3) var(--ease-out) both; }
+.page-in { animation: page-in var(--dur-3) var(--ease-out) both; width: 100%; min-width: 0; }
 
 /* Floating things carry soft shadows and enter from where they belong. */
 .span-card { box-shadow: var(--shadow-pop); transform-origin: top left; }

@@ -56,9 +56,14 @@ const TITLES = [
   "Why is the checkout page slow? Profile the bundle",
 ]
 
-export const sessions = (sessionsJson as Session[]).map((s, i) => ({
+const listed = (sessionsJson as Session[]).map((s, i) => ({
   ...s,
   title: TITLES[i % TITLES.length],
+}))
+const newest = Math.max(...listed.map((s) => s.start_ns))
+export const sessions = listed.map((s) => ({
+  ...s,
+  running: s.start_ns === newest,
 }))
 export const findings = (findingsJson as Finding[]).map((f) => ({
   ...f,

@@ -143,6 +143,29 @@ export function cardMoney(monthly: number): string {
   return `~${sayUsd(monthly, true)}/month`
 }
 
+export function shortTitle(f: Finding): string {
+  switch (f.rule_id) {
+    case "model.opus_downgrade":
+      return "Sonnet for quick turns"
+    case "cache.drop_after_compaction":
+      return "Cache after compaction"
+    case "mcp.large_results":
+      return "Cap docs search"
+    case "model.switch_cache_rebuild":
+      return "Stay on one model"
+    case "tool.repeated_errors":
+      return "Fix the failing tool"
+    case "skill.cost":
+      return f.headline.replace(/^Skill\s+/i, "").replace(/\s+drove.+$/i, "") || f.rule_title || f.headline
+    case "hook.overhead":
+      return "Slow hook"
+    case "permission.allow_rule_candidate":
+      return f.headline.replace(/,.+$/, "") || "Permission prompts"
+    default:
+      return (f.rule_title || f.headline || "").replace(/\.$/, "")
+  }
+}
+
 export function homeSavings(fs: Finding[], opts: HomeOpts = {}): HomeSavings {
   const eligible = fs.filter((f) => homeEligible(f, opts))
   const days = opts.window_days && opts.window_days > 0 ? opts.window_days : observationDays(eligible, 0)

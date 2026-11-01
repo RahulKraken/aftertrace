@@ -32,7 +32,9 @@ test("readGlance uses /api/status and /api/overview", async () => {
   const { port } = server.address()
   try {
     const g = await readGlance(`http://127.0.0.1:${port}`)
-    assert.deepEqual(g, { ok: true, findings: 4, weekCost: 1.25 })
+    assert.equal(g.ok, true)
+    assert.equal(g.findings, 4)
+    assert.equal(g.weekCost, 1.25)
     assert.equal(formatGlance(g), "$1.25 this week · 4 findings")
   } finally {
     server.close()

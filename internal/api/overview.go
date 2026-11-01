@@ -170,13 +170,20 @@ func summarize(db *sql.DB, stats map[string]traceStat, lo, hi int64) (window, []
 	return w, turns, nil
 }
 
-type dayPoint struct {
-	Day     string  `json:"day"`
-	StartNS int64   `json:"start_ns"`
+type modelSpend struct {
+	Model   string  `json:"model"`
 	CostUSD float64 `json:"cost_usd"`
-	TurnMS  float64 `json:"turn_ms"`
-	WaitMS  float64 `json:"wait_ms"`
-	Turns   int     `json:"turns"`
+	Tokens  float64 `json:"tokens,omitempty"`
+}
+
+type dayPoint struct {
+	Day     string       `json:"day"`
+	StartNS int64        `json:"start_ns"`
+	CostUSD float64      `json:"cost_usd"`
+	TurnMS  float64      `json:"turn_ms"`
+	WaitMS  float64      `json:"wait_ms"`
+	Turns   int          `json:"turns"`
+	ByModel []modelSpend `json:"by_model,omitempty"`
 }
 
 type liveLane struct {
@@ -353,10 +360,10 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Daily series for sparklines: 14 days ending at hi, local midnight boundaries.
+	// Daily series: 90 days ending at hi, local midnight boundaries.
 	end := time.Unix(0, hi).Local()
-	start := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location()).AddDate(0, 0, -13)
-	days := make([]dayPoint, 14)
+	start := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location()).AddDate(0, 0, -89)
+	days := make([]dayPoint, 90)
 	for i := range days {
 		d := start.AddDate(0, 0, i)
 		days[i] = dayPoint{Day: d.Format("Mon 2 Jan"), StartNS: d.UnixNano()}
@@ -383,17 +390,44 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		days[i].TurnMS += t.durMS
 		days[i].WaitMS += breakdowns.get(db, t.trace, stats[t.trace])["permission_wait"]
 	}
-	if cr, err := db.Query(`SELECT start_ns, coalesce(cost_usd,0) FROM llm WHERE start_ns >= ? AND start_ns < ?`, days[0].StartNS, hi); err == nil {
+	if cr, err := db.Query(`SELECT start_ns, coalesce(cost_usd,0), coalesce(model,''),
+		coalesce(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens,0)
+		FROM llm WHERE start_ns >= ? AND start_ns < ?`, days[0].StartNS, hi); err == nil {
+		type acc struct{ cost, tok float64 }
+		buckets := make([]map[string]*acc, len(days))
 		for cr.Next() {
 			var st int64
-			var c float64
-			if cr.Scan(&st, &c) == nil {
+			var c, tok float64
+			var model string
+			if cr.Scan(&st, &c, &model, &tok) == nil {
 				if i := idx(st); i >= 0 {
 					days[i].CostUSD += c
+					if buckets[i] == nil {
+						buckets[i] = map[string]*acc{}
+					}
+					if model == "" {
+						model = "(none)"
+					}
+					a := buckets[i][model]
+					if a == nil {
+						a = &acc{}
+						buckets[i][model] = a
+					}
+					a.cost += c
+					a.tok += tok
 				}
 			}
 		}
 		cr.Close()
+		for i, b := range buckets {
+			if b == nil {
+				continue
+			}
+			for m, a := range b {
+				days[i].ByModel = append(days[i].ByModel, modelSpend{Model: m, CostUSD: a.cost, Tokens: a.tok})
+			}
+			sort.Slice(days[i].ByModel, func(a, b int) bool { return days[i].ByModel[a].CostUSD > days[i].ByModel[b].CostUSD })
+		}
 	}
 	_ = turns
 

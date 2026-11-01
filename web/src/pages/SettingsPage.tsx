@@ -4,14 +4,27 @@ import { useStatus } from "../lib/status"
 import { CopyButton } from "../components/CopyButton"
 import { int } from "../lib/format"
 import { PLANS, readPlan, writePlan, type Plan } from "../lib/plan"
+import { readBudget, writeBudget } from "../lib/budget"
 
 export function SettingsPage() {
   const status = useStatus()
   const [plan, setPlan] = useState<Plan | null>(() => readPlan())
+  const [budget, setBudget] = useState<string>(() => {
+    const b = readBudget()
+    return b ? String(b.weekly) : ""
+  })
   useEffect(() => {
     const on = () => setPlan(readPlan())
     window.addEventListener("aftertrace-plan", on)
     return () => window.removeEventListener("aftertrace-plan", on)
+  }, [])
+  useEffect(() => {
+    const on = () => {
+      const b = readBudget()
+      setBudget(b ? String(b.weekly) : "")
+    }
+    window.addEventListener("aftertrace-budget", on)
+    return () => window.removeEventListener("aftertrace-budget", on)
   }, [])
   const info = status?.info
   const db = info?.db_path || "~/.aftertrace/aftertrace.duckdb"
@@ -20,6 +33,27 @@ export function SettingsPage() {
     <div className="page settings">
       <h1>Settings</h1>
       <div className="sub">Aftertrace keeps everything in one file on this machine. These settings say what it stores and what, if anything, leaves.</div>
+
+      <section className="set-sec">
+        <h2>Weekly budget</h2>
+        <p className="mute">A cap you set. Home and the tray show spend against it only after you type a number. Leave blank for none.</p>
+        <label className="list-search" style={{ maxWidth: 240 }}>
+          <span className="mute">$</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            placeholder="none"
+            value={budget}
+            onChange={(e) => {
+              const v = e.target.value
+              setBudget(v)
+              writeBudget(v === "" ? null : Number(v))
+            }}
+          />
+          <span className="mute">/ week</span>
+        </label>
+      </section>
 
       <section className="set-sec">
         <h2>Your plan</h2>

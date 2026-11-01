@@ -12,8 +12,9 @@ const vite = await createServer({
   appType: "custom",
 })
 
-const { dur, tok, usd, sayDur, sayUsd, sayTok } = await vite.ssrLoadModule("/src/lib/format.ts")
-const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts } = await vite.ssrLoadModule("/src/lib/format.ts")
+const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
@@ -169,6 +170,20 @@ if (weekProjects.length < 2) {
   console.error(`fail week projects: ${weekProjects.length}`)
   failed++
 }
+
+eq(shortTitle(opus), "Sonnet for quick turns", "shortTitle opus")
+eq(modelSlug("claude-opus-5"), "opus", "modelSlug opus")
+eq(modelSlug("claude-sonnet-5-5"), "sonnet", "modelSlug sonnet")
+eq(moneyParts(186.4).whole, "$186", "moneyParts whole")
+eq(moneyParts(186.4).cents, ".40", "moneyParts cents")
+
+const now = 10 * 3600e9
+eq(usageWindow(now, []) == null, true, "usageWindow empty")
+eq(usageWindow(now, [now - 6 * 3600e9]) == null, true, "usageWindow older than 5h")
+const w = usageWindow(now, [now - 1 * 3600e9, now - 2 * 3600e9])
+eq(Boolean(w), true, "usageWindow current")
+eq(w.start_ns, now - 2 * 3600e9, "usageWindow earliest in burst")
+eq(w.end_ns - w.start_ns, 5 * 3600e9, "usageWindow is 5h")
 
 if (failed) {
   console.error(`${failed} failed`)
