@@ -115,7 +115,8 @@ func TestMonthImportAndRulesTiming(t *testing.T) {
 	// Baseline 2026-10-29, before history-rule work, same fixture: import=2764ms
 	// rules=78ms. First open with a month of history should stay interactive;
 	// the UI waits on /api/status, which reuses the 10s findings cache.
-	if importMS+rulesMS > 8000 {
+	// go test -race on shared GHA runners is routinely 2-3x that baseline.
+	if importMS+rulesMS > 15000 {
 		t.Errorf("first-open path too slow: import %dms + rules %dms", importMS, rulesMS)
 	}
 }

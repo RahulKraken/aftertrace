@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:embed": "VITE_USE_MOCK=0 tsc -b && VITE_USE_MOCK=0 vite build",
+    "build:embed": "node scripts/build-embed.mjs",
     "lint": "oxlint src",
     "test": "node scripts/unit.mjs",
     "dev:live": "vite --config vite.live.config.ts",

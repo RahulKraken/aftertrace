@@ -14,7 +14,7 @@ import (
 var distFS embed.FS
 
 // FS is the static UI served on the UI port. Paths are relative to dist/
-// (index.html, assets/*, favicon.svg).
+// (index.html, assets/*, favicon.svg, favicon.ico, apple-touch-icon.png).
 var FS fs.FS = mustDist()
 
 func mustDist() fs.FS {

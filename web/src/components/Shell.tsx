@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react"
 import {
-  Boxes,
   CircleDollarSign,
   House,
   Lightbulb,
@@ -12,6 +11,7 @@ import {
   Settings,
   SquareTerminal,
   Sun,
+  Boxes,
   type LucideIcon,
 } from "lucide-react"
 import { Link, useLocation } from "wouter"
@@ -26,43 +26,27 @@ import { Logo } from "./Logo"
 
 type Item = { href: string; label: string; icon: LucideIcon; key: string; match?: (loc: string) => boolean }
 
-const TOP: Item = { href: "/", label: "Home", icon: House, key: "h", match: (l) => l === "/" }
-const GROUPS: { label: string; items: Item[] }[] = [
+const NAV: Item[] = [
+  { href: "/", label: "Home", icon: House, key: "h", match: (l) => l === "/" },
+  { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
   {
-    label: "Observe",
-    items: [
-      {
-        href: "/sessions",
-        label: "Sessions",
-        icon: Rows3,
-        key: "s",
-        match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || (l.startsWith("/trace/") && !fromApps()),
-      },
-      { href: "/apps", label: "Apps", icon: Boxes, key: "a", match: (l) => l.startsWith("/apps") || (l.startsWith("/trace/") && fromApps()) },
-    ],
+    href: "/sessions",
+    label: "Sessions",
+    icon: Rows3,
+    key: "s",
+    match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || (l.startsWith("/trace/") && !fromApps()),
   },
-  {
-    label: "Improve",
-    items: [
-      { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
-      { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
-    ],
-  },
-  {
-    label: "Explore",
-    items: [
-      { href: "/query", label: "Query", icon: SquareTerminal, key: "q" },
-      { href: "/recap", label: "Recap", icon: Receipt, key: "r" },
-    ],
-  },
+  { href: "/recap", label: "Recap", icon: Receipt, key: "r" },
 ]
-const BOTTOM: Item[] = [
+const HIDDEN: Item[] = [
+  { href: "/apps", label: "Apps", icon: Boxes, key: "a", match: (l) => l.startsWith("/apps") || (l.startsWith("/trace/") && fromApps()) },
+  { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
+  { href: "/query", label: "Query", icon: SquareTerminal, key: "q" },
   { href: "/connect", label: "Connect", icon: Plug, key: "n" },
   { href: "/settings", label: "Settings", icon: Settings, key: "," },
 ]
-const ALL = [TOP, ...GROUPS.flatMap((g) => g.items), ...BOTTOM]
+const ALL = [...NAV, ...HIDDEN]
 
-// App pages open traces with ?app=1 so the sidebar keeps Apps selected.
 function fromApps(): boolean {
   return /[?&]app=1/.test(window.location.hash) || /[?&]app=1/.test(window.location.search)
 }
@@ -122,7 +106,6 @@ export function Shell({
       }
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return
-      // "g" then a letter jumps to a page, like Linear and GitHub.
       if (e.key === "g") {
         pendingG.current = Date.now()
         return
@@ -143,7 +126,10 @@ export function Shell({
   const counts: Record<string, React.ReactNode> = {
     "/": status && status.running > 0 ? <span className="live-count" title={`${status.running} running`}>{status.running}</span> : null,
     "/findings": status && status.findings > 0 ? <span className="side-count">{status.findings}</span> : null,
-    "/apps": status && status.apps > 0 ? <span className="side-count">{status.apps}</span> : null,
+  }
+
+  if (loc === "/tray") {
+    return <StatusContext.Provider value={status}>{children}</StatusContext.Provider>
   }
 
   return (
@@ -152,7 +138,7 @@ export function Shell({
         <aside className="side" aria-label="Main">
           <Link href="/" className="brand">
             <Logo size={18} />
-            <span>aftertrace</span>
+            <span className="wordmark">Aftertrace</span>
             {mock && <span className="tag warn">demo</span>}
           </Link>
           <button type="button" className="side-search" onClick={() => setCmd(true)}>
@@ -161,20 +147,12 @@ export function Shell({
             <kbd>⌘K</kbd>
           </button>
           <nav className="side-nav">
-            <NavItem item={TOP} badge={counts["/"]} />
-            {GROUPS.map((g) => (
-              <div className="side-group" key={g.label}>
-                <div className="side-label">{g.label}</div>
-                {g.items.map((it) => (
-                  <NavItem key={it.href} item={it} badge={counts[it.href]} />
-                ))}
-              </div>
+            {NAV.map((it) => (
+              <NavItem key={it.href} item={it} badge={counts[it.href]} />
             ))}
           </nav>
           <div className="side-foot">
-            {BOTTOM.map((it) => (
-              <NavItem key={it.href} item={it} badge={null} />
-            ))}
+            <NavItem item={HIDDEN.find((i) => i.href === "/settings")!} badge={null} />
             <div className="side-status">
               <ReceivingLine status={status} />
               <button
@@ -195,7 +173,6 @@ export function Shell({
               You are looking at synthetic demo data. <a href="../docs/install.html">Install Aftertrace</a> to see your own Claude Code, agents and apps.
             </div>
           )}
-          {/* Keyed by page, not by query: switching Story and Timeline is not a new page. */}
           <div key={pageKey(loc)} className="page-in">
             {children}
           </div>
@@ -212,21 +189,20 @@ function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
   const Icon = item.icon
   return (
     <Link href={item.href} className={`side-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={`${item.label} (g ${item.key})`}>
-      <Icon size={15} strokeWidth={1.8} />
+      <Icon size={16} strokeWidth={1.7} />
       <span className="side-text">{item.label}</span>
       {badge}
     </Link>
   )
 }
 
-// One line of feedback that data is flowing (Norman: feedback, visibility).
 function ReceivingLine({ status }: { status: Status | null }) {
   const now = useNow(1000)
   if (!status) return <span className="recv">Connecting…</span>
   if (!status.last_ns) {
     return (
       <Link href="/connect" className="recv is-idle">
-        <i className="recv-dot" /> Waiting for data
+        <i className="recv-dot" /> Waiting
       </Link>
     )
   }

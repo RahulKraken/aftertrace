@@ -170,13 +170,20 @@ func summarize(db *sql.DB, stats map[string]traceStat, lo, hi int64) (window, []
 	return w, turns, nil
 }
 
-type dayPoint struct {
-	Day     string  `json:"day"`
-	StartNS int64   `json:"start_ns"`
+type modelSpend struct {
+	Model   string  `json:"model"`
 	CostUSD float64 `json:"cost_usd"`
-	TurnMS  float64 `json:"turn_ms"`
-	WaitMS  float64 `json:"wait_ms"`
-	Turns   int     `json:"turns"`
+	Tokens  float64 `json:"tokens,omitempty"`
+}
+
+type dayPoint struct {
+	Day     string       `json:"day"`
+	StartNS int64        `json:"start_ns"`
+	CostUSD float64      `json:"cost_usd"`
+	TurnMS  float64      `json:"turn_ms"`
+	WaitMS  float64      `json:"wait_ms"`
+	Turns   int          `json:"turns"`
+	ByModel []modelSpend `json:"by_model,omitempty"`
 }
 
 type liveLane struct {
@@ -193,8 +200,10 @@ type liveLane struct {
 }
 
 // liveLanes lists turns still in progress that received spans in the last
-// five minutes. "doing" is the most recent span; "quiet" means nothing new
-// for 90 seconds (the agent is thinking, running something long, or waiting).
+// five minutes. Cost is the session total (same number Sessions and Home
+// show), not the current turn. "doing" is the most recent span; "quiet"
+// means nothing new for 90 seconds (the agent is thinking, running
+// something long, or waiting).
 func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 	rows, err := db.Query(`SELECT trace_id, coalesce(session_id,''), start_ns, end_ns FROM turn_roots
 		WHERE in_progress AND end_ns > ? ORDER BY start_ns`, now-int64(5*time.Minute))
@@ -215,7 +224,11 @@ func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 		l := &lanes[i]
 		var cost sql.NullFloat64
 		_ = db.QueryRow(`SELECT count(*) FROM spans WHERE trace_id=?`, l.TraceID).Scan(&l.Spans)
-		_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, l.TraceID).Scan(&cost)
+		if l.SessionID != "" {
+			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE session_id=?`, l.SessionID).Scan(&cost)
+		} else {
+			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, l.TraceID).Scan(&cost)
+		}
 		l.CostUSD = cost.Float64
 		var name, attrs, res string
 		if err := db.QueryRow(`SELECT name, attrs::VARCHAR, coalesce(resource::VARCHAR,'{}') FROM spans WHERE trace_id=?
@@ -353,10 +366,10 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Daily series for sparklines: 14 days ending at hi, local midnight boundaries.
+	// Daily series: 90 days ending at hi, local midnight boundaries.
 	end := time.Unix(0, hi).Local()
-	start := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location()).AddDate(0, 0, -13)
-	days := make([]dayPoint, 14)
+	start := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location()).AddDate(0, 0, -89)
+	days := make([]dayPoint, 90)
 	for i := range days {
 		d := start.AddDate(0, 0, i)
 		days[i] = dayPoint{Day: d.Format("Mon 2 Jan"), StartNS: d.UnixNano()}
@@ -383,17 +396,44 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		days[i].TurnMS += t.durMS
 		days[i].WaitMS += breakdowns.get(db, t.trace, stats[t.trace])["permission_wait"]
 	}
-	if cr, err := db.Query(`SELECT start_ns, coalesce(cost_usd,0) FROM llm WHERE start_ns >= ? AND start_ns < ?`, days[0].StartNS, hi); err == nil {
+	if cr, err := db.Query(`SELECT start_ns, coalesce(cost_usd,0), coalesce(model,''),
+		coalesce(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens,0)
+		FROM llm WHERE start_ns >= ? AND start_ns < ?`, days[0].StartNS, hi); err == nil {
+		type acc struct{ cost, tok float64 }
+		buckets := make([]map[string]*acc, len(days))
 		for cr.Next() {
 			var st int64
-			var c float64
-			if cr.Scan(&st, &c) == nil {
+			var c, tok float64
+			var model string
+			if cr.Scan(&st, &c, &model, &tok) == nil {
 				if i := idx(st); i >= 0 {
 					days[i].CostUSD += c
+					if buckets[i] == nil {
+						buckets[i] = map[string]*acc{}
+					}
+					if model == "" {
+						model = "(none)"
+					}
+					a := buckets[i][model]
+					if a == nil {
+						a = &acc{}
+						buckets[i][model] = a
+					}
+					a.cost += c
+					a.tok += tok
 				}
 			}
 		}
 		cr.Close()
+		for i, b := range buckets {
+			if b == nil {
+				continue
+			}
+			for m, a := range b {
+				days[i].ByModel = append(days[i].ByModel, modelSpend{Model: m, CostUSD: a.cost, Tokens: a.tok})
+			}
+			sort.Slice(days[i].ByModel, func(a, b int) bool { return days[i].ByModel[a].CostUSD > days[i].ByModel[b].CostUSD })
+		}
 	}
 	_ = turns
 
@@ -413,24 +453,24 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 
 	findings := findingsFor(db)
 	historyOnly := history.Only(db)
-	var top any
 	open := 0
 	for _, f := range findings {
 		if f.Severity == "error" {
 			continue
 		}
 		open++
-		if top == nil {
-			top = f
-		}
 	}
-	if historyOnly {
-		monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
-		if f := rules.PickMoneyFinding(findings, monthAgo, true); f != nil {
-			top = *f
-		} else {
-			top = nil
-		}
+	monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
+	spend, windowDays := observeSpend(db, monthAgo, now)
+	savings := rules.HomeSurfaceFrom(findings, rules.HomeOpts{
+		SinceNS:       monthAgo,
+		HistoryOnly:   historyOnly,
+		ObservedSpend: spend,
+		WindowDays:    windowDays,
+	})
+	var top any
+	if len(savings.Shown) > 0 {
+		top = savings.Shown[0]
 	}
 
 	recent, err := sessions(db)
@@ -472,6 +512,7 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		"sources":      srcs,
 		"top":          top,
 		"open":         open,
+		"savings":      savings,
 		"recent":       recent,
 		"projects":     projects,
 		"history_only": historyOnly,
@@ -521,6 +562,25 @@ func sources(db *sql.DB, now int64) ([]source, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].LastNS > out[j].LastNS })
 	return out, rows.Err()
+}
+
+// observeSpend is the actual dollars and span of LLM cost in [lo, hi).
+// Home savings must not exceed this, scaled with the same window.
+func observeSpend(db *sql.DB, lo, hi int64) (spend, days float64) {
+	var cost sql.NullFloat64
+	var first, last sql.NullInt64
+	_ = db.QueryRow(`SELECT sum(cost_usd), min(start_ns), max(start_ns) FROM llm WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&cost, &first, &last)
+	spend = cost.Float64
+	if !first.Valid {
+		_ = db.QueryRow(`SELECT min(start_ns), max(end_ns) FROM turn_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&first, &last)
+	}
+	if first.Valid && last.Valid && last.Int64 >= first.Int64 {
+		days = float64(last.Int64-first.Int64) / 1e9 / 86400
+		if days < 1 {
+			days = 1
+		}
+	}
+	return spend, days
 }
 
 func (s *Server) getSources(w http.ResponseWriter, r *http.Request) {

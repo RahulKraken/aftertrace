@@ -5,7 +5,7 @@ import { useHashLocation } from "wouter/use-hash-location"
 import { Shell } from "./components/Shell"
 import { EmptyState } from "./components/EmptyState"
 import { ToastHost } from "./lib/toast"
-import { applyTheme, readTheme, switchTheme, type Theme } from "./lib/theme"
+import { applyTheme, hasStoredTheme, readTheme, switchTheme, type Theme } from "./lib/theme"
 import { AppPage } from "./pages/AppPage"
 import { AppsPage } from "./pages/AppsPage"
 import { ConnectPage } from "./pages/ConnectPage"
@@ -18,6 +18,7 @@ import { SessionPage } from "./pages/SessionPage"
 import { SessionsPage } from "./pages/SessionsPage"
 import { SettingsPage } from "./pages/SettingsPage"
 import { TracePage } from "./pages/TracePage"
+import { TrayPage } from "./pages/TrayPage"
 
 function useHashPath(): [string, (to: string, opts?: { replace?: boolean }) => void] {
   const [loc, nav] = useHashLocation()
@@ -29,8 +30,16 @@ export default function App() {
   const mock = import.meta.env.VITE_USE_MOCK !== "0"
 
   useEffect(() => {
-    applyTheme(theme)
+    applyTheme(theme, hasStoredTheme())
   }, [theme])
+
+  useEffect(() => {
+    if (hasStoredTheme()) return
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    const on = () => setTheme(mq.matches ? "dark" : "light")
+    mq.addEventListener("change", on)
+    return () => mq.removeEventListener("change", on)
+  }, [])
 
   return (
     <MotionConfig reducedMotion="user">
@@ -50,6 +59,7 @@ export default function App() {
             <Route path="/findings" component={FindingsPage} />
             <Route path="/query" component={QueryPage} />
             <Route path="/cost" component={CostPage} />
+            <Route path="/tray" component={TrayPage} />
             <Route path="/empty">
               <div className="page">
                 <EmptyState />

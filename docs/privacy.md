@@ -2,7 +2,7 @@
 
 > [How redaction works, with a figure →](how-it-works/redaction.md)
 
-Aftertrace is local-first. The process never opens a network connection of its own. The only sockets are the ones you bind for OTLP and the UI.
+Aftertrace is local-first. The Go engine never opens a network connection of its own. The only sockets are the ones you bind for OTLP and the UI. The optional Electron desktop shell (`desktop/`) may contact GitHub Releases to look for an app update; it does not send usage, traces, or crash reports.
 
 ## What is redacted by default
 
@@ -61,7 +61,7 @@ There is no TLS and no auth. Team mode on a shared host is a private network dec
 
 ## No telemetry, no phone-home
 
-The binary does not check for updates, crash-report, or send usage. `POST /api/sql` is read-only and sandboxed. The one exception is Ask, which is off unless you turn it on.
+The Go binary does not check for updates, crash-report, or send usage. `POST /api/sql` is read-only and sandboxed. The one exception is Ask, which is off unless you turn it on. The desktop shell's "Check for updates" (and a silent startup check) talks only to GitHub Releases for the app package; turn it off by not using the desktop app.
 
 ## Ask
 

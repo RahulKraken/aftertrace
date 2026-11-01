@@ -12,7 +12,7 @@ test("delight demo under 30s", async ({ page }) => {
   })
 
   await page.goto("/#/findings")
-  const hero = page.locator(".frow.hero")
+  const hero = page.locator(".v4-pane .frow.hero")
   await expect(hero).toBeVisible()
   await page.waitForTimeout(600)
 
@@ -39,9 +39,9 @@ test("delight demo under 30s", async ({ page }) => {
   await page.waitForTimeout(400)
 
   await page.goto("/#/findings")
-  await expect(page.locator(".frow.hero .fix-btn")).toBeVisible()
-  await expect(page.locator(".frow.hero")).toContainText("permission prompts")
-  await page.locator(".frow.hero .fix-btn").click()
+  await expect(page.locator(".v4-pane .fix-btn")).toBeVisible()
+  await expect(page.locator(".v4-pane .frow.hero")).toContainText("permission prompts")
+  await page.locator(".v4-pane .fix-btn").click()
   await expect(page.locator(".win-stage")).toBeVisible()
   await expect(page.locator(".win-figure")).toHaveText("6")
   await expect(page.locator(".win-label")).toContainText("prompts removed")

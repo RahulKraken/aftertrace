@@ -4,7 +4,9 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const outDir = resolve(dirname(fileURLToPath(import.meta.url)), "../screenshots")
+const docsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../docs/screenshots")
 mkdirSync(outDir, { recursive: true })
+mkdirSync(docsDir, { recursive: true })
 
 const HERO_TRACE = "509cb3acac23db7c6e9b7d180a474268"
 
@@ -13,6 +15,8 @@ async function waitFonts(page: Page) {
     await document.fonts.ready
     await document.fonts.load('600 28px "Inter"')
     await document.fonts.load('500 28px "Inter"')
+    await document.fonts.load('600 20px "Newsreader"')
+    await document.fonts.load('500 22px "Geist Mono"')
     return document.fonts.check('600 28px "Inter"')
   })
   expect(loaded).toBe(true)
@@ -31,10 +35,12 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
     }
   }
   await page.waitForTimeout(120)
-  await page.screenshot({
-    path: resolve(outDir, `${name}-${theme}.png`),
-    fullPage: false,
-  })
+  const file = `${name}-${theme}.png`
+  await page.screenshot({ path: resolve(outDir, file), fullPage: false })
+  const docs = ["home", "home-history", "findings", "sessions", "recap", "tray"]
+  if (docs.includes(name)) {
+    await page.screenshot({ path: resolve(docsDir, file), fullPage: false })
+  }
 }
 
 // The timeline opens on closed steps; open them all to reach individual calls.
@@ -65,21 +71,11 @@ test("sessions list", async ({ page }) => {
   await page.goto("/#/sessions")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
-  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(6)
-  await page.getByRole("tab", { name: /With findings/ }).click()
-  const withFindings = await page.locator(".sessions-grid tbody tr:not(.day-row)").count()
-  expect(withFindings).toBeLessThan(6)
-  await page.getByRole("tab", { name: /^All/ }).click()
-  await page.getByPlaceholder("Search prompts, repos, models").fill("zsh")
-  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(1)
-  await page.getByPlaceholder("Search prompts, repos, models").fill("")
-  // A day on the activity chart filters the list to it, and clicking again clears it.
-  await page.locator(".act-col:not(.is-empty)").last().click()
-  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(1)
-  await page.locator(".act-col.is-on").click()
-  await expect(page.locator(".sessions-grid tbody tr:not(.day-row)")).toHaveCount(6)
-  await expect(page.locator(".story-card")).toHaveCount(0)
-  await expect(page.locator(".kpis")).toHaveCount(0)
+  await expect(page.locator(".v4-rr")).toHaveCount(6)
+  await expect(page.locator(".v4-rr .v4-st").filter({ hasText: "Running" })).toHaveCount(1)
+  await page.locator(".v4-rr").nth(1).click()
+  await expect(page.locator(".v4-pane .v4-st")).toContainText("Done")
+  await expect(page.locator(".v4-pane h2")).not.toHaveText("")
   await shot(page, "sessions", "light")
   await shot(page, "sessions", "dark")
 })
@@ -222,15 +218,22 @@ test("session detail", async ({ page }) => {
 test("findings", async ({ page }) => {
   await page.goto("/#/findings")
   await waitFonts(page)
-  await expect(page.locator(".frow.hero")).toBeVisible()
-  await expect(page.locator(".frow.hero")).toContainText("permission prompts")
-  await expect(page.locator(".frow.hero .fix-btn")).toBeVisible()
+  await expect(page.locator(".v4-pane .frow.hero")).toBeVisible()
+  await expect(page.locator(".v4-pane .frow.hero")).toContainText("permission prompts")
+  await expect(page.locator(".v4-pane .fix-btn")).toBeVisible()
   await expect(page.locator(".frow.hero .pill")).toHaveCount(0)
   await expect(page.locator(".pillar")).toHaveCount(0)
   await expect(page.locator(".hero-imp")).toHaveCount(0)
   await expect(page.locator(".frow.quiet").first()).toBeVisible()
   await expect(page.locator(".frow.resolved")).toContainText("git commit")
   await expect(page.locator(".celebrate")).toHaveCount(0)
+  const titles = (await page.locator(".v4-fr .nm").allTextContents()).map((t) => t.trim())
+  expect(titles.some((t) => /pdf-report/i.test(t))).toBe(false)
+  expect(titles.some((t) => /PDF report/i.test(t))).toBe(true)
+  const counts = new Map<string, number>()
+  for (const t of titles) counts.set(t, (counts.get(t) || 0) + 1)
+  const dupes = [...counts.entries()].filter(([, n]) => n > 1).map(([t]) => t)
+  expect(dupes, `duplicate finding titles: ${dupes.join(", ")}`).toEqual([])
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
 })
@@ -239,8 +242,8 @@ async function openPermissionWin(page: Page) {
   await page.goto("/#/findings")
   await page.evaluate(() => localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"])))
   await page.reload()
-  await expect(page.locator(".frow.hero")).toContainText("permission prompts")
-  await page.locator(".frow.hero .fix-btn").click()
+  await expect(page.locator(".v4-pane .frow.hero")).toContainText("permission prompts")
+  await page.locator(".v4-pane .fix-btn").click()
   await expect(page.locator(".win-stage")).toBeVisible()
   await expect(page.locator(".win-figure")).toHaveText("6")
   await expect(page.locator(".win-label")).toContainText("prompts removed")
@@ -342,12 +345,26 @@ test("waterfall skeleton", async ({ page }) => {
 test("home: story, stats, live lane, next finding", async ({ page }) => {
   await page.goto("/#/")
   await waitFonts(page)
-  await expect(page.locator(".home-story")).toContainText("Your agents worked")
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
   await expect(page.locator(".hero-mark")).toHaveCount(0)
-  await expect(page.locator(".stat")).toHaveCount(5)
-  await expect(page.locator(".lane").first()).toBeVisible()
-  await expect(page.locator(".next-card")).toBeVisible()
-  await expect(page.locator(".list-row").first()).toBeVisible()
+  await expect(page.locator(".v4-tabs")).toContainText("Spend")
+  await expect(page.locator(".v4-st").filter({ hasText: "Running" })).toBeVisible()
+  await expect(page.locator(".next-card").first()).toBeVisible()
+  await expect(page.locator(".v4-sv .next-card")).toHaveCount(2)
+  await expect(page.locator(".v4-chart svg")).toBeVisible()
+  const savable = page.locator(".v4-sv .v4-li.next-card").first()
+  const nm = await savable.locator(".nm").boundingBox()
+  const amt = await savable.locator(".v").boundingBox()
+  expect(nm && amt).toBeTruthy()
+  expect(amt!.x).toBeGreaterThan(nm!.x + nm!.width)
+  const homeCost = (await page.locator(".v4-now .v4-tk b").last().textContent())?.trim()
+  await page.goto("/#/sessions")
+  await expect(page.locator(".v4-rr .v4-st").filter({ hasText: "Running" })).toBeVisible()
+  const listCost = (await page.locator(".v4-rr").filter({ has: page.locator(".v4-st", { hasText: "Running" }) }).locator(".v.num").textContent())?.trim()
+  expect(homeCost).toBe(listCost)
+  expect(homeCost).toMatch(/^\$0\.\d{3}$/)
+  await page.goto("/#/")
+  await waitFonts(page)
   await shot(page, "home", "light")
   await shot(page, "home", "dark")
 })
@@ -355,17 +372,16 @@ test("home: story, stats, live lane, next finding", async ({ page }) => {
 test("home: history-only", async ({ page }) => {
   await page.goto("/#/?history=1")
   await waitFonts(page)
-  await expect(page.locator(".home-story")).toContainText("Your agents worked")
-  await expect(page.locator(".home-story")).toContainText("tokens")
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
+  await expect(page.locator(".v4-sv")).toContainText("Savable")
+  await expect(page.locator(".v4-sv .next-card")).toHaveCount(1)
   await expect(page.locator(".hero-mark")).toHaveCount(0)
   await expect(page.locator(".stat")).toHaveCount(0)
-  await expect(page.locator(".lane")).toHaveCount(0)
-  await expect(page.locator(".split-card")).toHaveCount(0)
-  await expect(page.locator(".next-head")).toHaveText("Use Sonnet for quick replies in aftertrace.")
-  await expect(page.locator(".next-save")).toHaveText(/Saves about \$/)
-  await expect(page.locator(".proj-row")).toHaveCount(3)
-  await expect(page.locator(".list-row").first()).toBeVisible()
-  await expect(page.locator(".home-invite")).toContainText("Turn on live tracing")
+  await expect(page.locator(".v4-st").filter({ hasText: "Running" })).toHaveCount(0)
+  await expect(page.locator(".v4-now")).toContainText("Last session")
+  await expect(page.locator(".v4-now .t")).not.toHaveText("History only.")
+  await expect(page.locator(".next-card .nm")).toContainText("Sonnet")
+  await expect(page.getByText(/\d+ findings/)).toHaveCount(0)
   await shot(page, "home-history", "light")
   await shot(page, "home-history", "dark")
 })
@@ -392,7 +408,7 @@ test("settings: capture gates", async ({ page }) => {
 
 test("sidebar: g-shortcuts and command palette", async ({ page }) => {
   await page.goto("/#/")
-  await expect(page.locator(".home-story")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
   await page.keyboard.press("g")
   await page.keyboard.press("f")
   await expect(page).toHaveURL(/#\/findings/)
@@ -401,6 +417,21 @@ test("sidebar: g-shortcuts and command palette", async ({ page }) => {
   await expect(page.locator(".cmd-list button").first()).toContainText("zsh")
   await page.keyboard.press("Enter")
   await expect(page).toHaveURL(/#\/session\//)
+})
+
+test("tray popover", async ({ page }) => {
+  await page.goto("/#/tray")
+  await waitFonts(page)
+  await expect(page.locator(".v4-pop")).toBeVisible()
+  await expect(page.locator(".v4-pop")).toContainText("Today")
+  const running = page.locator(".v4-pop .v4-st").filter({ hasText: "Running" })
+  if (await running.count()) {
+    const trayCost = (await page.locator(".v4-pop .v4-tk b").last().textContent())?.trim()
+    expect(trayCost).toMatch(/^\$0\.\d{3}$/)
+    expect(trayCost).not.toBe("$0.410")
+  }
+  await shot(page, "tray", "light")
+  await shot(page, "tray", "dark")
 })
 
 test("apps: list, app page, findings, trace", async ({ page }) => {
@@ -417,7 +448,6 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
   await page.locator(".req-row").first().click()
   await expect(page.locator(".crumbs")).toContainText("support-bot")
   await expect(page.locator(".story-line")).toContainText("model call")
-  await expect(page.locator(".side-item.on")).toContainText("Apps")
   await page.waitForTimeout(400)
   await shot(page, "app-trace", "light")
   await shot(page, "app-trace", "dark")
@@ -426,13 +456,13 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
 test("recap: story, lanes, receipt, week switch", async ({ page }) => {
   await page.goto("/#/recap")
   await waitFonts(page)
-  await expect(page.locator(".recap-story")).toContainText("Your agents put in")
+  await expect(page.getByRole("heading", { name: "Recap" })).toBeVisible()
+  await expect(page.locator(".v4-hero")).toBeVisible()
   await expect(page.locator(".receipt")).toContainText("AFTERTRACE")
-  await expect(page.locator(".receipt")).toContainText("API value")
-  await expect(page.locator(".dl-row").first()).toBeVisible()
+  await expect(page.locator(".v4-g4")).toBeVisible()
   await shot(page, "recap", "light")
   await shot(page, "recap", "dark")
-  const label = await page.locator(".recap-nav .num").textContent()
+  const label = await page.locator(".v4-seg button.on").textContent()
   await page.getByRole("button", { name: "Previous week" }).click()
-  await expect(page.locator(".recap-nav .num")).not.toHaveText(label || "")
+  await expect(page.locator(".v4-seg button.on")).not.toHaveText(label || "")
 })

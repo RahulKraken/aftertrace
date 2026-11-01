@@ -21,7 +21,15 @@ Re-running upgrades the binary and restarts the service. If the install director
 
 Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`, then `aftertrace service install` (or `aftertrace serve`) and open http://127.0.0.1:7311.
 
-Windows is not packaged yet. Build from source below (DuckDB ships a `windows-amd64` library; you need a CGO toolchain such as MSYS2 MinGW).
+Windows is not in the curl installer yet. The Electron desktop app (nsis) is built on every pull request from `.github/workflows/desktop.yml`; download `aftertrace-desktop-windows` from that workflow's artifacts. Building the Go binary from source still needs a CGO toolchain such as MSYS2 MinGW (DuckDB ships a `windows-amd64` library).
+
+## Desktop app
+
+A menu-bar / tray app that starts the same engine and UI with no terminal. Mac, Windows and Linux packages are built by `.github/workflows/desktop.yml`. On a pull request: Actions → Desktop → download `aftertrace-desktop-mac` (or windows / linux).
+
+Unsigned Mac preview builds: right-click Aftertrace, choose Open, then Open again. Start at login is off until you opt in from the first-launch screen or the tray. Closing the window keeps Aftertrace in the menu bar.
+
+The curl installer above is unchanged.
 
 ## Run it at login
 

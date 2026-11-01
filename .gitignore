@@ -10,3 +10,10 @@ web/dist/**
 
 # Local Claude Code state (launch config, worktrees)
 /.claude/
+
+# Desktop (Electron) local install and packs. The Go sidecar is copied in
+# before packaging; it is not committed.
+desktop/node_modules/
+desktop/dist/
+desktop/resources/engine/aftertrace
+desktop/resources/engine/aftertrace.exe

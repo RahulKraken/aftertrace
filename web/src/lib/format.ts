@@ -37,6 +37,17 @@ export function usd(v: number | null | undefined): string {
   return `$${v.toFixed(3)}`
 }
 
+// A running session's cost is the session total everywhere (Home, Sessions,
+// tray, menu bar). Live-lane turn spend is only a fallback when no session row exists.
+export function runCost(
+  session?: { cost_usd?: number | null } | null,
+  live?: { cost_usd?: number | null } | null,
+): number {
+  if (session != null && typeof session.cost_usd === "number") return session.cost_usd
+  if (live != null && typeof live.cost_usd === "number") return live.cost_usd
+  return 0
+}
+
 export function tok(v: number | null | undefined): string {
   if (v == null) return "—"
   if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(2)}M`
@@ -91,6 +102,34 @@ export function sayUsd(v: number | null | undefined, whole = false): string {
     s = `$${abs.toFixed(2)}`
   }
   return neg ? `-${s}` : s
+}
+
+export function clock(ns: number | null | undefined): string {
+  if (ns == null) return ""
+  return new Date(ns / 1e6).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+}
+
+export function remain(ms: number): string {
+  if (!(ms > 0) || !Number.isFinite(ms)) return ""
+  const tot = Math.round(ms / 60000)
+  const h = Math.floor(tot / 60)
+  const m = tot % 60
+  if (h <= 0) return `${m}m`
+  return `${h}h ${m}m`
+}
+
+export function hm(ms: number): { h: number; m: number } {
+  const tot = Math.max(0, Math.round(ms / 60000))
+  return { h: Math.floor(tot / 60), m: tot % 60 }
+}
+
+export function moneyParts(v: number | null | undefined): { whole: string; cents: string } | null {
+  if (v == null || Number.isNaN(v)) return null
+  const neg = v < 0
+  const abs = Math.abs(v)
+  if (abs < 1) return { whole: `${neg ? "-" : ""}${Math.round(abs * 100)}¢`, cents: "" }
+  const [w, c] = abs.toFixed(2).split(".")
+  return { whole: `${neg ? "-" : ""}$${w}`, cents: `.${c}` }
 }
 
 export function sayTok(v: number | null | undefined): string {

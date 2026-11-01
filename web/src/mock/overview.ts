@@ -1,4 +1,5 @@
 import type { Breakdown, DayPoint, Finding, HistoryProject, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import { homeSavings } from "../lib/welcome"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -30,6 +31,11 @@ export function mockOverview(): Overview {
   const llm = llmJson as Table
   const starts = col(llm, "start_ns") as number[]
   const costs = col(llm, "cost_usd") as (number | null)[]
+  const models = col(llm, "model") as (string | null)[]
+  const inTok = col(llm, "input_tokens") as (number | null)[]
+  const outTok = col(llm, "output_tokens") as (number | null)[]
+  const crTok = col(llm, "cache_read_tokens") as (number | null)[]
+  const cwTok = col(llm, "cache_creation_tokens") as (number | null)[]
   let bd = { ...ZERO }
   for (const s of inWeek) bd = addBd(bd, s.breakdown)
   const week: WindowStats = {
@@ -59,11 +65,11 @@ export function mockOverview(): Overview {
   }
   const first = new Date(hi / 1e6)
   first.setHours(0, 0, 0, 0)
-  first.setDate(first.getDate() - 13)
-  const days: DayPoint[] = Array.from({ length: 14 }, (_, i) => {
+  first.setDate(first.getDate() - 89)
+  const days: DayPoint[] = Array.from({ length: 90 }, (_, i) => {
     const d = new Date(first)
     d.setDate(first.getDate() + i)
-    return { day: d.toDateString(), start_ns: d.getTime() * 1e6, cost_usd: 0, turn_ms: 0, wait_ms: 0, turns: 0 }
+    return { day: d.toDateString(), start_ns: d.getTime() * 1e6, cost_usd: 0, turn_ms: 0, wait_ms: 0, turns: 0, by_model: [] }
   })
   const idx = (ns: number) => {
     for (let i = days.length - 1; i >= 0; i--) if (ns >= days[i].start_ns) return i
@@ -78,7 +84,19 @@ export function mockOverview(): Overview {
   }
   starts.forEach((t, j) => {
     const i = idx(t)
-    if (i >= 0) days[i].cost_usd += costs[j] || 0
+    if (i < 0) return
+    const c = costs[j] || 0
+    const tok = (inTok[j] || 0) + (outTok[j] || 0) + (crTok[j] || 0) + (cwTok[j] || 0)
+    days[i].cost_usd += c
+    const model = models[j] || "(none)"
+    const row = days[i].by_model || (days[i].by_model = [])
+    const hit = row.find((m) => m.model === model)
+    if (hit) {
+      hit.cost_usd += c
+      hit.tokens = (hit.tokens || 0) + tok
+    } else {
+      row.push({ model, cost_usd: c, tokens: tok })
+    }
   })
   const recent = [...sessions].sort((a, b) => b.start_ns - a.start_ns).slice(0, 6)
   const now = Date.now() * 1e6
@@ -95,7 +113,7 @@ export function mockOverview(): Overview {
           start_ns: now - 252e9,
           last_ns: now - 3e9,
           spans: 38,
-          cost_usd: 0.41,
+          cost_usd: lead.cost_usd || 0,
           doing: "Running npm test -- --watch=false",
           quiet: false,
         },
@@ -115,6 +133,11 @@ export function mockOverview(): Overview {
     sources: mockSources().map((s) => (historyOnly ? { ...s, live: false } : s)),
     top: historyOnly ? MOCK_WELCOME_FINDING : findings[0] || null,
     open: findings.length,
+    savings: homeSavings(historyOnly ? [MOCK_WELCOME_FINDING] : findings, {
+      history_only: historyOnly,
+      observed_spend: sessions.reduce((a, s) => a + (s.cost_usd || 0), 0),
+      window_days: Math.max(1, (hi - Math.min(...sessions.map((s) => s.start_ns))) / DAY),
+    }),
     recent,
     projects: historyOnly ? projectsInWindow(sessions, lo, hi) : [],
     history_only: historyOnly,
@@ -244,7 +267,7 @@ export function mockStatus(): Status {
     info: { version: "demo", db_path: "(in-browser demo data)", store_content: false, otlp_grpc: "127.0.0.1:4317", otlp_http: "127.0.0.1:4318", ui: "", service: "" },
     ask: { enabled: true, model: "canned answers" },
     counts: { Spans: (spansJson as Table).rows.length, SpanEvents: 169, Events: 549, MetricPoints: 764 },
-    running: 1,
+    running: welcome || historyFromHash() ? 0 : 1,
     sessions: sessions.length,
     findings: findings.length,
     apps: apps.length,

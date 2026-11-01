@@ -138,6 +138,7 @@ export type Finding = {
   last_ns?: number
   action?: string
   money_label?: string
+  monthly_usd?: number
 }
 
 export type Field = { key: string; kind: "num" | "str" }
@@ -250,6 +251,12 @@ export type WindowStats = {
   errors: number
 }
 
+export type ModelSpend = {
+  model: string
+  cost_usd: number
+  tokens?: number
+}
+
 export type DayPoint = {
   day: string
   start_ns: number
@@ -257,6 +264,7 @@ export type DayPoint = {
   turn_ms: number
   wait_ms: number
   turns: number
+  by_model?: ModelSpend[]
 }
 
 export type LiveLane = {
@@ -295,6 +303,15 @@ export type Overview = {
   sources: Source[]
   top: Finding | null
   open: number
+  savings?: {
+    total_monthly: number
+    observed_monthly?: number
+    headline: string
+    shown: Finding[]
+    folded: number
+    folded_monthly?: number
+    fold_kind?: "smaller" | "more"
+  }
   recent: Session[]
   projects?: HistoryProject[]
   history_only?: boolean
