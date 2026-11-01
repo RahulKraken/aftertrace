@@ -4,6 +4,7 @@
 
 **Home**
 - First-open Home ranks findings by estimated monthly savings, shows at most three, and folds anything under $1/month into a quiet "N smaller tweaks" line. The headline is "About $X/month you could save" (or a calm line when the total is tiny). The raw findings count is off that screen.
+- Savings never exceed actual spend over the same window, and a one-day finding is not multiplied into a month. If the honest total is under $1, Home stays with the lean line. A money headline always has cards under it.
 
 **Brand**
 - Settle mark replaces the three-bar logo: loud first spike, damped decay, calm line, amber dot. Separate small-size drawings, macOS 28×18 menu-bar glyph, platform app icons, favicon, README header. Source in `brand/`.

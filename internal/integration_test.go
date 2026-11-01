@@ -890,8 +890,18 @@ func TestOverviewHistoryOnly(t *testing.T) {
 	if sav == nil {
 		t.Fatal("history-only overview should include savings")
 	}
-	if _, ok := sav["headline"].(string); !ok {
+	headline, _ := sav["headline"].(string)
+	if headline == "" {
 		t.Fatal("savings.headline missing")
+	}
+	shown, _ := sav["shown"].([]any)
+	if strings.Contains(headline, "you could save") && len(shown) == 0 {
+		t.Fatalf("money headline %q with zero cards", headline)
+	}
+	total, _ := sav["total_monthly"].(float64)
+	obs, _ := sav["observed_monthly"].(float64)
+	if obs > 0 && total > obs+1e-6 {
+		t.Fatalf("savings %v exceed observed spend %v", total, obs)
 	}
 	cost, err := http.Get(srv.URL + "/api/cost?dim=model")
 	if err != nil {

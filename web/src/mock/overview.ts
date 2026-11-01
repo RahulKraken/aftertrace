@@ -116,7 +116,11 @@ export function mockOverview(): Overview {
     sources: mockSources().map((s) => (historyOnly ? { ...s, live: false } : s)),
     top: historyOnly ? MOCK_WELCOME_FINDING : findings[0] || null,
     open: findings.length,
-    savings: homeSavings(historyOnly ? [MOCK_WELCOME_FINDING] : findings, { history_only: historyOnly }),
+    savings: homeSavings(historyOnly ? [MOCK_WELCOME_FINDING] : findings, {
+      history_only: historyOnly,
+      observed_spend: sessions.reduce((a, s) => a + (s.cost_usd || 0), 0),
+      window_days: Math.max(1, (hi - Math.min(...sessions.map((s) => s.start_ns))) / DAY),
+    }),
     recent,
     projects: historyOnly ? projectsInWindow(sessions, lo, hi) : [],
     history_only: historyOnly,

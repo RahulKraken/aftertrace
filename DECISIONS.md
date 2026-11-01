@@ -2,9 +2,17 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 1 2026: Home savings are capped at observed spend and never invent days; reversible by reverting this commit
+
+**Choice.** Monthly savings on Home use a shared observation window (actual LLM spend and its first/last timestamp in the last month). Each finding is capped at the dollars it refers to — a one-day $0.02 cache drop stays $0.02, not ×30. The headline is the sum of shown cards plus folded, and that total cannot exceed observed spend over the same window (scaled down only when the window is longer than 30 days). If the honest total is under $1, Home says "Your setup looks lean. Here's what we saw this month." A money headline always has at least one card: top three even when every finding is sub-$1. "N smaller tweaks" is only for folded items that are truly under $1.
+
+**Why.** Ranking by each finding's own span turned 66 ~1¢ compaction findings into "$24/month" with zero cards, while this week's spend was 82¢. The number did not add up, and the proof was missing.
+
+**How to reverse.** Revert this commit. The $1 fold threshold and three-card cap stay.
+
 ## Nov 1 2026: Home ranks findings by monthly savings, shows top 3, folds sub-$1 ones; reversible by reverting this commit
 
-**Choice.** First-open Home leads with estimated monthly savings: rank USD findings by monthly dollars (scaled from each finding's span), show at most three cards at or above $1/month, fold the rest into one quiet line ("N smaller tweaks" or "N more") that links to Findings. Headline is "About $X/month you could save" summing shown and folded; if the total is under $1, a calm line instead ("Your setup looks lean. Here's what we saw this month."). No raw "N findings" count on Home.
+**Choice.** First-open Home leads with estimated monthly savings: rank USD findings by monthly dollars, show at most three cards at or above $1/month, fold the rest into one quiet line ("N smaller tweaks" or "N more") that links to Findings. Headline is "About $X/month you could save" summing shown and folded; if the total is under $1, a calm line instead ("Your setup looks lean. Here's what we saw this month."). No raw "N findings" count on Home.
 
 **Why.** Imported history produced a 2¢ hero and a "66 findings" badge. Count and recency are the wrong sort. The value is the money, including lots of small tweaks that only add up together.
 

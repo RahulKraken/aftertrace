@@ -421,7 +421,13 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		open++
 	}
 	monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
-	savings := rules.HomeSurfaceFrom(findings, monthAgo, historyOnly)
+	spend, windowDays := observeSpend(db, monthAgo, now)
+	savings := rules.HomeSurfaceFrom(findings, rules.HomeOpts{
+		SinceNS:       monthAgo,
+		HistoryOnly:   historyOnly,
+		ObservedSpend: spend,
+		WindowDays:    windowDays,
+	})
 	var top any
 	if len(savings.Shown) > 0 {
 		top = savings.Shown[0]
@@ -516,6 +522,25 @@ func sources(db *sql.DB, now int64) ([]source, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].LastNS > out[j].LastNS })
 	return out, rows.Err()
+}
+
+// observeSpend is the actual dollars and span of LLM cost in [lo, hi).
+// Home savings must not exceed this, scaled with the same window.
+func observeSpend(db *sql.DB, lo, hi int64) (spend, days float64) {
+	var cost sql.NullFloat64
+	var first, last sql.NullInt64
+	_ = db.QueryRow(`SELECT sum(cost_usd), min(start_ns), max(start_ns) FROM llm WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&cost, &first, &last)
+	spend = cost.Float64
+	if !first.Valid {
+		_ = db.QueryRow(`SELECT min(start_ns), max(end_ns) FROM turn_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&first, &last)
+	}
+	if first.Valid && last.Valid && last.Int64 >= first.Int64 {
+		days = float64(last.Int64-first.Int64) / 1e9 / 86400
+		if days < 1 {
+			days = 1
+		}
+	}
+	return spend, days
 }
 
 func (s *Server) getSources(w http.ResponseWriter, r *http.Request) {

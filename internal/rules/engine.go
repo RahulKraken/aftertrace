@@ -53,6 +53,9 @@ type Finding struct {
 	Action string `json:"action,omitempty"`
 	// MoneyLabel is "Saves about $N a month" or "Cost $X over …".
 	MoneyLabel string `json:"money_label,omitempty"`
+	// MonthlyUSD is the honest monthly estimate attached on Home cards.
+	// Omitted on /api/findings; Home fills it so the UI does not re-inflate.
+	MonthlyUSD float64 `json:"monthly_usd,omitempty"`
 }
 
 func Load() ([]Rule, error) {

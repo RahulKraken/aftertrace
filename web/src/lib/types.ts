@@ -138,6 +138,7 @@ export type Finding = {
   last_ns?: number
   action?: string
   money_label?: string
+  monthly_usd?: number
 }
 
 export type Field = { key: string; kind: "num" | "str" }
@@ -297,9 +298,11 @@ export type Overview = {
   open: number
   savings?: {
     total_monthly: number
+    observed_monthly?: number
     headline: string
     shown: Finding[]
     folded: number
+    folded_monthly?: number
     fold_kind?: "smaller" | "more"
   }
   recent: Session[]

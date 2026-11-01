@@ -365,7 +365,8 @@ function SavingsBlock({
 
 function SaveCard({ f }: { f: Finding }) {
   const action = f.action || actionSentence(f)
-  const money = cardMoney(monthlyUSD(f))
+  const monthly = typeof f.monthly_usd === "number" ? f.monthly_usd : monthlyUSD(f)
+  const money = cardMoney(monthly)
   return (
     <Link href={`/findings?focus=${f.id}`} className="card next-card">
       {money ? <div className="next-money">{money}</div> : null}

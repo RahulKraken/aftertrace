@@ -357,6 +357,7 @@ test("home: history-only", async ({ page }) => {
   await page.goto("/#/?history=1")
   await waitFonts(page)
   await expect(page.locator(".home-story")).toContainText("you could save")
+  await expect(page.locator(".next-card")).toHaveCount(1)
   await expect(page.locator(".home-week")).toContainText("Your agents worked")
   await expect(page.locator(".home-week")).toContainText("tokens")
   await expect(page.locator(".hero-mark")).toHaveCount(0)

@@ -87,19 +87,50 @@ export const HOME_MAX_SHOWN = 3
 
 export type HomeSavings = {
   total_monthly: number
+  observed_monthly: number
   headline: string
   shown: Finding[]
   folded: number
+  folded_monthly: number
   fold_kind?: "smaller" | "more"
+}
+
+export type HomeOpts = {
+  since_ns?: number
+  history_only?: boolean
+  observed_spend?: number
+  window_days?: number
 }
 
 const SEV: Record<string, number> = { high: 3, medium: 2, low: 1 }
 
-export function monthlyUSD(f: Finding): number {
+function monthFactor(days: number): number {
+  const d = days > 0 ? Math.max(days, 1) : 30
+  const f = 30 / d
+  return f > 1 ? 1 : f
+}
+
+function observationDays(fs: Finding[], fallback: number): number {
+  let minFirst = 0
+  let maxLast = 0
+  for (const f of fs) {
+    if (f.first_ns && (minFirst === 0 || f.first_ns < minFirst)) minFirst = f.first_ns
+    if (f.last_ns && f.last_ns > maxLast) maxLast = f.last_ns
+  }
+  if (minFirst > 0 && maxLast >= minFirst) {
+    const d = (maxLast - minFirst) / 86400e9
+    return d < 1 ? 1 : d
+  }
+  return fallback > 0 ? fallback : 30
+}
+
+export function monthlyUSD(f: Finding, windowDays?: number): number {
   if (f.severity === "error") return 0
   if (!f.impact_unit.startsWith("USD")) return 0
   if (!(f.impact_value > 0)) return 0
-  return (f.impact_value * 30) / spanDays(f.first_ns, f.last_ns)
+  const days = windowDays && windowDays > 0 ? windowDays : spanDays(f.first_ns, f.last_ns)
+  const m = f.impact_value * monthFactor(days)
+  return m > f.impact_value ? f.impact_value : m
 }
 
 export function homeHeadline(total: number): string {
@@ -112,14 +143,20 @@ export function cardMoney(monthly: number): string {
   return `~${sayUsd(monthly, true)}/month`
 }
 
-export function homeSavings(
-  fs: Finding[],
-  opts: { since_ns?: number; history_only?: boolean } = {},
-): HomeSavings {
-  const rows = fs
-    .filter((f) => homeEligible(f, opts))
-    .map((f) => ({ f, m: monthlyUSD(f) }))
+export function homeSavings(fs: Finding[], opts: HomeOpts = {}): HomeSavings {
+  const eligible = fs.filter((f) => homeEligible(f, opts))
+  const days = opts.window_days && opts.window_days > 0 ? opts.window_days : observationDays(eligible, 0)
+  const factor = monthFactor(days)
+  const obsMonthly = opts.observed_spend && opts.observed_spend > 0 ? opts.observed_spend * factor : 0
+  const rows = eligible
+    .map((f) => ({ f, m: monthlyUSD(f, days) }))
     .filter((r) => r.m > 0)
+  let total = rows.reduce((a, r) => a + r.m, 0)
+  if (obsMonthly > 0 && total > obsMonthly) {
+    const s = obsMonthly / total
+    for (const r of rows) r.m *= s
+    total = obsMonthly
+  }
   rows.sort((a, b) => {
     if (a.m !== b.m) return b.m - a.m
     const ds = (SEV[b.f.severity] || 0) - (SEV[a.f.severity] || 0)
@@ -127,23 +164,30 @@ export function homeSavings(
     if (a.f.rule_id !== b.f.rule_id) return a.f.rule_id < b.f.rule_id ? -1 : 1
     return a.f.id - b.f.id
   })
-  const total = rows.reduce((a, r) => a + r.m, 0)
+  const moneyHeadline = total >= HOME_MIN_MONTHLY
+  const above = rows.filter((r) => r.m >= HOME_MIN_MONTHLY).length
+  const fill = moneyHeadline && above === 0
   const shown: Finding[] = []
   let folded = 0
+  let foldedMonthly = 0
   let foldMore = false
   for (const r of rows) {
-    if (r.m >= HOME_MIN_MONTHLY && shown.length < HOME_MAX_SHOWN) {
-      shown.push(r.f)
+    const take = shown.length < HOME_MAX_SHOWN && (r.m >= HOME_MIN_MONTHLY || fill)
+    if (take) {
+      shown.push({ ...r.f, monthly_usd: r.m })
       continue
     }
     folded++
+    foldedMonthly += r.m
     if (r.m >= HOME_MIN_MONTHLY) foldMore = true
   }
   return {
     total_monthly: total,
+    observed_monthly: obsMonthly,
     headline: homeHeadline(total),
     shown,
     folded,
+    folded_monthly: foldedMonthly,
     fold_kind: folded ? (foldMore ? "more" : "smaller") : undefined,
   }
 }
