@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { ChevronRight, Settings } from "lucide-react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
-import { clock, remain, sayTok, usd } from "../lib/format"
+import { clock, remain, runCost, sayTok, usd } from "../lib/format"
 import { mondayReset, readBudget } from "../lib/budget"
 import { modelFamily, primaryModel, usageWindow } from "../lib/model"
 import { monthlyUSD, shortTitle } from "../lib/welcome"
@@ -144,9 +144,9 @@ export function TrayPopover({
             <div style={{ marginTop: 6, display: "flex", gap: 12 }}>
               {liveSession?.turns ? <span className="v4-tk"><b>{liveSession.turns}</b>×</span> : null}
               {liveSession?.tokens ? <span className="v4-tk"><b>{sayTok(liveSession.tokens)}</b> tok</span> : null}
-              <span className="v4-tk"><b>{usd(live.cost_usd)}</b></span>
+              <span className="v4-tk"><b>{usd(runCost(liveSession, live))}</b></span>
             </div>
-            <TraceLine values={[live.cost_usd || 0.1]} width={322} height={44} live sw={1.3} r={3} tail={0.3} />
+            <TraceLine values={[runCost(liveSession, live) || 0.1]} width={322} height={44} live sw={1.3} r={3} tail={0.3} />
           </div>
         )}
         {top && (

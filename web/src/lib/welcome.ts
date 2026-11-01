@@ -150,13 +150,13 @@ export function shortTitle(f: Finding): string {
     case "cache.drop_after_compaction":
       return "Cache after compaction"
     case "mcp.large_results":
-      return "Cap docs search"
+      return mcpTitle(f)
     case "model.switch_cache_rebuild":
       return "Stay on one model"
     case "tool.repeated_errors":
       return "Fix the failing tool"
     case "skill.cost":
-      return f.headline.replace(/^Skill\s+/i, "").replace(/\s+drove.+$/i, "") || f.rule_title || f.headline
+      return skillTitle(f)
     case "hook.overhead":
       return "Slow hook"
     case "permission.allow_rule_candidate":
@@ -164,6 +164,49 @@ export function shortTitle(f: Finding): string {
     default:
       return (f.rule_title || f.headline || "").replace(/\.$/, "")
   }
+}
+
+function skillSlug(f: Finding): string {
+  const m = (f.headline || "").match(/^Skill\s+(\S+)/i)
+  return m ? m[1] : ""
+}
+
+function findingModel(f: Finding): string {
+  const text = `${f.detail || ""} ${f.headline || ""}`
+  if (/opus/i.test(text)) return "Opus"
+  if (/sonnet/i.test(text)) return "Sonnet"
+  if (/haiku/i.test(text)) return "Haiku"
+  return ""
+}
+
+function titleCaseSlug(slug: string): string {
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => (w.toLowerCase() === "pdf" ? "PDF" : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ")
+}
+
+function skillTitle(f: Finding): string {
+  const slug = skillSlug(f)
+  const model = findingModel(f)
+  if (slug === "pdf-report") {
+    return model ? `Generate monthly PDF report on ${model}` : "Generate monthly PDF report"
+  }
+  const human = titleCaseSlug(slug) || f.rule_title || f.headline.replace(/\.$/, "")
+  return model ? `${human} on ${model}` : human
+}
+
+function mcpTitle(f: Finding): string {
+  const name = (f.headline || "").trim().split(/\s+/)[0] || ""
+  if (name.startsWith("mcp__")) {
+    const parts = name.split("__").slice(1)
+    const server = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : ""
+    const tool = parts.slice(1).join(" ")
+    if (server && tool) return `Cap ${server} ${tool}`
+    if (server) return `Cap ${server}`
+  }
+  return "Cap large MCP results"
 }
 
 export function homeSavings(fs: Finding[], opts: HomeOpts = {}): HomeSavings {

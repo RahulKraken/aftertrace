@@ -113,7 +113,7 @@ export function mockOverview(): Overview {
           start_ns: now - 252e9,
           last_ns: now - 3e9,
           spans: 38,
-          cost_usd: 0.41,
+          cost_usd: lead.cost_usd || 0,
           doing: "Running npm test -- --watch=false",
           quiet: false,
         },

@@ -200,8 +200,10 @@ type liveLane struct {
 }
 
 // liveLanes lists turns still in progress that received spans in the last
-// five minutes. "doing" is the most recent span; "quiet" means nothing new
-// for 90 seconds (the agent is thinking, running something long, or waiting).
+// five minutes. Cost is the session total (same number Sessions and Home
+// show), not the current turn. "doing" is the most recent span; "quiet"
+// means nothing new for 90 seconds (the agent is thinking, running
+// something long, or waiting).
 func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 	rows, err := db.Query(`SELECT trace_id, coalesce(session_id,''), start_ns, end_ns FROM turn_roots
 		WHERE in_progress AND end_ns > ? ORDER BY start_ns`, now-int64(5*time.Minute))
@@ -222,7 +224,11 @@ func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 		l := &lanes[i]
 		var cost sql.NullFloat64
 		_ = db.QueryRow(`SELECT count(*) FROM spans WHERE trace_id=?`, l.TraceID).Scan(&l.Spans)
-		_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, l.TraceID).Scan(&cost)
+		if l.SessionID != "" {
+			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE session_id=?`, l.SessionID).Scan(&cost)
+		} else {
+			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, l.TraceID).Scan(&cost)
+		}
 		l.CostUSD = cost.Float64
 		var name, attrs, res string
 		if err := db.QueryRow(`SELECT name, attrs::VARCHAR, coalesce(resource::VARCHAR,'{}') FROM spans WHERE trace_id=?

@@ -12,8 +12,9 @@ const vite = await createServer({
   appType: "custom",
 })
 
-const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts } = await vite.ssrLoadModule("/src/lib/format.ts")
+const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { labelDays } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
@@ -172,6 +173,56 @@ if (weekProjects.length < 2) {
 }
 
 eq(shortTitle(opus), "Sonnet for quick turns", "shortTitle opus")
+eq(
+  shortTitle({
+    ...opus,
+    rule_id: "skill.cost",
+    headline: "Skill pdf-report drove 30% of spend",
+    detail: "16 requests, 1 activations, $6.48 per activation. Mostly claude-opus-5 at effort max.",
+  }),
+  "Generate monthly PDF report on Opus",
+  "shortTitle skill pdf-report",
+)
+const mcpGet = {
+  ...opus,
+  rule_id: "mcp.large_results",
+  headline: "mcp__linear__get_issue returned 28,608 tokens over 2 calls",
+}
+const mcpList = {
+  ...opus,
+  rule_id: "mcp.large_results",
+  headline: "mcp__linear__list_issues returned 22,222 tokens over 1 calls",
+}
+eq(shortTitle(mcpGet), "Cap Linear get_issue", "shortTitle mcp get_issue")
+eq(shortTitle(mcpList), "Cap Linear list_issues", "shortTitle mcp list_issues")
+eq(shortTitle(mcpGet) === shortTitle(mcpList), false, "mcp titles unique")
+eq(
+  shortTitle({
+    ...opus,
+    rule_id: "permission.allow_rule_candidate",
+    headline: "6 permission prompts for Bash(npm test:*), all approved",
+  }).includes("permission prompts"),
+  true,
+  "permission keeps prompts",
+)
+
+eq(runCost({ cost_usd: 0.049875 }, { cost_usd: 0.41 }), 0.049875, "runCost prefers session")
+eq(runCost(null, { cost_usd: 0.41 }), 0.41, "runCost falls back to live")
+eq(runCost({ cost_usd: 0 }, { cost_usd: 0.41 }), 0, "runCost keeps a zero session")
+eq(runCost(undefined, undefined), 0, "runCost empty")
+
+const thirty = Array.from({ length: 30 }, (_, i) => ({ start_ns: (Date.UTC(2026, 8, 19) + i * 86400000) * 1e6 }))
+const ticks = labelDays(thirty)
+eq(ticks[0].i, 0, "labelDays keeps first")
+eq(ticks[ticks.length - 1].i, 29, "labelDays keeps last")
+for (let k = 1; k < ticks.length; k++) {
+  if (ticks[k].i - ticks[k - 1].i < 2) {
+    console.error(`fail labelDays collision: ${ticks[k - 1].i} then ${ticks[k].i}`)
+    failed++
+  }
+}
+eq(ticks.some((t) => t.i === 28) && ticks.some((t) => t.i === 29), false, "labelDays drops last-adjacent tick")
+
 eq(modelSlug("claude-opus-5"), "opus", "modelSlug opus")
 eq(modelSlug("claude-sonnet-5-5"), "sonnet", "modelSlug sonnet")
 eq(moneyParts(186.4).whole, "$186", "moneyParts whole")

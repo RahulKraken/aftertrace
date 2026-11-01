@@ -99,16 +99,29 @@
   color: var(--t1);
   background: var(--sunk);
   border: 1px solid var(--line);
+  flex: none;
+  align-self: center;
+  line-height: 1;
 }
 .v4-st i {
+  display: block;
+  flex: none;
   width: 6px;
   height: 6px;
+  min-width: 6px;
+  min-height: 6px;
+  max-width: 6px;
+  max-height: 6px;
   border-radius: 50%;
   background: var(--t1);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--t1) 14%, transparent);
+  animation: live-pulse 1.4s ease-in-out infinite;
 }
 .v4-st.done { color: var(--t2); }
-.v4-st.done i { background: var(--t3); box-shadow: none; }
+.v4-st.done i { background: var(--t3); box-shadow: none; animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .v4-st i { animation: none; }
+}
 
 .v4-meter .v4-trk {
   height: 6px;
@@ -237,17 +250,31 @@
   padding: 0;
 }
 .v4-li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.v4-li .v { font-weight: 500; }
+.v4-li .v { font-weight: 500; margin-left: auto; flex: none; }
+/* Beat leftover .next-card { display:block } from global.css so the label
+   sits left, the amount right, with a gap like Findings rows. */
+.v4 .v4-li.next-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border-radius: 0;
+  height: 42px;
+}
 
-/* Split list + pane */
+/* Split list + pane. Reset leftover .split (a 7×148px rounded bar). */
 .v4.split {
   padding: 0;
   width: 100%;
+  height: auto;
   display: flex;
   align-items: stretch;
-  min-height: calc(100vh - 0px);
+  min-height: 100%;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
 }
-.v4.split .v4-l { flex: 1; padding: 0 40px 24px; min-width: 0; overflow: auto; }
+.v4.split .v4-l { flex: 1; padding: 0 40px 24px; min-width: 0; overflow: auto; background: transparent; }
 .v4-pane {
   flex: none;
   border-left: 1px solid var(--line);
@@ -397,6 +424,7 @@
 }
 .v4-rr .c { font: 400 12px/1 var(--mono); color: var(--t2); text-align: right; }
 .v4-rr .v { text-align: right; font-weight: 500; }
+.v4-rr .w2 { display: inline-flex; align-items: center; min-width: 0; }
 .v4-rr.sel { background: var(--sel); box-shadow: inset 2px 0 0 var(--t1); }
 .v4-mq { width: 8px; height: 8px; border-radius: 2px; display: block; background: var(--t3); }
 .v4-mq.opus { background: var(--m-opus); }
@@ -539,6 +567,8 @@
   font-size: 13px;
 }
 .v4-ft kbd { font: 400 12px/1 var(--mono); color: var(--t3); margin-left: 8px; }
+.v4-pop .v4-meter .v4-rs { color: var(--t2); }
+.v4-pop .v4-meter .v4-rs b { color: var(--t1); }
 
 .brand .wordmark {
   font-family: var(--display);

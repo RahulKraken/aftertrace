@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
-import { clock, hm, remain, sayTok, usd } from "../lib/format"
+import { clock, hm, remain, runCost, sayTok, usd } from "../lib/format"
 import { mondayReset, readBudget } from "../lib/budget"
+import { labelDays } from "../lib/chart"
 import { modelFamily, modelSlug, primaryModel, usageWindow } from "../lib/model"
 import { cardMoney, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { DayPoint, LiveLane, ModelSpend, Overview, Session, Turn } from "../lib/types"
@@ -204,7 +205,12 @@ function HomeBody({
       </div>
 
       <div className="v4-g">
-        <NowCard live={live} session={liveSession} historyOnly={Boolean(ov.history_only)} />
+        <NowCard
+          live={live}
+          session={liveSession}
+          last={!live && ov.history_only ? sessions[0] : undefined}
+          historyOnly={Boolean(ov.history_only)}
+        />
         <SavableCard savings={savings} spend={observed || spend} />
       </div>
     </div>
@@ -247,12 +253,49 @@ function WindowCard({ win }: { win: NonNullable<ReturnType<typeof usageWindow>> 
   )
 }
 
-function NowCard({ live, session, historyOnly }: { live?: LiveLane; session?: Session; historyOnly: boolean }) {
+function NowCard({
+  live,
+  session,
+  last,
+  historyOnly,
+}: {
+  live?: LiveLane
+  session?: Session
+  last?: Session
+  historyOnly: boolean
+}) {
+  const sid = live?.session_id || last?.session_id
   const [turns, setTurns] = useState<Turn[]>([])
   useEffect(() => {
-    if (!live?.session_id) return
-    api.session(live.session_id).then((d) => setTurns(d.turns || [])).catch(() => setTurns([]))
-  }, [live?.session_id])
+    if (!sid) return
+    api.session(sid).then((d) => setTurns(d.turns || [])).catch(() => setTurns([]))
+  }, [sid])
+  if (!live && last) {
+    const model = primaryModel(last.models || turns.flatMap((t) => t.models || []))
+    const values = turns.length ? turns.map((t) => t.cost_usd || t.duration_ms || 0) : [last.cost_usd || 0.1]
+    return (
+      <section className="v4-card v4-now">
+        <div className="hd">
+          <span className="v4-st done"><i />Last session</span>
+          {model ? <ModelChip model={model} /> : null}
+          <span className="v4-when">{clock(last.start_ns)} → {clock(last.end_ns)}</span>
+        </div>
+        <Link href={`/session/${last.session_id}`} className="t">
+          {last.title || "Last session"}
+        </Link>
+        <div className="m">
+          <span className="v4-tk"><b>{last.turns}</b> turns</span>
+          {last.tokens ? <span className="v4-tk"><b>{sayTok(last.tokens)}</b> tok</span> : null}
+          <span className="v4-tk"><b>{usd(runCost(last))}</b></span>
+        </div>
+        <TraceLine values={values} width={700} height={112} sw={1.5} r={3.5} tail={0.3} />
+        <div className="ax">
+          <span>{clock(last.start_ns)}</span>
+          <span>{clock(last.end_ns)}</span>
+        </div>
+      </section>
+    )
+  }
   if (!live) {
     return (
       <section className="v4-card v4-now">
@@ -264,7 +307,8 @@ function NowCard({ live, session, historyOnly }: { live?: LiveLane; session?: Se
     )
   }
   const model = primaryModel(session?.models || turns.flatMap((t) => t.models || []))
-  const values = turns.length ? turns.map((t) => t.cost_usd || t.duration_ms || 0) : [live.cost_usd || 0.1]
+  const cost = runCost(session, live)
+  const values = turns.length ? turns.map((t) => t.cost_usd || t.duration_ms || 0) : [cost || 0.1]
   return (
     <section className="v4-card v4-now">
       <div className="hd">
@@ -278,7 +322,7 @@ function NowCard({ live, session, historyOnly }: { live?: LiveLane; session?: Se
       <div className="m">
         {session?.turns ? <span className="v4-tk"><b>{session.turns}</b> turns</span> : <span className="v4-tk"><b>{live.spans}</b> spans</span>}
         {session?.tokens ? <span className="v4-tk"><b>{sayTok(session.tokens)}</b> tok</span> : null}
-        <span className="v4-tk"><b>{usd(live.cost_usd || session?.cost_usd)}</b></span>
+        <span className="v4-tk"><b>{usd(cost)}</b></span>
       </div>
       <TraceLine values={values} width={700} height={112} live sw={1.5} r={3.5} tail={0.3} />
       <div className="ax">
@@ -536,19 +580,4 @@ function niceAxis(max: number, tokens: boolean): number[] {
   return out
 }
 
-function labelDays(days: DayPoint[]): { i: number; label: string }[] {
-  if (!days.length) return []
-  const step = Math.max(1, Math.floor((days.length - 1) / 4))
-  const out: { i: number; label: string }[] = []
-  for (let i = 0; i < days.length; i += step) {
-    const d = new Date(days[i].start_ns / 1e6)
-    out.push({ i, label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) })
-  }
-  const last = days.length - 1
-  if (out[out.length - 1]?.i !== last) {
-    const d = new Date(days[last].start_ns / 1e6)
-    out.push({ i: last, label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) })
-  }
-  return out
-}
 

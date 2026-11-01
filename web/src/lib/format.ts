@@ -37,6 +37,17 @@ export function usd(v: number | null | undefined): string {
   return `$${v.toFixed(3)}`
 }
 
+// A running session's cost is the session total everywhere (Home, Sessions,
+// tray, menu bar). Live-lane turn spend is only a fallback when no session row exists.
+export function runCost(
+  session?: { cost_usd?: number | null } | null,
+  live?: { cost_usd?: number | null } | null,
+): number {
+  if (session != null && typeof session.cost_usd === "number") return session.cost_usd
+  if (live != null && typeof live.cost_usd === "number") return live.cost_usd
+  return 0
+}
+
 export function tok(v: number | null | undefined): string {
   if (v == null) return "—"
   if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(2)}M`
