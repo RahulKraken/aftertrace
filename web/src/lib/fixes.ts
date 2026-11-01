@@ -96,6 +96,19 @@ export CLAUDE_CODE_RETRY_WATCHDOG=1`,
       },
     }
   }
+  if (f.rule_id === "model.opus_downgrade") {
+    const n = countFrom(f, /(\d+)-token/, 0) || countFrom(f, /(\d+) Opus/, 12)
+    return {
+      label: "Copy model setting",
+      snippet: `{ "model": "sonnet" }
+// Claude Code uses one model per session.
+// It cannot send only short turns to Sonnet.`,
+      win: {
+        figure: n || 12,
+        label: n === 1 ? "short Opus turn" : "short Opus turns",
+      },
+    }
+  }
   if (f.rule_id === "tool.repeated_errors") {
     const n = countFrom(f, /failed (\d+) times/, 6)
     return {

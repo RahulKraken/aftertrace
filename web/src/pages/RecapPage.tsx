@@ -1,21 +1,17 @@
 import { useEffect, useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Download, ImageIcon, FileText } from "lucide-react"
-import { ModelName, ToolName } from "../components/SpanIcon"
-import { Link } from "wouter"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { api } from "../lib/api"
-import { CAT_LABEL, CATS, delta, dur, int, pct, plural, sayDur, sayUsd, usd } from "../lib/format"
-import { readPlan } from "../lib/plan"
-import { receiptLines, receiptMarkdown, receiptPNG, weekLabel } from "../lib/receipt"
-import { useToast } from "../lib/toast"
-import type { Recap } from "../lib/types"
+import { usd } from "../lib/format"
+import { weekLabel } from "../lib/receipt"
+import type { Recap, Session } from "../lib/types"
+import { DailyBars } from "../components/v2/Charts"
+import { turnsFromSession } from "../components/Trace"
 
 export function RecapPage() {
   const [week, setWeek] = useState(0)
   const [r, setR] = useState<Recap | null>(null)
+  const [sessions, setSessions] = useState<Session[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const [showPrompts, setShowPrompts] = useState(false)
-  const plan = useMemo(() => readPlan(), [])
-  const toast = useToast()
 
   useEffect(() => {
     let alive = true
@@ -28,251 +24,134 @@ export function RecapPage() {
     }
   }, [week])
 
-  if (err && !r) return <div className="page">{err}</div>
-  if (!r) return <div className="page mute">Loading your week…</div>
-  const s = r.stats
-  const lines = receiptLines(r, plan, showPrompts)
-  const dark = document.documentElement.dataset.theme === "dark"
+  useEffect(() => {
+    api.sessions().then(setSessions).catch(() => undefined)
+  }, [])
 
-  const copyImage = async () => {
-    try {
-      const blob = await receiptPNG(lines, dark)
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
-      toast("Receipt copied as an image")
-    } catch {
-      toast("Copy failed. Use Download instead.")
+  const days = useMemo(() => {
+    if (!r) return { cur: [0, 0, 0, 0, 0, 0, 0], prev: [0, 0, 0, 0, 0, 0, 0] }
+    const span = r.hi - r.lo
+    const prevLo = r.lo - span
+    const cur = Array(7).fill(0) as number[]
+    const prev = Array(7).fill(0) as number[]
+    const bucket = (ns: number, lo: number) => Math.max(0, Math.min(6, Math.floor((ns - lo) / (span / 7))))
+    for (const s of sessions) {
+      if (s.start_ns >= r.lo && s.start_ns < r.hi) cur[bucket(s.start_ns, r.lo)] += s.cost_usd || 0
+      else if (s.start_ns >= prevLo && s.start_ns < r.lo) prev[bucket(s.start_ns, prevLo)] += s.cost_usd || 0
     }
-  }
-  const download = async () => {
-    const blob = await receiptPNG(lines, dark)
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(blob)
-    a.download = `aftertrace-week-${new Date(r.lo / 1e6).toISOString().slice(0, 10)}.png`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-  const copyMarkdown = async () => {
-    await navigator.clipboard.writeText(receiptMarkdown(r, plan, showPrompts))
-    toast("Recap copied as Markdown")
-  }
+    return { cur, prev }
+  }, [r, sessions])
+
+  if (err && !r) return <div className="v2">{err}</div>
+  if (!r) return <div className="v2 mute">…</div>
+
+  const s = r.stats
+  const delta = s.cost_usd - (r.prev.cost_usd || 0)
+  const calmer = delta < -0.05
+  const busier = delta > 0.05
+  const headline = !s.turns ? "A quiet week" : calmer ? "A calmer week" : busier ? "A busier week" : "A steady week"
+  const inWeek = sessions.filter((x) => x.start_ns >= r.lo && x.start_ns < r.hi)
+  const loudest = [...inWeek].sort((a, b) => (b.cost_usd || 0) - (a.cost_usd || 0))[0]
+  const loudTurns = loudest ? turnsFromSession(loudest.session_id, loudest.turns, loudest.cost_usd || 0) : []
+  const peak = loudTurns.reduce((a, n, i) => (n > (loudTurns[a] || 0) ? i : a), 0)
+  const cache = s.cache_hit
+  const cachePrev = r.prev.cache_hit
 
   return (
-    <div className="page recap">
-      <div className="recap-head">
-        <div>
-          <h1>Recap</h1>
-          <div className="sub">Your week with your agents. A report, not a dashboard.</div>
-        </div>
-        <div className="recap-nav">
-          <button type="button" className="icon-btn" disabled={!r.has_older} onClick={() => setWeek(week + 1)} aria-label="Previous week" title="Previous week">
-            <ChevronLeft size={15} />
-          </button>
-          <span className="num">{weekLabel(r)}</span>
-          <button type="button" className="icon-btn" disabled={week === 0} onClick={() => setWeek(week - 1)} aria-label="Next week" title="Next week">
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-
-      <div className="recap-grid">
-        <div className="recap-main">
-          <p className="recap-story">
-            <Story r={r} plan={plan?.monthly ? plan.monthly : 0} />
-          </p>
-
-          {r.busiest_day && r.busiest_day.lanes.length > 0 && (
-            <section className="home-sec">
-              <div className="sec-hd">
-                <h2>Your busiest day, in lanes</h2>
-                <span className="sec-sub">
-                  {new Date(r.busiest_day.day).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} ·{" "}
-                  {dur(r.busiest_day.turn_ms)} of agent time
-                </span>
-              </div>
-              <DayLanes day={r.busiest_day} showPrompts={showPrompts} />
-            </section>
-          )}
-
-          <section className="home-sec">
-            <div className="sec-hd">
-              <h2>Where the time went</h2>
+    <div className="v2 recap-v2">
+      <h1 className="hl recap-story">{headline}</h1>
+      <section className="r1">
+        <div className="rcard tot">
+          <div className="lbl" data-nc>
+            {weekLabel(r)}
+          </div>
+          <div className="big">{usd(s.cost_usd)}</div>
+          {r.prev.cost_usd > 0 ? <div className="was">{usd(r.prev.cost_usd)}</div> : null}
+          {Math.abs(delta) >= 0.05 ? (
+            <div className="delta" style={{ color: delta < 0 ? "var(--good)" : "var(--ink-2)" }}>
+              {delta < 0 ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14M6 13l6 6 6-6" />
+                </svg>
+              ) : null}
+              ${Math.abs(delta).toFixed(2)}
             </div>
-            <div className="card split-card">
-              <div className="phase split-bar">
-                {CATS.map((c) => (
-                  <i key={c} className={`c-${c}`} style={{ flex: s.breakdown[c] || 0 }} />
-                ))}
-              </div>
-              <div className="split-legend split-inline">
-                {CATS.filter((c) => (s.breakdown[c] || 0) > 0).map((c) => (
-                  <span key={c} className="split-chip">
-                    <i className={`c-${c} split-sw`} /> {CAT_LABEL[c]} <span className="num">{dur(s.breakdown[c] || 0)}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <div className="home-grid">
-            <section className="home-sec">
-              <div className="sec-hd">
-                <h2>Tools you leaned on</h2>
-              </div>
-              <Bars rows={r.tools.map((t) => ({ k: t.tool, label: <ToolName name={t.tool} />, v: t.calls, sub: `${dur(t.exec_ms)} running${t.wait_ms > 1000 ? ` · ${dur(t.wait_ms)} waiting` : ""}` }))} fmt={int} />
-            </section>
-            <section className="home-sec">
-              <div className="sec-hd">
-                <h2>Models</h2>
-              </div>
-              <Bars rows={r.models.map((m) => ({ k: m.model, label: <ModelName model={m.model} />, v: m.cost_usd, sub: `${int(m.requests)} requests` }))} fmt={usd} />
-            </section>
-          </div>
-
-          {r.apps.length > 0 && (
-            <section className="home-sec">
-              <div className="sec-hd">
-                <h2>Your apps</h2>
-                <Link href="/apps" className="sec-link">
-                  Apps
-                </Link>
-              </div>
-              <Bars rows={r.apps.map((a) => ({ k: a.service, v: a.cost_usd, sub: `${int(a.calls)} calls${a.failed ? ` · ${int(a.failed)} failed` : ""}` }))} fmt={usd} />
-            </section>
-          )}
-
-          <div className="home-grid">
-            {r.priciest && r.priciest.cost_usd > 0 && <TurnCard label="Priciest turn" t={r.priciest} value={usd(r.priciest.cost_usd)} showPrompts={showPrompts} />}
-            {r.longest && <TurnCard label="Longest turn" t={r.longest} value={dur(r.longest.duration_ms)} showPrompts={showPrompts} />}
-          </div>
-        </div>
-
-        <aside className="recap-side">
-          <div className="receipt" aria-label="Weekly receipt">
-            {lines.map((l, i) => (
-              <div key={i} className={`rl rl-${l.kind}`}>
-                {l.left && <span>{l.left}</span>}
-                {l.right && <span>{l.right}</span>}
-              </div>
-            ))}
-            <div className="receipt-edge" aria-hidden="true" />
-          </div>
-          <div className="receipt-actions">
-            <button type="button" className="btn" onClick={copyImage}>
-              <ImageIcon size={14} /> Copy image
+          ) : null}
+          <div className="wk-nav recap-nav">
+            <button type="button" className="iconbtn" disabled={!r.has_older} onClick={() => setWeek(week + 1)} aria-label="Previous week" title="Previous week">
+              <ChevronLeft size={15} />
             </button>
-            <button type="button" className="btn ghost" onClick={copyMarkdown}>
-              <FileText size={14} /> Markdown
-            </button>
-            <button type="button" className="btn ghost" onClick={download} aria-label="Download PNG" title="Download PNG">
-              <Download size={14} />
+            <button type="button" className="iconbtn" disabled={week === 0} onClick={() => setWeek(week - 1)} aria-label="Next week" title="Next week">
+              <ChevronRight size={15} />
             </button>
           </div>
-          <label className="opt">
-            <input type="checkbox" checked={showPrompts} onChange={(e) => setShowPrompts(e.target.checked)} />
-            <span>Show prompts (they can name private projects; off by default for sharing)</span>
-          </label>
-          {!plan?.monthly && (
-            <div className="note">
-              Set your plan in <Link href="/settings">Settings</Link> to see whether it paid for itself.
+        </div>
+        <div className="rcard">
+          <div className="leg">
+            <span>
+              <i style={{ background: "var(--ink)" }} />
+              This week
+            </span>
+            <span>
+              <i style={{ background: "var(--rule-2)" }} />
+              Last week
+            </span>
+          </div>
+          <DailyBars cur={days.cur} prev={days.prev} />
+        </div>
+      </section>
+      <section className="r2">
+        {loudest ? (
+          <div className="rcard">
+            <div className="lbl">Loudest</div>
+            <svg width="100%" height="120" viewBox="0 0 860 120" style={{ marginTop: 14 }}>
+              <LoudPath turns={loudTurns} peak={peak} />
+            </svg>
+            <div className="ttl2">
+              <span className="t">{loudest.title || loudest.repo || "Session"}</span>
+              <span className="a">{usd(loudest.cost_usd)}</span>
             </div>
-          )}
-        </aside>
-      </div>
+          </div>
+        ) : (
+          <div className="rcard">
+            <div className="lbl">Loudest</div>
+          </div>
+        )}
+        {cache != null ? (
+          <div className="rcard kv">
+            <div className="lbl">Cache</div>
+            <div className="v">{Math.round(cache * 100)}%</div>
+            {cachePrev != null && Math.abs(cachePrev - cache) >= 0.005 ? <div className="s">{Math.round(cachePrev * 100)}%</div> : null}
+          </div>
+        ) : null}
+      </section>
     </div>
   )
 }
 
-function Story({ r, plan }: { r: Recap; plan: number }) {
-  const s = r.stats
-  if (!s.turns) return <>No agent work this week. Pick an earlier week, or start a session.</>
-  const d = delta(s.turn_ms, r.prev.turn_ms)
-  const wait = s.breakdown.permission_wait || 0
+function LoudPath({ turns, peak }: { turns: number[]; peak: number }) {
+  const n = Math.max(turns.length, 2)
+  const max = Math.max(...turns, 0.01)
+  const pts = turns.map((v, i) => {
+    const x = 2 + (i / Math.max(n - 1, 1)) * 848
+    const y = 16 + (1 - v / max) * 88
+    return { x, y, v }
+  })
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
+  const pk = pts[peak] || pts[pts.length - 1]
+  const last = pts[pts.length - 1]
   return (
     <>
-      Your agents put in <b>{sayDur(s.turn_ms)}</b> across {int(s.sessions)} {s.sessions === 1 ? "session" : "sessions"} and {int(s.turns)} turns
-      {d != null && Number.isFinite(d) && Math.abs(d) >= 0.05 ? (
-        <>, {pct(Math.abs(d))} {d > 0 ? "more" : "less"} than the week before</>
-      ) : null}
-      . You waited on them for <b>{sayDur(wait)}</b>
-      {s.approvals ? <> over {int(s.approvals)} {s.approvals === 1 ? "approval" : "approvals"}</> : null}.
-      {s.lines_added ? (
+      <path d={d} fill="none" stroke="var(--ink)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+      {pk ? (
         <>
-          {" "}
-          They shipped <b>{int(s.lines_added)}</b> lines{s.commits ? <> in {plural(s.commits, "commit")}</> : null}
-          {s.pull_requests ? <> and {plural(s.pull_requests, "pull request")}</> : null}.
+          <circle cx={pk.x} cy={pk.y} r="5" fill="var(--amber)" />
+          <text className="tn" x={pk.x + 12} y={Math.min(118, pk.y + 16)} style={{ fontSize: 16, fill: "var(--amber-ink)" }}>
+            {usd(pk.v)}
+          </text>
         </>
-      ) : null}{" "}
-      At API prices the week was worth <b>{sayUsd(s.cost_usd, true)}</b>
-      {plan ? <>; your plan cost {sayUsd((plan * 7) / 30, true)} of it.</> : "."}
+      ) : null}
+      {last ? <circle cx={last.x} cy={last.y} r="4" fill="var(--amber)" /> : null}
     </>
-  )
-}
-
-function DayLanes({ day, showPrompts }: { day: NonNullable<Recap["busiest_day"]>; showPrompts: boolean }) {
-  const all = day.lanes.flatMap((l) => l.turns)
-  const lo = Math.min(...all.map((t) => t[0]))
-  const hi = Math.max(...all.map((t) => t[1]))
-  const span = Math.max(hi - lo, 1)
-  const hours: number[] = []
-  const h0 = new Date(lo / 1e6)
-  h0.setMinutes(0, 0, 0)
-  for (let t = h0.getTime() * 1e6; t <= hi; t += 3600e9) if (t >= lo) hours.push(t)
-  // Under two hour marks, label the first and last turn instead.
-  if (hours.length < 2) hours.splice(0, hours.length, lo, hi)
-  return (
-    <div className="card lanes-card">
-      <div className="dl-axis">
-        {hours.map((t) => (
-          <span key={t} style={{ left: `${((t - lo) / span) * 100}%` }}>
-            {new Date(t / 1e6).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        ))}
-      </div>
-      {day.lanes.map((l, i) => (
-        <div className="dl-row" key={l.session_id || i}>
-          <span className="dl-label">{showPrompts && l.title ? l.title : `Session ${i + 1}`}</span>
-          <span className="dl-track">
-            {l.turns.map(([a, b], j) => (
-              <i key={j} style={{ left: `${((a - lo) / span) * 100}%`, width: `max(3px, ${((b - a) / span) * 100}%)` }} />
-            ))}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Bars({ rows, fmt }: { rows: { k: string; label?: React.ReactNode; v: number; sub?: string }[]; fmt: (v: number) => string }) {
-  if (!rows.length) return <div className="quiet-line">Nothing this week.</div>
-  const max = Math.max(...rows.map((r) => r.v), 1e-9)
-  return (
-    <div className="card bars-card stagger">
-      {rows.map((r) => (
-        <div className="bar-row" key={r.k}>
-          <span className="bar-k">{r.label ?? r.k}</span>
-          <span className="bar-track">
-            <i style={{ width: `${(r.v / max) * 100}%` }} />
-          </span>
-          <span className="bar-v num">{fmt(r.v)}</span>
-          {r.sub && <span className="bar-sub mute">{r.sub}</span>}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TurnCard({ label, t, value, showPrompts }: { label: string; t: NonNullable<Recap["priciest"]>; value: string; showPrompts: boolean }) {
-  return (
-    <section className="home-sec">
-      <Link href={`/trace/${t.trace_id}`} className="card next-card">
-        <div className="stat-label">{label}</div>
-        <div className="next-num" style={{ marginTop: 6, display: "block" }}>
-          {value}
-        </div>
-        <div className="next-rec" style={{ marginTop: 8 }}>
-          {showPrompts && t.prompt ? `“${t.prompt}”` : `${dur(t.duration_ms)} · ${usd(t.cost_usd)}`}
-        </div>
-      </Link>
-    </section>
   )
 }

@@ -1,71 +1,35 @@
 import { useEffect, useRef, useState } from "react"
-import {
-  Boxes,
-  CircleDollarSign,
-  House,
-  Lightbulb,
-  Moon,
-  Plug,
-  Receipt,
-  Rows3,
-  Search,
-  Settings,
-  SquareTerminal,
-  Sun,
-  type LucideIcon,
-} from "lucide-react"
+import { Moon, Search, Settings, Sun } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
-import { ago } from "../lib/format"
 import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
 import type { Status } from "../lib/types"
-import { useNow } from "../hooks/useNow"
 import { CommandPalette } from "./CommandPalette"
 import { Logo } from "./Logo"
 
-type Item = { href: string; label: string; icon: LucideIcon; key: string; match?: (loc: string) => boolean }
+type Item = { href: string; label: string; key: string; match?: (loc: string) => boolean; count?: boolean }
 
-const TOP: Item = { href: "/", label: "Home", icon: House, key: "h", match: (l) => l === "/" }
-const GROUPS: { label: string; items: Item[] }[] = [
+const NAV: Item[] = [
+  { href: "/", label: "Home", key: "h", match: (l) => l === "/" },
+  { href: "/findings", label: "Findings", key: "f", count: true },
   {
-    label: "Observe",
-    items: [
-      {
-        href: "/sessions",
-        label: "Sessions",
-        icon: Rows3,
-        key: "s",
-        match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || (l.startsWith("/trace/") && !fromApps()),
-      },
-      { href: "/apps", label: "Apps", icon: Boxes, key: "a", match: (l) => l.startsWith("/apps") || (l.startsWith("/trace/") && fromApps()) },
-    ],
+    href: "/sessions",
+    label: "Sessions",
+    key: "s",
+    match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || l.startsWith("/apps") || l.startsWith("/trace/"),
   },
-  {
-    label: "Improve",
-    items: [
-      { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
-      { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
-    ],
-  },
-  {
-    label: "Explore",
-    items: [
-      { href: "/query", label: "Query", icon: SquareTerminal, key: "q" },
-      { href: "/recap", label: "Recap", icon: Receipt, key: "r" },
-    ],
-  },
+  { href: "/recap", label: "Recap", key: "r" },
 ]
-const BOTTOM: Item[] = [
-  { href: "/connect", label: "Connect", icon: Plug, key: "n" },
-  { href: "/settings", label: "Settings", icon: Settings, key: "," },
-]
-const ALL = [TOP, ...GROUPS.flatMap((g) => g.items), ...BOTTOM]
 
-// App pages open traces with ?app=1 so the sidebar keeps Apps selected.
-function fromApps(): boolean {
-  return /[?&]app=1/.test(window.location.hash) || /[?&]app=1/.test(window.location.search)
-}
+const JUMP: Item[] = [
+  ...NAV,
+  { href: "/sessions?src=apps", label: "Apps", key: "a" },
+  { href: "/recap", label: "Cost", key: "c" },
+  { href: "/settings?tab=query", label: "Query", key: "q" },
+  { href: "/settings?tab=sources", label: "Connect", key: "n" },
+  { href: "/settings", label: "Settings", key: "," },
+]
 
 export function Shell({
   children,
@@ -104,7 +68,7 @@ export function Shell({
       if (localStorage.getItem("aftertrace.welcome")) return
       if (!status.live_otel) {
         localStorage.setItem("aftertrace.welcome", status.history?.found ? "found" : "empty")
-        nav("/connect", { replace: true })
+        nav("/settings?tab=sources", { replace: true })
       } else {
         localStorage.setItem("aftertrace.welcome", "done")
       }
@@ -122,13 +86,12 @@ export function Shell({
       }
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return
-      // "g" then a letter jumps to a page, like Linear and GitHub.
       if (e.key === "g") {
         pendingG.current = Date.now()
         return
       }
       if (Date.now() - pendingG.current < 1200) {
-        const hit = ALL.find((i) => i.key === e.key)
+        const hit = JUMP.find((i) => i.key === e.key)
         pendingG.current = 0
         if (hit) {
           nav(hit.href)
@@ -140,101 +103,66 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey)
   }, [nav])
 
-  const counts: Record<string, React.ReactNode> = {
-    "/": status && status.running > 0 ? <span className="live-count" title={`${status.running} running`}>{status.running}</span> : null,
-    "/findings": status && status.findings > 0 ? <span className="side-count">{status.findings}</span> : null,
-    "/apps": status && status.apps > 0 ? <span className="side-count">{status.apps}</span> : null,
-  }
-
   return (
     <StatusContext.Provider value={status}>
       <div className="app">
-        <aside className="side" aria-label="Main">
-          <Link href="/" className="brand">
-            <Logo size={18} />
-            <span>aftertrace</span>
-            {mock && <span className="tag warn">demo</span>}
-          </Link>
-          <button type="button" className="side-search" onClick={() => setCmd(true)}>
-            <Search size={14} />
-            <span>Search</span>
-            <kbd>⌘K</kbd>
-          </button>
-          <nav className="side-nav">
-            <NavItem item={TOP} badge={counts["/"]} />
-            {GROUPS.map((g) => (
-              <div className="side-group" key={g.label}>
-                <div className="side-label">{g.label}</div>
-                {g.items.map((it) => (
-                  <NavItem key={it.href} item={it} badge={counts[it.href]} />
-                ))}
-              </div>
-            ))}
-          </nav>
-          <div className="side-foot">
-            {BOTTOM.map((it) => (
-              <NavItem key={it.href} item={it} badge={null} />
-            ))}
-            <div className="side-status">
-              <ReceivingLine status={status} />
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                title="Toggle theme"
-                onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
-              >
-                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-              </button>
-            </div>
+        <header className="top">
+          <div className="left">
+            <Link href="/" className="brand">
+              <Logo size={22} />
+              <b>Aftertrace</b>
+            </Link>
           </div>
-        </aside>
+          <nav className="nav" aria-label="Main">
+            {NAV.map((it) => {
+              const on = it.match ? it.match(loc) : loc === it.href || loc.startsWith(`${it.href}/`)
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={on ? "on side-item" : "side-item"}
+                  aria-current={on ? "page" : undefined}
+                  title={`${it.label} (g ${it.key})`}
+                >
+                  {it.label}
+                  {it.count && status && status.findings > 0 ? <span className="ct">{status.findings}</span> : null}
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="right">
+            <button type="button" className="search" onClick={() => setCmd(true)}>
+              <Search size={14} />
+              <span>Search</span>
+              <kbd>⌘K</kbd>
+            </button>
+            <button
+              type="button"
+              className="iconbtn"
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              title="Toggle theme"
+              onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <Link href="/settings" className="iconbtn" aria-label="Settings" title="Settings (g ,)">
+              <Settings size={16} />
+            </Link>
+          </div>
+        </header>
         <main className="main">
-          {import.meta.env.VITE_DEMO === "1" && (
-            <div className="demo-banner">
-              You are looking at synthetic demo data. <a href="../docs/install.html">Install Aftertrace</a> to see your own Claude Code, agents and apps.
-            </div>
-          )}
-          {/* Keyed by page, not by query: switching Story and Timeline is not a new page. */}
           <div key={pageKey(loc)} className="page-in">
             {children}
           </div>
         </main>
+        {mock ? (
+          <div className="sample-tag" data-nc>
+            Sample data
+          </div>
+        ) : null}
       </div>
       <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(theme === "dark" ? "light" : "dark")} />
     </StatusContext.Provider>
-  )
-}
-
-function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
-  const [loc] = useLocation()
-  const on = item.match ? item.match(loc) : loc === item.href || loc.startsWith(`${item.href}/`)
-  const Icon = item.icon
-  return (
-    <Link href={item.href} className={`side-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={`${item.label} (g ${item.key})`}>
-      <Icon size={15} strokeWidth={1.8} />
-      <span className="side-text">{item.label}</span>
-      {badge}
-    </Link>
-  )
-}
-
-// One line of feedback that data is flowing (Norman: feedback, visibility).
-function ReceivingLine({ status }: { status: Status | null }) {
-  const now = useNow(1000)
-  if (!status) return <span className="recv">Connecting…</span>
-  if (!status.last_ns) {
-    return (
-      <Link href="/connect" className="recv is-idle">
-        <i className="recv-dot" /> Waiting for data
-      </Link>
-    )
-  }
-  const fresh = now * 1e6 - status.last_ns < 5 * 60e9
-  return (
-    <span className={`recv${fresh ? " is-live" : ""}`} title="Last data received">
-      <i className="recv-dot" /> {fresh ? "Receiving" : "Last data"} · {ago(status.last_ns, now)}
-    </span>
   )
 }
 

@@ -383,7 +383,7 @@ export function Waterfall({
           <div className="crumbs">
             {isAppTrace(trace.service) ? (
               <>
-                <Link href="/apps">Apps</Link> ›{" "}
+                <Link href="/sessions?src=apps">Apps</Link> ›{" "}
                 <Link href={`/apps/${encodeURIComponent(trace.service || "")}`} className="mono">
                   {trace.service}
                 </Link>{" "}

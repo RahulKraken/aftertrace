@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**UI**
+- Visual-first redesign (v2): paper/ink/amber, Newsreader numbers, 4-item top bar, about 25 words per screen. Home is savable $/mo + treemap + three finding cards. Findings, Sessions and Recap lead with charts. Apps/Cost/Query/Connect redirect into Sessions, Recap and Settings. Tray popover is not in this change.
+
 **Home**
 - First-open Home ranks findings by estimated monthly savings, shows at most three, and folds anything under $1/month into a quiet "N smaller tweaks" line. The headline is "About $X/month you could save" (or a calm line when the total is tiny). The raw findings count is off that screen.
 - Savings never exceed actual spend over the same window, and a one-day finding is not multiplied into a month. If the honest total is under $1, Home stays with the lean line. A money headline always has cards under it.

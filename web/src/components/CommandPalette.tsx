@@ -3,6 +3,7 @@ import { Search } from "lucide-react"
 import { useLocation } from "wouter"
 import { api } from "../lib/api"
 import type { Finding, Session } from "../lib/types"
+import { shortTitle } from "../lib/welcome"
 
 type Item = { id: string; group: string; label: string; href?: string; run?: () => void; hint?: string }
 
@@ -12,32 +13,41 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
   const [i, setI] = useState(0)
   const [sessions, setSessions] = useState<Session[]>([])
   const [findings, setFindings] = useState<Finding[]>([])
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setQ("")
     setI(0)
-    api.sessions().then(setSessions).catch(() => undefined)
-    api.findings().then(setFindings).catch(() => undefined)
+    setReady(false)
+    let alive = true
+    Promise.all([api.sessions().catch(() => [] as Session[]), api.findings().catch(() => [] as Finding[])]).then(([s, f]) => {
+      if (!alive) return
+      setSessions(s)
+      setFindings(f)
+      setReady(true)
+    })
+    return () => {
+      alive = false
+    }
   }, [open])
 
   const items = useMemo(() => {
     const pages: Item[] = [
       { id: "p-h", group: "Pages", label: "Home", href: "/", hint: "g h" },
       { id: "p-s", group: "Pages", label: "Sessions", href: "/sessions", hint: "g s" },
-      { id: "p-a", group: "Pages", label: "Apps", href: "/apps", hint: "g a" },
+      { id: "p-a", group: "Pages", label: "Apps", href: "/sessions?src=apps", hint: "g a" },
       { id: "p-f", group: "Pages", label: "Findings", href: "/findings", hint: "g f" },
-      { id: "p-c", group: "Pages", label: "Cost", href: "/cost", hint: "g c" },
-      { id: "p-q", group: "Pages", label: "Query", href: "/query", hint: "g q" },
+      { id: "p-c", group: "Pages", label: "Cost", href: "/recap", hint: "g c" },
+      { id: "p-q", group: "Pages", label: "Query", href: "/settings?tab=query", hint: "g q" },
       { id: "p-r", group: "Pages", label: "Recap", href: "/recap", hint: "g r" },
-      { id: "p-n", group: "Pages", label: "Connect a source", href: "/connect", hint: "g n" },
+      { id: "p-n", group: "Pages", label: "Connect a source", href: "/settings?tab=sources", hint: "g n" },
       { id: "p-x", group: "Pages", label: "Settings", href: "/settings", hint: "g ," },
     ]
     const actions: Item[] = [
       { id: "a-theme", group: "Actions", label: "Toggle light and dark theme", run: onTheme },
-      { id: "a-ask", group: "Actions", label: "Ask a question about your data", href: "/query?tab=ask" },
+      { id: "a-ask", group: "Actions", label: "Ask a question about your data", href: "/settings?tab=query&view=ask" },
     ]
-    // Sessions are titled by their first prompt, so this searches what you asked for.
     const sess: Item[] = sessions.map((s) => ({
       id: `s-${s.session_id}`,
       group: "Sessions",
@@ -47,14 +57,17 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
     const fs: Item[] = findings.map((f) => ({
       id: `f-${f.id}`,
       group: "Findings",
-      label: f.headline,
-      href: f.evidence[0] ? `/trace/${f.evidence[0].trace_id}?span=${f.evidence[0].span_id}` : "/findings",
+      label: shortTitle(f),
+      href: `/findings?focus=${f.id}`,
     }))
     const all = [...pages, ...actions, ...sess, ...fs]
     const needle = q.toLowerCase().trim()
     if (!needle) return all.slice(0, 12)
-    return all.filter((x) => x.label.toLowerCase().includes(needle) || x.group.toLowerCase().includes(needle)).slice(0, 12)
-  }, [q, sessions, findings, onTheme])
+    if (!ready) return []
+    return all
+      .filter((x) => x.label.toLowerCase().includes(needle) || x.group.toLowerCase().includes(needle))
+      .slice(0, 12)
+  }, [q, sessions, findings, onTheme, ready])
 
   useEffect(() => {
     setI(0)
@@ -101,6 +114,13 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
             placeholder="Search pages, sessions by prompt, findings, actions"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && items[i]) {
+                e.preventDefault()
+                e.stopPropagation()
+                choose(items[i])
+              }
+            }}
           />
           <span className="kbd">esc</span>
         </div>

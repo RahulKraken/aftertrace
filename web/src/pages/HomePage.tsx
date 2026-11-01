@@ -1,35 +1,37 @@
-import { useEffect, useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { useEffect, useRef, useState } from "react"
 import { ArrowRight, Plug } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
-import { ago, CAT_LABEL, CATS, delta, dur, int, pct, plural, sayDur, sayTok, sayUsd, usd, when } from "../lib/format"
-import { planMultiple, readPlan } from "../lib/plan"
-import { actionSentence, cardMoney, monthlyUSD } from "../lib/welcome"
-import type { Breakdown, Finding, HistoryProject, LiveLane, Overview, WindowStats } from "../lib/types"
-import { MiniWaterfall } from "../components/MiniWaterfall"
-import { Sparkline } from "../components/Sparkline"
-import { Num } from "../components/Num"
-import { useNow } from "../hooks/useNow"
+import { copyText } from "../lib/copy"
+import { usd } from "../lib/format"
+import { fixFor } from "../lib/fixes"
+import { layoutTreemap, spendBlocks, type TmBlock } from "../lib/treemap"
+import { HOME_MIN_MONTHLY, monthlyUSD, shortTitle } from "../lib/welcome"
+import type { CostTable, Finding, Overview } from "../lib/types"
+import { FindingMini, WeekSpark } from "../components/v2/Charts"
 
 export function HomePage() {
   const [ov, setOv] = useState<Overview | null>(null)
+  const [model, setModel] = useState<CostTable | null>(null)
+  const [skill, setSkill] = useState<CostTable | null>(null)
+  const [mcp, setMcp] = useState<CostTable | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const live = Boolean(ov?.live.length)
 
   useEffect(() => {
     let alive = true
     const load = () =>
-      api
-        .overview()
-        .then((o) => {
+      Promise.all([api.overview(), api.cost("model"), api.cost("skill").catch(() => null), api.cost("mcp").catch(() => null)])
+        .then(([o, m, s, c]) => {
           if (!alive) return
           setOv(o)
+          setModel(m)
+          setSkill(s)
+          setMcp(c)
           setErr(null)
         })
         .catch((e: Error) => alive && setErr(e.message))
     load()
-    // Live lanes refresh fast while something runs; otherwise every 30s.
     const t = window.setInterval(load, live ? 4000 : 30000)
     return () => {
       alive = false
@@ -39,421 +41,188 @@ export function HomePage() {
 
   if (err && !ov) {
     return (
-      <div className="page">
+      <div className="v2">
         {err}
-        <div className="err-next">Check that aftertrace serve is still running, then reload.</div>
       </div>
     )
   }
   if (!ov) return <HomeSkeleton />
   if (!ov.has_data) return <FirstRun />
-  if (ov.history_only) return <HistoryHome ov={ov} />
 
-  const w = ov.week
+  const sav = ov.savings
+  const total = sav?.total_monthly || 0
+  const observed = sav?.observed_monthly || ov.week.cost_usd || 0
+  const shown = sav?.shown || []
+  const lean = total < HOME_MIN_MONTHLY
+  const items = spendBlocks(model, skill, mcp, shown)
+  const week = ov.days.slice(-7).map((d) => d.cost_usd)
+  const prev = ov.days.slice(-14, -7).map((d) => d.cost_usd)
+  const delta = ov.prev.cost_usd ? ov.week.cost_usd - ov.prev.cost_usd : 0
+
   return (
-    <div className="page home">
-      <div className={`home-head${live ? " is-live" : ""}`}>
-        <div className="home-date">
-          {ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}
-          {live && (
-            <span className="run-pill" title="Turns in progress">
-              {ov.live.length} running
-            </span>
-          )}
-        </div>
-        <h1 className="home-story">
-          <Story w={w} days={7} />
-        </h1>
-      </div>
-
-      <StatStrip ov={ov} />
-
-      <section className="home-sec">
-        <div className="sec-hd">
-          <h2>Live now</h2>
-          <span className="sec-sub">Turns in progress, updated every few seconds</span>
-        </div>
-        {ov.live.length ? (
-          <div className="lanes stagger">
-            {ov.live.map((l) => (
-              <Lane key={l.trace_id} lane={l} now={ov.now} />
-            ))}
+    <div className={`v2 home-v2${lean ? " is-lean" : ""}`}>
+      <section className="r1">
+        <div className="hero">
+          <div className="lbl">
+            <span className="dot" />
+            Savable
           </div>
-        ) : (
-          <div className="quiet-line">Nothing running. When an agent starts a turn it shows up here within seconds.</div>
-        )}
-      </section>
-
-      <div className="home-grid">
-        <SavingsBlock savings={ov.savings} asTitle="h2" />
-        <section className="home-sec">
-          <div className="sec-hd">
-            <h2>Where the time went</h2>
-            <span className="sec-sub">{dur(w.turn_ms)} of agent time</span>
-          </div>
-          <TimeSplit bd={w.breakdown} />
-        </section>
-      </div>
-
-      <section className="home-sec">
-        <div className="sec-hd">
-          <h2>Recent sessions</h2>
-          <Link href="/sessions" className="sec-link">
-            All sessions <ArrowRight size={13} />
-          </Link>
-        </div>
-        <RecentList ov={ov} />
-      </section>
-
-      <section className="home-sec">
-        <div className="sec-hd">
-          <h2>Sources</h2>
-          <Link href="/connect" className="sec-link">
-            Connect a source <ArrowRight size={13} />
-          </Link>
-        </div>
-        <div className="src-chips">
-          {ov.sources.map((s) => (
-            <span key={s.name} className={`src-chip${s.live ? " is-live" : ""}`} title={`${int(s.spans)} spans, ${int(s.events)} events, ${int(s.metrics)} metric points`}>
-              <i className="recv-dot" />
-              <span>{s.name}</span>
-              <span className="mute">{s.kind === "app" ? "app" : "Claude Code"} · {ago(s.last_ns)}</span>
-            </span>
-          ))}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-// One sentence, in English, with the most important fact emphasised
-// (design.md: story first). Fun numbers only with a baseline.
-function Story({ w, days }: { w: WindowStats; days: number }) {
-  if (!w.turns) return <>No agent work this week yet. Your next session will show up here.</>
-  const wait = w.breakdown.permission_wait || 0
-  const plan = readPlan()
-  const mult = planMultiple(plan, w.cost_usd, days)
-  return (
-    <>
-      Your agents worked <b><Num value={w.turn_ms} format={sayDur} /></b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
-      {w.cost_usd > 0 && (
-        <>
-          {" "}for <b><Num value={w.cost_usd} format={(n) => sayUsd(n, true)} /></b>
-        </>
-      )}
-      .{" "}
-      {wait / Math.max(w.turn_ms, 1) >= 0.08 ? (
-        <>
-          <span className="hl-wait"><Num value={wait} format={sayDur} /></span> of that was waiting on you.
-        </>
-      ) : w.lines_added > 0 ? (
-        <>
-          They wrote <b><Num value={w.lines_added} format={(n) => int(Math.round(n))} /></b> lines{w.commits > 0 && <> and made {plural(w.commits, "commit")}</>}.
-        </>
-      ) : (
-        <>You waited on them for only {sayDur(wait)}.</>
-      )}
-      {mult != null && mult >= 1 && (
-        <>
-          {" "}Your plan paid for itself <b>{mult.toFixed(1)}×</b>.
-        </>
-      )}
-    </>
-  )
-}
-
-function HistoryStory({ w }: { w: WindowStats }) {
-  if (!w.turns) return <>No agent work this week yet. Your next session will show up here.</>
-  return (
-    <>
-      Your agents worked <b>{sayDur(w.turn_ms)}</b> across {w.sessions} {w.sessions === 1 ? "session" : "sessions"}
-      {w.cost_usd > 0 ? <> for <b>{sayUsd(w.cost_usd, true)}</b></> : null}
-      . They used <b>{sayTok(w.tokens)}</b> tokens.
-    </>
-  )
-}
-
-function HistoryHome({ ov }: { ov: Overview }) {
-  const w = ov.week
-  const projects = ov.projects || []
-  const headline = ov.savings?.headline || "Your setup looks lean. Here's what we saw this month."
-  return (
-    <div className="page home is-history">
-      <div className="home-head">
-        <h1 className="home-story">{headline}</h1>
-      </div>
-
-      <SavingsBlock savings={ov.savings} asTitle={null} />
-
-      <p className="home-week">
-        <span className="home-date">{ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}</span>
-        <span className="home-week-story">
-          <HistoryStory w={w} />
-        </span>
-      </p>
-
-      {projects.length > 0 && (
-        <section className="home-sec">
-          <div className="sec-hd">
-            <h2>Cost by project</h2>
-            <Link href="/cost" className="sec-link">
-              Cost <ArrowRight size={13} />
-            </Link>
-          </div>
-          <ProjectList projects={projects} total={w.cost_usd} />
-        </section>
-      )}
-
-      <section className="home-sec">
-        <div className="sec-hd">
-          <h2>Recent sessions</h2>
-          <Link href="/sessions" className="sec-link">
-            All sessions <ArrowRight size={13} />
-          </Link>
-        </div>
-        <RecentList ov={ov} />
-      </section>
-
-      <p className="quiet-line home-invite">
-        Turn on live tracing to see waiting-on-you and retries as they happen.{" "}
-        <Link href="/connect">Connect</Link>
-      </p>
-    </div>
-  )
-}
-
-function ProjectList({ projects, total }: { projects: HistoryProject[]; total: number }) {
-  const tot = total || projects.reduce((a, p) => a + (p.cost_usd || 0), 0) || 1
-  return (
-    <div className="card list-card">
-      {projects.map((p) => (
-        <div className="list-row proj-row" key={p.name}>
-          <span className="list-title">{p.name}</span>
-          <span className="num mute">{p.sessions} {p.sessions === 1 ? "session" : "sessions"}</span>
-          <span className="num">{usd(p.cost_usd)}</span>
-          <span className="num mute">{pct(p.cost_usd / tot)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function StatStrip({ ov }: { ov: Overview }) {
-  const w = ov.week
-  const p = ov.prev
-  const days = ov.days.slice(-7)
-  const labels = days.map((x) => x.day)
-  const stats: { label: string; n: number | null; fmt: (n: number) => string; d: number | null; goodDown?: boolean; spark?: number[]; tone?: "ink" | "wait" | "model"; sub?: string }[] = [
-    { label: "Agent time", n: w.turn_ms, fmt: dur, d: delta(w.turn_ms, p.turn_ms), spark: days.map((x) => x.turn_ms), tone: "model" },
-    {
-      label: "Waiting on you",
-      n: w.breakdown.permission_wait || 0,
-      fmt: dur,
-      d: delta(w.breakdown.permission_wait || 0, p.breakdown.permission_wait || 0),
-      goodDown: true,
-      spark: days.map((x) => x.wait_ms),
-      tone: "wait",
-      sub: w.approvals ? `${int(w.approvals)} ${w.approvals === 1 ? "approval" : "approvals"}` : undefined,
-    },
-    { label: "API value", n: w.cost_usd, fmt: usd, d: delta(w.cost_usd, p.cost_usd), goodDown: true, spark: days.map((x) => x.cost_usd), sub: `${int(w.requests)} requests` },
-    {
-      label: "Shipped",
-      n: w.lines_added || null,
-      fmt: (n) => `+${int(Math.round(n))}`,
-      d: delta(w.lines_added, p.lines_added),
-      sub: [w.commits ? plural(w.commits, "commit") : "", w.pull_requests ? plural(w.pull_requests, "PR") : ""].filter(Boolean).join(" · ") || "lines added",
-    },
-    { label: "Cache hit", n: w.cache_hit, fmt: pct, d: null, sub: `${int(w.tokens / 1e6)}M tokens` },
-  ]
-  return (
-    <div className="stat-strip stagger">
-      {stats.map((s) => (
-        <div className="stat" key={s.label}>
-          <div className="stat-label">{s.label}</div>
-          <div className="stat-row">
-            <span className="stat-val">{s.n == null ? "—" : <Num value={s.n} format={s.fmt} />}</span>
-            {s.spark && <Sparkline values={s.spark} labels={labels} format={s.fmt} tone={s.tone} />}
-          </div>
-          <div className="stat-foot">
-            {s.d != null && Number.isFinite(s.d) && Math.abs(s.d) >= 0.01 ? (
-              <span className={`stat-d ${(s.d < 0) === Boolean(s.goodDown) ? "good" : "bad"}`}>
-                {s.d > 0 ? "↑" : "↓"} {pct(Math.abs(s.d))}
+          <h1 className="home-story huge">
+            {hugeUsd(total)}
+            <small>/mo</small>
+          </h1>
+          <div className="of">
+            <span className="vchip" style={{ background: "transparent", padding: 0, color: "var(--ink-3)" }}>
+              <span data-nc>of</span>&nbsp;
+              <span className="n" style={{ fontSize: 20, color: "var(--ink-2)" }}>
+                {usd(observed || ov.week.cost_usd)}
               </span>
+            </span>
+            {sav && sav.folded > 0 ? (
+              <Link href="/findings" className="vchip">
+                +{sav.folded} more&nbsp;
+                <span className="n" style={{ fontSize: 15 }}>
+                  {usd(sav.folded_monthly || 0)}
+                </span>
+              </Link>
             ) : null}
-            {s.sub && <span className="mute">{s.sub}</span>}
           </div>
         </div>
+        <Treemap items={items} />
+      </section>
+
+      {!lean && (
+        <section className="r2">
+          {shown.map((f) => (
+            <FindCard key={f.id} f={f} />
+          ))}
+          <article className="vcard wk">
+            <div className="lbl">This week</div>
+            <div className="viz">
+              <WeekSpark cur={week} prev={prev} />
+            </div>
+            <div className="row2" style={{ marginTop: 10 }}>
+              <div className="amt">{usd(ov.week.cost_usd)}</div>
+              {Math.abs(delta) >= 0.01 ? (
+                <span className="n" style={{ color: delta < 0 ? "var(--good)" : "var(--ink-3)", fontSize: 17 }}>
+                  {delta < 0 ? "−" : "+"}${Math.abs(delta).toFixed(2)}
+                </span>
+              ) : null}
+            </div>
+          </article>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function hugeUsd(n: number): string {
+  if (!(n > 0)) return "$0"
+  if (n < 1) return `$${n.toFixed(2)}`
+  return `$${Math.round(n)}`
+}
+
+function Treemap({ items }: { items: ReturnType<typeof spendBlocks> }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 720, h: 360 })
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth || 720, h: el.clientHeight || 360 }))
+    ro.observe(el)
+    setSize({ w: el.clientWidth || 720, h: el.clientHeight || 360 })
+    return () => ro.disconnect()
+  }, [])
+  const blocks = layoutTreemap(items, size.w, size.h)
+  return (
+    <div className="tm" ref={ref} style={{ height: 360 }}>
+      {blocks.map((b, i) => (
+        <TmCell key={b.id} b={b} dark={i === 0} />
       ))}
     </div>
   )
 }
 
-function Lane({ lane, now }: { lane: LiveLane; now: number }) {
+function TmCell({ b, dark }: { b: TmBlock; dark: boolean }) {
+  const frac = b.spend > 0 ? Math.min(1, b.save / b.spend) : 0
+  const loud = frac >= 0.45
+  const small = b.h < 90 || b.w < 110
+  return (
+    <div
+      className={`b${dark ? " dk" : ""}`}
+      style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+      title={`${b.label} ${usd(b.spend)}${b.save > 0 ? ` · savable ${usd(b.save)}` : ""}`}
+    >
+      {frac > 0.02 ? <div className="s" style={{ height: `${frac * 100}%` }} /> : null}
+      <span className={`l${loud ? " oa" : ""}`}>{b.label}</span>
+      <span className={`v${loud ? " oa" : ""}`} style={small ? { fontSize: 17, top: "auto", bottom: 8 } : undefined}>
+        {usd(b.spend)}
+      </span>
+      {b.save > 0.005 ? <span className="sv">{usd(b.save)}</span> : null}
+    </div>
+  )
+}
+
+function FindCard({ f }: { f: Finding }) {
   const [, nav] = useLocation()
-  // Server and browser share a clock (both on this machine), so elapsed ticks
-  // locally between polls and the lane feels alive.
-  const clock = useNow(1000)
-  void now
-  const elapsed = (clock * 1e6 - lane.start_ns) / 1e6
-  return (
-    <button type="button" className={`lane${lane.quiet ? " is-quiet" : ""}`} onClick={() => nav(`/trace/${lane.trace_id}`)}>
-      <i className="lane-dot" />
-      <span className="lane-main">
-        <span className="lane-title">{lane.title || `Session ${lane.session_id.slice(0, 8)}`}</span>
-        {/* Each new step slides in under the last, so you can watch the agent move. */}
-        <span className="lane-doing-wrap">
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.span
-              key={lane.quiet ? "quiet" : lane.doing}
-              className="lane-doing"
-              initial={{ opacity: 0, transform: "translateY(8px)" }}
-              animate={{ opacity: 1, transform: "translateY(0px)", transition: { duration: 0.32, ease: [0.23, 1, 0.32, 1] } }}
-              exit={{ opacity: 0, transform: "translateY(-8px)", transition: { duration: 0.18, ease: [0.23, 1, 0.32, 1] } }}
-            >
-              {lane.quiet ? `Quiet for ${ago(lane.last_ns, clock).replace(" ago", "")} · last: ${lane.doing}` : lane.doing}
-            </motion.span>
-          </AnimatePresence>
-        </span>
-      </span>
-      <span className="lane-meta num">
-        <span>{dur(Math.max(elapsed, 0))}</span>
-        <span className="mute">
-          <Num value={lane.spans} format={(n) => `${int(Math.round(n))} spans`} />
-        </span>
-        <span>
-          <Num value={lane.cost_usd} format={usd} />
-        </span>
-      </span>
-      <ArrowRight size={14} className="lane-go" />
-    </button>
-  )
-}
-
-function SavingsBlock({
-  savings,
-  asTitle,
-}: {
-  savings?: Overview["savings"]
-  asTitle: "h2" | null
-}) {
-  if (!savings) return null
-  const shown = savings.shown || []
-  const fold = savings.folded || 0
-  if (!shown.length && !fold && asTitle === "h2" && savings.total_monthly < 1) return null
-  const foldLabel =
-    savings.fold_kind === "more"
-      ? `${fold} more`
-      : `${fold} ${fold === 1 ? "smaller tweak" : "smaller tweaks"}`
-  return (
-    <section className="home-sec home-save">
-      {asTitle === "h2" && savings.headline ? <h2 className="home-save-title">{savings.headline}</h2> : null}
-      {shown.length > 0 && (
-        <div className="save-cards">
-          {shown.map((f) => (
-            <SaveCard key={f.id} f={f} />
-          ))}
-        </div>
-      )}
-      {fold > 0 && (
-        <Link href="/findings" className="fold-line">
-          {foldLabel} <ArrowRight size={13} />
-        </Link>
-      )}
-    </section>
-  )
-}
-
-function SaveCard({ f }: { f: Finding }) {
-  const action = f.action || actionSentence(f)
+  const fx = fixFor(f)
   const monthly = typeof f.monthly_usd === "number" ? f.monthly_usd : monthlyUSD(f)
-  const money = cardMoney(monthly)
+  const copyFix = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!fx) {
+      nav(`/findings?focus=${f.id}`)
+      return
+    }
+    await copyText(fx.snippet)
+    nav(`/findings?focus=${f.id}`)
+  }
   return (
-    <Link href={`/findings?focus=${f.id}`} className="card next-card">
-      {money ? <div className="next-money">{money}</div> : null}
-      <div className="next-head">{action}</div>
+    <Link href={`/findings?focus=${f.id}`} className="vcard next-card">
+      <div className="viz">
+        <FindingMini f={f} />
+      </div>
+      <div className="ttl">{shortTitle(f)}</div>
+      <div className="row2">
+        <div className="amt">
+          {usd(monthly)}
+          <small>/mo</small>
+        </div>
+        {fx ? (
+          <button type="button" className="btn primary fix-btn" onClick={copyFix}>
+            <CopyIcon />
+            Fix
+          </button>
+        ) : (
+          <span className="btn ico" aria-hidden="true">
+            <ArrowRight size={15} />
+          </span>
+        )}
+      </div>
     </Link>
   )
 }
 
-function TimeSplit({ bd }: { bd: Breakdown }) {
-  // Pointing at a category lights its share of the bar and dims the rest (mapping).
-  const [focus, setFocus] = useState<string | null>(null)
-  const tot = CATS.reduce((a, c) => a + (bd[c] || 0), 0) || 1
-  const shown = CATS.filter((c) => (bd[c] || 0) / tot >= 0.005)
+function CopyIcon() {
   return (
-    <div className={`card split-card${focus ? " has-focus" : ""}`} onMouseLeave={() => setFocus(null)}>
-      <div className="phase split-bar grow-bars">
-        {CATS.map((c, i) => (
-          <i
-            key={c}
-            className={`c-${c}${focus === c ? " is-focus" : ""}`}
-            style={{ flex: bd[c] || 0, ["--i" as string]: i }}
-            title={`${CAT_LABEL[c]} ${dur(bd[c] || 0)}`}
-            onMouseEnter={() => setFocus(c)}
-          />
-        ))}
-      </div>
-      <div className="split-legend">
-        {shown.map((c) => (
-          <div key={c} className={`split-row${focus === c ? " is-focus" : ""}`} onMouseEnter={() => setFocus(c)}>
-            <i className={`c-${c} split-sw`} />
-            <span>{CAT_LABEL[c]}</span>
-            <span className="num">
-              <Num value={bd[c] || 0} format={dur} />
-            </span>
-            <span className="num mute">{pct((bd[c] || 0) / tot)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function RecentList({ ov }: { ov: Overview }) {
-  const [, nav] = useLocation()
-  if (!ov.recent.length) return <div className="quiet-line">No sessions yet.</div>
-  return (
-    <div className="card list-card stagger">
-      {ov.recent.map((s) => {
-        const t = when(s.start_ns)
-        return (
-          <button type="button" key={s.session_id} className="list-row" onClick={() => nav(`/session/${s.session_id}`)}>
-            <MiniWaterfall bd={s.breakdown} turns={s.turns} />
-            <span className="list-title">
-              {s.title || s.repo || <span className="mono mute">{s.session_id.slice(0, 8)}</span>}
-              {s.running && <span className="run-pill">running</span>}
-            </span>
-            <span className="num mute">
-              {t.date} {t.time}
-            </span>
-            <span className="num mute">{s.turns} turns</span>
-            <span className="num">{dur(s.turn_ms)}</span>
-            <span className="num">{usd(s.cost_usd)}</span>
-          </button>
-        )
-      })}
-    </div>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </svg>
   )
 }
 
 function FirstRun() {
   return (
-    <div className="page">
+    <div className="v2">
       <div className="first-run">
         <div className="fr-mark">
           <Plug size={18} />
         </div>
         <h1>No sessions yet</h1>
-        <p>
-          No Claude Code history on this machine, and nothing on the wire. Connect Claude Code and your first turn shows up here
-          within seconds.
-        </p>
-        <Link href="/connect" className="btn">
-          Connect Claude Code <ArrowRight size={14} />
+        <Link href="/settings?tab=sources" className="btn primary">
+          Connect <ArrowRight size={14} />
         </Link>
-        <div className="mute fr-alt">
-          Just looking? Run <code>aftertrace demo</code> to load seven synthetic sessions.
-        </div>
       </div>
     </div>
   )
@@ -461,17 +230,18 @@ function FirstRun() {
 
 function HomeSkeleton() {
   return (
-    <div className="page home" aria-busy="true">
-      <div className="sk sk-line" style={{ width: 120 }} />
-      <div className="sk sk-title" />
-      <div className="stat-strip">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div className="stat" key={i}>
-            <div className="sk sk-line" style={{ width: 70 }} />
-            <div className="sk sk-num" />
+    <div className="v2 home-v2" aria-busy="true">
+      <section className="r1">
+        <div className="hero">
+          <div className="lbl">
+            <span className="dot" />
+            Savable
           </div>
-        ))}
-      </div>
+          <div className="huge home-story">
+            $0<small>/mo</small>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 1 2026: visual-first redesign (v2): paper/ink/amber, serif numbers, 4-item top bar, about 25 words per screen; reversible by reverting the commit
+
+**Choice.** Replace the sidebar UI with the v2 visual-first screens: paper/ink/amber tokens, Newsreader for numbers, Inter for labels, a 4-item top bar (Home, Findings, Sessions, Recap). About 25 visible words per screen excluding numbers and nav; details live in hover and click. Home is a huge savable $/mo, a spend treemap with a lighter amber tint on savable slices, three finding cards and a this-week sparkline. Findings is a chart grid plus a detail view that leads with evidence. Sessions is a week timeline of traces. Recap is chart-led. Old routes redirect: Apps is a Sessions filter, Cost goes to Recap, Query and Connect sit under Settings. Tray popover is not in this PR. All dollars still come from the engine; savings never exceed spend.
+
+**Why.** v1 Home was 127 words. The product should answer with a picture first.
+
+**How to reverse.** Revert this commit. Tokens, fonts and the top bar go with it.
+
 ## Nov 1 2026: Home savings are capped at observed spend and never invent days; reversible by reverting this commit
 
 **Choice.** Monthly savings on Home use a shared observation window (actual LLM spend and its first/last timestamp in the last month). Each finding is capped at the dollars it refers to — a one-day $0.02 cache drop stays $0.02, not ×30. The headline is the sum of shown cards plus folded, and that total cannot exceed observed spend over the same window (scaled down only when the window is longer than 30 days). If the honest total is under $1, Home says "Your setup looks lean. Here's what we saw this month." A money headline always has at least one card: top three even when every finding is sub-$1. "N smaller tweaks" is only for folded items that are truly under $1.

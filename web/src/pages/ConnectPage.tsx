@@ -570,7 +570,7 @@ function Verify({ src }: { src: SourceDef }) {
           Receiving from <b>{fresh.name}</b>, {ago(fresh.last_ns, now)}. <Num value={fresh.spans} format={(n) => int(Math.round(n))} /> spans,{" "}
           <Num value={fresh.events} format={(n) => int(Math.round(n))} /> events so far.
         </span>
-        <Link href={fresh.kind === "app" ? "/apps" : "/"} className="sec-link">
+        <Link href={fresh.kind === "app" ? "/sessions?src=apps" : "/"} className="sec-link">
           Open it <ArrowRight size={13} />
         </Link>
       </div>

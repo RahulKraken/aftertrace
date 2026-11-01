@@ -12,6 +12,7 @@ test("delight demo under 30s", async ({ page }) => {
   })
 
   await page.goto("/#/findings")
+  await page.locator(".tile.frow.quiet").filter({ hasText: "npm test" }).click()
   const hero = page.locator(".frow.hero")
   await expect(hero).toBeVisible()
   await page.waitForTimeout(600)
@@ -39,8 +40,9 @@ test("delight demo under 30s", async ({ page }) => {
   await page.waitForTimeout(400)
 
   await page.goto("/#/findings")
+  await page.locator(".tile.frow.quiet").filter({ hasText: "npm test" }).click()
   await expect(page.locator(".frow.hero .fix-btn")).toBeVisible()
-  await expect(page.locator(".frow.hero")).toContainText("permission prompts")
+  await expect(page.locator(".frow.hero")).toContainText("npm test")
   await page.locator(".frow.hero .fix-btn").click()
   await expect(page.locator(".win-stage")).toBeVisible()
   await expect(page.locator(".win-figure")).toHaveText("6")
