@@ -2,7 +2,7 @@
 
 const fs = require("fs")
 const path = require("path")
-const { Tray, Menu, nativeImage } = require("electron")
+const { Tray, Menu, nativeImage, nativeTheme } = require("electron")
 const { formatGlance, readGlance } = require("./glance")
 const { UI_ORIGIN } = require("./allowlist")
 
@@ -23,13 +23,32 @@ function iconPath(name) {
   return candidates[candidates.length - 1]
 }
 
+function loadPng(name) {
+  const p = iconPath(name)
+  const img = nativeImage.createFromPath(p)
+  const retinaName = name.replace(/\.png$/, "@2x.png")
+  if (retinaName !== name) {
+    const retina = iconPath(retinaName)
+    if (retina && fs.existsSync(retina) && retina !== p) {
+      img.addRepresentation({ scaleFactor: 2, path: retina })
+    }
+  }
+  return img
+}
+
 function trayImage() {
   if (process.platform === "darwin") {
-    const img = nativeImage.createFromPath(iconPath("trayTemplate.png"))
+    const img = loadPng("trayTemplate.png")
     img.setTemplateImage(true)
     return img
   }
-  return nativeImage.createFromPath(iconPath("tray.png"))
+  // Template images do not exist off macOS. Use a square glyph and invert
+  // to cream on dark trays so the mark stays visible.
+  const dark = Boolean(nativeTheme.shouldUseDarkColors)
+  if (process.platform === "linux") {
+    return loadPng(dark ? "tray-22-light.png" : "tray-22.png")
+  }
+  return loadPng(dark ? "tray-16-light.png" : "tray-16.png")
 }
 
 function buildMenu({ glance, openAtLogin, onOpen, onToggleLogin, onCheckUpdates, onQuit }) {
@@ -48,6 +67,11 @@ function createTray(handlers) {
   const tray = new Tray(trayImage())
   tray.setToolTip("Aftertrace")
   let glance = "Open Aftertrace"
+
+  const applyIcon = () => {
+    tray.setImage(trayImage())
+  }
+  nativeTheme.on("updated", applyIcon)
 
   const refresh = async () => {
     const data = await readGlance(UI_ORIGIN)

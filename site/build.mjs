@@ -25,6 +25,8 @@ mkdirSync(out, { recursive: true })
 cpSync(join(here, "public"), out, { recursive: true })
 cpSync(join(root, "install.sh"), join(out, "install.sh"))
 cpSync(join(root, "web/public/favicon.svg"), join(out, "favicon.svg"))
+if (existsSync(join(root, "web/public/favicon.ico"))) cpSync(join(root, "web/public/favicon.ico"), join(out, "favicon.ico"))
+if (existsSync(join(root, "web/public/apple-touch-icon.png"))) cpSync(join(root, "web/public/apple-touch-icon.png"), join(out, "apple-touch-icon.png"))
 mkdirSync(join(out, "assets/fonts"), { recursive: true })
 for (const f of readdirSync(join(root, "web/src/fonts"))) if (f.endsWith(".woff2")) cpSync(join(root, "web/src/fonts", f), join(out, "assets/fonts", f))
 mkdirSync(join(out, "assets/shots"), { recursive: true })
@@ -93,6 +95,8 @@ function page({ title, body, current, depth }) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${title} · Aftertrace docs</title>
 <link rel="icon" type="image/svg+xml" href="${up}favicon.svg" />
+<link rel="icon" href="${up}favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="${up}apple-touch-icon.png" />
 <link rel="stylesheet" href="${up}styles.css" />
 </head>
 <body class="docs-body">
@@ -107,7 +111,7 @@ function page({ title, body, current, depth }) {
 </html>`
 }
 
-const LOGO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="13" height="4" rx="2" fill="currentColor"/><rect x="7" y="10" width="15" height="4" rx="2" fill="currentColor" opacity="0.55"/><rect x="12" y="16" width="8" height="4" rx="2" fill="#e29a2e"/></svg>`
+const LOGO = `<svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8 L5 4 L7 12 L8.5 8 L10.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11.4" cy="8" r="1.8" fill="#E29A2E"/></svg>`
 
 marked.setOptions({ gfm: true })
 for (const [, items] of NAV) {

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 1 2026: new logo — Settle mark (loud first spike, long damped decay, calm line, amber dot), ink #1F1D1A / cream #EFEAE2 / amber #E29A2E, separate small-size drawings, wide 28x18 menu-bar template glyph. Reversible: restore old Logo.tsx/favicon from git history.
+
+**Choice.** Replace the three-bar waterfall mark with the Settle mark everywhere: app icons (icns / ico / hicolor + SVG), macOS template tray glyph, web favicon and `Logo.tsx`, README header, and the website. Source drawings and rebuild scripts live in `brand/`.
+
+**Why.** The old bars read as a generic stacked-chart icon. Settle is a single damped trace that settles on an amber dot — the same story as the product (a loud start, a decay, a calm line). Small sizes are separate drawings, not scaled masters, so 16px and the menu bar stay legible.
+
+**How to reverse.** Restore `web/src/components/Logo.tsx`, `web/public/favicon.svg`, `desktop/resources/`, `site/build.mjs` `LOGO`, and the README header from git history. Drop `brand/` and `docs/brand/` if the kit is not needed.
+
 ## Electron as the desktop shell (2026-10-31)
 
 **Choice.** Ship a thin Electron app in `desktop/` that starts the existing Go engine as a supervised sidecar, loads the existing React UI from `http://127.0.0.1:7311`, and lives in the menu bar / tray. Packaging is electron-builder (Mac dmg+zip, Windows nsis, Linux AppImage+deb) with electron-updater against GitHub Releases.

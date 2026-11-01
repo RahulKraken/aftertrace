@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/mark-cream.svg">
+  <img alt="Aftertrace mark: a loud first spike, a long damped decay, a calm line and an amber dot" src="docs/brand/mark-ink.svg" width="280">
+</picture>
+
 # Aftertrace
 
 **The flight recorder for your AI work.** See what Claude Code, your agents and the apps you build with LLMs actually did: how long you waited, what it cost, and the one change worth making next.

@@ -47,8 +47,16 @@ main {
   padding: 36px 32px 28px;
   box-shadow: var(--shadow);
 }
-.mark { display: block; color: var(--plate); margin-bottom: 20px; }
-.mark .plate { fill: var(--plate); }
+.mark { display: block; margin-bottom: 20px; }
+.mark-plate { fill: #EFEAE2; }
+.mark-hair { fill: none; stroke: #D6CEC1; stroke-width: 1; }
+.mark-trace { fill: none; stroke: #1F1D1A; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mark-dot { fill: #E29A2E; }
+@media (prefers-color-scheme: dark) {
+  .mark-plate { fill: #1F1D1A; }
+  .mark-hair { stroke: #3A3631; }
+  .mark-trace { stroke: #EFEAE2; }
+}
 h1 {
   margin: 0 0 8px;
   font-size: 26px;

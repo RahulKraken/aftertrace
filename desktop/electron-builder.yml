@@ -49,7 +49,7 @@ artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
 
 mac:
   category: public.app-category.developer-tools
-  icon: resources/icon.png
+  icon: resources/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: resources/entitlements.mac.plist
@@ -73,7 +73,7 @@ dmg:
   title: Aftertrace
 
 win:
-  icon: resources/icon.png
+  icon: resources/icon.ico
   target:
     - nsis
   artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
@@ -89,7 +89,8 @@ nsis:
 linux:
   executableName: Aftertrace
   maintainer: Aftertrace contributors <aftertrace@users.noreply.github.com>
-  icon: resources/icon.png
+  # Sized PNGs (16–512, 512 is the main) plus scalable SVG.
+  icon: resources/linux-icons
   category: Utility
   synopsis: Time, cost and usage for your AI work
   description: Aftertrace shows where your AI work goes — time, cost, and the one change worth making next. Everything stays on this machine.

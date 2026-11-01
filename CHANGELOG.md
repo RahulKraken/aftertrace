@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Brand**
+- Settle mark replaces the three-bar logo: loud first spike, damped decay, calm line, amber dot. Separate small-size drawings, macOS 28×18 menu-bar glyph, platform app icons, favicon, README header. Source in `brand/`.
+
 **Desktop**
 - Electron app in `desktop/`: menu-bar / tray shell that starts the Go engine as a sidecar, loads the existing UI from http://127.0.0.1:7311, and packs Mac (dmg+zip), Windows (nsis) and Linux (AppImage+deb). Start at login is opt-in. Unsigned preview builds come from the Desktop GitHub Actions workflow.
 
