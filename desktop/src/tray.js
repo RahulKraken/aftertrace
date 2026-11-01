@@ -42,12 +42,14 @@ function trayImage() {
     img.setTemplateImage(true)
     return img
   }
-  // Template images do not exist off macOS. Use a square glyph and invert
-  // to cream on dark trays so the mark stays visible.
-  const dark = Boolean(nativeTheme.shouldUseDarkColors)
+  // Template images do not exist off macOS. Linux status trays are almost
+  // always dark (GNOME/KDE/XFCE), and nativeTheme often follows the GTK
+  // window theme rather than the panel, so always use the cream 22px glyph.
+  // Windows taskbars follow the app color scheme.
   if (process.platform === "linux") {
-    return loadPng(dark ? "tray-22-light.png" : "tray-22.png")
+    return loadPng("tray-22-light.png")
   }
+  const dark = Boolean(nativeTheme.shouldUseDarkColors)
   return loadPng(dark ? "tray-16-light.png" : "tray-16.png")
 }
 
