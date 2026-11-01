@@ -1,4 +1,5 @@
 import type { Breakdown, DayPoint, Finding, HistoryProject, HistorySummary, LiveLane, Overview, Source, Status, WindowStats } from "../lib/types"
+import { homeSavings } from "../lib/welcome"
 import { apps, findings, sessions } from "./load"
 import llmJson from "./fixtures/tables/llm.json"
 import spansJson from "./fixtures/tables/spans.json"
@@ -115,6 +116,7 @@ export function mockOverview(): Overview {
     sources: mockSources().map((s) => (historyOnly ? { ...s, live: false } : s)),
     top: historyOnly ? MOCK_WELCOME_FINDING : findings[0] || null,
     open: findings.length,
+    savings: homeSavings(historyOnly ? [MOCK_WELCOME_FINDING] : findings, { history_only: historyOnly }),
     recent,
     projects: historyOnly ? projectsInWindow(sessions, lo, hi) : [],
     history_only: historyOnly,

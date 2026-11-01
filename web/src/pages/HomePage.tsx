@@ -5,7 +5,7 @@ import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
 import { ago, CAT_LABEL, CATS, delta, dur, int, pct, plural, sayDur, sayTok, sayUsd, usd, when } from "../lib/format"
 import { planMultiple, readPlan } from "../lib/plan"
-import { actionSentence, moneyLabel } from "../lib/welcome"
+import { actionSentence, cardMoney, monthlyUSD } from "../lib/welcome"
 import type { Breakdown, Finding, HistoryProject, LiveLane, Overview, WindowStats } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
 import { Sparkline } from "../components/Sparkline"
@@ -85,17 +85,7 @@ export function HomePage() {
       </section>
 
       <div className="home-grid">
-        <section className="home-sec">
-          <div className="sec-hd">
-            <h2>Do this next</h2>
-            {ov.open > 1 && (
-              <Link href="/findings" className="sec-link">
-                {ov.open} findings <ArrowRight size={13} />
-              </Link>
-            )}
-          </div>
-          {ov.top ? <NextFinding f={ov.top} /> : <div className="card quiet-card">No findings yet. Rules run on every refresh as data arrives.</div>}
-        </section>
+        <SavingsBlock savings={ov.savings} asTitle="h2" />
         <section className="home-sec">
           <div className="sec-hd">
             <h2>Where the time went</h2>
@@ -186,26 +176,21 @@ function HistoryStory({ w }: { w: WindowStats }) {
 function HistoryHome({ ov }: { ov: Overview }) {
   const w = ov.week
   const projects = ov.projects || []
+  const headline = ov.savings?.headline || "Your setup looks lean. Here's what we saw this month."
   return (
     <div className="page home is-history">
       <div className="home-head">
-        <div className="home-date">{ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}</div>
-        <h1 className="home-story">
-          <HistoryStory w={w} />
-        </h1>
+        <h1 className="home-story">{headline}</h1>
       </div>
 
-      <section className="home-sec">
-        <div className="sec-hd">
-          <h2>Do this next</h2>
-          {ov.open > 1 && (
-            <Link href="/findings" className="sec-link">
-              {ov.open} findings <ArrowRight size={13} />
-            </Link>
-          )}
-        </div>
-        {ov.top ? <NextFinding f={ov.top} /> : <div className="card quiet-card">Nothing worth changing in last month&apos;s history.</div>}
-      </section>
+      <SavingsBlock savings={ov.savings} asTitle={null} />
+
+      <p className="home-week">
+        <span className="home-date">{ov.anchored ? `Week ending ${when(ov.hi).date}` : "This week"}</span>
+        <span className="home-week-story">
+          <HistoryStory w={w} />
+        </span>
+      </p>
 
       {projects.length > 0 && (
         <section className="home-sec">
@@ -344,17 +329,47 @@ function Lane({ lane, now }: { lane: LiveLane; now: number }) {
   )
 }
 
-function NextFinding({ f }: { f: Finding }) {
+function SavingsBlock({
+  savings,
+  asTitle,
+}: {
+  savings?: Overview["savings"]
+  asTitle: "h2" | null
+}) {
+  if (!savings) return null
+  const shown = savings.shown || []
+  const fold = savings.folded || 0
+  if (!shown.length && !fold && asTitle === "h2" && savings.total_monthly < 1) return null
+  const foldLabel =
+    savings.fold_kind === "more"
+      ? `${fold} more`
+      : `${fold} ${fold === 1 ? "smaller tweak" : "smaller tweaks"}`
+  return (
+    <section className="home-sec home-save">
+      {asTitle === "h2" && savings.headline ? <h2 className="home-save-title">{savings.headline}</h2> : null}
+      {shown.length > 0 && (
+        <div className="save-cards">
+          {shown.map((f) => (
+            <SaveCard key={f.id} f={f} />
+          ))}
+        </div>
+      )}
+      {fold > 0 && (
+        <Link href="/findings" className="fold-line">
+          {foldLabel} <ArrowRight size={13} />
+        </Link>
+      )}
+    </section>
+  )
+}
+
+function SaveCard({ f }: { f: Finding }) {
   const action = f.action || actionSentence(f)
-  const save = f.money_label || moneyLabel(f, "")
+  const money = cardMoney(monthlyUSD(f))
   return (
     <Link href={`/findings?focus=${f.id}`} className="card next-card">
+      {money ? <div className="next-money">{money}</div> : null}
       <div className="next-head">{action}</div>
-      {save ? <div className="next-save">{save}</div> : null}
-      {f.estimated ? <div className="est-label next-est">estimated from session files</div> : null}
-      <span className="sec-link">
-        See the fix <ArrowRight size={13} />
-      </span>
     </Link>
   )
 }

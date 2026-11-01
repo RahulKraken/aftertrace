@@ -81,3 +81,77 @@ function spanDays(first?: number, last?: number): number {
 function usdAbout(v: number, whole: boolean): string {
   return sayUsd(v, whole)
 }
+
+export const HOME_MIN_MONTHLY = 1
+export const HOME_MAX_SHOWN = 3
+
+export type HomeSavings = {
+  total_monthly: number
+  headline: string
+  shown: Finding[]
+  folded: number
+  fold_kind?: "smaller" | "more"
+}
+
+const SEV: Record<string, number> = { high: 3, medium: 2, low: 1 }
+
+export function monthlyUSD(f: Finding): number {
+  if (f.severity === "error") return 0
+  if (!f.impact_unit.startsWith("USD")) return 0
+  if (!(f.impact_value > 0)) return 0
+  return (f.impact_value * 30) / spanDays(f.first_ns, f.last_ns)
+}
+
+export function homeHeadline(total: number): string {
+  if (total < HOME_MIN_MONTHLY) return "Your setup looks lean. Here's what we saw this month."
+  return `About ${sayUsd(total, true)}/month you could save`
+}
+
+export function cardMoney(monthly: number): string {
+  if (!(monthly > 0)) return ""
+  return `~${sayUsd(monthly, true)}/month`
+}
+
+export function homeSavings(
+  fs: Finding[],
+  opts: { since_ns?: number; history_only?: boolean } = {},
+): HomeSavings {
+  const rows = fs
+    .filter((f) => homeEligible(f, opts))
+    .map((f) => ({ f, m: monthlyUSD(f) }))
+    .filter((r) => r.m > 0)
+  rows.sort((a, b) => {
+    if (a.m !== b.m) return b.m - a.m
+    const ds = (SEV[b.f.severity] || 0) - (SEV[a.f.severity] || 0)
+    if (ds) return ds
+    if (a.f.rule_id !== b.f.rule_id) return a.f.rule_id < b.f.rule_id ? -1 : 1
+    return a.f.id - b.f.id
+  })
+  const total = rows.reduce((a, r) => a + r.m, 0)
+  const shown: Finding[] = []
+  let folded = 0
+  let foldMore = false
+  for (const r of rows) {
+    if (r.m >= HOME_MIN_MONTHLY && shown.length < HOME_MAX_SHOWN) {
+      shown.push(r.f)
+      continue
+    }
+    folded++
+    if (r.m >= HOME_MIN_MONTHLY) foldMore = true
+  }
+  return {
+    total_monthly: total,
+    headline: homeHeadline(total),
+    shown,
+    folded,
+    fold_kind: folded ? (foldMore ? "more" : "smaller") : undefined,
+  }
+}
+
+function homeEligible(f: Finding, opts: { since_ns?: number; history_only?: boolean }): boolean {
+  if (f.severity === "error") return false
+  if (!f.impact_unit.startsWith("USD")) return false
+  if (opts.history_only && !f.estimated) return false
+  if (opts.since_ns && f.last_ns && f.last_ns < opts.since_ns) return false
+  return true
+}

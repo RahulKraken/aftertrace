@@ -295,6 +295,13 @@ export type Overview = {
   sources: Source[]
   top: Finding | null
   open: number
+  savings?: {
+    total_monthly: number
+    headline: string
+    shown: Finding[]
+    folded: number
+    fold_kind?: "smaller" | "more"
+  }
   recent: Session[]
   projects?: HistoryProject[]
   history_only?: boolean

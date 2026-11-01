@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 1 2026: Home ranks findings by monthly savings, shows top 3, folds sub-$1 ones; reversible by reverting this commit
+
+**Choice.** First-open Home leads with estimated monthly savings: rank USD findings by monthly dollars (scaled from each finding's span), show at most three cards at or above $1/month, fold the rest into one quiet line ("N smaller tweaks" or "N more") that links to Findings. Headline is "About $X/month you could save" summing shown and folded; if the total is under $1, a calm line instead ("Your setup looks lean. Here's what we saw this month."). No raw "N findings" count on Home.
+
+**Why.** Imported history produced a 2¢ hero and a "66 findings" badge. Count and recency are the wrong sort. The value is the money, including lots of small tweaks that only add up together.
+
+**How to reverse.** Revert this commit. Findings themselves and the Findings page stay as they are.
+
 ## Nov 1 2026: new logo — Settle mark (loud first spike, long damped decay, calm line, amber dot), ink #1F1D1A / cream #EFEAE2 / amber #E29A2E, separate small-size drawings, wide 28x18 menu-bar template glyph. Reversible: restore old Logo.tsx/favicon from git history.
 
 **Choice.** Replace the three-bar waterfall mark with the Settle mark everywhere: app icons (icns / ico / hicolor + SVG), macOS template tray glyph, web favicon and `Logo.tsx`, README header, and the website. Source drawings and rebuild scripts live in `brand/`.

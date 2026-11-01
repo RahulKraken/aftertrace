@@ -886,6 +886,13 @@ func TestOverviewHistoryOnly(t *testing.T) {
 	if math.Abs(projSum-weekCost) > 1e-6 {
 		t.Fatalf("project rows sum to %v, headline week spend is %v", projSum, weekCost)
 	}
+	sav, _ := ov["savings"].(map[string]any)
+	if sav == nil {
+		t.Fatal("history-only overview should include savings")
+	}
+	if _, ok := sav["headline"].(string); !ok {
+		t.Fatal("savings.headline missing")
+	}
 	cost, err := http.Get(srv.URL + "/api/cost?dim=model")
 	if err != nil {
 		t.Fatal(err)

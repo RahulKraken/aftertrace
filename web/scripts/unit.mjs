@@ -13,7 +13,7 @@ const vite = await createServer({
 })
 
 const { dur, tok, usd, sayDur, sayUsd, sayTok } = await vite.ssrLoadModule("/src/lib/format.ts")
-const { actionSentence, moneyLabel } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
@@ -61,6 +61,54 @@ const opus = {
 eq(actionSentence(opus), "Use Sonnet for quick replies in aftertrace.", "actionSentence opus")
 eq(moneyLabel(opus, ""), "Saves about $12 a month", "moneyLabel $12")
 eq(moneyLabel({ ...opus, impact_value: 0.41 }, ""), "Saves about 41¢ a month", "moneyLabel 41¢")
+
+const month = 30 * 86400e9
+eq(monthlyUSD(opus), 12.4, "monthlyUSD full month")
+eq(Math.round(monthlyUSD({ ...opus, last_ns: 1 + month / 2 }) * 10) / 10, 24.8, "monthlyUSD half month")
+eq(homeHeadline(0), "Your setup looks lean. Here's what we saw this month.", "headline zero")
+eq(homeHeadline(0.41), "Your setup looks lean. Here's what we saw this month.", "headline tiny")
+eq(homeHeadline(12.4), "About $12/month you could save", "headline $12")
+eq(cardMoney(12.4), "~$12/month", "cardMoney $12")
+eq(cardMoney(0.41), "~41¢/month", "cardMoney 41¢")
+
+const ranked = homeSavings([
+  { ...opus, id: 1, rule_id: "long", impact_value: 2, first_ns: 1, last_ns: 1 + month, estimated: true },
+  { ...opus, id: 2, rule_id: "week", impact_value: 1.5, first_ns: 1, last_ns: 1 + month / 4, estimated: true },
+], { history_only: true })
+eq(ranked.shown[0]?.rule_id, "week", "rank by monthly not raw")
+eq(ranked.shown.length, 2, "both above $1 shown")
+
+const folded = homeSavings([
+  { ...opus, id: 1, impact_value: 12, estimated: true },
+  { ...opus, id: 2, rule_id: "tiny-a", impact_value: 0.02, estimated: true },
+  { ...opus, id: 3, rule_id: "tiny-b", impact_value: 0.4, estimated: true },
+], { history_only: true })
+eq(folded.shown.length, 1, "threshold hides sub-$1")
+eq(folded.folded, 2, "fold count")
+eq(folded.fold_kind, "smaller", "fold kind smaller")
+
+const capped = homeSavings(
+  [12, 10, 8, 5, 3].map((v, i) => ({ ...opus, id: i, rule_id: "r" + i, impact_value: v, estimated: true })),
+  { history_only: true },
+)
+eq(capped.shown.length, 3, "cap at 3")
+eq(capped.folded, 2, "rest folded")
+eq(capped.fold_kind, "more", "fold kind more")
+
+const allSmall = homeSavings(
+  Array.from({ length: 10 }, (_, i) => ({ ...opus, id: i, rule_id: "t" + i, impact_value: 0.3, estimated: true })),
+  { history_only: true },
+)
+eq(allSmall.shown.length, 0, "all sub-$1 hidden")
+eq(allSmall.folded, 10, "all folded")
+eq(allSmall.headline.includes("you could save"), true, "sum over $1 still a savings headline")
+eq(homeSavings([], { history_only: true }).headline, "Your setup looks lean. Here's what we saw this month.", "empty lean")
+
+const skipLive = homeSavings(
+  [{ ...opus, id: 1, estimated: false, impact_value: 9 }],
+  { history_only: true },
+)
+eq(skipLive.shown.length, 0, "history-only skips live findings")
 
 const DAY = 86400e9
 const hi = Math.max(...sessions.map((s) => s.end_ns)) + 1

@@ -413,24 +413,18 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 
 	findings := findingsFor(db)
 	historyOnly := history.Only(db)
-	var top any
 	open := 0
 	for _, f := range findings {
 		if f.Severity == "error" {
 			continue
 		}
 		open++
-		if top == nil {
-			top = f
-		}
 	}
-	if historyOnly {
-		monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
-		if f := rules.PickMoneyFinding(findings, monthAgo, true); f != nil {
-			top = *f
-		} else {
-			top = nil
-		}
+	monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
+	savings := rules.HomeSurfaceFrom(findings, monthAgo, historyOnly)
+	var top any
+	if len(savings.Shown) > 0 {
+		top = savings.Shown[0]
 	}
 
 	recent, err := sessions(db)
@@ -472,6 +466,7 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		"sources":      srcs,
 		"top":          top,
 		"open":         open,
+		"savings":      savings,
 		"recent":       recent,
 		"projects":     projects,
 		"history_only": historyOnly,

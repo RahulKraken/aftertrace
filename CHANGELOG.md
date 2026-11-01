@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Home**
+- First-open Home ranks findings by estimated monthly savings, shows at most three, and folds anything under $1/month into a quiet "N smaller tweaks" line. The headline is "About $X/month you could save" (or a calm line when the total is tiny). The raw findings count is off that screen.
+
 **Brand**
 - Settle mark replaces the three-bar logo: loud first spike, damped decay, calm line, amber dot. Separate small-size drawings, macOS 28×18 menu-bar glyph, platform app icons, favicon, README header. Source in `brand/`.
 
