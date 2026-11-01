@@ -1,33 +1,22 @@
-/* Paper, ink, one amber dot. Waterfall hues stay for the session timeline. */
+/* Calm by default. Warm paper neutrals instead of cool greys, ink that is
+   dark but not black, and one harmonised family of hues: indigo for the model,
+   teal for tools, amber for you (and the brand), rose for failure. */
 :root {
   color-scheme: light;
-  --paper: #F6F5F1;
-  --paper-2: #EFEAE2;
-  --sheet: #FBFAF7;
-  --ink: #1F1D1A;
-  --ink-2: #57524B;
-  --ink-3: #78726A;
-  --rule: #E2DCD2;
-  --rule-2: #D6CEC1;
-  --amber: #E29A2E;
-  --amber-ink: #8F560C;
-  --amber-wash: #F6E7CC;
-  --amber-tint: #E8C888;
-  --good: #3F7A57;
-  --tm-1: #DDD5C9;
-  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --bg: #f6f5f1;
+  --bg-recessed: #efede8;
+  --surface: #fffefb;
+  --surface-2: #faf9f5;
+  --ink: #1f1d1a;
+  --ink-2: #34312c;
+  --mute: #75716a;
+  --faint: #a8a39a;
+  --line: #e7e4dd;
+  --line-2: #dfdbd3;
+  --sel: #f2f0ea;
+  --sel-strong: #ebe8e1;
 
-  --bg: var(--paper);
-  --bg-recessed: var(--paper-2);
-  --surface: var(--sheet);
-  --surface-2: var(--paper-2);
-  --mute: var(--ink-3);
-  --faint: var(--ink-3);
-  --line: var(--rule);
-  --line-2: var(--rule-2);
-  --sel: var(--paper-2);
-  --sel-strong: var(--paper-2);
-
+  /* Elevation: soft, warm, layered. Nothing floats without a shadow. */
   --shadow-1: 0 1px 2px rgb(31 29 26 / 0.05);
   --shadow-2: 0 1px 2px rgb(31 29 26 / 0.04), 0 4px 12px -2px rgb(31 29 26 / 0.06);
   --shadow-pop: 0 2px 6px rgb(31 29 26 / 0.06), 0 16px 40px -12px rgb(31 29 26 / 0.22);
@@ -36,18 +25,19 @@
   --shadow-toast: var(--shadow-pop);
   --ring: 0 0 0 3px color-mix(in oklab, var(--hue-model) 22%, transparent);
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-  --top: 56px;
-  --side: 0px;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
+  --top: 0px;
+  --side: 224px;
   --pane: 400px;
   --labw: clamp(220px, 32%, 520px);
   --row: 32px;
   --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
-  --display: var(--serif);
+  --display: var(--sans);
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
 
+  /* Motion: fast to respond, gentle to settle. Exits are quicker than entries. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -77,30 +67,18 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --paper: #1A1816;
-  --paper-2: #221F1C;
-  --sheet: #242120;
-  --ink: #EFEAE2;
-  --ink-2: #B9B2A7;
-  --ink-3: #958E83;
-  --rule: #34302B;
-  --rule-2: #433E37;
-  --amber: #E29A2E;
-  --amber-ink: #EDB35C;
-  --amber-wash: #3A2E1D;
-  --amber-tint: #8A6230;
-  --good: #86BE9A;
-  --tm-1: #34302B;
-  --bg: var(--paper);
-  --bg-recessed: var(--paper-2);
-  --surface: var(--sheet);
-  --surface-2: var(--paper-2);
-  --mute: var(--ink-3);
-  --faint: var(--ink-3);
-  --line: var(--rule);
-  --line-2: var(--rule-2);
-  --sel: var(--paper-2);
-  --sel-strong: var(--paper-2);
+  --bg: #141312;
+  --bg-recessed: #0f0e0d;
+  --surface: #1b1a18;
+  --surface-2: #211f1d;
+  --ink: #edebe6;
+  --ink-2: #d8d5ce;
+  --mute: #9d988e;
+  --faint: #6d6962;
+  --line: #2b2926;
+  --line-2: #34312d;
+  --sel: #23211f;
+  --sel-strong: #2c2a27;
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px -2px rgb(0 0 0 / 0.35);
@@ -126,6 +104,7 @@
   --hue-ok: #67bf8e;
 }
 
+/* Reduced motion keeps fades (they help comprehension) and drops movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -3,18 +3,10 @@ import { Link } from "wouter"
 import { useStatus } from "../lib/status"
 import { CopyButton } from "../components/CopyButton"
 import { int } from "../lib/format"
-import { useHashQuery } from "../lib/hash"
 import { PLANS, readPlan, writePlan, type Plan } from "../lib/plan"
-import { ConnectPage } from "./ConnectPage"
-import { QueryPage } from "./QueryPage"
-
-type Tab = "plan" | "sources" | "query"
 
 export function SettingsPage() {
   const status = useStatus()
-  const q = useHashQuery()
-  const raw = q.get("tab")
-  const tab: Tab = raw === "sources" || raw === "query" ? raw : "plan"
   const [plan, setPlan] = useState<Plan | null>(() => readPlan())
   useEffect(() => {
     const on = () => setPlan(readPlan())
@@ -24,31 +16,14 @@ export function SettingsPage() {
   const info = status?.info
   const db = info?.db_path || "~/.aftertrace/aftertrace.duckdb"
 
-  if (tab === "sources") {
-    const welcome = q.get("welcome")
-    return (
-      <div className="settings-rd is-wide">
-        {welcome ? null : <Tabs tab={tab} />}
-        <ConnectPage />
-      </div>
-    )
-  }
-  if (tab === "query") {
-    return (
-      <div className="settings-rd is-wide">
-        <Tabs tab={tab} />
-        <QueryPage />
-      </div>
-    )
-  }
-
   return (
-    <div className="settings-rd">
+    <div className="page settings">
       <h1>Settings</h1>
-      <Tabs tab={tab} />
+      <div className="sub">Aftertrace keeps everything in one file on this machine. These settings say what it stores and what, if anything, leaves.</div>
 
       <section className="set-sec">
         <h2>Your plan</h2>
+        <p className="mute">Used only to say whether your subscription paid for itself. Stored in this browser.</p>
         <div className="plan-opts" role="radiogroup" aria-label="Plan">
           <button type="button" role="radio" aria-checked={!plan} className={`plan-opt${!plan ? " on" : ""}`} onClick={() => writePlan(null)}>
             Not set
@@ -70,8 +45,8 @@ export function SettingsPage() {
             label="Prompts, responses and tool output"
             detail={
               info?.store_content
-                ? "Kept. This server runs with --store-content."
-                : "Dropped at ingest. Start aftertrace serve with --store-content to keep them."
+                ? "Kept. This server runs with --store-content. Claude Code still has to send them (OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES, OTEL_LOG_TOOL_CONTENT)."
+                : "Dropped at ingest. Start aftertrace serve with --store-content, and turn the content flags on in Claude Code, to keep them."
             }
           />
           <Gate on={false} label="Your email, account and org ids, OS user name" detail="Always dropped at ingest, whatever the flags." />
@@ -80,7 +55,7 @@ export function SettingsPage() {
             label={status?.ask.enabled ? `Ask is on (${status.ask.model})` : "Ask is off"}
             detail={
               status?.ask.enabled
-                ? "Questions, the schema and query rows go to the Anthropic API. Nothing else leaves this machine."
+                ? "Questions, the schema and query rows (strings cut to 200 characters) go to the Anthropic API. Nothing else leaves this machine."
                 : "Nothing leaves this machine. Start aftertrace serve --ask with ANTHROPIC_API_KEY set to answer English questions."
             }
           />
@@ -107,23 +82,13 @@ export function SettingsPage() {
               : "…"}
           </dd>
         </dl>
+        <p className="mute">
+          Local Claude Code history is imported as usage metadata (no prompt or response text) and marked{" "}
+          <code>aftertrace.source=history</code>. Live OpenTelemetry replaces those rows for the same session. To wipe
+          everything, stop the server and delete the database file and its <code>.wal</code>. To add a source, go to{" "}
+          <Link href="/connect">Connect</Link>.
+        </p>
       </section>
-    </div>
-  )
-}
-
-function Tabs({ tab }: { tab: Tab }) {
-  return (
-    <div className="set-tabs">
-      <Link href="/settings" className={tab === "plan" ? "on" : ""}>
-        Plan
-      </Link>
-      <Link href="/settings?tab=sources" className={tab === "sources" ? "on" : ""}>
-        Sources
-      </Link>
-      <Link href="/settings?tab=query" className={tab === "query" ? "on" : ""}>
-        Advanced
-      </Link>
     </div>
   )
 }

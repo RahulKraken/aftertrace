@@ -13,7 +13,7 @@ const vite = await createServer({
 })
 
 const { dur, tok, usd, sayDur, sayUsd, sayTok } = await vite.ssrLoadModule("/src/lib/format.ts")
-const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
+const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
@@ -58,12 +58,6 @@ const opus = {
   first_ns: 1,
   last_ns: 1 + 30 * 86400e9,
 }
-eq(shortTitle(opus), "Sonnet for quick turns", "shortTitle opus")
-eq(
-  shortTitle({ ...opus, rule_id: "permission.allow_rule_candidate", headline: "6 permission prompts for Bash(npm test:*), all approved" }),
-  "npm test",
-  "shortTitle npm test",
-)
 eq(actionSentence(opus), "Use Sonnet for quick replies in aftertrace.", "actionSentence opus")
 eq(moneyLabel(opus, ""), "Saves about $12 a month", "moneyLabel $12")
 eq(moneyLabel({ ...opus, impact_value: 0.41 }, ""), "Saves about 41¢ a month", "moneyLabel 41¢")

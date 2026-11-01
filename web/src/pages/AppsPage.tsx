@@ -47,7 +47,7 @@ export function AppsPage() {
           </div>
           <h1>No apps yet</h1>
           <p>Point any app that calls a model at Aftertrace. Calls, cost, latency and failures show up here per app and per operation.</p>
-          <Link href="/settings?tab=sources" className="btn">
+          <Link href="/connect" className="btn">
             Connect an app <ArrowRight size={14} />
           </Link>
         </div>

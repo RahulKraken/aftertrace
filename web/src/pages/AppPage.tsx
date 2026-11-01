@@ -31,7 +31,7 @@ export function AppPage() {
       <div className="page">
         {err}
         <div className="err-next">
-          Go back to <Link href="/sessions?src=apps">Apps</Link>.
+          Go back to <Link href="/apps">Apps</Link>.
         </div>
       </div>
     )
@@ -46,7 +46,7 @@ export function AppPage() {
   return (
     <div className="page app-page">
       <div className="crumbs">
-        <Link href="/sessions?src=apps">Apps</Link> › <span className="mono">{service}</span>
+        <Link href="/apps">Apps</Link> › <span className="mono">{service}</span>
       </div>
       <h1 className="app-story">
         {a.calls ? (

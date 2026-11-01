@@ -8,11 +8,11 @@ test("every page renders against the real server", async ({ page, request }) => 
   expect((await status.json()).sessions).toBeGreaterThan(0)
 
   await page.goto("/#/")
-  await expect(page.locator(".home-story")).toBeVisible()
-  await expect(page.locator(".home-v2 .huge")).toContainText("$")
+  await expect(page.locator(".home-story")).toContainText("Your agents worked")
+  await expect(page.locator(".stat")).toHaveCount(5)
 
   await page.goto("/#/sessions")
-  const sessionRows = page.locator(".sess-v2 .lane .s")
+  const sessionRows = page.locator(".sessions-grid tbody tr:not(.day-row)")
   await expect(sessionRows.first()).toBeVisible()
   const n = await sessionRows.count()
   let opened = false
@@ -39,7 +39,7 @@ test("every page renders against the real server", async ({ page, request }) => 
   await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
   await page.goto("/#/findings")
-  await expect(page.locator(".find-v2 .vcard").first()).toBeVisible()
+  await expect(page.locator(".frow.hero")).toBeVisible()
 
   await page.goto("/#/apps")
   await expect(page.locator(".app-card")).toHaveCount(3)
@@ -49,7 +49,7 @@ test("every page renders against the real server", async ({ page, request }) => 
   await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
   await page.goto("/#/cost")
-  await expect(page.locator(".recap-v2")).toBeVisible()
+  await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
 
   await page.goto("/#/connect")
   await expect(page.locator(".code pre")).toContainText(/http:\/\/127\.0\.0\.1:\d+/)

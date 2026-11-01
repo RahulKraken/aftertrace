@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocation } from "wouter"
-import { hashQuery } from "../lib/hash"
 import { api } from "../lib/api"
 import { dur, tok, usd, when } from "../lib/format"
 import type { AskResult, AskSuggestions, Field, QueryResult, QuerySpec, SqlResult, TraceHit } from "../lib/types"
@@ -26,14 +25,8 @@ const defaultQ = (): QuerySpec => ({
 
 type Tab = "builder" | "ask" | "sql"
 
-function initialTab(): Tab {
-  const v = hashQuery().get("view") || hashQuery().get("qtab")
-  if (v === "ask" || v === "sql" || v === "builder") return v
-  return "builder"
-}
-
 export function QueryPage() {
-  const [tab, setTab] = useState<Tab>(initialTab)
+  const [tab, setTab] = useState<Tab>("builder")
   const [fields, setFields] = useState<Field[]>([])
   const [range, setRange] = useState<{ lo: number; hi: number } | null>(null)
   const [q, setQ] = useState<QuerySpec>(defaultQ)
@@ -137,7 +130,7 @@ export function QueryPage() {
   }
 
   return (
-    <div className="page query-page">
+    <div className="page">
       <h1>Query</h1>
       <div className="sub">Build a query, ask a question, or write SQL. Every result opens the traces behind it.</div>
       <div className="seg" style={{ marginTop: 14 }}>

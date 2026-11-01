@@ -192,48 +192,6 @@ export function homeSavings(fs: Finding[], opts: HomeOpts = {}): HomeSavings {
   }
 }
 
-export function shortTitle(f: Finding): string {
-  switch (f.rule_id) {
-    case "model.opus_downgrade":
-      return "Sonnet for quick turns"
-    case "cache.drop_after_compaction":
-      return "Fresh, not compacted"
-    case "mcp.large_results": {
-      const s = (f.headline || "").match(/mcp__([^_]+)/)
-      return s ? `Cap ${s[1]}` : "Cap docs search"
-    }
-    case "model.switch_cache_rebuild":
-      return "Model switching"
-    case "skill.cost": {
-      const m = (f.headline || "").match(/Skill (\S+)/)
-      return m ? m[1] : "Skill spend"
-    }
-    case "plugin.skills_unused":
-      return "Unused skills"
-    case "tool.repeated_errors":
-      return "Bash errors"
-    case "retry.exhausted":
-    case "retry.waste":
-      return "Retries"
-    case "permission.allow_rule_candidate": {
-      const m = (f.headline || "").match(/Bash\(([^):]+)/)
-      return m ? m[1].replace(/:\*$/, "") : "Test prompts"
-    }
-    case "hook.overhead":
-      return "Slow hook"
-    case "app.errors":
-      return "Rate limits"
-    case "app.model_downgrade":
-      return "App models"
-    case "app.no_prompt_cache":
-      return "App cache"
-    default: {
-      const t = (f.rule_title || f.headline || "").split(/\s+/).slice(0, 3).join(" ")
-      return t || "Finding"
-    }
-  }
-}
-
 function homeEligible(f: Finding, opts: { since_ns?: number; history_only?: boolean }): boolean {
   if (f.severity === "error") return false
   if (!f.impact_unit.startsWith("USD")) return false
