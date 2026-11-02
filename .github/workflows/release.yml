@@ -1,7 +1,9 @@
 name: Release
 
-# Push a tag like v0.1.0 to build binaries and publish a GitHub Release.
-# Run it by hand (workflow_dispatch) to build the archives without releasing.
+# Push a tag like v0.5.0 to build engine archives + desktop packages and
+# publish a GitHub Release. Run it by hand (workflow_dispatch) for a dry-run:
+# the same files are built and uploaded as workflow artifacts, nothing is
+# published. Do not push tags from a PR; Rahul publishes.
 on:
   push:
     tags: ["v*"]
@@ -11,8 +13,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+  engine:
+    name: Engine ${{ matrix.goos }}/${{ matrix.goarch }}
     strategy:
       fail-fast: true
       matrix:
@@ -67,10 +69,16 @@ jobs:
           path: ${{ env.ARCHIVE }}
           if-no-files-found: error
 
-  release:
-    name: Publish
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+  desktop:
+    name: Desktop
+    uses: ./.github/workflows/desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+
+  assemble:
+    name: Assemble
+    needs: [engine, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -78,10 +86,41 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Checksums
+      - name: Checksums for install.sh
         working-directory: dist
-        run: sha256sum *.tar.gz > checksums.txt && cat checksums.txt
+        run: sha256sum aftertrace_*.tar.gz > checksums.txt && cat checksums.txt
+      - name: Verify release assets
+        run: sh scripts/verify-release-assets.sh dist
+      - name: List what a release would attach
+        run: |
+          echo "Engine (install.sh):"
+          ls -lah dist/aftertrace_*.tar.gz dist/checksums.txt
+          echo "Desktop:"
+          ls -lah dist/Aftertrace-* dist/latest*.yml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: |
+            dist/aftertrace_*.tar.gz
+            dist/checksums.txt
+            dist/Aftertrace-mac.dmg
+            dist/Aftertrace-mac.zip
+            dist/Aftertrace-*-mac.dmg
+            dist/Aftertrace-*-mac.zip
+            dist/Aftertrace-mac.zip.blockmap
+            dist/Aftertrace-win.exe
+            dist/Aftertrace-*-win.exe
+            dist/Aftertrace-win.exe.blockmap
+            dist/Aftertrace-linux.AppImage
+            dist/Aftertrace-linux.deb
+            dist/Aftertrace-*-linux.AppImage
+            dist/Aftertrace-*-linux.deb
+            dist/latest-mac.yml
+            dist/latest.yml
+            dist/latest-linux.yml
+          if-no-files-found: error
       - name: Release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           awk -v tag="${GITHUB_REF_NAME}" '
             $0 ~ "^## " { if (found) exit; if (index($0, tag)) { found=1; next } }
@@ -90,6 +129,26 @@ jobs:
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
           cat notes.md
       - name: Create the release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/checksums.txt --title "Aftertrace $GITHUB_REF_NAME" --notes-file notes.md
+        run: |
+          cd dist
+          set -- aftertrace_*.tar.gz checksums.txt \
+            Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml \
+            Aftertrace-win.exe latest.yml \
+            Aftertrace-linux.AppImage Aftertrace-linux.deb
+          for f in Aftertrace-*-mac.dmg Aftertrace-*-mac.zip \
+                   Aftertrace-*-win.exe \
+                   Aftertrace-*-linux.AppImage Aftertrace-*-linux.deb \
+                   Aftertrace-mac.zip.blockmap Aftertrace-win.exe.blockmap \
+                   Aftertrace-*-mac.zip.blockmap Aftertrace-*-win.exe.blockmap \
+                   latest-linux.yml; do
+            [ -f "$f" ] || continue
+            case " $* " in
+              *" $f "*) ;;
+              *) set -- "$@" "$f" ;;
+            esac
+          done
+          echo "Attaching: $*"
+          gh release create "$GITHUB_REF_NAME" "$@" --title "Aftertrace $GITHUB_REF_NAME" --notes-file ../notes.md

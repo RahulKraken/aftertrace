@@ -1,13 +1,21 @@
 name: Desktop
 
 # Unsigned (or signed, once Apple/Windows secrets exist) packages for Mac,
-# Windows and Linux. PR artifacts are how to try the app until a tagged
-# desktop release exists. Existing Go/UI CI is unchanged.
+# Windows and Linux. On a PR this is the dry-run: artifacts named the same
+# way a GitHub Release will attach them (Aftertrace-mac.dmg, latest-mac.yml,
+# …) without publishing. The Release workflow calls this file on a v* tag.
 on:
   pull_request:
   workflow_dispatch:
   push:
     branches: [main]
+  workflow_call:
+    inputs:
+      version:
+        description: Engine version stamped into the sidecar (e.g. v0.5.0). Empty uses desktop/package.json.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -47,16 +55,6 @@ jobs:
             ~/.cache/electron
             ~/.cache/electron-builder
           key: ${{ runner.os }}-electron-${{ hashFiles('desktop/package-lock.json') }}
-      - name: Skip signing when the certificate is absent
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-        run: |
-          if [ -z "${CSC_LINK:-}" ]; then
-            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
-            echo "Signing skipped: CSC_LINK is not set."
-          else
-            echo "Signing enabled."
-          fi
       - name: Build embedded UI
         working-directory: web
         run: npm ci && npm run build:embed
@@ -65,7 +63,8 @@ jobs:
         run: npm ci && npm test
       - name: Build Go engine
         run: |
-          VERSION=$(node -p "require('./desktop/package.json').version")
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
           mkdir -p desktop/resources/engine
           go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine/aftertrace ./cmd/aftertrace
           chmod +x desktop/resources/engine/aftertrace
@@ -75,12 +74,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          # Missing secrets become empty strings; electron-builder then treats
-          # CSC_LINK="" as a cert path (the project directory) and fails.
-          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
-          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
-          npx electron-builder --linux --x64 --publish never
+        run: sh scripts/ci-pack.sh linux
       - name: Idle memory
         continue-on-error: true
         working-directory: desktop
@@ -163,8 +157,11 @@ jobs:
         with:
           name: aftertrace-desktop-linux
           path: |
-            desktop/dist/*.AppImage
-            desktop/dist/*.deb
+            desktop/dist/Aftertrace-linux.AppImage
+            desktop/dist/Aftertrace-linux.deb
+            desktop/dist/Aftertrace-*-linux.AppImage
+            desktop/dist/Aftertrace-*-linux.deb
+            desktop/dist/latest-linux.yml
             desktop/dist/idle-memory.txt
           if-no-files-found: error
           retention-days: 14
@@ -194,16 +191,6 @@ jobs:
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
           key: ${{ runner.os }}-electron-${{ hashFiles('desktop/package-lock.json') }}
-      - name: Skip signing when the certificate is absent
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-        run: |
-          if [ -z "${CSC_LINK:-}" ]; then
-            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
-            echo "Signing skipped: no Apple certificate secret."
-          else
-            echo "Signing enabled."
-          fi
       - name: Build embedded UI
         working-directory: web
         run: npm ci && npm run build:embed
@@ -212,7 +199,8 @@ jobs:
         run: npm ci && npm test
       - name: Build universal Go engine
         run: |
-          VERSION=$(node -p "require('./desktop/package.json').version")
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
           mkdir -p desktop/resources/engine
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /tmp/aftertrace-arm64 ./cmd/aftertrace
           CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /tmp/aftertrace-amd64 ./cmd/aftertrace
@@ -231,26 +219,20 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: |
-          # Missing secrets become empty strings; electron-builder then treats
-          # CSC_LINK="" as a cert path (the project directory) and fails.
-          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
-          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
-          [ -n "${APPLE_ID:-}" ] || unset APPLE_ID
-          [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || unset APPLE_APP_SPECIFIC_PASSWORD
-          [ -n "${APPLE_TEAM_ID:-}" ] || unset APPLE_TEAM_ID
-          [ -n "${APPLE_API_KEY:-}" ] || unset APPLE_API_KEY
-          [ -n "${APPLE_API_KEY_ID:-}" ] || unset APPLE_API_KEY_ID
-          [ -n "${APPLE_API_ISSUER:-}" ] || unset APPLE_API_ISSUER
-          npx electron-builder --mac --universal --publish never
+        run: sh scripts/ci-pack.sh mac
       - name: List artifacts
         run: ls -lah desktop/dist && (codesign -dv --verbose=4 desktop/dist/mac-universal/Aftertrace.app || true)
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-mac
           path: |
-            desktop/dist/*.dmg
-            desktop/dist/*.zip
+            desktop/dist/Aftertrace-mac.dmg
+            desktop/dist/Aftertrace-mac.zip
+            desktop/dist/Aftertrace-*-mac.dmg
+            desktop/dist/Aftertrace-*-mac.zip
+            desktop/dist/Aftertrace-mac.zip.blockmap
+            desktop/dist/Aftertrace-*-mac.zip.blockmap
+            desktop/dist/latest-mac.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -279,17 +261,6 @@ jobs:
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
           key: ${{ runner.os }}-electron-${{ hashFiles('desktop/package-lock.json') }}
-      - name: Skip signing when the certificate is absent
-        shell: bash
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-        run: |
-          if [ -z "${CSC_LINK:-}" ]; then
-            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
-            echo "Signing skipped: CSC_LINK is not set."
-          else
-            echo "Signing enabled."
-          fi
       - name: Install MinGW (CGO / DuckDB)
         run: |
           # GCC 16 libstdc++ dropped emutls once_call symbols. DuckDB's
@@ -308,7 +279,8 @@ jobs:
       - name: Build Go engine
         shell: bash
         run: |
-          VERSION=$(node -p "require('./desktop/package.json').version")
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
           mkdir -p desktop/resources/engine
           export PATH="/c/ProgramData/mingw64/mingw64/bin:/c/tools/mingw64/bin:$PATH"
           gcc --version
@@ -320,16 +292,15 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          # Missing secrets become empty strings; electron-builder then treats
-          # CSC_LINK="" as a cert path (the project directory) and fails.
-          [ -n "${CSC_LINK:-}" ] || unset CSC_LINK
-          [ -n "${CSC_KEY_PASSWORD:-}" ] || unset CSC_KEY_PASSWORD
-          npx electron-builder --win --x64 --publish never
+        run: sh scripts/ci-pack.sh win
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-windows
           path: |
-            desktop/dist/*.exe
+            desktop/dist/Aftertrace-win.exe
+            desktop/dist/Aftertrace-*-win.exe
+            desktop/dist/Aftertrace-win.exe.blockmap
+            desktop/dist/Aftertrace-*-win.exe.blockmap
+            desktop/dist/latest.yml
           if-no-files-found: error
           retention-days: 14

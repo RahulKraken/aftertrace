@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 2 2026: v0.5.0 ships the Mac app as a DMG on GitHub Releases with a site Download button; signed when Apple secrets exist, unsigned with a first-open note until then.
+
+**Choice.** A `v*` tag builds Mac (universal DMG + zip), Windows (NSIS) and Linux (AppImage + deb) desktop packages and attaches them to the GitHub Release next to the existing Go engine archives. Stable names (`Aftertrace-mac.dmg`, `latest-mac.yml`, `latest.yml`) so the site can link to `/releases/latest/download/Aftertrace-mac.dmg` and electron-updater can find the zip/exe. Apple secrets (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` or `APPLE_API_KEY*`, `APPLE_TEAM_ID`) sign and notarize when present; missing secrets still produce an unsigned build. The website's primary button is Download for Mac, with a right-click → Open note until notarization is on. `install.sh` is unchanged.
+
+**Why.** The desktop app is the one-click path. The curl installer stays for developers. One release, both audiences.
+
+**How to reverse.** Revert this commit. Engine archives, `install.sh` and the Desktop PR workflow stay.
+
 ## Nov 1 2026: UI redesign v4 grounded in AI-product usage consoles (OpenAI, Anthropic, Cursor, xAI, ElevenLabs etc.); budget meter only when user-set.
 
 **Choice.** Home, Findings, Sessions, Recap and the tray follow v4: hairline cards, Inter UI, Geist Mono for tokens and model chips (`opus` / `sonnet`), Newsreader only on the wordmark, system theme with a light fallback, amber only for savable money. Usage meters with a reset countdown (Claude Code 5h window) appear only when the engine can see a start; a spend-vs-budget meter appears only when the user has set a weekly cap in Settings. Numbers come from the engine. The Home honesty cap (savings never exceed spend, cards under a money headline, lean under $1) stays.

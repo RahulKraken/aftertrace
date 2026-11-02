@@ -45,7 +45,7 @@ go build -o aftertrace ./cmd/aftertrace
 cd desktop && npm ci && npm test && npm start
 ```
 
-`npm start` uses the repo-root `aftertrace` binary if `desktop/resources/engine/` is empty. Packaging (CI does this per OS): put the engine in `desktop/resources/engine/` then `npm run pack`. The Desktop workflow uploads Mac/Windows/Linux artifacts on every PR.
+`npm start` uses the repo-root `aftertrace` binary if `desktop/resources/engine/` is empty. Packaging (CI does this per OS): put the engine in `desktop/resources/engine/` then `npm run pack`. The Desktop workflow uploads Mac/Windows/Linux artifacts on every PR, using the same `Aftertrace-mac.dmg` (and friends) names a GitHub Release will attach.
 
 ## Website
 
@@ -61,7 +61,14 @@ Docs navigation lives in `NAV` in `site/build.mjs`; add new docs there.
 
 ## Releases
 
-Push a `v*` tag. `.github/workflows/release.yml` builds macOS (arm64, amd64) and Linux (amd64, arm64) archives, writes `checksums.txt`, and publishes a release with notes from the matching `CHANGELOG.md` section. Add the section first.
+Push a `v*` tag. Rahul does that, not a PR. `.github/workflows/release.yml` builds:
+
+- Go engine archives: `aftertrace_<tag>_{darwin,linux}_{arm64,amd64}.tar.gz` plus `checksums.txt` (those four files only). `install.sh` still downloads those names from the latest release.
+- Desktop packages: `Aftertrace-mac.dmg` / `.zip`, `Aftertrace-win.exe`, `Aftertrace-linux.AppImage` / `.deb`, versioned copies, and `latest-mac.yml` / `latest.yml` / `latest-linux.yml` for electron-updater.
+
+Notes come from the matching `CHANGELOG.md` section. Add the section first. Signing secrets: [docs/signing.md](docs/signing.md).
+
+Dry-run without publishing: Actions → Release → Run workflow, or look at Desktop workflow artifacts on a PR (`Aftertrace-mac.dmg` is in `aftertrace-desktop-mac`).
 
 There is no Homebrew tap yet. `sh scripts/homebrew-formula.sh vX.Y.Z` prints `Formula/aftertrace.rb` for a published release, with the four archive URLs and their sha256 from its `checksums.txt` (pass a local `checksums.txt` as the second argument to skip the download). Committing that file to a repo named `homebrew-<name>` makes `brew install <owner>/<name>/aftertrace` work; regenerate it on each tag.
 

@@ -27,25 +27,27 @@ It reads the OpenTelemetry that Claude Code (and any OTel-instrumented app) alre
 [medium] Hook PreToolUse:Bash averages 2.2s per run
 ```
 
-## Install
+## Download
+
+**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)**
+
+Open the DMG and drag Aftertrace to Applications. First open: right-click Aftertrace, choose Open, then Open again.
+
+[Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage)
+
+The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens the UI. Start at login is off until you opt in.
+
+### Developer (CLI)
 
 ```bash
 curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
 ```
 
-That one line installs Aftertrace, starts it at login, and opens http://127.0.0.1:7311. On first launch it reads Claude Code's local session files (`~/.claude/projects`) and shows last month's spend, then the one finding with the highest money impact. Prompt and response text stay on disk; only usage metadata is stored. Findings from those files are labelled estimated from session files. Live export is an optional next step for richer, real-time data.
+That one line installs the `aftertrace` binary, starts it at login, and opens http://127.0.0.1:7311. On first launch it reads Claude Code's local session files (`~/.claude/projects`) and shows last month's spend, then the one finding with the highest money impact. Prompt and response text stay on disk; only usage metadata is stored. Findings from those files are labelled estimated from session files. Live export is an optional next step for richer, real-time data.
 
 macOS and Linux; Windows and building from source: [docs/install.md](docs/install.md). `aftertrace demo` loads synthetic sessions and apps if you want to look around first.
 
 CI and headless installs: `AFTERTRACE_NO_SERVICE=1` (or `--no-service`) skips the login service; `AFTERTRACE_NO_OPEN=1` (or `--no-open`) skips the browser: `curl -fsSL ... | sh -s -- --no-service --no-open`. To pass flags such as `--store-content`, run `aftertrace service install` again: [docs/install.md](docs/install.md#run-it-at-login).
-
-## Desktop app
-
-A downloadable app (Mac first; Windows and Linux from the same code) that starts Aftertrace without a terminal. Open it and a menu-bar icon appears (tray on Windows and Linux). The app starts the same Go engine itself, waits until http://127.0.0.1:7311 is ready, and shows the existing UI — including first-open findings from Claude Code's local session files. Closing the window keeps Aftertrace in the menu bar. Start at login is off until you opt in, from the first-launch screen or the tray.
-
-While this is in preview, download a build from the **Desktop** workflow artifacts on a pull request (Actions → Desktop → `aftertrace-desktop-mac` / `windows` / `linux`). Unsigned Mac builds: right-click Aftertrace, choose Open, then Open again.
-
-The curl installer and the `aftertrace` CLI are unchanged. `desktop/` is a thin Electron wrapper around the same engine and UI.
 
 ## Build from source
 
@@ -167,11 +169,11 @@ The format, the views you can query (`llm`, `tools`, `calls`, `turn_roots`, `q_s
 
 ## Status
 
-Early: v0.4. Aftertrace is built and tested against Claude Code's documented telemetry and real sessions from Claude Code 2.1.x (version 2.1.0 or later, with the enhanced telemetry beta). Some of that telemetry is in beta and may change. Expect rough edges, and please [open an issue](https://github.com/RahulKraken/aftertrace/issues) when something looks wrong.
+Early: v0.5. Aftertrace is built and tested against Claude Code's documented telemetry and real sessions from Claude Code 2.1.x (version 2.1.0 or later, with the enhanced telemetry beta). Some of that telemetry is in beta and may change. Expect rough edges, and please [open an issue](https://github.com/RahulKraken/aftertrace/issues) when something looks wrong.
 
 ## Docs
 
-[How it works](docs/how-it-works.md) · [Install](docs/install.md) · [Claude Code setup](docs/claude-code-setup.md) · [Apps and agents](docs/apps.md) · [Behind a collector](docs/behind-a-collector.md) · [CLI](docs/cli.md) · [Findings](docs/findings.md) · [Writing rules](docs/writing-rules.md) · [JSON API](docs/api.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md) · [Product brief](docs/product/brief.md) · [Contributing](CONTRIBUTING.md)
+[How it works](docs/how-it-works.md) · [Install](docs/install.md) · [Claude Code setup](docs/claude-code-setup.md) · [Apps and agents](docs/apps.md) · [Behind a collector](docs/behind-a-collector.md) · [CLI](docs/cli.md) · [Findings](docs/findings.md) · [Writing rules](docs/writing-rules.md) · [JSON API](docs/api.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md) · [Signing](docs/signing.md) · [Product brief](docs/product/brief.md) · [Contributing](CONTRIBUTING.md)
 
 ## License
 

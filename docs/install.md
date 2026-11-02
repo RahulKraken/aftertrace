@@ -2,13 +2,23 @@
 
 Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothing else to run.
 
-## Install a release (macOS and Linux)
+## Download for Mac
+
+**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)** — Open the DMG, drag Aftertrace to Applications. First open: right-click Aftertrace, choose Open, then Open again.
+
+[Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux AppImage](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage) · [Linux .deb](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.deb)
+
+The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens http://127.0.0.1:7311. Start at login is off until you opt in from the first-launch screen or the tray. Closing the window keeps Aftertrace in the menu bar.
+
+Mac builds are signed and notarized when Apple secrets are present; until then the first-open note above is the whole extra step. [Signing](signing.md).
+
+## CLI (macOS and Linux)
 
 ```bash
 curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh
 ```
 
-That is the whole install. The script picks the archive for your OS and CPU (macOS arm64 or Intel, Linux amd64 or arm64) from the [latest release](https://github.com/RahulKraken/aftertrace/releases/latest), checks it against `checksums.txt`, installs `aftertrace` to `/usr/local/bin` if you can write there, otherwise `~/.local/bin`, starts the login service (a LaunchAgent on macOS, a systemd user unit on Linux), waits until http://127.0.0.1:7311 answers, and opens it in your browser. First launch imports usage from Claude Code's local session files (`~/.claude/projects`) if any are there, then offers the live OpenTelemetry export as an optional next step. See [Connect Claude Code](claude-code-setup.md).
+That is the whole CLI install. The script picks the archive for your OS and CPU (macOS arm64 or Intel, Linux amd64 or arm64) from the [latest release](https://github.com/RahulKraken/aftertrace/releases/latest), checks it against `checksums.txt`, installs `aftertrace` to `/usr/local/bin` if you can write there, otherwise `~/.local/bin`, starts the login service (a LaunchAgent on macOS, a systemd user unit on Linux), waits until http://127.0.0.1:7311 answers, and opens it in your browser. First launch imports usage from Claude Code's local session files (`~/.claude/projects`) if any are there, then offers the live OpenTelemetry export as an optional next step. See [Connect Claude Code](claude-code-setup.md).
 
 `AFTERTRACE_VERSION=v0.1.0` pins a version; `AFTERTRACE_BIN=/some/dir` picks the directory. CI and headless installs can skip the service and the browser:
 
@@ -21,15 +31,7 @@ Re-running upgrades the binary and restarts the service. If the install director
 
 Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`, then `aftertrace service install` (or `aftertrace serve`) and open http://127.0.0.1:7311.
 
-Windows is not in the curl installer yet. The Electron desktop app (nsis) is built on every pull request from `.github/workflows/desktop.yml`; download `aftertrace-desktop-windows` from that workflow's artifacts. Building the Go binary from source still needs a CGO toolchain such as MSYS2 MinGW (DuckDB ships a `windows-amd64` library).
-
-## Desktop app
-
-A menu-bar / tray app that starts the same engine and UI with no terminal. Mac, Windows and Linux packages are built by `.github/workflows/desktop.yml`. On a pull request: Actions → Desktop → download `aftertrace-desktop-mac` (or windows / linux).
-
-Unsigned Mac preview builds: right-click Aftertrace, choose Open, then Open again. Start at login is off until you opt in from the first-launch screen or the tray. Closing the window keeps Aftertrace in the menu bar.
-
-The curl installer above is unchanged.
+Windows is not in the curl installer yet. Use the [Windows download](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) above. Building the Go binary from source still needs a CGO toolchain such as MSYS2 MinGW (DuckDB ships a `windows-amd64` library).
 
 ## Run it at login
 

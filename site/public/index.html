@@ -28,15 +28,19 @@
     <div class="eyebrow">Open source · local-first · Apache-2.0</div>
     <h1>The flight recorder for your&nbsp;AI&nbsp;work.</h1>
     <p class="lede">See what Claude Code, your agents and the apps you build with LLMs actually did: how long you waited, what it cost, and the one change worth making next. One binary on your machine. Your data never leaves it.</p>
-    <div class="cta">
-      <a class="btn" href="demo/">Try the live demo</a>
-      <a class="btn ghost" href="docs/how-it-works.html">See how it works</a>
+    <div class="hero-download">
+      <a class="btn" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>
+      <p class="dl-alt"><a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe">Windows</a> · <a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage">Linux</a> · <a href="demo/">Live demo</a></p>
+      <!-- Remove this note once Mac builds are notarized. See docs/signing.md. -->
+      <p class="open-note">First open: right-click Aftertrace, choose Open, then Open again.</p>
     </div>
-    <div class="install" role="group" aria-label="Install command">
-      <code id="cmd">curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code>
-      <button type="button" class="copy" data-copy="cmd" aria-label="Copy install command">Copy</button>
+    <div class="dev-install">
+      <div class="dev-label">Developer</div>
+      <div class="install" role="group" aria-label="Install command">
+        <code id="cmd">curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code>
+        <button type="button" class="copy" data-copy="cmd" aria-label="Copy install command">Copy</button>
+      </div>
     </div>
-    <div class="install-note">macOS and Linux. Opens <code>http://127.0.0.1:7311</code>. Skip the service or browser with <code>--no-service</code> / <code>--no-open</code>.</div>
   </section>
 
   <figure class="shot hero-shot">
@@ -128,7 +132,7 @@
           <tr><td>Live view of running sessions</td><td class="yes">Yes</td><td>No</td><td>No</td><td>No</td></tr>
           <tr><td>Coding agents and your apps together</td><td class="yes">Yes, over OTLP</td><td>Coding agents</td><td>One tool</td><td>Apps</td></tr>
           <tr><td>History beyond 30 days, across machines</td><td class="yes">Yes</td><td>One machine</td><td>Short window</td><td>Yes, hosted</td></tr>
-          <tr><td>Setup</td><td class="yes">One line, then optional live export</td><td>One command</td><td>Built in</td><td>SDK and a service</td></tr>
+          <tr><td>Setup</td><td class="yes">Download, or one line, then optional live export</td><td>One command</td><td>Built in</td><td>SDK and a service</td></tr>
           <tr><td>Data leaves your machine</td><td class="yes">Never</td><td>No</td><td>No</td><td>Yes</td></tr>
         </tbody>
       </table>
@@ -138,7 +142,7 @@
   <section class="band start">
     <h2>Start in a minute</h2>
     <ol class="steps">
-      <li><h3>Install</h3><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre><p>Opens <code>http://127.0.0.1:7311</code> with last month's usage. <code>aftertrace demo</code> loads synthetic sessions if you want to look around first.</p></li>
+      <li><h3>Download</h3><p><a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>. Open the DMG, drag Aftertrace to Applications. First open: right-click Aftertrace, choose Open. The CLI: <code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></p></li>
       <li><h3>Connect</h3><p>Live export is optional. The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
     </ol>
   </section>
