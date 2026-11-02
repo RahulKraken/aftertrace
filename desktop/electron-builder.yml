@@ -45,7 +45,11 @@ publish:
   repo: aftertrace
   releaseType: release
 
-artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+# Stable names so the site and electron-updater can use
+# https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg
+# Versioned copies (Aftertrace-0.5.0-mac.dmg) are added after pack.
+artifactName: Aftertrace-${os}.${ext}
+generateUpdatesFilesForAllChannels: true
 
 mac:
   category: public.app-category.developer-tools
@@ -56,12 +60,14 @@ mac:
   entitlementsInherit: resources/entitlements.mac.inherit.plist
   binaries:
     - Contents/Resources/engine/aftertrace
-  # Notarize when Apple credentials are present; skip with a warning when they
-  # are not (the Developer account is pending). Do not set notarize: true —
-  # that would fail unsigned PR builds. No Mac App Store target.
+  # Notarize when Apple credentials are present. CI passes
+  # -c.mac.notarize=false when they are not, so unsigned builds still succeed.
+  # Do not set notarize: true here — that would fail those builds.
+  # No Mac App Store target.
   target:
     - dmg
     - zip
+  artifactName: Aftertrace-${os}.${ext}
   extendInfo:
     LSUIElement: true
     NSHighResolutionCapable: true
@@ -71,12 +77,13 @@ mac:
 
 dmg:
   title: Aftertrace
+  artifactName: Aftertrace-${os}.${ext}
 
 win:
   icon: resources/icon.ico
   target:
     - nsis
-  artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+  artifactName: Aftertrace-${os}.${ext}
 
 nsis:
   oneClick: true
@@ -85,6 +92,7 @@ nsis:
   uninstallDisplayName: Aftertrace
   createDesktopShortcut: false
   createStartMenuShortcut: true
+  artifactName: Aftertrace-${os}.${ext}
 
 linux:
   executableName: Aftertrace
@@ -103,7 +111,7 @@ linux:
   target:
     - AppImage
     - deb
-  artifactName: Aftertrace-${version}-${os}-${arch}.${ext}
+  artifactName: Aftertrace-${os}.${ext}
 
 extraFiles:
   - from: ../LICENSE

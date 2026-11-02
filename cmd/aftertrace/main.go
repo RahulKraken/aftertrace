@@ -25,7 +25,7 @@ import (
 	"github.com/RahulKraken/aftertrace/web"
 )
 
-// version is set at release time with -ldflags "-X main.version=v0.1.0".
+// version is set at release time with -ldflags "-X main.version=v0.5.0".
 var version = "dev"
 
 func main() {

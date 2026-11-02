@@ -116,8 +116,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: shellcheck install.sh
-        run: shellcheck -s sh install.sh
+      - name: shellcheck
+        run: |
+          shellcheck -s sh install.sh
+          shellcheck -s sh scripts/verify-release-assets.sh
+          shellcheck -s sh desktop/scripts/ci-pack.sh
+          shellcheck -s sh desktop/scripts/ci-signing-env.sh
 
   install:
     name: Installer (${{ matrix.os }})

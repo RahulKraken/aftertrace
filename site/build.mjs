@@ -17,7 +17,7 @@ const NAV = [
   ["Get started", [["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
   ["Use", [["findings", "Findings"], ["cli", "CLI"], ["privacy", "Privacy"], ["troubleshooting", "Troubleshooting"]]],
   ["Extend", [["writing-rules", "Writing rules"], ["api", "JSON API"], ["schema-notes", "Schema notes"]]],
-  ["Project", [["product/brief", "Product brief"], ["product/design", "Design"], ["design-principles", "Design principles"], ["spec", "Spec"], ["stack", "Stack decision"]]],
+  ["Project", [["product/brief", "Product brief"], ["product/design", "Design"], ["design-principles", "Design principles"], ["spec", "Spec"], ["stack", "Stack decision"], ["signing", "Signing"]]],
 ]
 
 rmSync(out, { recursive: true, force: true })

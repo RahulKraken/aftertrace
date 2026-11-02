@@ -1,19 +1,20 @@
 # Changelog
 
-## Unreleased
+## v0.5.0
+
+**Desktop**
+- Mac app as a DMG on GitHub Releases (Windows NSIS, Linux AppImage and deb too), with a site **Download for Mac** button. `electron-updater` reads `latest-mac.yml` / `latest.yml` from the same release. Signed and notarized when Apple secrets are present; unsigned otherwise, with a first-open note (right-click → Open). Engine archives `install.sh` uses stay on that release, names unchanged.
+- Electron app in `desktop/`: menu-bar / tray shell that starts the Go engine as a sidecar, loads the existing UI from http://127.0.0.1:7311. Start at login is opt-in.
+
+**Brand**
+- Settle mark replaces the three-bar logo: loud first spike, damped decay, calm line, amber dot. Separate small-size drawings, macOS 28×18 menu-bar glyph, platform app icons, favicon, README header. Source in `brand/`.
 
 **Home**
 - First-open Home ranks findings by estimated monthly savings, shows at most three, and folds anything under $1/month into a quiet "N smaller tweaks" line. The headline is "About $X/month you could save" (or a calm line when the total is tiny). The raw findings count is off that screen.
 - Savings never exceed actual spend over the same window, and a one-day finding is not multiplied into a month. If the honest total is under $1, Home stays with the lean line. A money headline always has cards under it.
 
-**Brand**
-- Settle mark replaces the three-bar logo: loud first spike, damped decay, calm line, amber dot. Separate small-size drawings, macOS 28×18 menu-bar glyph, platform app icons, favicon, README header. Source in `brand/`.
-
-**Desktop**
-- Electron app in `desktop/`: menu-bar / tray shell that starts the Go engine as a sidecar, loads the existing UI from http://127.0.0.1:7311, and packs Mac (dmg+zip), Windows (nsis) and Linux (AppImage+deb). Start at login is opt-in. Unsigned preview builds come from the Desktop GitHub Actions workflow.
-
 **Install**
-- `install.sh` starts the login service and opens http://127.0.0.1:7311, so the curl line is the only step. `AFTERTRACE_NO_SERVICE=1` / `--no-service` and `AFTERTRACE_NO_OPEN=1` / `--no-open` skip those.
+- `install.sh` starts the login service and opens http://127.0.0.1:7311, so the curl line is the developer option next to the Mac download. `AFTERTRACE_NO_SERVICE=1` / `--no-service` and `AFTERTRACE_NO_OPEN=1` / `--no-open` skip those.
 
 ## v0.4.4
 
