@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 3 2026: per-chip Mac DMGs instead of universal, with Aftertrace-mac.dmg kept as an arm64 alias.
+
+**Choice.** Build separate `arm64` and `x64` Mac apps (DMG + zip), each bundling only the matching Go engine. Stable names `Aftertrace-mac-arm64.dmg` and `Aftertrace-mac-x64.dmg`. Copy the arm64 DMG to `Aftertrace-mac.dmg` so `/releases/latest/download/Aftertrace-mac.dmg` and the site button stay valid. `latest-mac.yml` lists both zips; electron-updater picks by arch. Notarize and staple when `CSC_LINK` + Apple credentials are present; unsigned otherwise.
+
+**Why.** The universal DMG was ~278 MB because it shipped two Electron runtimes and a fat engine. Per-chip cuts that roughly in half and still double-clicks like a real Mac app once Developer ID + notarization secrets exist.
+
+**How to reverse.** Return `desktop/scripts/ci-pack.sh` / `pack:mac` to `--mac --universal`, lipo the engine again in `.github/workflows/desktop.yml`, and restore `artifactName: Aftertrace-${os}.${ext}` for Mac. Keep the `Aftertrace-mac.dmg` name.
+
 ## Nov 2 2026: v0.5.0 ships the Mac app as a DMG on GitHub Releases with a site Download button; signed when Apple secrets exist, unsigned with a first-open note until then.
 
 **Choice.** A `v*` tag builds Mac (universal DMG + zip), Windows (NSIS) and Linux (AppImage + deb) desktop packages and attaches them to the GitHub Release next to the existing Go engine archives. Stable names (`Aftertrace-mac.dmg`, `latest-mac.yml`, `latest.yml`) so the site can link to `/releases/latest/download/Aftertrace-mac.dmg` and electron-updater can find the zip/exe. Apple secrets (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` or `APPLE_API_KEY*`, `APPLE_TEAM_ID`) sign and notarize when present; missing secrets still produce an unsigned build. The website's primary button is Download for Mac, with a right-click → Open note until notarization is on. `install.sh` is unchanged.

@@ -29,9 +29,9 @@ It reads the OpenTelemetry that Claude Code (and any OTel-instrumented app) alre
 
 ## Download
 
-**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)**
+**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)** (Apple silicon) · [Intel Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-x64.dmg)
 
-Open the DMG and drag Aftertrace to Applications. First open: right-click Aftertrace, choose Open, then Open again.
+Open the DMG and drag Aftertrace to Applications. Double-click to open. If macOS says the developer cannot be verified, right-click Aftertrace, choose Open, then Open again — only needed while builds are unsigned.
 
 [Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage)
 

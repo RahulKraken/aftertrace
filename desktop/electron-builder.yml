@@ -12,6 +12,7 @@ files:
   - resources/icons/**/*
   - package.json
   - "!resources/engine/**"
+  - "!resources/engine-arch/**"
   - "!dist/**"
   - "!test/**"
   - "!scripts/**"
@@ -45,11 +46,14 @@ publish:
   repo: aftertrace
   releaseType: release
 
-# Stable names so the site and electron-updater can use
-# https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg
-# Versioned copies (Aftertrace-0.5.0-mac.dmg) are added after pack.
+# Win/Linux keep Aftertrace-${os}.${ext}. Mac uses Aftertrace-${os}-${arch}.${ext}
+# (Aftertrace-mac-arm64.dmg / Aftertrace-mac-x64.dmg). Aftertrace-mac.dmg is
+# copied from the arm64 DMG after pack so the existing latest/download link
+# still works.
 artifactName: Aftertrace-${os}.${ext}
 generateUpdatesFilesForAllChannels: true
+
+afterAllArtifactBuild: scripts/after-all-artifact-build.cjs
 
 mac:
   category: public.app-category.developer-tools
@@ -61,13 +65,14 @@ mac:
   binaries:
     - Contents/Resources/engine/aftertrace
   # Notarize when Apple credentials are present. CI passes
-  # -c.mac.notarize=false when they are not, so unsigned builds still succeed.
-  # Do not set notarize: true here — that would fail those builds.
-  # No Mac App Store target.
+  # -c.mac.notarize=false when they are not, so unsigned builds still succeed,
+  # and -c.mac.notarize=true when they are, so notarization is required.
+  # Do not set notarize: true here — that would fail unsigned builds.
+  # No Mac App Store target. Per-chip (arm64 + x64), not universal.
   target:
     - dmg
     - zip
-  artifactName: Aftertrace-${os}.${ext}
+  artifactName: Aftertrace-${os}-${arch}.${ext}
   extendInfo:
     LSUIElement: true
     NSHighResolutionCapable: true
@@ -77,7 +82,7 @@ mac:
 
 dmg:
   title: Aftertrace
-  artifactName: Aftertrace-${os}.${ext}
+  artifactName: Aftertrace-${os}-${arch}.${ext}
 
 win:
   icon: resources/icon.ico

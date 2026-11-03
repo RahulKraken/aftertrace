@@ -105,9 +105,17 @@ jobs:
             dist/checksums.txt
             dist/Aftertrace-mac.dmg
             dist/Aftertrace-mac.zip
+            dist/Aftertrace-mac-arm64.dmg
+            dist/Aftertrace-mac-x64.dmg
+            dist/Aftertrace-mac-arm64.zip
+            dist/Aftertrace-mac-x64.zip
             dist/Aftertrace-*-mac.dmg
             dist/Aftertrace-*-mac.zip
+            dist/Aftertrace-*-mac-*.dmg
+            dist/Aftertrace-*-mac-*.zip
             dist/Aftertrace-mac.zip.blockmap
+            dist/Aftertrace-mac-*.zip.blockmap
+            dist/*notarized.json
             dist/Aftertrace-win.exe
             dist/Aftertrace-*-win.exe
             dist/Aftertrace-win.exe.blockmap
@@ -136,13 +144,19 @@ jobs:
           cd dist
           set -- aftertrace_*.tar.gz checksums.txt \
             Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml \
+            Aftertrace-mac-arm64.dmg Aftertrace-mac-x64.dmg \
+            Aftertrace-mac-arm64.zip Aftertrace-mac-x64.zip \
             Aftertrace-win.exe latest.yml \
             Aftertrace-linux.AppImage Aftertrace-linux.deb
           for f in Aftertrace-*-mac.dmg Aftertrace-*-mac.zip \
+                   Aftertrace-*-mac-*.dmg Aftertrace-*-mac-*.zip \
                    Aftertrace-*-win.exe \
                    Aftertrace-*-linux.AppImage Aftertrace-*-linux.deb \
-                   Aftertrace-mac.zip.blockmap Aftertrace-win.exe.blockmap \
-                   Aftertrace-*-mac.zip.blockmap Aftertrace-*-win.exe.blockmap \
+                   Aftertrace-mac.zip.blockmap Aftertrace-mac-*.zip.blockmap \
+                   Aftertrace-win.exe.blockmap \
+                   Aftertrace-*-mac.zip.blockmap Aftertrace-*-mac-*.zip.blockmap \
+                   Aftertrace-*-win.exe.blockmap \
+                   Aftertrace-mac-notarized.json \
                    latest-linux.yml; do
             [ -f "$f" ] || continue
             case " $* " in

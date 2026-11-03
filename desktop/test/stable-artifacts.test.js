@@ -22,33 +22,52 @@ function write(name, body = "x") {
 }
 
 describe("stable-artifacts", () => {
-  it("copies versioned names when builder already used stable names", () => {
-    write("Aftertrace-mac.dmg", "dmg")
-    write("Aftertrace-mac.zip", "zip")
-    write(
-      "latest-mac.yml",
-      "version: 0.5.0\nfiles:\n  - url: Aftertrace-mac.zip\npath: Aftertrace-mac.zip\n",
-    )
+  it("keeps per-chip names, aliases Aftertrace-mac.dmg to arm64, and lists both zips in latest-mac.yml", () => {
+    write("Aftertrace-mac-arm64.dmg", "arm-dmg")
+    write("Aftertrace-mac-x64.dmg", "x64-dmg")
+    write("Aftertrace-mac-arm64.zip", "arm-zip")
+    write("Aftertrace-mac-x64.zip", "x64-zip")
+    write("Aftertrace-mac-arm64.zip.blockmap", "arm-block")
+    write("Aftertrace-mac-x64.zip.blockmap", "x64-block")
     run(dir, "0.5.0")
-    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-0.5.0-mac.dmg"), "utf8"), "dmg")
-    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-0.5.0-mac.zip"), "utf8"), "zip")
-    assert.match(fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8"), /Aftertrace-mac\.zip/)
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac-arm64.dmg"), "utf8"), "arm-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac-x64.dmg"), "utf8"), "x64-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.dmg"), "utf8"), "arm-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-0.5.0-mac.dmg"), "utf8"), "arm-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-0.5.0-mac-arm64.dmg"), "utf8"), "arm-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-0.5.0-mac-x64.dmg"), "utf8"), "x64-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.zip"), "utf8"), "arm-zip")
+    const yml = fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8")
+    assert.match(yml, /url: Aftertrace-mac-arm64\.zip/)
+    assert.match(yml, /url: Aftertrace-mac-x64\.zip/)
+    assert.match(yml, /path: Aftertrace-mac-arm64\.zip/)
+    assert.doesNotMatch(yml, /url: Aftertrace-mac\.zip\n/)
+    assert.doesNotMatch(yml, /universal/)
   })
 
-  it("renames versioned universal artifacts and rewrites latest-mac.yml", () => {
-    write("Aftertrace-0.5.0-mac-universal.dmg", "dmg")
-    write("Aftertrace-0.5.0-mac-universal.zip", "zip")
+  it("renames versioned per-chip artifacts and rewrites latest-mac.yml", () => {
+    write("Aftertrace-0.5.0-mac-arm64.dmg", "arm-dmg")
+    write("Aftertrace-0.5.0-mac-x64.dmg", "x64-dmg")
+    write("Aftertrace-0.5.0-mac-arm64.zip", "arm-zip")
+    write("Aftertrace-0.5.0-mac-x64.zip", "x64-zip")
     write(
       "latest-mac.yml",
-      "version: 0.5.0\nfiles:\n  - url: Aftertrace-0.5.0-mac-universal.zip\npath: Aftertrace-0.5.0-mac-universal.zip\n",
+      "version: 0.5.0\nfiles:\n  - url: Aftertrace-0.5.0-mac-arm64.zip\npath: Aftertrace-0.5.0-mac-arm64.zip\n",
     )
     run(dir, "0.5.0")
-    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.dmg"), "utf8"), "dmg")
-    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.zip"), "utf8"), "zip")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac-arm64.dmg"), "utf8"), "arm-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac-x64.dmg"), "utf8"), "x64-dmg")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.dmg"), "utf8"), "arm-dmg")
     const yml = fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8")
-    assert.match(yml, /url: Aftertrace-mac\.zip/)
-    assert.match(yml, /path: Aftertrace-mac\.zip/)
-    assert.doesNotMatch(yml, /mac-universal/)
+    assert.match(yml, /url: Aftertrace-mac-arm64\.zip/)
+    assert.match(yml, /url: Aftertrace-mac-x64\.zip/)
+    assert.doesNotMatch(yml, /0\.5\.0-mac-arm64\.zip/)
+  })
+
+  it("does not treat a lone Aftertrace-mac.dmg as enough — both chips are required", () => {
+    write("Aftertrace-mac.dmg", "old")
+    write("Aftertrace-mac.zip", "old-zip")
+    assert.throws(() => run(dir, "0.5.0"), /Aftertrace-mac-arm64/)
   })
 
   it("writes latest.yml for Windows when electron-builder omitted it", () => {

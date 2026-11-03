@@ -17,3 +17,5 @@ desktop/node_modules/
 desktop/dist/
 desktop/resources/engine/aftertrace
 desktop/resources/engine/aftertrace.exe
+desktop/resources/engine-arch/**/aftertrace
+desktop/resources/engine-arch/**/aftertrace.exe
