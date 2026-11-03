@@ -1,17 +1,17 @@
 "use strict"
 
 // After electron-builder, make sure GitHub Release / site download names exist:
-//   Aftertrace-mac.dmg, Aftertrace-mac.zip, Aftertrace-win.exe,
-//   Aftertrace-linux.AppImage, Aftertrace-linux.deb
-// plus versioned copies (Aftertrace-0.5.0-mac.dmg) and latest-mac.yml / latest.yml
-// so electron-updater can find the zip/exe on GitHub Releases.
-//
-// If electron-builder used a versioned or arch-suffixed name, copy to the stable
-// name and rewrite the updater yml to match.
+//   Aftertrace-mac-arm64.dmg / Aftertrace-mac-x64.dmg (and zips)
+//   Aftertrace-mac.dmg  (copy of the arm64 DMG, so /releases/latest/download/Aftertrace-mac.dmg stays valid)
+//   Aftertrace-win.exe, Aftertrace-linux.AppImage, Aftertrace-linux.deb
+// plus versioned copies and latest-mac.yml / latest.yml
+// so electron-updater can pick the zip that matches the machine's chip.
 
 const crypto = require("crypto")
 const fs = require("fs")
 const path = require("path")
+
+const MAC_ARCHES = ["arm64", "x64"]
 
 function sha512Base64(file) {
   const buf = fs.readFileSync(file)
@@ -65,21 +65,114 @@ function versionedName(version, kind, ext) {
   return `Aftertrace-${version}-${kind}.${ext}`
 }
 
+function macKind(arch) {
+  return `mac-${arch}`
+}
+
+function findMacArtifact(outDir, files, arch, ext) {
+  const stable = `Aftertrace-${macKind(arch)}.${ext}`
+  const stablePath = path.join(outDir, stable)
+  if (fs.existsSync(stablePath)) return { stable, original: stable }
+  const original = pick(files, (f) => {
+    if (!f.endsWith(`.${ext}`)) return false
+    if (f.endsWith(".blockmap")) return false
+    if (f.includes("universal")) return false
+    // Match this chip only (Aftertrace-mac-arm64.dmg, Aftertrace-0.5.0-arm64.dmg, …).
+    const lower = f.toLowerCase()
+    if (arch === "arm64") return lower.includes("arm64")
+    return (lower.includes("x64") || lower.includes("amd64") || lower.includes("x86_64")) && !lower.includes("arm64")
+  })
+  if (!original) return null
+  copyFile(path.join(outDir, original), stablePath)
+  return { stable, original }
+}
+
+function writeMacLatestYml(outDir, version) {
+  const entries = MAC_ARCHES.map((arch) => {
+    const fileName = `Aftertrace-${macKind(arch)}.zip`
+    const { sha512, size } = sha512Base64(path.join(outDir, fileName))
+    return { url: fileName, sha512, size }
+  })
+  const primary = entries[0]
+  const body =
+    `version: ${version}\n` +
+    `files:\n` +
+    entries
+      .map((e) => `  - url: ${e.url}\n    sha512: ${e.sha512}\n    size: ${e.size}\n`)
+      .join("") +
+    `path: ${primary.url}\n` +
+    `sha512: ${primary.sha512}\n` +
+    `releaseDate: '${new Date().toISOString()}'\n`
+  fs.writeFileSync(path.join(outDir, "latest-mac.yml"), body)
+}
+
+function stabilizeMac(outDir, files, version, made, missing) {
+  const byArch = {}
+  for (const arch of MAC_ARCHES) {
+    const dmg = findMacArtifact(outDir, files, arch, "dmg")
+    const zip = findMacArtifact(outDir, files, arch, "zip")
+    if (!dmg) missing.push(`Aftertrace-${macKind(arch)}.dmg`)
+    if (!zip) missing.push(`Aftertrace-${macKind(arch)}.zip`)
+    byArch[arch] = { dmg, zip }
+    if (dmg) {
+      const vname = versionedName(version, macKind(arch), "dmg")
+      copyFile(path.join(outDir, dmg.stable), path.join(outDir, vname))
+      made.push(dmg.stable, vname)
+    }
+    if (zip) {
+      const vname = versionedName(version, macKind(arch), "zip")
+      copyFile(path.join(outDir, zip.stable), path.join(outDir, vname))
+      made.push(zip.stable, vname)
+      const zipBlock = pick(
+        files,
+        (f) =>
+          f === `${zip.original}.blockmap` ||
+          f === `${zip.stable}.blockmap` ||
+          (f.endsWith(".zip.blockmap") && f.includes(arch)),
+      )
+      if (zipBlock) {
+        const stableBlock = `Aftertrace-${macKind(arch)}.zip.blockmap`
+        copyFile(path.join(outDir, zipBlock), path.join(outDir, stableBlock))
+        copyFile(path.join(outDir, stableBlock), path.join(outDir, `Aftertrace-${version}-${macKind(arch)}.zip.blockmap`))
+        made.push(stableBlock)
+      }
+    }
+  }
+
+  const arm = byArch.arm64
+  if (arm && arm.dmg) {
+    copyFile(path.join(outDir, arm.dmg.stable), path.join(outDir, "Aftertrace-mac.dmg"))
+    copyFile(path.join(outDir, "Aftertrace-mac.dmg"), path.join(outDir, versionedName(version, "mac", "dmg")))
+    made.push("Aftertrace-mac.dmg", versionedName(version, "mac", "dmg"))
+  }
+  if (arm && arm.zip) {
+    copyFile(path.join(outDir, arm.zip.stable), path.join(outDir, "Aftertrace-mac.zip"))
+    copyFile(path.join(outDir, "Aftertrace-mac.zip"), path.join(outDir, versionedName(version, "mac", "zip")))
+    made.push("Aftertrace-mac.zip", versionedName(version, "mac", "zip"))
+    const armBlock = path.join(outDir, "Aftertrace-mac-arm64.zip.blockmap")
+    if (fs.existsSync(armBlock)) {
+      copyFile(armBlock, path.join(outDir, "Aftertrace-mac.zip.blockmap"))
+      copyFile(path.join(outDir, "Aftertrace-mac.zip.blockmap"), path.join(outDir, `Aftertrace-${version}-mac.zip.blockmap`))
+    }
+  }
+
+  if (MAC_ARCHES.every((arch) => byArch[arch] && byArch[arch].zip)) {
+    writeMacLatestYml(outDir, version)
+  } else if (arm && arm.zip) {
+    missing.push("latest-mac.yml (need both Aftertrace-mac-arm64.zip and Aftertrace-mac-x64.zip)")
+  }
+}
+
 function run(outDir, version) {
   const files = listFiles(outDir)
   const made = []
   const missing = []
 
-  const macDmg = ensureStable(outDir, files, {
-    kind: "mac",
-    ext: "dmg",
-    match: (f) => f.endsWith(".dmg"),
-  })
-  const macZip = ensureStable(outDir, files, {
-    kind: "mac",
-    ext: "zip",
-    match: (f) => f.endsWith(".zip") && !f.endsWith(".blockmap"),
-  })
+  const hasMac = files.some((f) => f.endsWith(".dmg") || /Aftertrace-.*mac/i.test(f))
+  if (hasMac) {
+    stabilizeMac(outDir, files, version, made, missing)
+  }
+
   const winExe = ensureStable(outDir, files, {
     kind: "win",
     ext: "exe",
@@ -101,30 +194,6 @@ function run(outDir, version) {
     const vname = versionedName(version, kind, ext)
     copyFile(path.join(outDir, info.stable), path.join(outDir, vname))
     made.push(info.stable, vname)
-  }
-
-  if (macDmg || macZip) {
-    if (!macDmg) missing.push("Aftertrace-mac.dmg")
-    if (!macZip) missing.push("Aftertrace-mac.zip")
-    copyVersioned(macDmg, "mac", "dmg")
-    copyVersioned(macZip, "mac", "zip")
-    const zipBlock = pick(files, (f) => f.endsWith(".zip.blockmap") || f === `${macZip && macZip.original}.blockmap`)
-    if (zipBlock) {
-      copyFile(path.join(outDir, zipBlock), path.join(outDir, "Aftertrace-mac.zip.blockmap"))
-      copyFile(path.join(outDir, "Aftertrace-mac.zip.blockmap"), path.join(outDir, `Aftertrace-${version}-mac.zip.blockmap`))
-    }
-    const ymlPath = path.join(outDir, "latest-mac.yml")
-    if (fs.existsSync(ymlPath) && macZip) {
-      let text = fs.readFileSync(ymlPath, "utf8")
-      text = rewriteAll(text, macZip.original, macZip.stable)
-      if (macDmg) text = rewriteAll(text, macDmg.original, macDmg.stable)
-      fs.writeFileSync(ymlPath, text)
-    } else if (macZip) {
-      writeLatestYml(outDir, "latest-mac.yml", version, macZip.stable)
-    } else {
-      missing.push("latest-mac.yml")
-    }
-    if (!fs.existsSync(ymlPath) && macZip) missing.push("latest-mac.yml")
   }
 
   if (winExe) {
@@ -179,4 +248,4 @@ if (require.main === module) {
   process.stdout.write(`stable artifacts in ${outDir}:\n${result.files.filter((f) => /Aftertrace|latest/i.test(f)).join("\n")}\n`)
 }
 
-module.exports = { run, writeLatestYml, versionedName }
+module.exports = { run, writeLatestYml, writeMacLatestYml, versionedName, MAC_ARCHES }

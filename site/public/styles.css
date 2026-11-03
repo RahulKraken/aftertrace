@@ -63,9 +63,10 @@ main { padding: 0 16px; }
 .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
 .btn:hover { opacity: 0.9; }
 .hero-download { margin: 30px 0 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.dl-alt { margin: 0; font-size: 13.5px; color: var(--mute); }
-.dl-alt a { color: var(--ink); text-decoration: none; }
-.dl-alt a:hover { opacity: 0.7; }
+.dl-alt, .dl-chip { margin: 0; font-size: 13.5px; color: var(--mute); }
+.dl-alt a, .dl-chip a { color: var(--ink); text-decoration: none; }
+.dl-alt a:hover, .dl-chip a:hover { opacity: 0.7; }
+.dl-chip { font-size: 13px; }
 .open-note { margin: 0; font-size: 13px; color: var(--mute); }
 .dev-install { margin-top: 28px; display: flex; flex-direction: column; align-items: center; }
 .dev-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }

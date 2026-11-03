@@ -2,8 +2,9 @@ name: Desktop
 
 # Unsigned (or signed, once Apple/Windows secrets exist) packages for Mac,
 # Windows and Linux. On a PR this is the dry-run: artifacts named the same
-# way a GitHub Release will attach them (Aftertrace-mac.dmg, latest-mac.yml,
-# …) without publishing. The Release workflow calls this file on a v* tag.
+# way a GitHub Release will attach them (Aftertrace-mac-arm64.dmg,
+# Aftertrace-mac-x64.dmg, Aftertrace-mac.dmg alias, latest-mac.yml, …)
+# without publishing. The Release workflow calls this file on a v* tag.
 on:
   pull_request:
   workflow_dispatch:
@@ -197,17 +198,17 @@ jobs:
       - name: Desktop unit tests
         working-directory: desktop
         run: npm ci && npm test
-      - name: Build universal Go engine
+      - name: Build per-chip Go engines
         run: |
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
-          mkdir -p desktop/resources/engine
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /tmp/aftertrace-arm64 ./cmd/aftertrace
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /tmp/aftertrace-amd64 ./cmd/aftertrace
-          lipo -create -output desktop/resources/engine/aftertrace /tmp/aftertrace-arm64 /tmp/aftertrace-amd64
-          chmod +x desktop/resources/engine/aftertrace
-          file desktop/resources/engine/aftertrace
-          lipo -info desktop/resources/engine/aftertrace
+          mkdir -p desktop/resources/engine-arch/darwin-arm64 desktop/resources/engine-arch/darwin-x64
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine-arch/darwin-arm64/aftertrace ./cmd/aftertrace
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine-arch/darwin-x64/aftertrace ./cmd/aftertrace
+          chmod +x desktop/resources/engine-arch/darwin-arm64/aftertrace desktop/resources/engine-arch/darwin-x64/aftertrace
+          file desktop/resources/engine-arch/darwin-arm64/aftertrace desktop/resources/engine-arch/darwin-x64/aftertrace
+          lipo -info desktop/resources/engine-arch/darwin-arm64/aftertrace
+          lipo -info desktop/resources/engine-arch/darwin-x64/aftertrace
       - name: Package
         working-directory: desktop
         env:
@@ -220,19 +221,50 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: sh scripts/ci-pack.sh mac
+      - name: Verify per-chip packages
+        working-directory: desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          # shellcheck disable=SC1091
+          . scripts/ci-signing-env.sh
+          sh scripts/ci-verify-mac.sh
       - name: List artifacts
-        run: ls -lah desktop/dist && (codesign -dv --verbose=4 desktop/dist/mac-universal/Aftertrace.app || true)
+        run: |
+          ls -lah desktop/dist
+          for app in desktop/dist/mac-arm64/Aftertrace.app desktop/dist/mac-x64/Aftertrace.app desktop/dist/mac/Aftertrace.app; do
+            [ -d "$app" ] || continue
+            codesign -dv --verbose=4 "$app" || true
+          done
+          cat desktop/dist/mac-engine-report.txt
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-mac
           path: |
             desktop/dist/Aftertrace-mac.dmg
             desktop/dist/Aftertrace-mac.zip
+            desktop/dist/Aftertrace-mac-arm64.dmg
+            desktop/dist/Aftertrace-mac-x64.dmg
+            desktop/dist/Aftertrace-mac-arm64.zip
+            desktop/dist/Aftertrace-mac-x64.zip
             desktop/dist/Aftertrace-*-mac.dmg
             desktop/dist/Aftertrace-*-mac.zip
+            desktop/dist/Aftertrace-*-mac-*.dmg
+            desktop/dist/Aftertrace-*-mac-*.zip
             desktop/dist/Aftertrace-mac.zip.blockmap
+            desktop/dist/Aftertrace-mac-*.zip.blockmap
             desktop/dist/Aftertrace-*-mac.zip.blockmap
+            desktop/dist/Aftertrace-*-mac-*.zip.blockmap
             desktop/dist/latest-mac.yml
+            desktop/dist/*notarized.json
+            desktop/dist/mac-engine-report.txt
           if-no-files-found: error
           retention-days: 14
 

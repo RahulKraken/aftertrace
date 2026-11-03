@@ -1,60 +1,84 @@
 # Signing and notarizing the Mac app
 
-A tagged release (`v*`) builds the Aftertrace Mac app as a DMG and zip, plus Windows and Linux packages, and attaches them to the GitHub Release next to the Go engine archives `install.sh` uses. The Mac app is signed and notarized when these GitHub Actions secrets exist. If they do not, the same workflow still succeeds: it ships an unsigned build, and the website tells people to right-click Aftertrace and choose Open.
+A tagged release (`v*`) builds two Mac apps (Apple silicon and Intel), plus Windows and Linux packages, and attaches them to the GitHub Release next to the Go engine archives `install.sh` uses. Each Mac DMG bundles only the Go engine for that chip.
 
-Add the secrets at **Settings → Secrets and variables → Actions** on `RahulKraken/aftertrace`. After they are in, the next `v*` tag is signed. Then drop the first-open note from `site/public/index.html` (the `open-note` paragraph) and the matching sentence in the README.
+The Mac apps are signed with a Developer ID, notarized, and stapled when these GitHub Actions secrets exist. If they do not, the same workflow still succeeds: it ships unsigned builds, and the website shows the right-click → Open note until a notarized release is published.
 
-Do not put certificates or passwords in the repo.
+Add the secrets at **Settings → Secrets and variables → Actions** on `RahulKraken/aftertrace`. After they are in, the next `v*` tag is signed, notarized and stapled. The site hides the first-open note automatically once `Aftertrace-mac-notarized.json` is on that release. Do not put certificates or passwords in the repo.
 
-## Secret names
+## Create the Developer ID certificate
 
-### Signing (Developer ID Application)
+You need an Apple Developer Program membership.
 
-| Secret | What it is |
+1. On a Mac, signed into the developer account, open [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list).
+2. Click **+** and choose **Developer ID Application** (not Apple Development, not Mac App Store). This is the cert Gatekeeper accepts for apps distributed outside the App Store.
+3. Continue, pick the G2 sub-CA if asked, create a certificate signing request in Keychain Access if you do not already have one (**Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority…**, saved to disk, email and name filled, “Saved to disk”).
+4. Upload the CSR, download the `.cer`, double-click it so it lands in the **login** keychain under **My Certificates**. It should read **Developer ID Application: &lt;Your Name&gt; (&lt;TEAMID&gt;)**.
+
+## Export the `.p12` and base64 it
+
+1. In Keychain Access, select **My Certificates**, select the Developer ID Application cert (the private key must be nested under it).
+2. **File → Export Items…** (or right-click → Export). Format: **Personal Information Exchange (.p12)**. Give it a password. You will need that password as `CSC_KEY_PASSWORD`.
+3. Encode it as one line of base64 and copy it:
+
+   ```bash
+   base64 -i DeveloperID.p12 | pbcopy
+   ```
+
+   On Linux: `base64 -w0 DeveloperID.p12` and copy the output. Do not commit the `.p12`.
+
+## Add each repo secret
+
+**Settings → Secrets and variables → Actions → New repository secret** on `RahulKraken/aftertrace`. Create every row you will use. Empty secrets are unset in CI so electron-builder does not treat `CSC_LINK=""` as a path.
+
+### Signing (required for a signed build)
+
+| Secret | What to paste |
 | - | - |
-| `CSC_LINK` | Developer ID Application certificate. A `https://` URL, a `file://` path, or the **base64** of the `.p12` / `.pfx`. electron-builder reads this name. |
-| `CSC_KEY_PASSWORD` | Password for that `.p12` / `.pfx`. |
-
-Export the certificate from Keychain Access as a `.p12`, then:
-
-```bash
-base64 -i DeveloperID.p12 | pbcopy
-```
-
-Paste that into `CSC_LINK`. The password you typed at export goes in `CSC_KEY_PASSWORD`.
+| `CSC_LINK` | The base64 of the `.p12` from the previous step (the `pbcopy` buffer). electron-builder also accepts a `https://` URL or a `file://` path; GitHub secrets should be the base64. |
+| `CSC_KEY_PASSWORD` | The password you typed when exporting the `.p12`. |
 
 The same pair signs the Windows NSIS installer if the file is a code-signing `.pfx`. Leave them empty and Windows stays unsigned, like Mac.
 
 ### Notarization (one of the two Apple methods)
 
+You need **signing** and **one** notarization method. Signing without notarization still builds; Gatekeeper will treat it like an unsigned app until notarization is on.
+
 **Apple ID** (an app-specific password):
 
-| Secret | What it is |
+1. At [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords, generate one. Do not use the account password.
+2. Team ID is the ten-character value on [Membership details](https://developer.apple.com/account) (`ABCD123456`).
+
+| Secret | What to paste |
 | - | - |
 | `APPLE_ID` | Apple ID email for the Developer account. |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password from appleid.apple.com, not the account password. |
-| `APPLE_TEAM_ID` | Ten-character Team ID (Membership details on developer.apple.com). |
+| `APPLE_APP_SPECIFIC_PASSWORD` | The app-specific password. |
+| `APPLE_TEAM_ID` | Ten-character Team ID. |
 
-**or App Store Connect API key** (preferred once you have one):
+**or App Store Connect API key** (preferred in CI):
 
-| Secret | What it is |
+1. [App Store Connect](https://appstoreconnect.apple.com) → Users and Access → Integrations → App Store Connect API → Generate API Key. Role **Developer** is enough. Download the `.p8` (once).
+2. Note the Key ID and the Issuer ID (a UUID).
+
+| Secret | What to paste |
 | - | - |
-| `APPLE_API_KEY` | Contents of the `.p8` (including the `BEGIN PRIVATE KEY` lines). CI writes this to a temp file; you can also store a path, but contents are what GitHub secrets can hold. |
+| `APPLE_API_KEY` | Contents of the `.p8` (the `BEGIN PRIVATE KEY` block). CI writes this to a temp file. You can also store a path, but contents are what GitHub secrets can hold. |
 | `APPLE_API_KEY_ID` | Key ID shown when you created the key. |
-| `APPLE_API_ISSUER` | Issuer ID (a UUID) from App Store Connect → Users and Access → Integrations → App Store Connect API. |
-| `APPLE_TEAM_ID` | Same ten-character Team ID. |
+| `APPLE_API_ISSUER` | Issuer ID (UUID) from App Store Connect. |
 
-You need **signing** (`CSC_LINK` + `CSC_KEY_PASSWORD`) and **one** notarization method. Signing without notarization still builds; Gatekeeper will treat it like an unsigned app until notarization is on.
+`APPLE_TEAM_ID` is required for the Apple ID method. It is unused for the API-key method.
 
 ## What CI does
 
 `.github/workflows/desktop.yml` (PRs, `main`, and the Release workflow on a `v*` tag):
 
 1. If `CSC_LINK` is empty, sets `CSC_IDENTITY_AUTO_DISCOVERY=false` and builds unsigned.
-2. If `APPLE_ID` / `APPLE_API_KEY` are empty, passes `-c.mac.notarize=false` so notarization is not attempted.
-3. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
+2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), notarizes the `.app`, notarizes and staples each DMG, and writes `Aftertrace-mac-notarized.json`.
+3. If those secrets are missing, passes `-c.mac.notarize=false` so notarization is not attempted. The build stays green.
+4. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
+5. When the build was signed and notarized, CI runs `spctl -a -vv --type install` and `xcrun stapler validate` on each DMG (and `spctl -a -vv` on each `.app`).
 
-A PR never publishes a GitHub Release. Desktop packages upload as Actions artifacts named `aftertrace-desktop-mac` / `windows` / `linux`, using the same file names a release will attach (`Aftertrace-mac.dmg`, `latest-mac.yml`, …).
+A PR never publishes a GitHub Release. Desktop packages upload as Actions artifacts named `aftertrace-desktop-mac` / `windows` / `linux`, using the same file names a release will attach.
 
 ## Release asset names
 
@@ -64,18 +88,22 @@ Desktop files on the same release:
 
 | File | Who uses it |
 | - | - |
-| `Aftertrace-mac.dmg` | Site **Download for Mac** button, `/releases/latest/download/Aftertrace-mac.dmg` |
-| `Aftertrace-mac.zip` | electron-updater (Mac) |
+| `Aftertrace-mac-arm64.dmg` | Apple silicon download |
+| `Aftertrace-mac-x64.dmg` | Intel Mac download |
+| `Aftertrace-mac.dmg` | Copy of the arm64 DMG. Site **Download for Mac** fallback and `/releases/latest/download/Aftertrace-mac.dmg` |
+| `Aftertrace-mac-arm64.zip` / `Aftertrace-mac-x64.zip` | electron-updater (Mac). `latest-mac.yml` lists both; the running app picks its chip |
+| `Aftertrace-mac.zip` | Copy of the arm64 zip (link stability only; not what the updater reads) |
 | `latest-mac.yml` | electron-updater (Mac) |
+| `Aftertrace-mac-notarized.json` | Present only on a notarized build. The website hides the first-open note when this file is on the latest release |
 | `Aftertrace-win.exe` | Windows download |
 | `latest.yml` | electron-updater (Windows) |
 | `Aftertrace-linux.AppImage` | Linux download |
 | `Aftertrace-linux.deb` | Debian/Ubuntu |
 | `latest-linux.yml` | electron-updater (Linux AppImage) |
-| `Aftertrace-<version>-mac.dmg` (and the same for zip / win / linux) | Optional pin to a version |
+| `Aftertrace-<version>-mac-arm64.dmg` (and the same for x64 / zip / win / linux) | Optional pin to a version |
 
 ## First open while unsigned
 
 macOS will warn that Aftertrace is from an unidentified developer. The site and README say: right-click Aftertrace, choose Open, then Open again. Do not tell people to run `xattr` or `spctl`.
 
-Once a notarized build is on GitHub Releases, that note comes off.
+Once a notarized build is on GitHub Releases, the site drops that note by itself. You do not edit `index.html` for that.

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Package Aftertrace for one OS. Run from desktop/ after npm ci and with the
-# Go sidecar in resources/engine/.
+# Go sidecar in resources/engine/ (Windows/Linux) or resources/engine-arch/
+# (Mac, one binary per chip).
 #   sh scripts/ci-pack.sh mac|win|linux
 set -eu
 cd "$(dirname "$0")/.."
@@ -14,12 +15,15 @@ case "$target" in
     extra=""
     # Notarize only when a signing identity AND Apple credentials exist.
     # -c.mac.notarize=false keeps unsigned / sign-only builds green.
+    # -c.mac.notarize=true makes notarization required when secrets are set.
     if [ -z "${CSC_LINK-}" ] || { [ -z "${APPLE_ID-}" ] && [ -z "${APPLE_API_KEY-}" ]; }; then
       extra="-c.mac.notarize=false"
+    else
+      extra="-c.mac.notarize=true"
     fi
     # extra is a single flag or empty; splitting is intentional.
     # shellcheck disable=SC2086
-    npx electron-builder --mac --universal --publish never $extra
+    npx electron-builder --mac --arm64 --x64 --publish never $extra
     ;;
   win)
     npx electron-builder --win --x64 --publish never

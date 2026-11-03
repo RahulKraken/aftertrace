@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Desktop**
+- Mac builds are per-chip: `Aftertrace-mac-arm64.dmg` / `Aftertrace-mac-x64.dmg` (and zips), each with only that chip's Go engine. `Aftertrace-mac.dmg` is a copy of the Apple silicon DMG so existing `/releases/latest/download` links still work. `latest-mac.yml` lists both zips so electron-updater serves the matching arch.
+- When Apple signing and notarization secrets are set, CI signs with Developer ID (hardened runtime, sidecar entitlements), notarizes, staples the DMGs, and checks them with `spctl` and `stapler validate`. Unsigned builds still succeed without those secrets.
+- Site **Download for Mac** picks Apple silicon vs Intel when it can, defaults to Apple silicon, and shows the right-click first-open note only while the latest release is unsigned.
+
 ## v0.5.0
 
 **Desktop**

@@ -29,9 +29,9 @@
     <h1>The flight recorder for your&nbsp;AI&nbsp;work.</h1>
     <p class="lede">See what Claude Code, your agents and the apps you build with LLMs actually did: how long you waited, what it cost, and the one change worth making next. One binary on your machine. Your data never leaves it.</p>
     <div class="hero-download">
-      <a class="btn" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>
+      <a class="btn" id="mac-download" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>
+      <p class="dl-chip"><a id="mac-download-other" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-x64.dmg">Download for Intel Mac</a></p>
       <p class="dl-alt"><a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe">Windows</a> · <a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage">Linux</a> · <a href="demo/">Live demo</a></p>
-      <!-- Remove this note once Mac builds are notarized. See docs/signing.md. -->
       <p class="open-note">First open: right-click Aftertrace, choose Open, then Open again.</p>
     </div>
     <div class="dev-install">
@@ -142,7 +142,7 @@
   <section class="band start">
     <h2>Start in a minute</h2>
     <ol class="steps">
-      <li><h3>Download</h3><p><a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>. Open the DMG, drag Aftertrace to Applications. First open: right-click Aftertrace, choose Open. The CLI: <code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></p></li>
+      <li><h3>Download</h3><p><a id="mac-start" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>. Open the DMG, drag Aftertrace to Applications.<span class="open-note"> First open: right-click Aftertrace, choose Open.</span> The CLI: <code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></p></li>
       <li><h3>Connect</h3><p>Live export is optional. The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
     </ol>
   </section>
@@ -153,6 +153,7 @@
   <div class="foot-links"><a href="docs/how-it-works.html">Docs</a><a href="demo/">Demo</a><a href="https://github.com/RahulKraken/aftertrace">GitHub</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/RahulKraken/aftertrace/blob/main/LICENSE">Apache-2.0</a></div>
   <div class="foot-note">Not affiliated with Anthropic. Claude is a trademark of Anthropic.</div>
 </footer>
+<script src="mac-download.js"></script>
 <script>
   // The figure sizes its own frame, and a click on a station opens that part's docs page.
   addEventListener("message", (e) => {
