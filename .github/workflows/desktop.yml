@@ -170,10 +170,11 @@ jobs:
   mac:
     name: macOS
     runs-on: macos-latest
-    # Pack+sign is minutes. Parallel notarytool --wait is the long pole
-    # (Apple, often 5–20 min, --timeout 2400). Sequential per-app notarize
-    # previously cancelled this job at 60m after a successful codesign.
-    timeout-minutes: 90
+    # Pack+sign is minutes. Two DMG notarytool waits (upload both, then
+    # wait both, --timeout 3600) are the long pole. Four parallel DMG+zip
+    # submits left Apple In Progress at 40m; sequential app notarize
+    # cancelled the job at 60m after a successful codesign.
+    timeout-minutes: 120
     env:
       CGO_ENABLED: "1"
     steps:

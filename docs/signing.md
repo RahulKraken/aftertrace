@@ -73,7 +73,7 @@ You need **signing** and **one** notarization method. Signing without notarizati
 `.github/workflows/desktop.yml` (PRs, `main`, and the Release workflow on a `v*` tag):
 
 1. If `CSC_LINK` is empty, sets `CSC_IDENTITY_AUTO_DISCOVERY=false` and builds unsigned.
-2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), then `afterAllArtifactBuild` notarizes the per-chip DMGs and updater zips **in parallel** (`notarytool --wait --timeout 2400`), staples the DMGs and `.apps`, and writes `Aftertrace-mac-notarized.json`. electron-builder's own `mac.notarize` stays off so it does not `--wait` each `.app` in series.
+2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), then `afterAllArtifactBuild` notarizes the two per-chip DMGs (upload both, then `notarytool wait --timeout 3600`), staples the DMGs and `.apps`, and writes `Aftertrace-mac-notarized.json`. electron-builder's own `mac.notarize` stays off so it does not `--wait` each `.app` in series. The updater zips are not submitted separately; the nested app cdhash is in the DMG ticket.
 3. If those secrets are missing, notarization is not attempted (`-c.mac.notarize=false`; the hook skips). The build stays green.
 4. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
 5. When the build was signed and notarized, CI runs `spctl -a -vv --type install` and `xcrun stapler validate` on each DMG (and `spctl -a -vv` on each `.app`).

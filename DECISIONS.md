@@ -2,13 +2,13 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
-## Nov 6 2026: notarize per-chip DMGs and zips in parallel after pack, not via electron-builder's sequential --wait.
+## Nov 6 2026: notarize the two per-chip DMGs after pack (upload both, then wait both), not via electron-builder's sequential --wait.
 
-**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits `Aftertrace-mac-{arm64,x64}.{dmg,zip}` to `notarytool` concurrently (`Promise.all`, `--wait --timeout 2400`), then staples the DMGs and `.apps`. Mac job timeout is 90 minutes.
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits only `Aftertrace-mac-{arm64,x64}.dmg` (not the updater zips): upload both without `--wait`, then `notarytool wait` both (`--timeout 3600`). Staple the DMGs and `.apps`. Mac job timeout is 120 minutes. The nested app cdhash is in the DMG ticket, so Gatekeeper can still check zip updates online.
 
-**Why.** With `notarize=true`, electron-builder notarizes each `.app` in series during pack. PR 44 (LICENSE already out of `Contents/`) signed as `Developer ID Application: Rahul Kumar`, then sat in one `notarytool` until GitHub cancelled the job at 60 minutes. Four sequential Apple waits do not fit; one parallel wait does. The timeout on `notarytool` fails the step with logs instead of a silent cancel.
+**Why.** With `notarize=true`, electron-builder notarizes each `.app` in series during pack. PR 44 signed as `Developer ID Application: Rahul Kumar`, then sat in one `notarytool` until GitHub cancelled at 60 minutes. Submitting four artifacts (two DMGs + two zips) with `--wait --timeout 2400` left three In Progress when the first Accepted; Apple was the bottleneck, not codesign. Two DMG uploads then two waits, with a longer timeout, is the wait that fits.
 
-**How to reverse.** Pass `-c.mac.notarize=true` again and drop parallel submit. Do not: it reintroduces the timeout.
+**How to reverse.** Pass `-c.mac.notarize=true` again and drop this hook's submit. Do not: it reintroduces the timeout.
 
 ## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
 
