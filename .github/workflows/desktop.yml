@@ -170,13 +170,13 @@ jobs:
   mac:
     name: macOS
     runs-on: macos-latest
-    # Pack+sign is minutes. Two DMG notarytool waits (upload both, then
-    # wait both, --timeout 3600) are the long pole. Four parallel DMG+zip
-    # submits left Apple In Progress at 40m; sequential app notarize
-    # cancelled the job at 60m after a successful codesign.
-    timeout-minutes: 120
+    # Pack+sign is minutes. One arm64 DMG notarytool wait (--timeout 5400)
+    # is the long pole on PRs. Two parallel waits stayed In Progress for
+    # 60m; sequential app notarize cancelled at 60m after codesign.
+    timeout-minutes: 130
     env:
       CGO_ENABLED: "1"
+      NOTARIZE_MAC_ARCHES: ${{ github.event_name == 'pull_request' && 'arm64' || 'arm64,x64' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

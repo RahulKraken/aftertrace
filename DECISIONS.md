@@ -2,13 +2,13 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
-## Nov 6 2026: notarize the two per-chip DMGs after pack (upload both, then wait both), not via electron-builder's sequential --wait.
+## Nov 6 2026: notarize Mac DMGs after pack, one at a time; PRs only send the arm64 DMG.
 
-**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits only `Aftertrace-mac-{arm64,x64}.dmg` (not the updater zips): upload both without `--wait`, then `notarytool wait` both (`--timeout 3600`). Staple the DMGs and `.apps`. Mac job timeout is 120 minutes. The nested app cdhash is in the DMG ticket, so Gatekeeper can still check zip updates online.
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and `main` notarize both chips. Mac job timeout is 130 minutes.
 
-**Why.** With `notarize=true`, electron-builder notarizes each `.app` in series during pack. PR 44 signed as `Developer ID Application: Rahul Kumar`, then sat in one `notarytool` until GitHub cancelled at 60 minutes. Submitting four artifacts (two DMGs + two zips) with `--wait --timeout 2400` left three In Progress when the first Accepted; Apple was the bottleneck, not codesign. Two DMG uploads then two waits, with a longer timeout, is the wait that fits.
+**Why.** Codesign succeeded once LICENSE left `Contents/`. electron-builder's per-app `--wait` cancelled the job at 60 minutes. Four parallel DMG+zip submits left Apple In Progress at 40 minutes. Two parallel DMG waits stayed In Progress for a full 60 minutes. Apple's queue, not codesign, is the long pole; one PR submission is the wait that can finish.
 
-**How to reverse.** Pass `-c.mac.notarize=true` again and drop this hook's submit. Do not: it reintroduces the timeout.
+**How to reverse.** Pass `-c.mac.notarize=true` again, or set `NOTARIZE_MAC_ARCHES=arm64,x64` on PRs. Do not re-enable sequential app notarize.
 
 ## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
 

@@ -30,16 +30,19 @@ function childWithStdout(text, delay = 0) {
 
 describe("collectNotarizeTargets", () => {
   it("takes per-chip DMGs only — zips, aliases, yml, and blockmaps stay out", () => {
-    const got = collectNotarizeTargets([
-      "/out/Aftertrace-mac-arm64.dmg",
-      "/out/Aftertrace-mac-x64.dmg",
-      "/out/Aftertrace-mac-arm64.zip",
-      "/out/Aftertrace-mac-x64.zip",
-      "/out/Aftertrace-mac-arm64.zip.blockmap",
-      "/out/Aftertrace-mac.dmg",
-      "/out/Aftertrace-mac.zip",
-      "/out/latest-mac.yml",
-    ])
+    const got = collectNotarizeTargets(
+      [
+        "/out/Aftertrace-mac-x64.dmg",
+        "/out/Aftertrace-mac-arm64.dmg",
+        "/out/Aftertrace-mac-arm64.zip",
+        "/out/Aftertrace-mac-x64.zip",
+        "/out/Aftertrace-mac-arm64.zip.blockmap",
+        "/out/Aftertrace-mac.dmg",
+        "/out/Aftertrace-mac.zip",
+        "/out/latest-mac.yml",
+      ],
+      ["arm64", "x64"],
+    )
     assert.deepEqual(
       got.map((p) => path.basename(p)),
       ["Aftertrace-mac-arm64.dmg", "Aftertrace-mac-x64.dmg"],
@@ -47,11 +50,29 @@ describe("collectNotarizeTargets", () => {
   })
 
   it("dedupes by basename", () => {
-    const got = collectNotarizeTargets([
-      "/a/Aftertrace-mac-arm64.dmg",
-      "/b/Aftertrace-mac-arm64.dmg",
-    ])
+    const got = collectNotarizeTargets(
+      ["/a/Aftertrace-mac-arm64.dmg", "/b/Aftertrace-mac-arm64.dmg"],
+      ["arm64"],
+    )
     assert.equal(got.length, 1)
+  })
+
+  it("NOTARIZE_MAC_ARCHES=arm64 drops the x64 DMG", () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    try {
+      const got = collectNotarizeTargets([
+        "/out/Aftertrace-mac-arm64.dmg",
+        "/out/Aftertrace-mac-x64.dmg",
+      ])
+      assert.deepEqual(
+        got.map((p) => path.basename(p)),
+        ["Aftertrace-mac-arm64.dmg"],
+      )
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
   })
 })
 
@@ -74,7 +95,7 @@ describe("notarytool args", () => {
     const i = args.indexOf("--timeout")
     assert.ok(i >= 0)
     assert.equal(args[i + 1], String(NOTARY_WAIT_SECONDS))
-    assert.ok(NOTARY_WAIT_SECONDS >= 3600)
+    assert.ok(NOTARY_WAIT_SECONDS >= 5400)
   })
 })
 
@@ -85,26 +106,26 @@ describe("parseNotaryId", () => {
 })
 
 describe("notarizeFiles", () => {
-  it("uploads both DMGs before waiting on either submission", async () => {
-    let inFlightSubmit = 0
-    let maxSubmit = 0
-    let waits = 0
+  it("waits for each submit before starting the next", async () => {
+    const events = []
     const spawnFn = (_cmd, args) => {
       if (args[1] === "submit") {
-        inFlightSubmit += 1
-        maxSubmit = Math.max(maxSubmit, inFlightSubmit)
-        const id = path.basename(args[2]).includes("arm64") ? "id-arm" : "id-x64"
-        return childWithStdout(JSON.stringify({ id }), 40)
+        events.push(`submit:${path.basename(args[2])}`)
+        return childWithStdout(JSON.stringify({ id: `id-${path.basename(args[2])}` }), 15)
       }
-      waits += 1
-      return childWithStdout("", 5)
+      events.push(`wait:${args[2]}`)
+      return childWithStdout("", 15)
     }
     await notarizeFiles(
-      ["/out/Aftertrace-mac-arm64.dmg", "/out/Aftertrace-mac-x64.dmg"],
+      ["/out/Aftertrace-mac-x64.dmg", "/out/Aftertrace-mac-arm64.dmg"],
       spawnFn,
     )
-    assert.equal(maxSubmit, 2)
-    assert.equal(waits, 2)
+    assert.deepEqual(events, [
+      "submit:Aftertrace-mac-x64.dmg",
+      "wait:id-Aftertrace-mac-x64.dmg",
+      "submit:Aftertrace-mac-arm64.dmg",
+      "wait:id-Aftertrace-mac-arm64.dmg",
+    ])
   })
 })
 
@@ -163,6 +184,8 @@ describe("afterAllArtifactBuild", () => {
   })
 
   it("submits only the two DMGs, waits, then staples DMGs (not zips)", async () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = "arm64,x64"
     const submitted = []
     const waited = []
     const stapled = []
@@ -175,31 +198,63 @@ describe("afterAllArtifactBuild", () => {
       waited.push(args[2])
       return childWithStdout("")
     }
-    const extra = await afterAllArtifactBuild(
-      { artifactPaths, outDir: "/out" },
-      {
-        platform: "darwin",
-        canNotarize: () => true,
-        spawn: spawnFn,
-        spawnSync: (_cmd, args) => {
-          stapled.push(args[args.length - 1])
-          return { status: 0, stdout: "", stderr: "" }
+    try {
+      const extra = await afterAllArtifactBuild(
+        { artifactPaths, outDir: "/out" },
+        {
+          platform: "darwin",
+          canNotarize: () => true,
+          spawn: spawnFn,
+          spawnSync: (_cmd, args) => {
+            stapled.push(args[args.length - 1])
+            return { status: 0, stdout: "", stderr: "" }
+          },
+          writeFileSync: (p, body) => written.push({ p, body }),
         },
-        writeFileSync: (p, body) => written.push({ p, body }),
-      },
-    )
-    assert.deepEqual(
-      submitted.map((p) => path.basename(p)).sort(),
-      ["Aftertrace-mac-arm64.dmg", "Aftertrace-mac-x64.dmg"],
-    )
-    assert.deepEqual(waited.sort(), ["id-Aftertrace-mac-arm64.dmg", "id-Aftertrace-mac-x64.dmg"])
-    assert.deepEqual(
-      stapled.map((p) => path.basename(p)).sort(),
-      ["Aftertrace-mac-arm64.dmg", "Aftertrace-mac-x64.dmg"],
-    )
-    assert.equal(written.length, 1)
-    assert.equal(path.basename(written[0].p), "Aftertrace-mac-notarized.json")
-    assert.deepEqual(extra, [written[0].p])
+      )
+      assert.deepEqual(
+        submitted.map((p) => path.basename(p)),
+        ["Aftertrace-mac-arm64.dmg", "Aftertrace-mac-x64.dmg"],
+      )
+      assert.deepEqual(waited, ["id-Aftertrace-mac-arm64.dmg", "id-Aftertrace-mac-x64.dmg"])
+      assert.deepEqual(
+        stapled.map((p) => path.basename(p)),
+        ["Aftertrace-mac-arm64.dmg", "Aftertrace-mac-x64.dmg"],
+      )
+      assert.equal(written.length, 1)
+      assert.equal(path.basename(written[0].p), "Aftertrace-mac-notarized.json")
+      assert.deepEqual(extra, [written[0].p])
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
+  it("PR arm64-only skips the x64 DMG", async () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    const submitted = []
+    try {
+      await afterAllArtifactBuild(
+        { artifactPaths, outDir: "/out" },
+        {
+          platform: "darwin",
+          canNotarize: () => true,
+          spawn: (_cmd, args) => {
+            if (args[1] === "submit") submitted.push(path.basename(args[2]))
+            return childWithStdout(
+              args[1] === "submit" ? JSON.stringify({ id: "id-arm" }) : "",
+            )
+          },
+          spawnSync: () => ({ status: 0, stdout: "", stderr: "" }),
+          writeFileSync: () => {},
+        },
+      )
+      assert.deepEqual(submitted, ["Aftertrace-mac-arm64.dmg"])
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
   })
 })
 
@@ -208,5 +263,13 @@ describe("ci-pack.sh", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-pack.sh"), "utf8")
     assert.match(sh, /mac\.notarize=false/)
     assert.doesNotMatch(sh, /mac\.notarize=true/)
+  })
+})
+
+describe("ci-verify-mac.sh", () => {
+  it("gates stapler on NOTARIZE_MAC_ARCHES", () => {
+    const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-verify-mac.sh"), "utf8")
+    assert.match(sh, /NOTARIZE_MAC_ARCHES/)
+    assert.match(sh, /x64 signed-only/)
   })
 })

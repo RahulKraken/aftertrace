@@ -137,17 +137,35 @@ grep -q "Aftertrace-mac-arm64.zip" "$dist/latest-mac.yml"
 grep -q "Aftertrace-mac-x64.zip" "$dist/latest-mac.yml"
 
 if [ -n "${CSC_LINK-}" ] && { [ -n "${APPLE_ID-}" ] || [ -n "${APPLE_API_KEY-}" ]; }; then
-  echo "Signed+notarized: Gatekeeper and stapler" | tee -a "$report"
-  for dmg in "$dist/Aftertrace-mac-arm64.dmg" "$dist/Aftertrace-mac-x64.dmg" "$dist/Aftertrace-mac.dmg"; do
+  notarize_arches=${NOTARIZE_MAC_ARCHES:-arm64,x64}
+  echo "Signed+notarized arches: $notarize_arches" | tee -a "$report"
+  wants_arch() {
+    case ",$notarize_arches," in
+      *",$1,"*) return 0 ;;
+      *) return 1 ;;
+    esac
+  }
+  check_dmg() {
+    dmg=$1
     echo "spctl $dmg" | tee -a "$report"
     # Disk images need --type install; -vv is the assess verbose form.
     spctl -a -vv --type install "$dmg" 2>&1 | tee -a "$report"
     xcrun stapler validate "$dmg" 2>&1 | tee -a "$report"
-  done
-  for app in "$arm_app" "$x64_app"; do
-    echo "spctl $app" | tee -a "$report"
-    spctl -a -vv "$app" 2>&1 | tee -a "$report"
-  done
+  }
+  if wants_arch arm64; then
+    check_dmg "$dist/Aftertrace-mac-arm64.dmg"
+    check_dmg "$dist/Aftertrace-mac.dmg"
+    echo "spctl $arm_app" | tee -a "$report"
+    spctl -a -vv "$arm_app" 2>&1 | tee -a "$report"
+  fi
+  if wants_arch x64; then
+    check_dmg "$dist/Aftertrace-mac-x64.dmg"
+    echo "spctl $x64_app" | tee -a "$report"
+    spctl -a -vv "$x64_app" 2>&1 | tee -a "$report"
+  else
+    echo "x64 signed-only: skipping spctl/stapler" | tee -a "$report"
+    codesign -dv --verbose=4 "$x64_app" 2>&1 | tee -a "$report"
+  fi
 else
   echo "Unsigned (or sign-only): skipping spctl/stapler" | tee -a "$report"
 fi

@@ -70,9 +70,9 @@ mac:
   binaries:
     - Contents/Resources/engine/aftertrace
   # CI always passes -c.mac.notarize=false. Signing still happens via CSC_*.
-  # afterAllArtifactBuild notarizes the two per-chip DMGs (upload, then wait),
-  # then staples. Do not set notarize: true here: unsigned local builds would
-  # fail, and electron-builder's sequential app --wait blew the job budget.
+  # afterAllArtifactBuild notarizes DMGs one at a time (PRs: arm64 only).
+  # Do not set notarize: true here: unsigned local builds would fail, and
+  # electron-builder's sequential app --wait blew the job budget.
   # No Mac App Store target. Per-chip (arm64 + x64), not universal.
   target:
     - dmg
