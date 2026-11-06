@@ -14,6 +14,7 @@ const {
   notarytoolWaitArgs,
   notarizeFiles,
   parseNotaryId,
+  isNotaryWaitTimeout,
   NOTARY_WAIT_SECONDS,
 } = require("../scripts/after-all-artifact-build.cjs")
 
@@ -230,6 +231,71 @@ describe("afterAllArtifactBuild", () => {
     }
   })
 
+  it("still fails the pack when notarytool rejects", async () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    try {
+      await assert.rejects(
+        () =>
+          afterAllArtifactBuild(
+            { artifactPaths, outDir: "/out" },
+            {
+              platform: "darwin",
+              canNotarize: () => true,
+              spawn: (_cmd, args) => {
+                if (args[1] === "submit") {
+                  return childWithStdout(JSON.stringify({ id: "id-arm" }))
+                }
+                const child = new EventEmitter()
+                child.stdout = new EventEmitter()
+                child.stderr = new EventEmitter()
+                queueMicrotask(() => child.emit("close", 1))
+                return child
+              },
+            },
+          ),
+        /notarytool wait failed/,
+      )
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
+  it("wait timeout keeps signed DMGs and does not write the notarized marker", async () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    const written = []
+    try {
+      const extra = await afterAllArtifactBuild(
+        { artifactPaths, outDir: "/out" },
+        {
+          platform: "darwin",
+          canNotarize: () => true,
+          spawn: (_cmd, args) => {
+            if (args[1] === "submit") {
+              return childWithStdout(JSON.stringify({ id: "id-arm" }))
+            }
+            const child = new EventEmitter()
+            child.stdout = new EventEmitter()
+            child.stderr = new EventEmitter()
+            queueMicrotask(() => child.emit("close", 124))
+            return child
+          },
+          spawnSync: () => {
+            throw new Error("stapler should not run after a wait timeout")
+          },
+          writeFileSync: (p, body) => written.push({ p, body }),
+        },
+      )
+      assert.deepEqual(extra, [])
+      assert.deepEqual(written, [])
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
   it("PR arm64-only skips the x64 DMG", async () => {
     const prev = process.env.NOTARIZE_MAC_ARCHES
     process.env.NOTARIZE_MAC_ARCHES = "arm64"
@@ -266,10 +332,18 @@ describe("ci-pack.sh", () => {
   })
 })
 
+describe("isNotaryWaitTimeout", () => {
+  it("matches notarytool exit 124", () => {
+    assert.equal(isNotaryWaitTimeout(new Error("notarytool wait failed: xcrun notarytool exit 124")), true)
+    assert.equal(isNotaryWaitTimeout(new Error("Invalid")), false)
+  })
+})
+
 describe("ci-verify-mac.sh", () => {
-  it("gates stapler on NOTARIZE_MAC_ARCHES", () => {
+  it("requires Developer ID when CSC_LINK is set and stapler only with the notarized marker", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-verify-mac.sh"), "utf8")
+    assert.match(sh, /Developer ID Application/)
+    assert.match(sh, /Aftertrace-mac-notarized\.json/)
     assert.match(sh, /NOTARIZE_MAC_ARCHES/)
-    assert.match(sh, /x64 signed-only/)
   })
 })

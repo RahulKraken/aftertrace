@@ -178,6 +178,11 @@ function defaultIo() {
   }
 }
 
+function isNotaryWaitTimeout(err) {
+  const msg = err && err.message ? String(err.message) : String(err)
+  return /exit 124/.test(msg) || /Timeout of \d+ second/.test(msg)
+}
+
 async function afterAllArtifactBuild(buildResult, io) {
   const hooks = { ...defaultIo(), ...io }
   if (hooks.platform !== "darwin") return []
@@ -188,10 +193,19 @@ async function afterAllArtifactBuild(buildResult, io) {
     process.stdout.write("DMG notarization skipped: signing or Apple credentials are not set.\n")
     return []
   }
-  await notarizeFiles(targets, hooks.spawn)
+  try {
+    await notarizeFiles(targets, hooks.spawn)
+  } catch (err) {
+    if (isNotaryWaitTimeout(err)) {
+      process.stdout.write(
+        `notarytool wait timed out; keeping signed DMGs without staple. ${err.message}\n`,
+      )
+      return []
+    }
+    throw err
+  }
   const outDir = (buildResult && buildResult.outDir) || path.dirname(targets[0])
-  const stapleTargets = targets
-  for (const file of stapleTargets) {
+  for (const file of targets) {
     process.stdout.write(`stapler staple ${path.basename(file)}\n`)
     stapleFile(file, hooks.spawnSync)
   }
@@ -212,4 +226,5 @@ exports.parseNotaryId = parseNotaryId
 exports.writeNotarizedMarker = writeNotarizedMarker
 exports.stapleFile = stapleFile
 exports.canNotarize = canNotarize
+exports.isNotaryWaitTimeout = isNotaryWaitTimeout
 exports.NOTARY_WAIT_SECONDS = NOTARY_WAIT_SECONDS

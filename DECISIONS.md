@@ -4,11 +4,11 @@ Short records of choices that are easy to reverse and easy to forget. Newest fir
 
 ## Nov 6 2026: notarize Mac DMGs after pack, one at a time; PRs only send the arm64 DMG.
 
-**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and `main` notarize both chips. Mac job timeout is 130 minutes.
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and `main` notarize both chips. A wait timeout (`notarytool` exit 124) does **not** fail the pack: signed DMGs still upload, and `Aftertrace-mac-notarized.json` is omitted so verify checks Developer ID but skips `spctl`/`stapler`. Invalid/Rejected still fails. Mac job timeout is 130 minutes.
 
-**Why.** Codesign succeeded once LICENSE left `Contents/`. electron-builder's per-app `--wait` cancelled the job at 60 minutes. Four parallel DMG+zip submits left Apple In Progress at 40 minutes. Two parallel DMG waits stayed In Progress for a full 60 minutes. Apple's queue, not codesign, is the long pole; one PR submission is the wait that can finish.
+**Why.** Codesign succeeded once LICENSE left `Contents/`. Apple notary then stayed In Progress: 60 minutes (job cancelled), 40 minutes (4 submits), 60 minutes (2 DMGs), 90 minutes (1 arm64 DMG, submission `93496256-…`). The v0.5.1 bug is codesign, not notarize. Blocking the signed pack on Apple's queue hides the fix.
 
-**How to reverse.** Pass `-c.mac.notarize=true` again, or set `NOTARIZE_MAC_ARCHES=arm64,x64` on PRs. Do not re-enable sequential app notarize.
+**How to reverse.** Pass `-c.mac.notarize=true` again, or throw on wait timeout. Do not re-enable sequential app notarize.
 
 ## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
 

@@ -136,7 +136,24 @@ PY
 grep -q "Aftertrace-mac-arm64.zip" "$dist/latest-mac.yml"
 grep -q "Aftertrace-mac-x64.zip" "$dist/latest-mac.yml"
 
-if [ -n "${CSC_LINK-}" ] && { [ -n "${APPLE_ID-}" ] || [ -n "${APPLE_API_KEY-}" ]; }; then
+if [ -n "${CSC_LINK-}" ]; then
+  echo "Developer ID:" | tee -a "$report"
+  for app in "$arm_app" "$x64_app"; do
+    echo "codesign $app" | tee -a "$report"
+    ident=$(codesign -dv --verbose=4 "$app" 2>&1)
+    echo "$ident" | tee -a "$report"
+    echo "$ident" | grep -q "Developer ID Application:" || {
+      echo "missing Developer ID Application on $app" >&2
+      exit 1
+    }
+    codesign -v "$app" || {
+      echo "codesign -v failed for $app" >&2
+      exit 1
+    }
+  done
+fi
+
+if [ -f "$dist/Aftertrace-mac-notarized.json" ]; then
   notarize_arches=${NOTARIZE_MAC_ARCHES:-arm64,x64}
   echo "Signed+notarized arches: $notarize_arches" | tee -a "$report"
   wants_arch() {
@@ -162,10 +179,9 @@ if [ -n "${CSC_LINK-}" ] && { [ -n "${APPLE_ID-}" ] || [ -n "${APPLE_API_KEY-}" 
     check_dmg "$dist/Aftertrace-mac-x64.dmg"
     echo "spctl $x64_app" | tee -a "$report"
     spctl -a -vv "$x64_app" 2>&1 | tee -a "$report"
-  else
-    echo "x64 signed-only: skipping spctl/stapler" | tee -a "$report"
-    codesign -dv --verbose=4 "$x64_app" 2>&1 | tee -a "$report"
   fi
+elif [ -n "${CSC_LINK-}" ]; then
+  echo "Signed, notarization not stapled (no Aftertrace-mac-notarized.json)" | tee -a "$report"
 else
   echo "Unsigned (or sign-only): skipping spctl/stapler" | tee -a "$report"
 fi
