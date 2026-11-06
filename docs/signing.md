@@ -73,8 +73,8 @@ You need **signing** and **one** notarization method. Signing without notarizati
 `.github/workflows/desktop.yml` (PRs, `main`, and the Release workflow on a `v*` tag):
 
 1. If `CSC_LINK` is empty, sets `CSC_IDENTITY_AUTO_DISCOVERY=false` and builds unsigned.
-2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), notarizes the `.app`, notarizes and staples each DMG, and writes `Aftertrace-mac-notarized.json`.
-3. If those secrets are missing, passes `-c.mac.notarize=false` so notarization is not attempted. The build stays green.
+2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), then `afterAllArtifactBuild` notarizes the per-chip DMGs and updater zips **in parallel** (`notarytool --wait --timeout 2400`), staples the DMGs and `.apps`, and writes `Aftertrace-mac-notarized.json`. electron-builder's own `mac.notarize` stays off so it does not `--wait` each `.app` in series.
+3. If those secrets are missing, notarization is not attempted (`-c.mac.notarize=false`; the hook skips). The build stays green.
 4. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
 5. When the build was signed and notarized, CI runs `spctl -a -vv --type install` and `xcrun stapler validate` on each DMG (and `spctl -a -vv` on each `.app`).
 6. Data files (the Apache LICENSE) go in `extraResources` (`Contents/Resources/` on Mac). `extraFiles` copies into `Contents/`, and `codesign` treats a loose file there as nested code (`code object is not signed at all`). `after-pack` fails the Mac build if anything unexpected is at `Contents/` top level.

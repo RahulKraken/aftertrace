@@ -69,10 +69,10 @@ mac:
   entitlementsInherit: resources/entitlements.mac.inherit.plist
   binaries:
     - Contents/Resources/engine/aftertrace
-  # Notarize when Apple credentials are present. CI passes
-  # -c.mac.notarize=false when they are not, so unsigned builds still succeed,
-  # and -c.mac.notarize=true when they are, so notarization is required.
-  # Do not set notarize: true here — that would fail unsigned builds.
+  # CI always passes -c.mac.notarize=false. Signing still happens via CSC_*.
+  # afterAllArtifactBuild notarizes per-chip DMGs and zips in parallel, then
+  # staples. Do not set notarize: true here: unsigned local builds would fail,
+  # and electron-builder's sequential app --wait blew the 60-minute job budget.
   # No Mac App Store target. Per-chip (arm64 + x64), not universal.
   target:
     - dmg

@@ -4,6 +4,7 @@
 
 **Desktop**
 - Mac signing: LICENSE ships in `Contents/Resources/` (electron-builder `extraResources`), not `Contents/`. `extraFiles` put it where `codesign` treats it as nested code and v0.5.1 failed with `code object is not signed at all`. Windows and Linux still include LICENSE under `resources/`.
+- Mac notarization runs in parallel on the per-chip DMGs and updater zips after pack (`notarytool --wait --timeout 2400`), not via electron-builder's sequential per-app wait. That sequential wait cancelled the first signed CI job at 60 minutes after codesign had already succeeded.
 - Mac builds are per-chip: `Aftertrace-mac-arm64.dmg` / `Aftertrace-mac-x64.dmg` (and zips), each with only that chip's Go engine. `Aftertrace-mac.dmg` is a copy of the Apple silicon DMG so existing `/releases/latest/download` links still work. `latest-mac.yml` lists both zips so electron-updater serves the matching arch.
 - When Apple signing and notarization secrets are set, CI signs with Developer ID (hardened runtime, sidecar entitlements), notarizes, staples the DMGs, and checks them with `spctl` and `stapler validate`. Unsigned builds still succeed without those secrets.
 - Site **Download for Mac** picks Apple silicon vs Intel when it can, defaults to Apple silicon, and shows the right-click first-open note only while the latest release is unsigned.

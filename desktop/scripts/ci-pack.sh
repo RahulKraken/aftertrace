@@ -12,18 +12,11 @@ cd "$(dirname "$0")/.."
 target="${1:-}"
 case "$target" in
   mac)
-    extra=""
-    # Notarize only when a signing identity AND Apple credentials exist.
-    # -c.mac.notarize=false keeps unsigned / sign-only builds green.
-    # -c.mac.notarize=true makes notarization required when secrets are set.
-    if [ -z "${CSC_LINK-}" ] || { [ -z "${APPLE_ID-}" ] && [ -z "${APPLE_API_KEY-}" ]; }; then
-      extra="-c.mac.notarize=false"
-    else
-      extra="-c.mac.notarize=true"
-    fi
-    # extra is a single flag or empty; splitting is intentional.
-    # shellcheck disable=SC2086
-    npx electron-builder --mac --arm64 --x64 --publish never $extra
+    # Sign in electron-builder. Notarize in afterAllArtifactBuild (parallel
+    # notarytool on the per-chip DMGs and zips). electron-builder's own
+    # mac.notarize --waits on each .app in series and cancelled the signed
+    # PR 44 Mac job at 60 minutes after codesign had already succeeded.
+    npx electron-builder --mac --arm64 --x64 --publish never -c.mac.notarize=false
     ;;
   win)
     npx electron-builder --win --x64 --publish never

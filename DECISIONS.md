@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 6 2026: notarize per-chip DMGs and zips in parallel after pack, not via electron-builder's sequential --wait.
+
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits `Aftertrace-mac-{arm64,x64}.{dmg,zip}` to `notarytool` concurrently (`Promise.all`, `--wait --timeout 2400`), then staples the DMGs and `.apps`. Mac job timeout is 90 minutes.
+
+**Why.** With `notarize=true`, electron-builder notarizes each `.app` in series during pack. PR 44 (LICENSE already out of `Contents/`) signed as `Developer ID Application: Rahul Kumar`, then sat in one `notarytool` until GitHub cancelled the job at 60 minutes. Four sequential Apple waits do not fit; one parallel wait does. The timeout on `notarytool` fails the step with logs instead of a silent cancel.
+
+**How to reverse.** Pass `-c.mac.notarize=true` again and drop parallel submit. Do not: it reintroduces the timeout.
+
 ## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
 
 **Choice.** Put the Apache LICENSE in electron-builder `extraResources` (`Contents/Resources/LICENSE` on Mac, `resources/LICENSE` on Windows and Linux). Do not use `extraFiles` for it. `after-pack` fails if anything unexpected sits at `Contents/` top level.
