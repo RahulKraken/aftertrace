@@ -91,6 +91,18 @@ check_engine "$arm_app" arm64
 echo "x64 app: $x64_app" | tee -a "$report"
 check_engine "$x64_app" x86_64
 
+for app in "$arm_app" "$x64_app"; do
+  if [ -f "$app/Contents/LICENSE" ]; then
+    echo "LICENSE must not sit at $app/Contents/LICENSE (codesign nested code)" >&2
+    exit 1
+  fi
+  if [ ! -s "$app/Contents/Resources/LICENSE" ]; then
+    echo "LICENSE missing from $app/Contents/Resources/LICENSE" >&2
+    exit 1
+  fi
+  echo "LICENSE ok: $app/Contents/Resources/LICENSE" | tee -a "$report"
+done
+
 for f in \
   Aftertrace-mac-arm64.dmg Aftertrace-mac-x64.dmg \
   Aftertrace-mac-arm64.zip Aftertrace-mac-x64.zip \

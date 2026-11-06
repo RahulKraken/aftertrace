@@ -25,6 +25,11 @@ extraResources:
       - aftertrace.exe
   - from: resources/icons
     to: icons
+  # extraFiles would land at Aftertrace.app/Contents/LICENSE on Mac, which
+  # codesign treats as nested code ("code object is not signed at all").
+  # Resources/ is the valid place; Windows/Linux get resources/LICENSE.
+  - from: ../LICENSE
+    to: LICENSE
 
 extraMetadata:
   name: aftertrace-desktop
@@ -117,7 +122,3 @@ linux:
     - AppImage
     - deb
   artifactName: Aftertrace-${os}.${ext}
-
-extraFiles:
-  - from: ../LICENSE
-    to: LICENSE

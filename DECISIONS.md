@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
+
+**Choice.** Put the Apache LICENSE in electron-builder `extraResources` (`Contents/Resources/LICENSE` on Mac, `resources/LICENSE` on Windows and Linux). Do not use `extraFiles` for it. `after-pack` fails if anything unexpected sits at `Contents/` top level.
+
+**Why.** `extraFiles` copies into `Aftertrace.app/Contents/` on Mac. `codesign` then treats `Contents/LICENSE` as nested code: `code object is not signed at all / In subcomponent: …/Contents/LICENSE`. That is what failed v0.5.1 after Developer ID secrets were present. Unsigned PRs never ran codesign, so the placement was invisible until then. Windows and Linux extraFiles placement was valid; they still get LICENSE, just under `resources/`.
+
+**How to reverse.** Restore the `extraFiles: { from: ../LICENSE, to: LICENSE }` block and drop the Contents/ layout assertion. Do not do that unless Apple changes nested-code rules.
+
 ## Nov 3 2026: per-chip Mac DMGs instead of universal, with Aftertrace-mac.dmg kept as an arm64 alias.
 
 **Choice.** Build separate `arm64` and `x64` Mac apps (DMG + zip), each bundling only the matching Go engine. Stable names `Aftertrace-mac-arm64.dmg` and `Aftertrace-mac-x64.dmg`. Copy the arm64 DMG to `Aftertrace-mac.dmg` so `/releases/latest/download/Aftertrace-mac.dmg` and the site button stay valid. `latest-mac.yml` lists both zips; electron-updater picks by arch. Notarize and staple when `CSC_LINK` + Apple credentials are present; unsigned otherwise.

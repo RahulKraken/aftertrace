@@ -77,6 +77,7 @@ You need **signing** and **one** notarization method. Signing without notarizati
 3. If those secrets are missing, passes `-c.mac.notarize=false` so notarization is not attempted. The build stays green.
 4. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
 5. When the build was signed and notarized, CI runs `spctl -a -vv --type install` and `xcrun stapler validate` on each DMG (and `spctl -a -vv` on each `.app`).
+6. Data files (the Apache LICENSE) go in `extraResources` (`Contents/Resources/` on Mac). `extraFiles` copies into `Contents/`, and `codesign` treats a loose file there as nested code (`code object is not signed at all`). `after-pack` fails the Mac build if anything unexpected is at `Contents/` top level.
 
 A PR never publishes a GitHub Release. Desktop packages upload as Actions artifacts named `aftertrace-desktop-mac` / `windows` / `linux`, using the same file names a release will attach.
 
