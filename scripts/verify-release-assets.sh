@@ -61,6 +61,11 @@ need Aftertrace-win.exe
 need latest.yml
 need Aftertrace-linux.AppImage
 need Aftertrace-linux.deb
+# Consumer GitHub Releases must attach the notarized marker. PRs and
+# workflow_dispatch dry-runs may omit it (signed-only / Apple still In Progress).
+if [ "${REQUIRE_MAC_NOTARIZE-}" = "true" ] || [ "${REQUIRE_MAC_NOTARIZE-}" = "1" ]; then
+  need Aftertrace-mac-notarized.json
+fi
 
 echo "release assets ok:"
 ls -1 aftertrace_*.tar.gz Aftertrace-mac.dmg Aftertrace-mac.zip \

@@ -15,6 +15,7 @@ const {
   notarizeFiles,
   parseNotaryId,
   isNotaryWaitTimeout,
+  requireMacNotarize,
   NOTARY_WAIT_SECONDS,
 } = require("../scripts/after-all-artifact-build.cjs")
 
@@ -262,9 +263,49 @@ describe("afterAllArtifactBuild", () => {
     }
   })
 
+  it("REQUIRE_MAC_NOTARIZE fails closed on a wait timeout (no marker)", async () => {
+    const prevReq = process.env.REQUIRE_MAC_NOTARIZE
+    const prevArch = process.env.NOTARIZE_MAC_ARCHES
+    process.env.REQUIRE_MAC_NOTARIZE = "true"
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    const written = []
+    try {
+      await assert.rejects(
+        () =>
+          afterAllArtifactBuild(
+            { artifactPaths, outDir: "/out" },
+            {
+              platform: "darwin",
+              canNotarize: () => true,
+              spawn: (_cmd, args) => {
+                if (args[1] === "submit") {
+                  return childWithStdout(JSON.stringify({ id: "id-arm" }))
+                }
+                const child = new EventEmitter()
+                child.stdout = new EventEmitter()
+                child.stderr = new EventEmitter()
+                queueMicrotask(() => child.emit("close", 124))
+                return child
+              },
+              writeFileSync: (p, body) => written.push({ p, body }),
+            },
+          ),
+        /notarytool wait failed/,
+      )
+      assert.deepEqual(written, [])
+    } finally {
+      if (prevReq === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
+      else process.env.REQUIRE_MAC_NOTARIZE = prevReq
+      if (prevArch === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prevArch
+    }
+  })
+
   it("wait timeout keeps signed DMGs and does not write the notarized marker", async () => {
     const prev = process.env.NOTARIZE_MAC_ARCHES
+    const prevReq = process.env.REQUIRE_MAC_NOTARIZE
     process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    delete process.env.REQUIRE_MAC_NOTARIZE
     const written = []
     try {
       const extra = await afterAllArtifactBuild(
@@ -293,6 +334,8 @@ describe("afterAllArtifactBuild", () => {
     } finally {
       if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
       else process.env.NOTARIZE_MAC_ARCHES = prev
+      if (prevReq === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
+      else process.env.REQUIRE_MAC_NOTARIZE = prevReq
     }
   })
 
@@ -336,6 +379,23 @@ describe("isNotaryWaitTimeout", () => {
   it("matches notarytool exit 124", () => {
     assert.equal(isNotaryWaitTimeout(new Error("notarytool wait failed: xcrun notarytool exit 124")), true)
     assert.equal(isNotaryWaitTimeout(new Error("Invalid")), false)
+  })
+})
+
+describe("requireMacNotarize", () => {
+  it("is off unless REQUIRE_MAC_NOTARIZE is true/1", () => {
+    const prev = process.env.REQUIRE_MAC_NOTARIZE
+    try {
+      delete process.env.REQUIRE_MAC_NOTARIZE
+      assert.equal(requireMacNotarize(), false)
+      process.env.REQUIRE_MAC_NOTARIZE = "false"
+      assert.equal(requireMacNotarize(), false)
+      process.env.REQUIRE_MAC_NOTARIZE = "true"
+      assert.equal(requireMacNotarize(), true)
+    } finally {
+      if (prev === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
+      else process.env.REQUIRE_MAC_NOTARIZE = prev
+    }
   })
 })
 

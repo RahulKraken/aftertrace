@@ -183,6 +183,11 @@ function isNotaryWaitTimeout(err) {
   return /exit 124/.test(msg) || /Timeout of \d+ second/.test(msg)
 }
 
+function requireMacNotarize() {
+  const v = process.env.REQUIRE_MAC_NOTARIZE
+  return v === "true" || v === "1"
+}
+
 async function afterAllArtifactBuild(buildResult, io) {
   const hooks = { ...defaultIo(), ...io }
   if (hooks.platform !== "darwin") return []
@@ -196,9 +201,12 @@ async function afterAllArtifactBuild(buildResult, io) {
   try {
     await notarizeFiles(targets, hooks.spawn)
   } catch (err) {
-    if (isNotaryWaitTimeout(err)) {
+    // PRs may keep signed artifacts if Apple stays In Progress. A GitHub
+    // Release must not: REQUIRE_MAC_NOTARIZE fails closed (no marker, no
+    // publish). Never write Aftertrace-mac-notarized.json on timeout.
+    if (isNotaryWaitTimeout(err) && !requireMacNotarize()) {
       process.stdout.write(
-        `notarytool wait timed out; keeping signed DMGs without staple. ${err.message}\n`,
+        `notarytool wait timed out; PR artifacts stay signed without staple. ${err.message}\n`,
       )
       return []
     }
@@ -227,4 +235,5 @@ exports.writeNotarizedMarker = writeNotarizedMarker
 exports.stapleFile = stapleFile
 exports.canNotarize = canNotarize
 exports.isNotaryWaitTimeout = isNotaryWaitTimeout
+exports.requireMacNotarize = requireMacNotarize
 exports.NOTARY_WAIT_SECONDS = NOTARY_WAIT_SECONDS

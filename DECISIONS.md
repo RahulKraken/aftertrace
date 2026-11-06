@@ -4,11 +4,11 @@ Short records of choices that are easy to reverse and easy to forget. Newest fir
 
 ## Nov 6 2026: notarize Mac DMGs after pack, one at a time; PRs only send the arm64 DMG.
 
-**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and `main` notarize both chips. A wait timeout (`notarytool` exit 124) does **not** fail the pack: signed DMGs still upload, and `Aftertrace-mac-notarized.json` is omitted so verify checks Developer ID but skips `spctl`/`stapler`. Invalid/Rejected still fails. Mac job timeout is 130 minutes.
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and Release (`workflow_call`) set `REQUIRE_MAC_NOTARIZE=true` and notarize both chips. A wait timeout (`notarytool` exit 124) may keep **PR** signed artifacts without `Aftertrace-mac-notarized.json`. The marker is written only after Apple **Accepted** and `stapler staple` succeeds. A `v*` GitHub Release **fails closed** without that marker (`verify-release-assets` + `gh release create` guard). Invalid/Rejected still fails everywhere.
 
-**Why.** Codesign succeeded once LICENSE left `Contents/`. Apple notary then stayed In Progress: 60 minutes (job cancelled), 40 minutes (4 submits), 60 minutes (2 DMGs), 90 minutes (1 arm64 DMG, submission `93496256-…`). The v0.5.1 bug is codesign, not notarize. Blocking the signed pack on Apple's queue hides the fix.
+**Why.** Codesign succeeded once LICENSE left `Contents/`. Apple notary then stayed In Progress: 60 minutes (job cancelled), 40 minutes (4 submits, one Accepted), 60 minutes (2 DMGs), 90 minutes (1 arm64 DMG, submission `93496256-a4e0-417e-9037-cab50d3d2ac3`). A green signed PR pack is not a consumer download. Rahul wants an app that opens normally: Developer ID **and** Apple Accepted + stapler/spctl.
 
-**How to reverse.** Pass `-c.mac.notarize=true` again, or throw on wait timeout. Do not re-enable sequential app notarize.
+**How to reverse.** Drop `REQUIRE_MAC_NOTARIZE` on the Release workflow. Do not write the notarized marker on timeout. Do not re-enable sequential app notarize.
 
 ## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
 

@@ -90,6 +90,8 @@ jobs:
         working-directory: dist
         run: sha256sum aftertrace_*.tar.gz > checksums.txt && cat checksums.txt
       - name: Verify release assets
+        env:
+          REQUIRE_MAC_NOTARIZE: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'false' }}
         run: sh scripts/verify-release-assets.sh dist
       - name: List what a release would attach
         run: |
@@ -141,6 +143,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Fail closed: do not publish a consumer Mac download that Apple
+          # has not Accepted. The site treats Aftertrace-mac-notarized.json
+          # as "opens normally"; never attach DMGs without it.
+          if [ ! -f dist/Aftertrace-mac-notarized.json ]; then
+            echo "Refuse to publish $GITHUB_REF_NAME: Aftertrace-mac-notarized.json is missing (not Apple Accepted + stapled)." >&2
+            ls -la dist >&2
+            exit 1
+          fi
           cd dist
           set -- aftertrace_*.tar.gz checksums.txt \
             Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml \

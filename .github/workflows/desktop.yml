@@ -177,6 +177,9 @@ jobs:
     env:
       CGO_ENABLED: "1"
       NOTARIZE_MAC_ARCHES: ${{ github.event_name == 'pull_request' && 'arm64' || 'arm64,x64' }}
+      # Release (workflow_call / v* tag) fails closed if Apple never Accepts.
+      # PRs may keep signed artifacts on a wait timeout; they must not publish.
+      REQUIRE_MAC_NOTARIZE: ${{ github.event_name == 'workflow_call' || startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
