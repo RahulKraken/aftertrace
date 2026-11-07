@@ -281,7 +281,12 @@ app.whenReady().then(async () => {
       openWindow,
       closeWindow: destroyWindow,
       showPopover: () => {
-        if (trayApi && trayApi.popover) trayApi.popover.show()
+        if (!trayApi || !trayApi.popover) return
+        // Dashboard focus would blur-hide the panel in ~400ms. Hold it
+        // open for native screencapture; production tray clicks stay at
+        // the default grace.
+        trayApi.popover.markTrayInteraction(60_000)
+        trayApi.popover.show()
       },
       hidePopover: () => {
         if (trayApi && trayApi.popover) trayApi.popover.hide()

@@ -40,8 +40,9 @@ function createPopover({ tray } = {}) {
     return placeNearTray(tb, { display })
   }
 
-  const markTrayInteraction = () => {
-    ignoreBlurUntil = Date.now() + TRAY_BLUR_GRACE_MS
+  const markTrayInteraction = (ms = TRAY_BLUR_GRACE_MS) => {
+    const grace = Number(ms)
+    ignoreBlurUntil = Date.now() + (Number.isFinite(grace) && grace > 0 ? grace : TRAY_BLUR_GRACE_MS)
   }
 
   const ensure = () => {
