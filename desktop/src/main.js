@@ -5,22 +5,26 @@ const { app, ipcMain, Menu } = require("electron")
 const { createEngine } = require("./engine")
 const { enginePath } = require("./paths")
 const { createWindow } = require("./window")
-const { createTray } = require("./tray")
+const { createTray, presentGlance } = require("./tray")
+const { setDashboardVisible } = require("./dock")
 const autostart = require("./autostart")
 const settings = require("./settings")
-const { checkForUpdates, startBackgroundChecks } = require("./updater")
+const { getUpdater } = require("./updater")
+const { finishQuit } = require("./quit")
 const { UI_ORIGIN } = require("./allowlist")
+const { allowSender, dashboardHash } = require("./ipc")
+const smoke = require("./smoke")
 
-// Menu-bar extra: no dock bounce, no second icon next to the window.
+// Start as a menu extra. Dock/Cmd+Tab come back only while the dashboard is open.
 if (process.platform === "darwin" && app.dock) {
   app.dock.hide()
 }
 
 app.setName("Aftertrace")
+smoke.applyPaths(app)
 if (process.platform === "win32") {
   app.setAppUserModelId("com.rahulkraken.aftertrace")
 }
-// Tray-first: skip the GPU process while idle. The window loads a local page.
 app.disableHardwareAcceleration()
 
 const gotLock = app.requestSingleInstanceLock()
@@ -35,6 +39,8 @@ let win = null
 let trayApi = null
 let engine
 let quitting = false
+let restartingForUpdate = false
+const updater = getUpdater()
 
 function userData() {
   return app.getPath("userData")
@@ -56,28 +62,41 @@ function destroyWindow() {
   const w = win
   win = null
   if (!w.isDestroyed()) w.destroy()
+  setDashboardVisible(false, { app })
 }
 
-async function loadUi(target) {
+function uiUrl(hash) {
+  if (!hash) return `${UI_ORIGIN}/`
+  const h = String(hash)
+  if (h.startsWith("#")) return `${UI_ORIGIN}/${h}`
+  if (h.startsWith("/")) return `${UI_ORIGIN}/#${h}`
+  return `${UI_ORIGIN}/#/${h}`
+}
+
+async function loadUi(target, hash) {
   const w = target || win
   if (!w || w.isDestroyed()) return
   await w.loadFile(path.join(__dirname, "../renderer/waiting.html"))
   const ok = await engine.waitUntilHealthy(120_000)
   if (!win || win.isDestroyed() || win !== w) return
   if (!ok) return
-  await w.loadURL(UI_ORIGIN + "/")
+  await w.loadURL(uiUrl(hash))
 }
 
-async function openWindow() {
+async function openWindow(hash) {
   if (win && !win.isDestroyed()) {
     if (win.isMinimized()) win.restore()
+    setDashboardVisible(true, { app })
     win.show()
     win.focus()
+    if (hash) await loadUi(win, hash)
     return win
   }
   win = createWindow()
+  win.on("show", () => setDashboardVisible(true, { app }))
   win.on("closed", () => {
     win = null
+    setDashboardVisible(false, { app })
   })
   win.on("close", () => {
     // Destroyed, not hidden, so idle memory stays at the tray + sidecar.
@@ -87,7 +106,7 @@ async function openWindow() {
   if (first) {
     await win.loadFile(path.join(__dirname, "../renderer/first-launch.html"))
   } else {
-    await loadUi(win)
+    await loadUi(win, hash)
   }
   return win
 }
@@ -126,38 +145,96 @@ function installMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function pushUpdate(state) {
+  if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", state)
+  trayApi && trayApi.refresh && trayApi.refresh().catch(() => {})
+}
+
+async function restartToUpdate() {
+  const st = updater.getState()
+  if (st.status !== "ready") return false
+  restartingForUpdate = true
+  app.quit()
+  return true
+}
+
 app.on("second-instance", () => {
   openWindow()
 })
 
 app.on("window-all-closed", () => {
-  // Stay in the tray. Quit is explicit.
+  setDashboardVisible(false, { app })
 })
 
 app.on("before-quit", (e) => {
   if (quitting) return
   e.preventDefault()
   quitting = true
-  Promise.resolve(engine && engine.stop())
-    .catch(() => {})
-    .finally(() => {
-      destroyWindow()
-      app.quit()
-    })
+  finishQuit({
+    stopEngine: async () => {
+      try {
+        if (engine) await engine.stop()
+      } finally {
+        destroyWindow()
+      }
+    },
+    restartingForUpdate,
+    requestInstall: (opts) => updater.requestInstall(opts),
+    quit: () => app.quit(),
+  })
 })
 
 app.on("activate", () => {
   openWindow()
 })
 
-ipcMain.handle("desktop:getOpenAtLogin", () => isOpenAtLogin())
-ipcMain.handle("desktop:setOpenAtLogin", (_e, enabled) => setOpenAtLogin(enabled))
-ipcMain.handle("desktop:continue", async () => {
+ipcMain.handle("desktop:getOpenAtLogin", (e) => {
+  allowSender(e, ["popover", "first-launch"])
+  return isOpenAtLogin()
+})
+ipcMain.handle("desktop:setOpenAtLogin", (e, enabled) => {
+  allowSender(e, ["popover", "first-launch"])
+  return setOpenAtLogin(enabled)
+})
+ipcMain.handle("desktop:continue", async (e) => {
+  allowSender(e, ["first-launch"])
   settings.save(userData(), { firstLaunchDone: true })
   await loadUi()
   return true
 })
-ipcMain.handle("desktop:engineStatus", () => (engine ? engine.status() : { state: "idle" }))
+ipcMain.handle("desktop:engineStatus", (e) => {
+  allowSender(e, ["waiting", "first-launch", "ui"])
+  return engine ? engine.status() : { state: "idle" }
+})
+ipcMain.handle("desktop:getGlance", async (e) => {
+  allowSender(e, ["popover"])
+  if (trayApi && trayApi.refresh) return trayApi.refresh()
+  return presentGlance({ ok: false, sessions: [] }, updater.getState())
+})
+ipcMain.handle("desktop:getUpdate", (e) => {
+  allowSender(e, ["popover"])
+  return updater.getState()
+})
+ipcMain.handle("desktop:openDashboard", (e, hash) => {
+  allowSender(e, ["popover"])
+  return openWindow(dashboardHash(hash))
+})
+ipcMain.handle("desktop:checkUpdates", async (e) => {
+  allowSender(e, ["popover"])
+  const st = await updater.check({ interactive: true })
+  if (st && st.restart) return restartToUpdate()
+  pushUpdate(updater.getState())
+  return updater.getState()
+})
+ipcMain.handle("desktop:restartToUpdate", (e) => {
+  allowSender(e, ["popover"])
+  return restartToUpdate()
+})
+ipcMain.handle("desktop:quit", (e) => {
+  allowSender(e, ["popover"])
+  app.quit()
+  return true
+})
 
 app.whenReady().then(async () => {
   installMenu()
@@ -178,15 +255,67 @@ app.whenReady().then(async () => {
   })
   engine.start()
 
+  updater.subscribe((st) => {
+    if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", st)
+  })
+
   trayApi = createTray({
     isOpenAtLogin,
+    getUpdate: () => updater.getState(),
     onOpen: () => openWindow(),
     onToggleLogin: () => setOpenAtLogin(!isOpenAtLogin()),
-    onCheckUpdates: () => checkForUpdates({ interactive: true }),
+    onCheckUpdates: () => updater.check({ interactive: true }).then((st) => {
+      if (st && st.restart) return restartToUpdate()
+      pushUpdate(updater.getState())
+    }),
+    onRestart: () => restartToUpdate(),
     onQuit: () => app.quit(),
   })
 
-  startBackgroundChecks()
+  updater.startBackgroundChecks()
+
+  if (smoke.enabled()) {
+    settings.save(userData(), { firstLaunchDone: true, openAtLogin: false })
+    smoke.start({
+      updater,
+      openWindow,
+      closeWindow: destroyWindow,
+      showPopover: () => {
+        if (!trayApi || !trayApi.popover) return
+        // Dashboard focus would blur-hide the panel in ~400ms. Hold it
+        // open for native screencapture; production tray clicks stay at
+        // the default grace.
+        trayApi.popover.markTrayInteraction(60_000)
+        trayApi.popover.show()
+      },
+      hidePopover: () => {
+        if (trayApi && trayApi.popover) trayApi.popover.hide()
+      },
+      restartToUpdate,
+      getVersion: () => app.getVersion(),
+      getUserData: userData,
+      getTrayBounds: () => {
+        try {
+          if (trayApi && trayApi.tray && typeof trayApi.tray.getBounds === "function") {
+            return trayApi.tray.getBounds()
+          }
+        } catch {
+          return null
+        }
+        return null
+      },
+      getPopoverBounds: () => {
+        try {
+          if (trayApi && trayApi.popover && typeof trayApi.popover.getBounds === "function") {
+            return trayApi.popover.getBounds()
+          }
+        } catch {
+          return null
+        }
+        return null
+      },
+    })
+  }
 
   const first = !settings.load(userData()).firstLaunchDone
   if (!hiddenLaunch || first) await openWindow()

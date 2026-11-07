@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.4
+
+**Desktop**
+- Background update check and download via electron-updater. Visible checking / downloading / ready / error states. **Restart to update** is user-triggered; a finished download does not quit the app. Sidecar is stopped before `quitAndInstall`. Update checks hit GitHub Releases only. In-flight checks serialize (no second download); Later still lets the next background pass fetch the zip; offline/cancel stay in error and retry.
+- Fail-closed release identity: tag, `desktop/package.json`, updater feed, packed `Aftertrace.app` `CFBundleShortVersionString`, and this CHANGELOG heading must match, and the version must be newer than the shipped 0.5.0 app so installed v0.5.3 can see it.
+- Disposable `macos-15` runner probes Aqua (`macos-session-probe.sh`) and runs a signed 0.5.4 → CI-only signed 0.5.5 fixture upgrade (`signed-upgrade-smoke.sh`): download, stay running, explicit Restart, data retained. Local `127.0.0.1` feed only. No ad-hoc resign, no TCC database writes, no production tag/release. Playwright Electron is not the native UI path. `stapler staple` retries CloudKit `NSURLError -1005` / Error 68; it still fails closed on a real staple reject. Consumer `Aftertrace-mac.dmg` must be a byte copy of the stapled arm64 DMG; `stapler validate` is fail-closed on both (retry Error 68, recopy alias). `spctl --type install` on the DMG stays informational; Gatekeeper evidence is app `spctl` **accepted / Notarized Developer ID**.
+- File-protocol smoke and `AFTERTRACE_UPDATE_FEED_URL` require an explicit GitHub Actions runner (or `AFTERTRACE_SMOKE_ALLOW=1` in unit tests) plus `AFTERTRACE_SMOKE=1` and `AFTERTRACE_SMOKE_DIR`. They do not arm from a lone env var, and they are not reachable from engine HTTP, the dashboard origin, or IPC. Not a signature bypass: electron-updater still requires the same Developer ID.
+- macos-15 Aqua smoke asserts Dock membership while the dashboard is open, close removes Dock/app-switcher while engine+tray stay alive, reopen restores; captures the native custom popover and compact glyph (not Chromium). Published v0.5.3’s Download-then-quit is a one-time transition (asar/compatibility read, not a live old-client→new-client run) and is not patched on the tag.
+- Menu popover and first-launch pages are the only IPC senders that can quit, restart, or check for updates. The dashboard origin cannot. Popover navigation is guarded the same way as the dashboard window.
+- Dashboard open → Dock + Cmd+Tab. Dashboard closed → menu bar + engine, process stays. Not always-Dock.
+- Compact menu-bar popover: current activity, today’s spend, one finding, utilities. Honest freshness. No synthetic “needs you”, no plan-cap meter. Compact square “trace corner” template glyph (not the wide ECG).
+
+**Recap**
+- Header numbers (time and value) are loud; connecting prose is quiet. Sessions, commits and lines stay secondary. Decorative chips in the hero are gone.
+
 ## Unreleased
 
 **Desktop**

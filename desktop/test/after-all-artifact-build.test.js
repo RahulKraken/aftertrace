@@ -9,6 +9,7 @@ const path = require("path")
 const {
   afterAllArtifactBuild,
   collectNotarizeTargets,
+  parseNotarizeArches,
   collectAppBundles,
   notarytoolSubmitArgs,
   notarytoolWaitArgs,
@@ -17,6 +18,8 @@ const {
   isNotaryWaitTimeout,
   requireMacNotarize,
   NOTARY_WAIT_SECONDS,
+  stapleFile,
+  isStaplerTransient,
 } = require("../scripts/after-all-artifact-build.cjs")
 
 function childWithStdout(text, delay = 0) {
@@ -71,6 +74,22 @@ describe("collectNotarizeTargets", () => {
         got.map((p) => path.basename(p)),
         ["Aftertrace-mac-arm64.dmg"],
       )
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
+  it("empty NOTARIZE_MAC_ARCHES skips every DMG (CI fixture)", () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = ""
+    try {
+      assert.deepEqual(parseNotarizeArches(""), [])
+      const got = collectNotarizeTargets([
+        "/out/Aftertrace-mac-arm64.dmg",
+        "/out/Aftertrace-mac-x64.dmg",
+      ])
+      assert.deepEqual(got, [])
     } finally {
       if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
       else process.env.NOTARIZE_MAC_ARCHES = prev
@@ -401,6 +420,46 @@ describe("desktop.yml", () => {
       mac.slice(mac.indexOf("name: Package")),
       /REQUIRE_MAC_NOTARIZE: \$\{\{ github\.event_name == 'workflow_call'/,
     )
+    assert.match(mac, /artifact-feed-smoke\.sh/)
+    assert.match(mac, /runs-on: macos-15/)
+    assert.match(mac, /macos-session-probe\.sh/)
+    assert.match(mac, /pack-ci-fixture\.sh/)
+    assert.match(mac, /signed-upgrade-smoke\.sh/)
+  })
+})
+
+describe("pack-ci-fixture.sh", () => {
+  it("signs a 0.5.5 fixture into dist-fixture without notarize or shipping dist", () => {
+    const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "pack-ci-fixture.sh"), "utf8")
+    assert.match(sh, /0\.5\.5/)
+    assert.match(sh, /dist-fixture/)
+    assert.match(sh, /mac\.notarize=false/)
+    assert.match(sh, /NOTARIZE_MAC_ARCHES=""/)
+    assert.doesNotMatch(sh, /codesign --force/)
+    assert.doesNotMatch(sh, /git tag/)
+  })
+})
+
+describe("signed-upgrade-smoke.sh", () => {
+  it("uses a writable temp copy, local 127.0.0.1 feed, and does not resign or touch TCC", () => {
+    const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "signed-upgrade-smoke.sh"), "utf8")
+    assert.match(sh, /GITHUB_ACTIONS/)
+    assert.match(sh, /AFTERTRACE_HOME/)
+    assert.match(sh, /AFTERTRACE_USER_DATA_DIR/)
+    assert.match(sh, /AFTERTRACE_UPDATE_FEED_URL="http:\/\/127\.0\.0\.1:\$\{port\}\/"/)
+    assert.match(sh, /ditto/)
+    assert.match(sh, /echo restart/)
+    assert.match(sh, /retain-054/)
+    assert.match(sh, /echo close/)
+    assert.match(sh, /echo popover/)
+    assert.match(sh, /wait_gui_ready/)
+    assert.match(sh, /UI elements of list 1/)
+    assert.match(sh, /background only is false/)
+    assert.match(sh, /native-popover/)
+    assert.match(sh, /native-glyph/)
+    assert.doesNotMatch(sh, /codesign --force --/)
+    assert.doesNotMatch(sh, /sqlite3 .*(TCC|tcc)/)
+    assert.doesNotMatch(sh, /npx playwright|electron\.launch/)
   })
 })
 
@@ -438,6 +497,35 @@ describe("requireMacNotarize", () => {
   })
 })
 
+describe("stapler staple", () => {
+  it("retries CloudKit NSURLError -1005 then succeeds", () => {
+    const calls = []
+    const sleeps = []
+    const drop =
+      'error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost."\nThe staple and validate action failed! Error 68.\n'
+    assert.equal(isStaplerTransient(drop), true)
+    stapleFile("/out/Aftertrace-mac-arm64.dmg", (_cmd, args) => {
+      calls.push(args)
+      if (calls.length === 1) return { status: 1, stdout: drop, stderr: "" }
+      return { status: 0, stdout: "", stderr: "" }
+    }, { retries: 5, sleep: (ms) => sleeps.push(ms) })
+    assert.equal(calls.length, 2)
+    assert.deepEqual(sleeps, [2000])
+  })
+
+  it("does not retry a real staple failure", () => {
+    assert.throws(
+      () =>
+        stapleFile("/out/Aftertrace-mac-arm64.dmg", () => ({
+          status: 1,
+          stdout: "The staple and validate action failed! Error 65.\n",
+          stderr: "",
+        }), { retries: 5, sleep: () => assert.fail("sleep") }),
+      /Error 65/,
+    )
+  })
+})
+
 describe("ci-verify-mac.sh", () => {
   it("requires Developer ID when CSC_LINK is set and stapler only with the notarized marker", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-verify-mac.sh"), "utf8")
@@ -447,5 +535,11 @@ describe("ci-verify-mac.sh", () => {
     assert.match(sh, /informational/)
     assert.match(sh, /Notarized Developer ID/)
     assert.match(sh, /must not list Aftertrace-mac-x64\.zip/)
+    assert.match(sh, /CFBundleShortVersionString/)
+    assert.match(sh, /PlistBuddy/)
+    assert.match(sh, /The validate action worked/)
+    assert.match(sh, /recopy/)
+    assert.match(sh, /Error 68/)
+    assert.match(sh, /Aftertrace-mac\.dmg recopy/)
   })
 })

@@ -50,7 +50,7 @@ os.makedirs('linux/hicolor/scalable/apps',exist_ok=True); shutil.copy('svg/icon-
 # 5. Menu-bar template glyphs (black on transparent; macOS tints them). Name ends in 'Template' per AppKit convention.
 for n in GLYPHS:
     w,h=GLYPHS[n][:2]; s=save(f'svg/glyph-{n}.svg', glyph_svg(n))
-    stem={'w28':'TrayTemplate','sq22':'TrayTemplate-22','sq16':'TrayTemplate-16'}[n]
+    stem={'corner':'TrayTemplate','sq22':'TrayTemplate-22','sq16':'TrayTemplate-16','w28':'TrayTemplate-wide'}[n]
     png(s,w,h).save(f'glyphs/{stem}.png'); png(s,w*2,h*2).save(f'glyphs/{stem}@2x.png')
 
 # 6. Mark alone (README header) and wordmark lockups, text outlined to paths

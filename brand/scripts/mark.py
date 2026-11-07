@@ -82,12 +82,14 @@ def small_svg(S, dark=False):
             f'<path d="{poly(pts)}" fill="none" stroke="{ink}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"/>'
             f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{AMBER}"/></svg>')
 
-# ---- Menu-bar template glyphs: 4 alternating spikes decaying evenly (~0.7 per half-cycle), then a solid dot ----
+# ---- Menu-bar template glyphs ----
+# corner: compact "trace corner" (one bend + endpoint). w28 is the retired wide ECG.
 GLYPHS = {
   # name: (w, h, stroke, points, dot)
+  'corner': (18, 18, 1.7, [(4.6,13.4),(4.6,5.4),(12.0,5.4)], (13.4,5.4,1.55)),
   'w28': (28, 18, 2.0, [(1.5,9),(3.4,2.2),(6.4,14.0),(9.6,5.6),(12.8,11.2),(15.4,9),(21,9)], (24.6,9,3.0)),
-  'sq22':(22, 22, 2.0, [(1.5,11),(3.4,4.0),(6.2,17.0),(9.0,7.6),(11.6,13.6),(13.8,11),(15.5,11)], (18.6,11,3.0)),
-  'sq16':(16, 16, 2.0, [(1.2,8),(2.8,2.4),(5.2,13.2),(7.6,5.2),(9.2,8),(10.6,8)], (13.6,8,2.2)),
+  'sq22':(22, 22, 1.8, [(5.6,16.2),(5.6,6.6),(14.4,6.6)], (16.0,6.6,1.8)),
+  'sq16':(16, 16, 1.5, [(4.2,12.0),(4.2,4.8),(10.6,4.8)], (11.8,4.8,1.35)),
 }
 def glyph_svg(name, color='#000000'):
     w,h,sw,pts,(cx,cy,r)=GLYPHS[name]

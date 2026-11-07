@@ -2,6 +2,38 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: alias stapler fail-closed, Aqua Dock close/reopen, CI-only smoke hooks.
+
+**Choice.** `Aftertrace-mac.dmg` (site `/releases/latest/download`) is a byte copy of the stapled arm64 DMG. `ci-verify-mac.sh` recopy-then-`stapler validate` on the alias and fails the job unless “The validate action worked” (retry CloudKit Error 68). `spctl --type install` on Developer ID DMGs stays informational; Gatekeeper is app `spctl -a -vv` accepted / Notarized Developer ID. Smoke file-protocol + `AFTERTRACE_UPDATE_FEED_URL` + `AFTERTRACE_USER_DATA_DIR` relocate require `AFTERTRACE_SMOKE=1` and either `AFTERTRACE_SMOKE_ALLOW=1` (unit tests) or `GITHUB_ACTIONS=true` plus `RUNNER_TEMP`/`GITHUB_WORKSPACE`. `AFTERTRACE_SMOKE_DIR` is required; no tmpdir cmd file. Not reachable from engine HTTP, dashboard origin, or IPC. electron-updater still requires the same Developer ID (not a signature bypass). macos-15 smoke asserts Dock membership while the dashboard is open, close removes Dock/app-switcher while engine+tray live, reopen restores; captures native popover + compact glyph.
+
+**Why.** Green 9a59270 left alias `stapler validate` Error 68 unfailed (`validate | tee` swallowed the exit). System Events “Finder, Aftertrace” plus a Dock process did not prove close/reopen. `AFTERTRACE_SMOKE=1` alone would have been an accidental control surface in a shipping asar.
+
+**How to reverse.** Restore piped stapler; drop Dock AX asserts and popover cmds; ungated `AFTERTRACE_SMOKE=1`. Do not skip alias validate or app `spctl`.
+
+**Record.** PR 47 final gaps. No merge/tag/release. Published v0.5.3 is not rewritten: its Download-then-quit is a one-time transition, evidenced from asar/compatibility files, not a live 0.5.3→0.5.4 client run.
+
+**Diff scope (~130 files vs main).** In-scope for the five items: desktop updater/dock/popover/glyph/smoke (~16 src, ~15 tests, ~8 scripts, 3 workflows), recap header (`RecapPage.tsx`, `recapStory.ts`, recap-2/3 fixtures, e2e), compact glyph source (`brand/glyphs`, `glyph-corner.svg`, packed `trayTemplate`), Playwright recap/popover/glyph PNGs copied to both `docs/screenshots/` and `web/screenshots/` (same convention as the rest of the site — not unrelated demo regen). Docs/CHANGELOG/DECISIONS, `AFTERTRACE_HOME` engine isolation, site download copy. No extra visual redesign.
+
+## Nov 7 2026: macos-15 signed upgrade smoke; no Aqua-is-missing claim without a session probe.
+
+**Choice.** Desktop Mac CI is `macos-15` (GitHub-hosted arm64), not a blanket `macos-latest` “no Aqua” skip. The job records the actual session (`uname`, console user, `launchctl gui/$uid`, WindowServer/Dock, `screencapture`) before treating GUI as unavailable. A signed 0.5.4 app is copied with `ditto` into `$RUNNER_TEMP`, pointed at a local generic feed (`AFTERTRACE_UPDATE_FEED_URL` must be `http(s)://127.0.0.1`), and updated to a CI-only CSC-signed **0.5.5** fixture (`NOTARIZE_MAC_ARCHES` empty so the fixture is not notarized or published). Isolation is `HOME` + `AFTERTRACE_HOME` + `AFTERTRACE_USER_DATA_DIR`; writes under `/Users/runner/.aftertrace` fail the smoke. File-protocol commands (`AFTERTRACE_SMOKE`) drive check/restart because Playwright’s Electron launcher needs inspect fuses that hardened shipping builds typically disable. Screen Recording Allow is clicked via System Events if a dialog appears; TCC.db is not edited. Ad-hoc `codesign --force` is forbidden. Shipped v0.5.3 is evidence of the old `quitAndInstall` path (asar read + launch without feed rewrite); it is not live-upgraded (that would need a mutated `app-update.yml` and would break the seal). Shipping identity stays 0.5.4.
+
+**Why.** Parent asked for download→ready→still running→Restart→replacement on a disposable GitHub runner, and for an honest v0.5.3 vs 0.5.4 distinction. Official runners are arm64; herminal’s screenshot workflow shows a GUI session exists on `macos-15`. Claiming Aqua is missing without probing that session was unsupported.
+
+**How to reverse.** Drop the fixture pack and smoke steps; pin `macos-latest` again; do not add a production 0.5.5 tag to “make the feed real.”
+
+**Record.** PR 47 follow-up; still no merge/tag/release.
+
+## Nov 7 2026: menu bar glance, Dock while the dashboard is open, user-triggered updater, compact glyph, recap numbers.
+
+**Choice.** Ship 0.5.4 (not a bump of one file): tag / `desktop/package.json` / updater yml / `## v0.5.4` in CHANGELOG must agree, and must be newer than 0.5.0 so installed v0.5.3 (internal 0.5.0) can see the feed. electron-updater against GitHub Releases, `autoDownload` false then we download, `autoInstallOnAppQuit` true, `autoRunAppAfterInstall` false, `allowDowngrade` false. Background detect+download; **Restart to update** is the only relaunch. `before-quit` stops the sidecar then `quitAndInstall`. `LSUIElement` stays true; Dock/Cmd+Tab only while the dashboard window is shown (`setActivationPolicy` + `dock.show/hide`). Custom compact popover (not the unused `#/tray` prototype, not a disabled native menu of greys). Attention: activity 5, spend 2, one finding 2, utilities 1. Quiet ≠ waiting. No plan-cap meter. Menu glyph is an 18×18 “trace corner” (one bend + endpoint), not the 28×18 ECG. Recap hero: time and `$` primary, sessions/commits/lines secondary, no decorative chips.
+
+**Why.** Rahul approved implementation 2026 Nov 7 2:04pm IST: glance at activity/cost without opening the dashboard; dashboard remains a normal Mac app when opened. v0.5.3’s version mismatch meant installed apps could not see a newer feed.
+
+**How to reverse.** Replace tray/visual before merge; retain updater safety (identity floor, no auto-restart, GitHub Releases only). Do not publish/tag until a separate approval; published v0.5.3 stays. No merge/release is authorized by this decision.
+
+**Record.** https://app.notion.com/p/4111644e44b681deb108fe7f8eab75d6 (Status Open, Type Auto-decided; chosen: the five approved items).
+
 ## Nov 7 2026: one content grid for the site, one page gutter for the app.
 
 **Choice.** Landing, docs and footer share `--site: 1120px` and `--site-inset` (header already used this inset; the How-it-works figure had been capped at 980px, Start cards at 760px, footer/docs padded 16px inside the 1120 box). Long CLI text is a wrapping `<pre><code>` in the card, not `overflow: hidden` on the page. Landing privacy chips (`.ps code`) stay nowrap so `--store-content` does not split; docs inline code still wraps so a long flag cannot blow the page. The demo/app uses `--page-x` (40px, 16px on a phone) for `.v4`, `.page` and the demo banner so Overview, Findings, Sessions, Recap, Settings and Connect share one left edge. `.page` is left-aligned like `.v4` (no `margin: auto`); Settings' 860px cap must not recenter the column. Week/day bars use `barSlot()`; `niceAxis()` always tops at ≥ max so spend bars stay in the plot; chart SVGs clip instead of painting through the header. Session rows keep five columns when extra metrics hide. Findings tracks stay visible through 1024 (evidence counts hide first; tracks hide at 720). Cost tables scroll inside `.table-scroll`. No new desktop package.

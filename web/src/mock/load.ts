@@ -36,6 +36,8 @@ const appFiles = import.meta.glob("./fixtures/apps/*.json", { eager: true, impor
 import appsJson from "./fixtures/apps.json"
 import recap0 from "./fixtures/recap-0.json"
 import recap1 from "./fixtures/recap-1.json"
+import recap2 from "./fixtures/recap-2.json"
+import recap3 from "./fixtures/recap-3.json"
 import sessionsJson from "./fixtures/sessions.json"
 import findingsJson from "./fixtures/findings.json"
 import fieldsJson from "./fixtures/fields.json"
@@ -74,7 +76,7 @@ export const fields = fieldsJson as Field[]
 export const range = rangeJson as Range
 
 // Generated from the real backend by scripts/gen-app-fixtures.sh.
-export const recaps = [recap0, recap1] as unknown as Recap[]
+export const recaps = [recap0, recap1, recap2, recap3] as unknown as Recap[]
 
 export const apps = appsJson as AppSummary[]
 

@@ -37,6 +37,8 @@ function enginePath({ isPackaged, resourcesPath, appPath } = {}) {
 }
 
 function aftertraceDir() {
+  const explicit = process.env.AFTERTRACE_HOME
+  if (explicit) return explicit
   return path.join(os.homedir(), ".aftertrace")
 }
 

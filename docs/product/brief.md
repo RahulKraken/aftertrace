@@ -61,7 +61,9 @@ Aftertrace is not a better cost table. It wins on what those cannot do:
 | **Recap** | A weekly receipt: hours of agent work, API-equivalent value against your plan, what fixes saved; copy as image | 6 |
 | **Query and Ask** | Builder, SQL, and plain-English questions answered with SQL (opt-in, sends only schema and rows) | any |
 
-Later: quota and rate-limit forecasting, desktop notifications for runaway agents, a menu bar companion, Codex and Gemini CLI as first-class sources, authenticated multi-machine mode.
+The desktop shell’s menu bar is the glance: current activity, today’s spend, one finding. The dashboard is a normal Mac app while it is open.
+
+Later: quota and rate-limit forecasting, desktop notifications for runaway agents, Codex and Gemini CLI as first-class sources, authenticated multi-machine mode.
 
 ## Measures of success
 

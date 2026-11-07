@@ -16,6 +16,7 @@ const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts, runCost } = await vit
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
+const { recapLead, recapShipped } = await vite.ssrLoadModule("/src/lib/recapStory.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
@@ -247,6 +248,24 @@ const w = usageWindow(now, [now - 1 * 3600e9, now - 2 * 3600e9])
 eq(Boolean(w), true, "usageWindow current")
 eq(w.start_ns, now - 2 * 3600e9, "usageWindow earliest in burst")
 eq(w.end_ns - w.start_ns, 5 * 3600e9, "usageWindow is 5h")
+
+const recap = {
+  stats: { turn_ms: (8 * 60 + 41) * 60_000, sessions: 8, cost_usd: 243.41, lines_added: 10321, commits: 49 },
+}
+const lead = recapLead(recap)
+eq(lead.some((p) => p.kind === "primary" && p.text === "8h 41 min"), true, "recapLead primary time")
+eq(lead.some((p) => p.kind === "primary" && p.text === "$243.41"), true, "recapLead primary spend")
+eq(lead.some((p) => p.kind === "secondary" && p.text.includes("8 sessions")), true, "recapLead sessions secondary")
+eq(lead.every((p) => p.kind !== "prose" || !/\$/.test(p.text)), true, "recapLead prose has no dollars")
+const shipped = recapShipped(recap)
+eq(shipped.some((p) => p.kind === "secondary" && p.text.includes("10,321")), true, "recapShipped lines")
+eq(shipped.some((p) => p.kind === "secondary" && /49 commits/.test(p.text)), true, "recapShipped commits")
+eq(recapLead({ stats: {} }).some((p) => p.text === "Nothing ran this week."), true, "recapLead empty")
+const longLead = recapLead({ stats: { turn_ms: 23 * 3_600_000 + 59 * 60_000, sessions: 128, cost_usd: 12345.67 } })
+eq(longLead.some((p) => p.kind === "primary" && p.text === "$12345.67"), true, "recapLead long spend")
+eq(longLead.some((p) => p.kind === "primary" && p.text === "23h 59 min"), true, "recapLead long duration")
+eq(recapLead({ stats: { turn_ms: 460980000, sessions: 128, cost_usd: 12345.67 } }).some((p) => p.kind === "primary" && p.text === "5d 8h"), true, "recapLead multi-day duration")
+eq(recapShipped({ stats: { lines_added: 1234567, commits: 2048 } }).some((p) => p.text.includes("1,234,567")), true, "recapShipped long lines")
 
 if (failed) {
   console.error(`${failed} failed`)

@@ -66,7 +66,7 @@ Push a `v*` tag. Rahul does that, not a PR. `.github/workflows/release.yml` buil
 - Go engine archives: `aftertrace_<tag>_{darwin,linux}_{arm64,amd64}.tar.gz` plus `checksums.txt` (those four files only). `install.sh` still downloads those names from the latest release.
 - Desktop packages: `Aftertrace-mac-arm64.dmg` (and zip), `Aftertrace-mac.dmg` as an arm64 alias, `Aftertrace-win.exe`, `Aftertrace-linux.AppImage` / `.deb`, versioned copies, and `latest-mac.yml` / `latest.yml` / `latest-linux.yml` for electron-updater. Consumer Mac is Apple silicon.
 
-Notes come from the matching `CHANGELOG.md` section. Add the section first. Signing secrets: [docs/signing.md](docs/signing.md).
+Notes come from the matching `CHANGELOG.md` section. Add the section first. Tag, `desktop/package.json`, updater feed, and that heading must be the same number (`node desktop/scripts/release-identity.cjs`). Signing secrets: [docs/signing.md](docs/signing.md). Menu bar / Dock / updater: [docs/desktop-shell.md](docs/desktop-shell.md).
 
 Dry-run without publishing: Actions → Release → Run workflow, or look at Desktop workflow artifacts on a PR (`Aftertrace-mac-arm64.dmg` is in `aftertrace-desktop-mac`).
 
@@ -77,6 +77,7 @@ There is no Homebrew tap yet. `sh scripts/homebrew-formula.sh vX.Y.Z` prints `Fo
 ```bash
 go test ./...
 cd web && npm run lint && npm test && npx playwright test
+cd desktop && npm test
 ```
 
 CI also runs a smoke test against the real binary on demo data (`web/e2e-live`, `playwright.live.config.ts`). Locally: build the embedded UI and the binary, `aftertrace demo`, `aftertrace serve`, then `npx playwright test -c playwright.live.config.ts` in `web/` (set `AFTERTRACE_URL` if you use another port).

@@ -3,6 +3,7 @@ import { Download, ImageIcon, FileText } from "lucide-react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
 import { clock, dur, sayTok, usd } from "../lib/format"
+import { recapLead, recapShipped } from "../lib/recapStory"
 import { readBudget } from "../lib/budget"
 import { modelFamily, primaryModel } from "../lib/model"
 import { barSlot } from "../lib/chart"
@@ -86,6 +87,11 @@ export function RecapPage() {
 
   const days = weekDays(r, sessions)
   const prevDays = prevWeekGhost(r, sessions)
+  const deltaBits = [
+    dCost !== 0 ? `${dCost > 0 ? "↓" : "↑"} ${usd(Math.abs(dCost))} vs last week` : "",
+    s.tokens ? `${sayTok(s.tokens)} tok` : "",
+    saved > 0 ? "spent less than last week" : "",
+  ].filter(Boolean)
 
   return (
     <div className="v4 recap">
@@ -97,16 +103,23 @@ export function RecapPage() {
           <button type="button" disabled={week === 0} onClick={() => setWeek(week - 1)} aria-label="Next week">›</button>
         </div>
       </div>
-      <div className="v4-hero">
-        <div style={{ display: "flex", alignItems: "baseline" }}>
-          <span className="v4-num"><Money value={s.cost_usd} /></span>
-          <span className="d">
-            {dCost !== 0 ? `${dCost > 0 ? "↓" : "↑"} ${usd(Math.abs(dCost))}` : ""}
-            {s.tokens ? ` · ${sayTok(s.tokens)} tok` : ""}
-          </span>
+      <div className="v4-hero recap-hero">
+        <div className="recap-story">
+          <p className="recap-lead">
+            {recapLead(r).map((p, i) => (
+              <span key={i} className={p.kind === "prose" ? "recap-prose" : `recap-n recap-${p.kind}`}>{p.text}</span>
+            ))}
+          </p>
+          {recapShipped(r).length ? (
+            <p className="recap-extra">
+              {recapShipped(r).map((p, i) => (
+                <span key={i} className={p.kind === "prose" ? "recap-prose" : `recap-n recap-${p.kind}`}>{p.text}</span>
+              ))}
+            </p>
+          ) : null}
+          <p className="recap-delta">{deltaBits.join(" · ")}</p>
         </div>
-        <div className="r" style={{ display: "flex", gap: 16, alignItems: "center" }}>
-          {saved > 0 && <span className="v4-chip">Saved {usd(saved)}</span>}
+        <div className="r recap-actions">
           <button type="button" className="icon-btn" onClick={copyImage} title="Copy receipt"><ImageIcon size={14} /></button>
           <button type="button" className="icon-btn" onClick={copyMarkdown} title="Markdown"><FileText size={14} /></button>
           <button type="button" className="icon-btn" onClick={download} aria-label="Download PNG"><Download size={14} /></button>

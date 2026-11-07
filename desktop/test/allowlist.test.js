@@ -14,6 +14,7 @@ test("allows the local engine UI", () => {
 test("allows the first-launch and waiting pages", () => {
   assert.equal(isAllowedUrl("file:///tmp/desktop/renderer/first-launch.html"), true)
   assert.equal(isAllowedUrl("file:///tmp/desktop/renderer/waiting.html"), true)
+  assert.equal(isAllowedUrl("file:///tmp/desktop/renderer/popover.html"), true)
   assert.equal(isAllowedUrl("file:///C:/app/renderer/first-launch.html"), true)
 })
 

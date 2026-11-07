@@ -167,11 +167,13 @@ function createEngine(opts = {}) {
       emit()
       return null
     }
-    fs.mkdirSync(aftertraceDir(), { recursive: true })
+    const dataDir = aftertraceDir()
+    fs.mkdirSync(dataDir, { recursive: true })
     appendLog(logFile, `\n[${new Date().toISOString()}] starting ${bin} serve\n`)
-    const proc = spawnFn(bin, opts.args || ["serve"], {
-      cwd: os.homedir(),
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
+    const args = opts.args || ["serve", "--db", path.join(dataDir, "aftertrace.duckdb")]
+    const proc = spawnFn(bin, args, {
+      cwd: dataDir,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "", AFTERTRACE_HOME: dataDir },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     })

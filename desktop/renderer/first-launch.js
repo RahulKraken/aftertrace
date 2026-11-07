@@ -4,6 +4,9 @@ const api = window.aftertraceDesktop
 const trayWord = api && api.platform === "darwin" ? "menu bar" : "tray"
 
 for (const el of document.querySelectorAll("[data-tray]")) el.textContent = trayWord
+if (!api || api.platform !== "darwin") {
+  for (const el of document.querySelectorAll("[data-dock]")) el.remove()
+}
 
 const box = document.getElementById("login")
 const open = document.getElementById("open")

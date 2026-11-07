@@ -5,7 +5,7 @@ const assert = require("node:assert/strict")
 const fs = require("fs")
 const os = require("os")
 const path = require("path")
-const { enginePath, ENGINE_NAME } = require("../src/paths")
+const { enginePath, ENGINE_NAME, aftertraceDir } = require("../src/paths")
 
 test("packaged extraResources wins", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-paths-"))
@@ -17,6 +17,20 @@ test("packaged extraResources wins", () => {
     assert.equal(enginePath({ isPackaged: true, resourcesPath: resources, appPath: root }), bin)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("AFTERTRACE_HOME wins over os.homedir for engine data", () => {
+  const prev = process.env.AFTERTRACE_HOME
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-home-"))
+  try {
+    process.env.AFTERTRACE_HOME = dir
+    assert.equal(aftertraceDir(), dir)
+    assert.notEqual(aftertraceDir(), path.join(os.homedir(), ".aftertrace"))
+  } finally {
+    if (prev === undefined) delete process.env.AFTERTRACE_HOME
+    else process.env.AFTERTRACE_HOME = prev
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 })
 

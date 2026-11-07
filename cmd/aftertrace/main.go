@@ -81,6 +81,9 @@ systemd --user unit on Linux. It prints every file and command first.
 }
 
 func defaultDB() string {
+	if v := strings.TrimSpace(os.Getenv("AFTERTRACE_HOME")); v != "" {
+		return filepath.Join(v, "aftertrace.duckdb")
+	}
 	h, err := os.UserHomeDir()
 	if err != nil {
 		return "aftertrace.duckdb"

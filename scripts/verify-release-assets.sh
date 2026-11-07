@@ -55,6 +55,13 @@ if grep -q "Aftertrace-mac-x64.zip" latest-mac.yml; then
   cat latest-mac.yml >&2
   exit 1
 fi
+if [ -n "${EXPECT_DESKTOP_VERSION-}" ]; then
+  if ! grep -q "^version: ${EXPECT_DESKTOP_VERSION}$" latest-mac.yml; then
+    echo "verify-release-assets: latest-mac.yml version must be ${EXPECT_DESKTOP_VERSION} (package/feed identity)" >&2
+    cat latest-mac.yml >&2
+    exit 1
+  fi
+fi
 if [ -f Aftertrace-mac-arm64.dmg ] && [ -f Aftertrace-mac.dmg ]; then
   if ! cmp -s Aftertrace-mac.dmg Aftertrace-mac-arm64.dmg; then
     echo "verify-release-assets: Aftertrace-mac.dmg is not a copy of Aftertrace-mac-arm64.dmg" >&2
@@ -67,8 +74,19 @@ need Aftertrace-linux.AppImage
 need Aftertrace-linux.deb
 # Consumer GitHub Releases must attach the notarized marker. PRs and
 # workflow_dispatch dry-runs may omit it (signed-only / Apple still In Progress).
+# stapler validate of the downloadable alias lives in ci-verify-mac.sh
+# (fail-closed, retry Error 68). This script runs on ubuntu Assemble; when
+# stapler is actually present (a Mac with real DMGs, not unit-test stubs)
+# also require both DMGs to validate so a local/release Mac check cannot
+# ship an unvalidated Aftertrace-mac.dmg.
 if [ "${REQUIRE_MAC_NOTARIZE-}" = "true" ] || [ "${REQUIRE_MAC_NOTARIZE-}" = "1" ]; then
   need Aftertrace-mac-notarized.json
+  arm_sz=$(wc -c < Aftertrace-mac-arm64.dmg | tr -d ' ')
+  alias_sz=$(wc -c < Aftertrace-mac.dmg | tr -d ' ')
+  if command -v xcrun >/dev/null 2>&1 && [ "$arm_sz" -gt 1000000 ] && [ "$alias_sz" -gt 1000000 ]; then
+    xcrun stapler validate Aftertrace-mac-arm64.dmg
+    xcrun stapler validate Aftertrace-mac.dmg
+  fi
 fi
 
 echo "release assets ok:"

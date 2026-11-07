@@ -72,6 +72,21 @@ it("rejects latest-mac.yml that lists the Intel zip", () => {
   assert.match(r.stderr || "", /x64/)
 })
 
+it("rejects a feed version that does not match EXPECT_DESKTOP_VERSION", () => {
+  const dir = fixtureDir()
+  const r = runScript(dir, { EXPECT_DESKTOP_VERSION: "0.5.4" })
+  fs.rmSync(dir, { recursive: true, force: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr || "", /0\.5\.4/)
+})
+
+it("REQUIRE_MAC_NOTARIZE stapler-validates real alias+arm64 DMGs when stapler exists", () => {
+  const sh = fs.readFileSync(script, "utf8")
+  assert.match(sh, /stapler validate Aftertrace-mac-arm64\.dmg/)
+  assert.match(sh, /stapler validate Aftertrace-mac\.dmg/)
+  assert.match(sh, /1000000/)
+})
+
 it("consumer release requires Aftertrace-mac-notarized.json when REQUIRE_MAC_NOTARIZE is set", () => {
   const dir = fixtureDir()
   const missing = runScript(dir, { REQUIRE_MAC_NOTARIZE: "true" })

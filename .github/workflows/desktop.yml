@@ -81,6 +81,8 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: sh scripts/ci-pack.sh linux
+      - name: Release identity
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - name: Idle memory
         continue-on-error: true
         working-directory: desktop
@@ -174,7 +176,7 @@ jobs:
 
   mac:
     name: macOS
-    runs-on: macos-latest
+    runs-on: macos-15
     # Pack+sign is minutes. One arm64 DMG notarytool wait (--timeout 5400)
     # is the long pole on PRs. Two parallel waits stayed In Progress for
     # 60m; sequential app notarize cancelled at 60m after codesign.
@@ -237,6 +239,8 @@ jobs:
           # 42330980385 failed before pack).
           REQUIRE_MAC_NOTARIZE: ${{ github.event_name == 'workflow_call' || startsWith(github.ref, 'refs/tags/v') }}
         run: sh scripts/ci-pack.sh mac
+      - name: Release identity
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - name: Verify per-chip packages
         working-directory: desktop
         env:
@@ -252,15 +256,40 @@ jobs:
           # shellcheck disable=SC1091
           . scripts/ci-signing-env.sh
           sh scripts/ci-verify-mac.sh
+      - name: Artifact feed vs shipped 0.5.0 identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh desktop/scripts/artifact-feed-smoke.sh desktop/dist
+      - name: macos-15 session probe
+        run: sh desktop/scripts/macos-session-probe.sh desktop/dist/macos-session-probe.txt
+      - name: Pack CI-only signed 0.5.5 fixture
+        working-directory: desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: sh scripts/pack-ci-fixture.sh 0.5.5 dist-fixture
+      - name: Signed upgrade smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: sh desktop/scripts/signed-upgrade-smoke.sh desktop/dist desktop/dist-fixture
       - name: List artifacts
+        if: always()
         run: |
-          ls -lah desktop/dist
+          ls -lah desktop/dist || true
           for app in desktop/dist/mac-arm64/Aftertrace.app desktop/dist/mac-x64/Aftertrace.app desktop/dist/mac/Aftertrace.app; do
             [ -d "$app" ] || continue
             codesign -dv --verbose=4 "$app" || true
           done
-          cat desktop/dist/mac-engine-report.txt
+          cat desktop/dist/mac-engine-report.txt || true
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: aftertrace-desktop-mac
           path: |
@@ -281,7 +310,25 @@ jobs:
             desktop/dist/latest-mac.yml
             desktop/dist/*notarized.json
             desktop/dist/mac-engine-report.txt
+            desktop/dist/macos-session-probe.txt
+            desktop/dist/signed-upgrade-smoke.txt
           if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: aftertrace-macos-session
+          path: |
+            desktop/dist/macos-session-probe.txt
+            desktop/dist/signed-upgrade-smoke.txt
+            desktop/dist/signed-upgrade-native.png
+            desktop/dist/signed-upgrade-dock-open.png
+            desktop/dist/signed-upgrade-dock-closed.png
+            desktop/dist/signed-upgrade-dock-reopen.png
+            desktop/dist/signed-upgrade-popover.png
+            desktop/dist/signed-upgrade-glyph.png
+            desktop/dist/session-screencapture.png
+          if-no-files-found: warn
           retention-days: 14
 
   windows:
@@ -345,6 +392,9 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: sh scripts/ci-pack.sh win
+      - name: Release identity
+        shell: bash
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-windows
