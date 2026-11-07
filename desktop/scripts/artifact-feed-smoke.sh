@@ -13,8 +13,8 @@
 
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-dist=$(CDPATH= cd -- "${1:-$root/desktop/dist}" && pwd)
+root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
+dist=$(CDPATH='' cd -- "${1:-$root/desktop/dist}" && pwd)
 base=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 tmp=$base/aftertrace-feed-smoke-$$
 mkdir -p "$tmp/home" "$tmp/published"
