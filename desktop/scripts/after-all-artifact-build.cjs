@@ -134,12 +134,32 @@ function spawnInherit(cmd, args, spawnFn) {
   })
 }
 
-function stapleFile(file, spawnSyncFn) {
-  const r = spawnSyncFn("xcrun", ["stapler", "staple", file], { encoding: "utf8" })
-  if (r.status !== 0) {
-    throw new Error(
-      `stapler staple failed for ${path.basename(file)}:\n${r.stdout || ""}${r.stderr || ""}`,
+function isStaplerTransient(text) {
+  const s = String(text || "")
+  return (
+    /NSURLErrorDomain Code=-1005/.test(s) ||
+    /The network connection was lost/i.test(s) ||
+    /The staple and validate action failed! Error 68/.test(s)
+  )
+}
+
+function defaultSleep(ms) {
+  spawnSync("sleep", [String(Math.max(1, Math.ceil(Number(ms) / 1000)))])
+}
+
+function stapleFile(file, spawnSyncFn, { retries = 5, sleep = defaultSleep } = {}) {
+  let last = ""
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const r = spawnSyncFn("xcrun", ["stapler", "staple", file], { encoding: "utf8" })
+    if (r.status === 0) return
+    last = `${r.stdout || ""}${r.stderr || ""}`
+    if (!isStaplerTransient(last) || attempt === retries) {
+      throw new Error(`stapler staple failed for ${path.basename(file)}:\n${last}`)
+    }
+    process.stdout.write(
+      `stapler staple retry ${attempt}/${retries - 1} after CloudKit drop (${path.basename(file)})\n`,
     )
+    sleep(Math.min(2000 * 2 ** (attempt - 1), 16000))
   }
 }
 
@@ -234,6 +254,7 @@ exports.collectAppBundles = collectAppBundles
 exports.parseNotaryId = parseNotaryId
 exports.writeNotarizedMarker = writeNotarizedMarker
 exports.stapleFile = stapleFile
+exports.isStaplerTransient = isStaplerTransient
 exports.canNotarize = canNotarize
 exports.isNotaryWaitTimeout = isNotaryWaitTimeout
 exports.requireMacNotarize = requireMacNotarize

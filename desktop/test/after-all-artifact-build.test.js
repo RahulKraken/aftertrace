@@ -18,6 +18,8 @@ const {
   isNotaryWaitTimeout,
   requireMacNotarize,
   NOTARY_WAIT_SECONDS,
+  stapleFile,
+  isStaplerTransient,
 } = require("../scripts/after-all-artifact-build.cjs")
 
 function childWithStdout(text, delay = 0) {
@@ -485,6 +487,35 @@ describe("requireMacNotarize", () => {
       if (prev === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
       else process.env.REQUIRE_MAC_NOTARIZE = prev
     }
+  })
+})
+
+describe("stapler staple", () => {
+  it("retries CloudKit NSURLError -1005 then succeeds", () => {
+    const calls = []
+    const sleeps = []
+    const drop =
+      'error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost."\nThe staple and validate action failed! Error 68.\n'
+    assert.equal(isStaplerTransient(drop), true)
+    stapleFile("/out/Aftertrace-mac-arm64.dmg", (_cmd, args) => {
+      calls.push(args)
+      if (calls.length === 1) return { status: 1, stdout: drop, stderr: "" }
+      return { status: 0, stdout: "", stderr: "" }
+    }, { retries: 5, sleep: (ms) => sleeps.push(ms) })
+    assert.equal(calls.length, 2)
+    assert.deepEqual(sleeps, [2000])
+  })
+
+  it("does not retry a real staple failure", () => {
+    assert.throws(
+      () =>
+        stapleFile("/out/Aftertrace-mac-arm64.dmg", () => ({
+          status: 1,
+          stdout: "The staple and validate action failed! Error 65.\n",
+          stderr: "",
+        }), { retries: 5, sleep: () => assert.fail("sleep") }),
+      /Error 65/,
+    )
   })
 })
 
