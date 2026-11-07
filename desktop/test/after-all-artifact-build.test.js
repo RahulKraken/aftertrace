@@ -385,6 +385,16 @@ describe("afterAllArtifactBuild", () => {
   })
 })
 
+describe("desktop.yml", () => {
+  it("sets REQUIRE_MAC_NOTARIZE on Package, not the mac job env", () => {
+    const yml = fs.readFileSync(path.join(__dirname, "..", "..", ".github/workflows/desktop.yml"), "utf8")
+    const mac = yml.slice(yml.indexOf("  mac:"))
+    const beforePack = mac.slice(0, mac.indexOf("name: Package"))
+    assert.doesNotMatch(beforePack, /REQUIRE_MAC_NOTARIZE/)
+    assert.match(mac.slice(mac.indexOf("name: Package")), /REQUIRE_MAC_NOTARIZE/)
+  })
+})
+
 describe("ci-pack.sh", () => {
   it("never enables electron-builder mac.notarize (sequential app --wait)", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-pack.sh"), "utf8")
