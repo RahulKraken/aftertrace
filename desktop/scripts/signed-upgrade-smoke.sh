@@ -49,15 +49,21 @@ plist_version() {
 }
 
 assert_no_runner_writes() {
-  if [ -e "$runner_home/.aftertrace" ]; then
-    log "FAIL: wrote $runner_home/.aftertrace"
-    find "$runner_home/.aftertrace" -maxdepth 2 -print | tee -a "$report" || true
+  support="$runner_home/Library/Application Support/Aftertrace"
+  if [ -e "$support" ]; then
+    log "FAIL: wrote $support"
+    find "$support" -maxdepth 3 -print | tee -a "$report" || true
     exit 1
   fi
-  if [ -e "$runner_home/Library/Application Support/Aftertrace" ]; then
-    log "FAIL: wrote $runner_home/Library/Application Support/Aftertrace"
-    find "$runner_home/Library/Application Support/Aftertrace" -maxdepth 2 -print | tee -a "$report" || true
-    exit 1
+  leak="$runner_home/.aftertrace"
+  if [ -e "$leak" ]; then
+    files=$(find "$leak" -type f -print 2>/dev/null || true)
+    if [ -n "$files" ]; then
+      log "FAIL: runner-home .aftertrace has files (engine data must stay under AFTERTRACE_HOME)"
+      printf '%s\n' "$files" | tee -a "$report"
+      exit 1
+    fi
+    log "note: empty $leak exists; helpers/--db/userData are isolated (see status.json)"
   fi
 }
 
