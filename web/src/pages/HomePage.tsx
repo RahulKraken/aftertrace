@@ -3,7 +3,7 @@ import { Link } from "wouter"
 import { api } from "../lib/api"
 import { clock, hm, remain, runCost, sayTok, usd } from "../lib/format"
 import { mondayReset, readBudget } from "../lib/budget"
-import { labelDays } from "../lib/chart"
+import { barSlot, labelDays, niceAxis } from "../lib/chart"
 import { modelFamily, modelSlug, primaryModel, usageWindow } from "../lib/model"
 import { cardMoney, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { DayPoint, LiveLane, ModelSpend, Overview, Session, Turn } from "../lib/types"
@@ -401,13 +401,14 @@ function DayChart({
 }) {
   const w = 700
   const h = 290
-  const padL = 34
+  const padL = 36
+  const padR = 8
   const padB = 26
   const padT = 16
   const innerH = h - padB - padT
   const n = Math.max(days.length, 1)
-  const barW = Math.max(4, Math.min(12, ((w - padL - 8) / n) * 0.42))
-  const gap = (w - padL - 8) / n
+  const plotW = w - padL - padR
+  const barW = Math.max(4, Math.min(12, (plotW / n) * 0.42))
   const values = days.map((d) => (tab === "tokens" ? dayTokens(d) : d.cost_usd))
   const max = Math.max(...values, 1e-6)
   const ticks = niceAxis(max, tab === "tokens")
@@ -418,7 +419,7 @@ function DayChart({
         const y = padT + innerH - (t / maxTick) * innerH
         return (
           <g key={t}>
-            <line x1={padL} x2={w - 4} y1={y} y2={y} stroke="var(--grid)" />
+            <line x1={padL} x2={w - padR} y1={y} y2={y} stroke="var(--grid)" />
             <text className="v4-tick" x={padL - 8} y={y + 4} textAnchor="end">
               {tab === "tokens" ? sayTok(t) : t >= 1 ? `$${Math.round(t)}` : `$${t.toFixed(0)}`}
             </text>
@@ -426,9 +427,9 @@ function DayChart({
         )
       })}
       {days.map((d, i) => {
-        const x = padL + 6 + i * gap
+        const x = padL + barSlot(plotW, n, i, barW, 0)
         const total = values[i]
-        const bh = (total / maxTick) * innerH
+        const bh = Math.min(innerH, (total / maxTick) * innerH)
         if (tab === "savable") {
           const share = spend > 0 ? savings / spend : 0
           const sh = bh * share
@@ -462,8 +463,8 @@ function DayChart({
           </g>
         )
       })}
-      {labelDays(days).map((l) => (
-        <text key={l.i} className="v4-tick" x={padL + 6 + l.i * gap + barW / 2} y={h - 8} textAnchor="middle">
+      {labelDays(days, plotW).map((l) => (
+        <text key={l.i} className="v4-tick" x={padL + barSlot(plotW, n, l.i, barW, 0) + barW / 2} y={h - 8} textAnchor="middle">
           {l.label}
         </text>
       ))}
@@ -473,23 +474,23 @@ function DayChart({
 
 function WeekBars({ days, budget }: { days: DayPoint[]; budget: number | null }) {
   const w = 340
-  const h = 92
+  const h = 96
+  const axisY = 70
   const max = Math.max(...days.map((d) => d.cost_usd), budget ? budget / 7 : 0, 0.01)
   const n = 7
-  const gap = (w - 8) / n
   const barW = 14
   const days7 = padWeek(days)
-  const paceY = budget ? 66 - ((budget / 7) / max) * 52 : -1
+  const paceY = budget ? axisY - ((budget / 7) / max) * 52 : -1
   return (
     <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%" }}>
-      <line x1="4" x2={w - 4} y1="66" y2="66" stroke="var(--line)" />
-      {paceY > 0 && <line x1="4" x2={w - 4} y1={paceY} y2={paceY} stroke="var(--t2)" strokeDasharray="3 3" />}
+      <line x1="8" x2={w - 8} y1={axisY} y2={axisY} stroke="var(--line)" />
+      {paceY > 0 && <line x1="8" x2={w - 8} y1={paceY} y2={paceY} stroke="var(--t2)" strokeDasharray="3 3" />}
       {days7.map((d, i) => {
-        const x = 20.7 + i * gap
+        const x = barSlot(w, n, i, barW, 8)
         const parts = d.by_model && d.by_model.length ? d.by_model : [{ model: "other", cost_usd: d.cost_usd }]
         const tot = parts.reduce((a, p) => a + p.cost_usd, 0)
         const bh = (tot / max) * 52
-        let y = 66
+        let y = axisY
         return (
           <g key={i}>
             {[...parts].reverse().map((p) => {
@@ -507,7 +508,7 @@ function WeekBars({ days, budget }: { days: DayPoint[]; budget: number | null })
                 />
               )
             })}
-            <text className="v4-tick" x={x + barW / 2} y="84" textAnchor="middle">
+            <text className="v4-tick" x={x + barW / 2} y={axisY + 16} textAnchor="middle">
               {["S", "M", "T", "W", "T", "F", "S"][new Date(d.start_ns / 1e6).getDay()] || ""}
             </text>
           </g>
@@ -563,21 +564,6 @@ function modelsFromDays(days: DayPoint[], fallback: ModelSpend[]): ModelSpend[] 
 
 function dayTokens(d: DayPoint): number {
   return (d.by_model || []).reduce((a, p) => a + (p.tokens || 0), 0)
-}
-
-function niceAxis(max: number, tokens: boolean): number[] {
-  if (tokens) {
-    const step = max > 5e6 ? 5e6 : max > 1e6 ? 1e6 : 2e5
-    const out = [0]
-    for (let t = step; t < max * 1.05; t += step) out.push(t)
-    return out
-  }
-  const nice = [1, 2, 3, 5, 10, 20, 30, 50, 100]
-  const step = nice.find((n) => max / n <= 3) || Math.ceil(max / 3)
-  const out = [0]
-  for (let t = step; t < max * 1.05; t += step) out.push(t)
-  if (out.length < 2) out.push(step)
-  return out
 }
 
 

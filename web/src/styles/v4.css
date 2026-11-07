@@ -1,8 +1,9 @@
 /* v4 screens. Prefixed to stay clear of waterfall .pane and findings .side. */
 .v4 {
-  padding: 0 40px 32px;
+  padding: 0 var(--page-x) 32px;
   width: 100%;
   max-width: none;
+  min-width: 0;
   min-height: 100%;
   font-feature-settings: "tnum" 1, "cv11" 1;
 }
@@ -45,6 +46,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  min-width: 0;
 }
 .v4-lbl {
   font: 500 12.5px/16px var(--sans);
@@ -158,9 +160,9 @@
 }
 
 /* Home */
-.v4-g { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 16px; }
+.v4-g { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 16px; min-width: 0; }
 .v4-g + .v4-g { margin-top: 16px; }
-.v4-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.v4-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .v4-tabs > button {
   padding: 16px 20px 15px;
   border-right: 1px solid var(--line);
@@ -169,6 +171,7 @@
   text-align: left;
   position: relative;
   color: inherit;
+  min-width: 0;
 }
 .v4-tabs > button:last-child { border-right: 0; }
 .v4-tabs > button.on::after {
@@ -190,8 +193,8 @@
 .v4-tabs .on .v4-lbl { color: var(--t1); }
 .v4-tabs .amb .v4-num { color: var(--amber-ink); }
 .v4-tabs .mono.v4-num { font: 500 22px/28px var(--mono); letter-spacing: -0.02em; }
-.v4-chart { padding: 18px 20px 6px 12px; }
-.v4-chart svg { display: block; width: 100%; }
+.v4-chart { padding: 18px 20px 6px 12px; min-width: 0; overflow: hidden; }
+.v4-chart svg, .v4-wk svg, .v4-g4 svg { display: block; width: 100%; }
 .v4-tick { font: 400 11px/1 var(--sans); fill: var(--t3); font-feature-settings: "tnum" 1; }
 .v4-leg { display: flex; gap: 18px; align-items: center; padding: 4px 20px 16px 46px; flex-wrap: wrap; }
 .v4-leg .x { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -206,13 +209,13 @@
 }
 .v4-bud .of { font: 400 14px/1 var(--sans); color: var(--t3); letter-spacing: 0; }
 .v4-bud .v4-wk { margin-top: 18px; }
-.v4-bud .v4-sep { height: 1px; background: var(--line); margin: auto -20px 18px; }
+.v4-bud .v4-sep { height: 1px; background: var(--line); margin: 18px -20px; }
 .v4-bud .w2 .v4-num { font-size: 20px; line-height: 24px; margin-top: 8px; }
 .v4-bud .w2 .v4-num small { font-size: 13px; color: var(--t3); margin: 0 2px; letter-spacing: 0; }
 .v4-now { padding: 16px 20px 0; display: flex; flex-direction: column; min-height: 220px; }
-.v4-now .hd { display: flex; align-items: center; gap: 8px; }
+.v4-now .hd { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .v4-now .hd .v4-when { margin-left: auto; }
-.v4-now .t { font: 500 17px/24px var(--sans); letter-spacing: -0.01em; margin-top: 14px; color: var(--t1); }
+.v4-now .t { font: 500 17px/24px var(--sans); letter-spacing: -0.01em; margin-top: 14px; color: var(--t1); overflow-wrap: anywhere; }
 .v4-now .m { margin-top: 8px; display: flex; gap: 16px; }
 .v4-now .v4-tr { margin: auto 0 0; }
 .v4-now .ax {
@@ -274,7 +277,7 @@
   overflow: visible;
   background: transparent;
 }
-.v4.split .v4-l { flex: 1; padding: 0 40px 24px; min-width: 0; overflow: auto; background: transparent; }
+.v4.split .v4-l { flex: 1; padding: 0 var(--page-x) 24px; min-width: 0; overflow: auto; background: transparent; }
 .v4-pane {
   flex: none;
   border-left: 1px solid var(--line);
@@ -393,7 +396,7 @@
 .v4-btn kbd { font: 400 12px/1 var(--mono); opacity: 0.7; }
 
 /* Sessions */
-.v4-stats { display: flex; gap: 40px; padding: 4px 0 20px; align-items: flex-end; }
+.v4-stats { display: flex; flex-wrap: wrap; gap: 24px 40px; padding: 4px 0 20px; align-items: flex-end; }
 .v4-stats .v4-num { font-size: 24px; line-height: 28px; margin-top: 6px; }
 .v4-stats .v4-num small { font-size: 14px; color: var(--t3); margin: 0 2px; letter-spacing: 0; }
 .v4-stats .mono.v4-num { font: 500 22px/28px var(--mono); letter-spacing: -0.02em; }
@@ -466,7 +469,7 @@
 .v4-lk .nm { flex: 1; }
 
 /* Recap */
-.v4-hero { display: flex; align-items: flex-end; justify-content: space-between; padding: 0 0 24px; }
+.v4-hero { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 0 0 24px; }
 .v4-hero .v4-num { font-size: 40px; line-height: 44px; }
 .v4-hero .d { font: 500 13px/1 var(--sans); color: var(--t2); margin-left: 12px; }
 .v4-chip {
@@ -480,7 +483,7 @@
   color: var(--amber-ink);
   font: 500 12.5px/1 var(--sans);
 }
-.v4-g4 { display: grid; grid-template-columns: 1fr 1fr; }
+.v4-g4 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .v4-g4 > div { padding: 20px 24px 22px; min-height: 200px; display: flex; flex-direction: column; }
 .v4-g4 > div:nth-child(1),
 .v4-g4 > div:nth-child(2) { border-bottom: 1px solid var(--line); min-height: 320px; }
@@ -577,16 +580,24 @@
   letter-spacing: -0.02em;
 }
 
+@media (max-width: 720px) {
+  .v4-tabs > button { padding: 14px 12px 13px; }
+  .v4-tabs .v4-num { font-size: 20px; line-height: 24px; }
+}
 @media (max-width: 1100px) {
   .v4.split { flex-direction: column; }
   .v4-pane { border-left: 0; border-top: 1px solid var(--line); width: 100%; max-width: none; min-width: 0; }
   .v4-g { grid-template-columns: 1fr; }
   .v4-g4 { grid-template-columns: 1fr; }
   .v4-g4 > div:nth-child(odd) { border-right: 0; }
-  .v4-fr { grid-template-columns: 14px minmax(0, 1fr) 72px; }
-  .v4-fr .ev, .v4-fr .trk { display: none; }
-  .v4-rr { grid-template-columns: 10px 80px minmax(0, 1fr) 56px; }
+  .v4-fr { grid-template-columns: 14px minmax(0, 1fr) minmax(72px, 1fr) 72px; }
+  .v4-fr .ev { display: none; }
+  .v4-rr { grid-template-columns: 10px 80px minmax(0, 1fr) minmax(72px, 1fr) 64px; }
   .v4-rr .c { display: none; }
+}
+@media (max-width: 720px) {
+  .v4-fr { grid-template-columns: 14px minmax(0, 1fr) 72px; }
+  .v4-fr .trk { display: none; }
 }
 
 /* Beat leftover .frow rules from global.css (that file loads after this one). */
@@ -653,6 +664,15 @@
 }
 
 @media (max-width: 1100px) {
+  .v4 .v4-fr.frow,
+  .v4 .v4-fr.frow.quiet,
+  .v4 .v4-fr.frow.hero,
+  .v4 .v4-fr.frow.quiet.hero,
+  .v4 .v4-fr.frow.quiet.resolved {
+    grid-template-columns: 14px minmax(0, 1fr) minmax(72px, 1fr) 72px;
+  }
+}
+@media (max-width: 720px) {
   .v4 .v4-fr.frow,
   .v4 .v4-fr.frow.quiet,
   .v4 .v4-fr.frow.hero,
