@@ -61,14 +61,6 @@ assert_no_runner_writes() {
   fi
 }
 
-kill_bundle() {
-  app=$1
-  pkill -KILL -f "$app/Contents/MacOS/Aftertrace" 2>/dev/null || true
-  pkill -KILL -f "$app/Contents/Frameworks/Aftertrace Helper" 2>/dev/null || true
-  pkill -KILL -f "$app/Contents/Resources/engine/aftertrace" 2>/dev/null || true
-  sleep 2
-}
-
 # --- 0.5.3 old updater evidence (read-only on the published signed zip) ---
 log "== shipped v0.5.3 (app 0.5.0) =="
 old_zip=$iso/published/Aftertrace-mac-arm64.zip
@@ -101,56 +93,19 @@ open(sys.argv[2], "a", encoding="utf8").write("\n".join(lines) + "\n")
 print("\n".join(lines))
 PY
 log "old behavior: interactive Download then quitAndInstall immediately; background check does not download. This smoke does not click Download (that would install)."
-
-old_home=$iso/v053/home
-mkdir -p "$old_home/.aftertrace" "$iso/v053/tmp"
-echo "retain-v053" >"$old_home/.aftertrace/marker.txt"
-# Launch signed 0.5.3 without rewriting app-update.yml (that would break the seal).
-# Do not ad-hoc resign. Published 0.5.0 has no AFTERTRACE_HOME, and Cocoa
-# NSHomeDirectory ignores HOME, so this launch may write the runner NFS
-# home. Record that, then delete only what we created, so the 0.5.4 half
-# can require explicit paths.
-created_dot=0
-created_support=0
-[ -e "$runner_home/.aftertrace" ] || created_dot=1
-[ -e "$runner_home/Library/Application Support/Aftertrace" ] || created_support=1
 xattr -dr com.apple.quarantine "$old_app" 2>/dev/null || true
 codesign -v "$old_app"
 if codesign -dv --verbose=4 "$old_app" 2>&1 | grep -q "Signature=adhoc"; then
   log "FAIL: published v0.5.3 is ad-hoc; refusing to treat that as shipping evidence"
   exit 1
 fi
-HOME=$old_home TMPDIR=$iso/v053/tmp AFTERTRACE_HOME=$old_home/.aftertrace \
-  "$old_app/Contents/MacOS/Aftertrace" --hidden \
-  --user-data-dir="$old_home/Library/Application Support/Aftertrace" \
-  >/dev/null 2>"$iso/v053/stderr.txt" &
-old_pid=$!
-sleep 8
-if kill -0 "$old_pid" 2>/dev/null; then
-  log "v0.5.3 still running pid=$old_pid version=$old_ver (did not self-quit)"
-else
-  log "v0.5.3 pid $old_pid exited; stderr follows"
-  tail -n 40 "$iso/v053/stderr.txt" | tee -a "$report" || true
-fi
-if [ -e "$runner_home/.aftertrace" ]; then
-  log "v0.5.3 Cocoa wrote $runner_home/.aftertrace despite HOME=$old_home (0.5.0 has no AFTERTRACE_HOME)"
-fi
-kill_bundle "$old_app"
-wait "$old_pid" 2>/dev/null || true
-if [ "$created_dot" = 1 ]; then
-  rm -rf "$runner_home/.aftertrace"
-fi
-if [ "$created_support" = 1 ]; then
-  rm -rf "$runner_home/Library/Application Support/Aftertrace"
-fi
-if [ -e "$runner_home/.aftertrace" ] || [ -e "$runner_home/Library/Application Support/Aftertrace" ]; then
-  log "FAIL: could not remove v0.5.3 runner-home leak (helpers still alive?)"
-  pgrep -lf Aftertrace | tee -a "$report" || true
-  find "$runner_home/.aftertrace" "$runner_home/Library/Application Support/Aftertrace" -maxdepth 2 -print 2>/dev/null | tee -a "$report" || true
-  exit 1
-fi
-[ -f "$old_home/.aftertrace/marker.txt" ]
-log "v0.5.3 marker retained; 0.5.0 runner-home leak cleaned; 0.5.4 uses explicit paths"
+# Do not launch the published 0.5.0 binary here. It has no AFTERTRACE_HOME
+# and Cocoa NSHomeDirectory ignores HOME, so the engine/helpers write
+# /Users/runner/.aftertrace and keep the dir busy after the main pid dies
+# (Desktop 42362486448 launched it: stayed running, then leaked; 42363302397
+# could not rm the leak). asar + codesign above is the old-behavior evidence.
+# 0.5.4 is the live upgrade under explicit paths.
+log "v0.5.3 not launched (Cocoa home leak on 0.5.0); asar/codesign recorded"
 
 # --- 0.5.4 → CI fixture 0.5.5 ---
 log "== 0.5.4 plus local 0.5.5 fixture feed =="
