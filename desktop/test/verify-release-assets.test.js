@@ -7,6 +7,8 @@ const os = require("os")
 const path = require("path")
 const { spawnSync } = require("child_process")
 
+const script = path.join(__dirname, "..", "..", "scripts", "verify-release-assets.sh")
+
 function fixtureDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-rel-"))
   const touch = (name, body = "x") => fs.writeFileSync(path.join(dir, name), body)
@@ -29,12 +31,33 @@ function fixtureDir() {
   return dir
 }
 
+function runScript(dir, extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv }
+  if (!Object.prototype.hasOwnProperty.call(extraEnv, "REQUIRE_MAC_NOTARIZE")) {
+    delete env.REQUIRE_MAC_NOTARIZE
+  }
+  return spawnSync("sh", [script, dir], { encoding: "utf8", env })
+}
+
 it("verify-release-assets accepts Apple-silicon Mac files with an arm64 alias", () => {
   const dir = fixtureDir()
-  const script = path.join(__dirname, "..", "..", "scripts", "verify-release-assets.sh")
-  const r = spawnSync("sh", [script, dir], { encoding: "utf8" })
+  const r = runScript(dir)
   fs.rmSync(dir, { recursive: true, force: true })
   assert.equal(r.status, 0, r.stderr || r.stdout)
+})
+
+it("does not inherit REQUIRE_MAC_NOTARIZE from the process environment", () => {
+  const dir = fixtureDir()
+  const prev = process.env.REQUIRE_MAC_NOTARIZE
+  process.env.REQUIRE_MAC_NOTARIZE = "true"
+  try {
+    const r = runScript(dir)
+    assert.equal(r.status, 0, r.stderr || r.stdout)
+  } finally {
+    if (prev === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
+    else process.env.REQUIRE_MAC_NOTARIZE = prev
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 it("rejects latest-mac.yml that lists the Intel zip", () => {
@@ -43,8 +66,7 @@ it("rejects latest-mac.yml that lists the Intel zip", () => {
     path.join(dir, "latest-mac.yml"),
     "version: 0.5.0\nfiles:\n  - url: Aftertrace-mac-arm64.zip\n  - url: Aftertrace-mac-x64.zip\npath: Aftertrace-mac-arm64.zip\n",
   )
-  const script = path.join(__dirname, "..", "..", "scripts", "verify-release-assets.sh")
-  const r = spawnSync("sh", [script, dir], { encoding: "utf8" })
+  const r = runScript(dir)
   fs.rmSync(dir, { recursive: true, force: true })
   assert.notEqual(r.status, 0)
   assert.match(r.stderr || "", /x64/)
@@ -52,18 +74,11 @@ it("rejects latest-mac.yml that lists the Intel zip", () => {
 
 it("consumer release requires Aftertrace-mac-notarized.json when REQUIRE_MAC_NOTARIZE is set", () => {
   const dir = fixtureDir()
-  const script = path.join(__dirname, "..", "..", "scripts", "verify-release-assets.sh")
-  const missing = spawnSync("sh", [script, dir], {
-    encoding: "utf8",
-    env: { ...process.env, REQUIRE_MAC_NOTARIZE: "true" },
-  })
+  const missing = runScript(dir, { REQUIRE_MAC_NOTARIZE: "true" })
   assert.notEqual(missing.status, 0)
   assert.match(missing.stderr || "", /Aftertrace-mac-notarized\.json/)
   fs.writeFileSync(path.join(dir, "Aftertrace-mac-notarized.json"), '{"notarized":true}\n')
-  const ok = spawnSync("sh", [script, dir], {
-    encoding: "utf8",
-    env: { ...process.env, REQUIRE_MAC_NOTARIZE: "true" },
-  })
+  const ok = runScript(dir, { REQUIRE_MAC_NOTARIZE: "true" })
   fs.rmSync(dir, { recursive: true, force: true })
   assert.equal(ok.status, 0, ok.stderr || ok.stdout)
 })

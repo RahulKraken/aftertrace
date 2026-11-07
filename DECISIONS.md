@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: REQUIRE_MAC_NOTARIZE stays on the Package step, not the mac job env.
+
+**Choice.** Desktop `mac` job env does not set `REQUIRE_MAC_NOTARIZE`. The Package step does (Release `workflow_call` / `v*` tag) so fail-closed pack is unchanged. Every Desktop `npm test` (Mac/Win/Linux, including PRs) sets `REQUIRE_MAC_NOTARIZE=true` so a leak cannot stay green on a PR. Tests that spawn `verify-release-assets.sh` clear that variable unless they are testing fail-closed.
+
+**Why.** v0.5.2 Release [42330980385](https://github.com/RahulKraken/aftertrace/actions/runs/42330980385) failed in `npm test` before pack: job env `REQUIRE_MAC_NOTARIZE=true` made `verify-release-assets accepts Apple-silicon Mac files with an arm64 alias` demand `Aftertrace-mac-notarized.json`. PRs never set the flag, so they stayed green.
+
+**How to reverse.** Drop the unit-test env pin; put the flag back on the job `env:` block. Do not: the next tagged Desktop job will fail the same test, and PRs will hide it again.
+
 ## Nov 7 2026: consumer Mac is Apple silicon; palette Enter activates the selected row.
 
 **Choice.** CI packs and notarizes `arm64` only (`NOTARIZE_MAC_ARCHES=arm64`, `electron-builder --mac --arm64`). `latest-mac.yml` lists `Aftertrace-mac-arm64.zip` only. The site **Download for Mac** always points at `Aftertrace-mac.dmg` (arm64 alias) and hides the Intel link. A tagged release does not attach `*x64*` Mac files. Gatekeeper evidence is `xcrun stapler validate` on the DMG plus `spctl -a -vv` **accepted / Notarized Developer ID** on the `.app`. `spctl --type install` on the DMG is logged and ignored: a Developer ID disk image is not an installer package, so `no usable signature` is expected. The command palette handles Enter/arrows on the search field; the e2e test waits for the selected row to be the Sessions match before Enter.

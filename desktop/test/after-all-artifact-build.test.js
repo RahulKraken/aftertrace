@@ -385,6 +385,25 @@ describe("afterAllArtifactBuild", () => {
   })
 })
 
+describe("desktop.yml", () => {
+  it("runs unit tests under Release REQUIRE_MAC_NOTARIZE; fail-closed stays on Package", () => {
+    const yml = fs
+      .readFileSync(path.join(__dirname, "..", "..", ".github/workflows/desktop.yml"), "utf8")
+      .replace(/\r\n/g, "\n")
+    const unitBlocks = [...yml.matchAll(/name: Desktop unit tests\n[\s\S]*?run: npm ci && npm test/g)]
+    assert.equal(unitBlocks.length, 3)
+    for (const m of unitBlocks) {
+      assert.match(m[0], /REQUIRE_MAC_NOTARIZE: "true"/)
+    }
+    const mac = yml.slice(yml.indexOf("    name: macOS"))
+    assert.doesNotMatch(mac.slice(0, mac.indexOf("steps:")), /REQUIRE_MAC_NOTARIZE/)
+    assert.match(
+      mac.slice(mac.indexOf("name: Package")),
+      /REQUIRE_MAC_NOTARIZE: \$\{\{ github\.event_name == 'workflow_call'/,
+    )
+  })
+})
+
 describe("ci-pack.sh", () => {
   it("never enables electron-builder mac.notarize (sequential app --wait)", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-pack.sh"), "utf8")

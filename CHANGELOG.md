@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Desktop**
+- Desktop unit tests run with `REQUIRE_MAC_NOTARIZE=true` (the tagged Release env) so a PR cannot hide a leak. Pack still fail-closes only on Release (`workflow_call` / `v*` tag). v0.5.2's tagged Release failed `npm test` before pack because that flag was job-wide.
 - Mac signing: LICENSE ships in `Contents/Resources/` (electron-builder `extraResources`), not `Contents/`. `extraFiles` put it where `codesign` treats it as nested code and v0.5.1 failed with `code object is not signed at all`. Windows and Linux still include LICENSE under `resources/`.
 - Mac notarization runs after pack on the Apple-silicon DMG. If Apple stays In Progress until `notarytool` times out, PR artifacts may stay signed without `Aftertrace-mac-notarized.json`. A tagged GitHub Release fails closed until Apple Accepts and the DMG is stapled. electron-builder's sequential per-app wait cancelled the first signed CI job at 60 minutes after codesign had already succeeded.
 - Consumer Mac is Apple silicon: `Aftertrace-mac-arm64.dmg` (and zip) with that chip's Go engine. `Aftertrace-mac.dmg` is a copy so existing `/releases/latest/download` links still work. `latest-mac.yml` lists the arm64 zip only. Intel Mac is not packed, notarized, or advertised.

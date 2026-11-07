@@ -62,6 +62,10 @@ jobs:
         run: npm ci && npm run build:embed
       - name: Desktop unit tests
         working-directory: desktop
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build Go engine
         run: |
@@ -178,9 +182,6 @@ jobs:
     env:
       CGO_ENABLED: "1"
       NOTARIZE_MAC_ARCHES: arm64
-      # Release (workflow_call / v* tag) fails closed if Apple never Accepts.
-      # PRs may keep signed artifacts on a wait timeout; they must not publish.
-      REQUIRE_MAC_NOTARIZE: ${{ github.event_name == 'workflow_call' || startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -205,6 +206,10 @@ jobs:
         run: npm ci && npm run build:embed
       - name: Desktop unit tests
         working-directory: desktop
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build per-chip Go engines
         run: |
@@ -226,6 +231,11 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Fail closed on Release (workflow_call / v* tag) if Apple never
+          # Accepts. Keep this off the job env: Desktop unit tests spawn
+          # verify-release-assets.sh and would inherit it (v0.5.2 run
+          # 42330980385 failed before pack).
+          REQUIRE_MAC_NOTARIZE: ${{ github.event_name == 'workflow_call' || startsWith(github.ref, 'refs/tags/v') }}
         run: sh scripts/ci-pack.sh mac
       - name: Verify per-chip packages
         working-directory: desktop
@@ -313,6 +323,10 @@ jobs:
       - name: Desktop unit tests
         working-directory: desktop
         shell: bash
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build Go engine
         shell: bash
