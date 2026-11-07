@@ -2,6 +2,18 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: alias stapler fail-closed, Aqua Dock close/reopen, CI-only smoke hooks.
+
+**Choice.** `Aftertrace-mac.dmg` (site `/releases/latest/download`) is a byte copy of the stapled arm64 DMG. `ci-verify-mac.sh` recopy-then-`stapler validate` on the alias and fails the job unless “The validate action worked” (retry CloudKit Error 68). `spctl --type install` on Developer ID DMGs stays informational; Gatekeeper is app `spctl -a -vv` accepted / Notarized Developer ID. Smoke file-protocol + `AFTERTRACE_UPDATE_FEED_URL` + `AFTERTRACE_USER_DATA_DIR` relocate require `AFTERTRACE_SMOKE=1` and either `AFTERTRACE_SMOKE_ALLOW=1` (unit tests) or `GITHUB_ACTIONS=true` plus `RUNNER_TEMP`/`GITHUB_WORKSPACE`. `AFTERTRACE_SMOKE_DIR` is required; no tmpdir cmd file. Not reachable from engine HTTP, dashboard origin, or IPC. electron-updater still requires the same Developer ID (not a signature bypass). macos-15 smoke asserts Dock membership while the dashboard is open, close removes Dock/app-switcher while engine+tray live, reopen restores; captures native popover + compact glyph.
+
+**Why.** Green 9a59270 left alias `stapler validate` Error 68 unfailed (`validate | tee` swallowed the exit). System Events “Finder, Aftertrace” plus a Dock process did not prove close/reopen. `AFTERTRACE_SMOKE=1` alone would have been an accidental control surface in a shipping asar.
+
+**How to reverse.** Restore piped stapler; drop Dock AX asserts and popover cmds; ungated `AFTERTRACE_SMOKE=1`. Do not skip alias validate or app `spctl`.
+
+**Record.** PR 47 final gaps. No merge/tag/release. Published v0.5.3 is not rewritten: its Download-then-quit is a one-time transition, evidenced from asar/compatibility files, not a live 0.5.3→0.5.4 client run.
+
+**Diff scope (~130 files vs main).** In-scope for the five items: desktop updater/dock/popover/glyph/smoke (~16 src, ~15 tests, ~8 scripts, 3 workflows), recap header (`RecapPage.tsx`, `recapStory.ts`, recap-2/3 fixtures, e2e), compact glyph source (`brand/glyphs`, `glyph-corner.svg`, packed `trayTemplate`), Playwright recap/popover/glyph PNGs copied to both `docs/screenshots/` and `web/screenshots/` (same convention as the rest of the site — not unrelated demo regen). Docs/CHANGELOG/DECISIONS, `AFTERTRACE_HOME` engine isolation, site download copy. No extra visual redesign.
+
 ## Nov 7 2026: macos-15 signed upgrade smoke; no Aqua-is-missing claim without a session probe.
 
 **Choice.** Desktop Mac CI is `macos-15` (GitHub-hosted arm64), not a blanket `macos-latest` “no Aqua” skip. The job records the actual session (`uname`, console user, `launchctl gui/$uid`, WindowServer/Dock, `screencapture`) before treating GUI as unavailable. A signed 0.5.4 app is copied with `ditto` into `$RUNNER_TEMP`, pointed at a local generic feed (`AFTERTRACE_UPDATE_FEED_URL` must be `http(s)://127.0.0.1`), and updated to a CI-only CSC-signed **0.5.5** fixture (`NOTARIZE_MAC_ARCHES` empty so the fixture is not notarized or published). Isolation is `HOME` + `AFTERTRACE_HOME` + `AFTERTRACE_USER_DATA_DIR`; writes under `/Users/runner/.aftertrace` fail the smoke. File-protocol commands (`AFTERTRACE_SMOKE`) drive check/restart because Playwright’s Electron launcher needs inspect fuses that hardened shipping builds typically disable. Screen Recording Allow is clicked via System Events if a dialog appears; TCC.db is not edited. Ad-hoc `codesign --force` is forbidden. Shipped v0.5.3 is evidence of the old `quitAndInstall` path (asar read + launch without feed rewrite); it is not live-upgraded (that would need a mutated `app-update.yml` and would break the seal). Shipping identity stays 0.5.4.

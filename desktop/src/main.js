@@ -279,9 +279,36 @@ app.whenReady().then(async () => {
     smoke.start({
       updater,
       openWindow,
+      closeWindow: destroyWindow,
+      showPopover: () => {
+        if (trayApi && trayApi.popover) trayApi.popover.show()
+      },
+      hidePopover: () => {
+        if (trayApi && trayApi.popover) trayApi.popover.hide()
+      },
       restartToUpdate,
       getVersion: () => app.getVersion(),
       getUserData: userData,
+      getTrayBounds: () => {
+        try {
+          if (trayApi && trayApi.tray && typeof trayApi.tray.getBounds === "function") {
+            return trayApi.tray.getBounds()
+          }
+        } catch {
+          return null
+        }
+        return null
+      },
+      getPopoverBounds: () => {
+        try {
+          if (trayApi && trayApi.popover && typeof trayApi.popover.getBounds === "function") {
+            return trayApi.popover.getBounds()
+          }
+        } catch {
+          return null
+        }
+        return null
+      },
     })
   }
 

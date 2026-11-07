@@ -113,7 +113,12 @@ function createPopover({ tray } = {}) {
 
   const isOpen = () => Boolean(win && !win.isDestroyed() && win.isVisible())
 
-  return { show, hide, toggle, toggleFromTray, send, isOpen, placeNearTray, markTrayInteraction }
+  const getBounds = () => {
+    if (!win || win.isDestroyed() || !win.isVisible()) return null
+    return win.getBounds()
+  }
+
+  return { show, hide, toggle, toggleFromTray, send, isOpen, getBounds, placeNearTray, markTrayInteraction }
 }
 
 module.exports = {

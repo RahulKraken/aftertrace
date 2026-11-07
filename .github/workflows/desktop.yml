@@ -322,6 +322,11 @@ jobs:
             desktop/dist/macos-session-probe.txt
             desktop/dist/signed-upgrade-smoke.txt
             desktop/dist/signed-upgrade-native.png
+            desktop/dist/signed-upgrade-dock-open.png
+            desktop/dist/signed-upgrade-dock-closed.png
+            desktop/dist/signed-upgrade-dock-reopen.png
+            desktop/dist/signed-upgrade-popover.png
+            desktop/dist/signed-upgrade-glyph.png
             desktop/dist/session-screencapture.png
           if-no-files-found: warn
           retention-days: 14

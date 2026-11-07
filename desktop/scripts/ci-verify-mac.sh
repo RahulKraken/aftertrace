@@ -180,10 +180,52 @@ if [ -f "$dist/Aftertrace-mac-notarized.json" ]; then
   # packages; a Developer ID DMG reports "no usable signature" even when
   # stapler validate works and the app is Notarized Developer ID. Ticket is
   # on the DMG (stapler); assessment is on the app (spctl -a -vv).
+  # Aftertrace-mac.dmg is the consumer alias: it must be a byte copy of the
+  # stapled arm64 DMG and stapler validate must succeed (retry Error 68 /
+  # CloudKit). A piped `stapler validate | tee` used to swallow the exit
+  # and leave Error 68 ambiguous; this is fail-closed.
+  validate_dmg() {
+    dmg=$1
+    recopy_from=${2-}
+    n=0
+    while [ "$n" -lt 6 ]; do
+      if [ -n "$recopy_from" ] && [ "$n" -gt 0 ]; then
+        echo "recopy $(basename "$recopy_from") -> $(basename "$dmg") (stapler retry $n)" | tee -a "$report"
+        cp "$recopy_from" "$dmg"
+        cmp -s "$recopy_from" "$dmg" || {
+          echo "Aftertrace-mac.dmg recopy lost byte identity with $(basename "$recopy_from")" >&2
+          exit 1
+        }
+      fi
+      tmp=$(mktemp)
+      set +e
+      xcrun stapler validate "$dmg" >"$tmp" 2>&1
+      st=$?
+      set -e
+      tee -a "$report" <"$tmp"
+      if [ "$st" -eq 0 ] && grep -q "The validate action worked" "$tmp"; then
+        rm -f "$tmp"
+        return 0
+      fi
+      if grep -qiE 'Error 68|NSURLError|The network connection was lost' "$tmp"; then
+        echo "stapler validate transient on $(basename "$dmg") (exit $st); retry" | tee -a "$report"
+        n=$((n + 1))
+        rm -f "$tmp"
+        sleep $((n * 3))
+        continue
+      fi
+      echo "stapler validate failed for $dmg (exit $st; not transient)" | tee -a "$report"
+      rm -f "$tmp"
+      exit 1
+    done
+    echo "stapler validate failed for $dmg after retries" | tee -a "$report"
+    exit 1
+  }
   staple_dmg() {
     dmg=$1
+    recopy_from=${2-}
     echo "stapler $dmg" | tee -a "$report"
-    xcrun stapler validate "$dmg" 2>&1 | tee -a "$report"
+    validate_dmg "$dmg" "$recopy_from"
     echo "spctl --type install (informational) $dmg" | tee -a "$report"
     spctl -a -vv --type install "$dmg" 2>&1 | tee -a "$report" || true
   }
@@ -203,7 +245,16 @@ if [ -f "$dist/Aftertrace-mac-notarized.json" ]; then
   }
   if wants_arch arm64; then
     staple_dmg "$dist/Aftertrace-mac-arm64.dmg"
-    staple_dmg "$dist/Aftertrace-mac.dmg"
+    cmp -s "$dist/Aftertrace-mac.dmg" "$dist/Aftertrace-mac-arm64.dmg" || {
+      echo "Aftertrace-mac.dmg is not a copy of Aftertrace-mac-arm64.dmg before alias stapler validate" >&2
+      exit 1
+    }
+    cp "$dist/Aftertrace-mac-arm64.dmg" "$dist/Aftertrace-mac.dmg"
+    cmp -s "$dist/Aftertrace-mac.dmg" "$dist/Aftertrace-mac-arm64.dmg" || {
+      echo "Aftertrace-mac.dmg recopy is not identical to Aftertrace-mac-arm64.dmg" >&2
+      exit 1
+    }
+    staple_dmg "$dist/Aftertrace-mac.dmg" "$dist/Aftertrace-mac-arm64.dmg"
     assess_app "$arm_app"
   fi
   if wants_arch x64; then

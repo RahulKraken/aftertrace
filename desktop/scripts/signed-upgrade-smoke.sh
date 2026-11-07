@@ -280,37 +280,203 @@ fi
 [ -f "$engine_home/marker.txt" ]
 assert_no_runner_writes
 
-log "== GUI capture attempt (file protocol + screencapture, not inspector attach) =="
-# Hardened runtime typically disables nodeCliInspect. Native: open dashboard
-# via smoke cmd + screencapture / osascript.
+log "== GUI: Dock open/close/reopen + native popover/glyph (not System Events process list alone) =="
+# Hardened runtime typically disables nodeCliInspect. Native: file-protocol
+# smoke cmds + Dock AX tiles + screencapture of the compact popover window.
+pgrep -x WindowServer >/dev/null 2>&1 || {
+  log "FAIL: WindowServer not running; Aqua Dock/popover cannot be asserted"
+  exit 1
+}
+pgrep -x Dock >/dev/null 2>&1 || {
+  log "FAIL: Dock process not running"
+  exit 1
+}
 export AFTERTRACE_UPDATE_FEED_URL="http://127.0.0.1:${port}/"
-"$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" \
+"$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
   --user-data-dir="$user_data" \
   >"$iso/gui.stdout" 2>"$iso/gui.stderr" &
 gui_pid=$!
-sleep 5
-echo dashboard >"$smoke_dir/cmd" 2>/dev/null || true
-sleep 4
-set +e
-osascript -e 'tell application "System Events" to get name of every process whose background only is false' >>"$report" 2>&1
+log "gui pid=$gui_pid (hidden; tray+engine only)"
+
+i=0
+while [ "$i" -lt 40 ]; do
+  if [ -f "$smoke_dir/status.json" ] && grep -q '"pid"' "$smoke_dir/status.json"; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 1
+done
+[ -f "$smoke_dir/status.json" ]
+kill -0 "$gui_pid"
+
+dock_names() {
+  osascript -e 'tell application "System Events" to tell process "Dock" to get name of UI elements of list 1' 2>/dev/null || true
+}
+fg_names() {
+  osascript -e 'tell application "System Events" to get name of every process whose background only is false' 2>/dev/null || true
+}
+has_aftertrace() {
+  printf '%s\n' "$1" | grep -E '(^|, )Aftertrace(,|$)' >/dev/null 2>&1
+}
+engine_alive() {
+  pgrep -f "serve --db" >/dev/null 2>&1 || pgrep -f "aftertrace.duckdb" >/dev/null 2>&1
+}
+assert_engine_and_tray() {
+  kill -0 "$gui_pid" || {
+    log "FAIL: Aftertrace pid $gui_pid is gone"
+    exit 1
+  }
+  engine_alive || {
+    log "FAIL: engine not running while tray should be alive"
+    pgrep -lf aftertrace | tee -a "$report" || true
+    exit 1
+  }
+}
+wait_dock() {
+  want=$1
+  label=$2
+  j=0
+  while [ "$j" -lt 20 ]; do
+    tiles=$(dock_names)
+    fg=$(fg_names)
+    log "Dock tiles ($label): $tiles"
+    log "foreground ($label): $fg"
+    if [ "$want" = "in" ]; then
+      if has_aftertrace "$tiles" && has_aftertrace "$fg"; then
+        return 0
+      fi
+    else
+      if ! has_aftertrace "$tiles" && ! has_aftertrace "$fg"; then
+        return 0
+      fi
+    fi
+    j=$((j + 1))
+    sleep 1
+  done
+  log "FAIL: Aftertrace Dock/app-switcher $label (want $want)"
+  exit 1
+}
+click_allow() {
+  osascript -e 'tell application "System Events" to tell (first process whose name contains "UserNotificationCenter") to click button "Allow" of window 1' >/dev/null 2>&1 || true
+}
+capture_rect() {
+  dest=$1
+  x=$2
+  y=$3
+  w=$4
+  h=$5
+  if [ -n "$w" ] && [ "$w" -gt 8 ] && [ "$h" -gt 8 ]; then
+    screencapture -x -R"${x},${y},${w},${h}" "$dest" || screencapture -x "$dest"
+  else
+    screencapture -x "$dest"
+  fi
+}
+bounds_from_status() {
+  python3 - "$smoke_dir/status.json" "$1" <<'PY'
+import json, sys
+path, key = sys.argv[1], sys.argv[2]
+try:
+    data = json.load(open(path, encoding="utf-8"))
+except Exception:
+    sys.exit(1)
+b = data.get(key) or {}
+if not isinstance(b, dict):
+    sys.exit(1)
+x, y, w, h = b.get("x"), b.get("y"), b.get("width"), b.get("height")
+if None in (x, y, w, h):
+    sys.exit(1)
+print(f"{int(x)} {int(y)} {int(w)} {int(h)}")
+PY
+}
+
+assert_engine_and_tray
+wait_dock out "hidden boot"
+click_allow
+screencapture -x "$iso/native-dock-closed-boot.png"
+
+echo dashboard >"$smoke_dir/cmd"
+wait_dock in "dashboard open"
+assert_engine_and_tray
+click_allow
+screencapture -x "$iso/native-dock-open.png"
+
+echo popover >"$smoke_dir/cmd"
+k=0
+popover_ok=0
+while [ "$k" -lt 16 ]; do
+  if [ -f "$smoke_dir/status.json" ] && grep -q '"popoverOpen": true' "$smoke_dir/status.json"; then
+    popover_ok=1
+    break
+  fi
+  k=$((k + 1))
+  sleep 1
+done
+[ "$popover_ok" = 1 ] || {
+  log "FAIL: native popover did not open (status.popoverOpen)"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+click_allow
 screencapture -x "$iso/native-desktop.png"
-osascript -e 'tell application "System Events" to tell (first process whose name contains "UserNotificationCenter") to click button "Allow" of window 1' >/dev/null 2>&1
-screencapture -x "$iso/native-desktop.png"
-set -e
-if pgrep -x Dock >/dev/null 2>&1; then
-  log "Dock running (session has a Dock process; LSUIElement still true in Info.plist)"
+pb=$(bounds_from_status popoverBounds) || {
+  log "FAIL: popoverBounds missing from status.json"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+px=$(printf '%s\n' "$pb" | awk '{print $1}')
+py=$(printf '%s\n' "$pb" | awk '{print $2}')
+pw=$(printf '%s\n' "$pb" | awk '{print $3}')
+ph=$(printf '%s\n' "$pb" | awk '{print $4}')
+capture_rect "$iso/native-popover.png" "$px" "$py" "$pw" "$ph"
+log "native popover crop $px,$py ${pw}x${ph}"
+tb=$(bounds_from_status trayBounds) || {
+  log "FAIL: trayBounds missing from status.json"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+tx=$(printf '%s\n' "$tb" | awk '{print $1}')
+ty=$(printf '%s\n' "$tb" | awk '{print $2}')
+tw=$(printf '%s\n' "$tb" | awk '{print $3}')
+th=$(printf '%s\n' "$tb" | awk '{print $4}')
+if [ "$tw" -lt 8 ] || [ "$th" -lt 8 ]; then
+  log "FAIL: trayBounds too small for a menu extra ($tb)"
+  exit 1
 fi
-if [ -f "$iso/native-desktop.png" ]; then
-  log "native capture bytes=$(wc -c < "$iso/native-desktop.png")"
-else
-  log "native capture missing (Aqua/screencapture gap on this VM)"
-fi
+gx=$((tx - 8))
+gy=$((ty - 4))
+gw=$((tw + 16))
+gh=$((th + 8))
+if [ "$gx" -lt 0 ]; then gx=0; fi
+if [ "$gy" -lt 0 ]; then gy=0; fi
+capture_rect "$iso/native-glyph.png" "$gx" "$gy" "$gw" "$gh"
+log "native glyph crop $gx,$gy ${gw}x${gh}"
+log "native popover bytes=$(wc -c < "$iso/native-popover.png") glyph bytes=$(wc -c < "$iso/native-glyph.png")"
+
+echo close >"$smoke_dir/cmd"
+wait_dock out "dashboard closed"
+assert_engine_and_tray
+screencapture -x "$iso/native-dock-closed.png"
+log "close: Dock/app-switcher empty of Aftertrace; engine+tray pid $gui_pid still alive"
+
+echo dashboard >"$smoke_dir/cmd"
+wait_dock in "dashboard reopen"
+assert_engine_and_tray
+screencapture -x "$iso/native-dock-reopen.png"
+log "reopen: Dock/app-switcher restored"
+
 kill "$gui_pid" 2>/dev/null || true
 wait "$gui_pid" 2>/dev/null || true
 
 cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || cp "$report" "$iso/../signed-upgrade-smoke.txt"
-if [ -f "$iso/native-desktop.png" ]; then
-  cp "$iso/native-desktop.png" "$ship_dist/signed-upgrade-native.png" 2>/dev/null || true
-fi
+for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-popover.png native-glyph.png; do
+  if [ -f "$iso/$shot" ]; then
+    dest=$shot
+    if [ "$shot" = "native-desktop.png" ]; then dest=signed-upgrade-native.png
+    else dest=signed-upgrade-${shot#native-}
+    fi
+    cp "$iso/$shot" "$ship_dist/$dest" 2>/dev/null || true
+    log "stored $dest bytes=$(wc -c < "$iso/$shot")"
+  fi
+done
 log "signed-upgrade-smoke ok"
 echo "$iso"

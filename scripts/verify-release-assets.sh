@@ -74,8 +74,19 @@ need Aftertrace-linux.AppImage
 need Aftertrace-linux.deb
 # Consumer GitHub Releases must attach the notarized marker. PRs and
 # workflow_dispatch dry-runs may omit it (signed-only / Apple still In Progress).
+# stapler validate of the downloadable alias lives in ci-verify-mac.sh
+# (fail-closed, retry Error 68). This script runs on ubuntu Assemble; when
+# stapler is actually present (a Mac with real DMGs, not unit-test stubs)
+# also require both DMGs to validate so a local/release Mac check cannot
+# ship an unvalidated Aftertrace-mac.dmg.
 if [ "${REQUIRE_MAC_NOTARIZE-}" = "true" ] || [ "${REQUIRE_MAC_NOTARIZE-}" = "1" ]; then
   need Aftertrace-mac-notarized.json
+  arm_sz=$(wc -c < Aftertrace-mac-arm64.dmg | tr -d ' ')
+  alias_sz=$(wc -c < Aftertrace-mac.dmg | tr -d ' ')
+  if command -v xcrun >/dev/null 2>&1 && [ "$arm_sz" -gt 1000000 ] && [ "$alias_sz" -gt 1000000 ]; then
+    xcrun stapler validate Aftertrace-mac-arm64.dmg
+    xcrun stapler validate Aftertrace-mac.dmg
+  fi
 fi
 
 echo "release assets ok:"
