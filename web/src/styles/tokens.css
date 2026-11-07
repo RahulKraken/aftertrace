@@ -42,6 +42,7 @@
   --radius-lg: 14px;
   --top: 0px;
   --side: 224px;
+  --page-x: 40px;
   --pane: 400px;
   --labw: clamp(220px, 32%, 520px);
   --row: 32px;

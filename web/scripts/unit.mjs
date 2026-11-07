@@ -14,7 +14,7 @@ const vite = await createServer({
 
 const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
-const { labelDays } = await vite.ssrLoadModule("/src/lib/chart.ts")
+const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
@@ -222,6 +222,18 @@ for (let k = 1; k < ticks.length; k++) {
   }
 }
 eq(ticks.some((t) => t.i === 28) && ticks.some((t) => t.i === 29), false, "labelDays drops last-adjacent tick")
+
+eq(barSlot(340, 7, 0, 14, 8) > 8, true, "barSlot first bar inside left pad")
+eq(barSlot(340, 7, 6, 14, 8) + 14 < 340 - 8 + 0.01, true, "barSlot last bar inside right pad")
+const slot0 = barSlot(340, 7, 0, 14, 8)
+const slot1 = barSlot(340, 7, 1, 14, 8)
+eq(Math.abs(slot1 - slot0 - (340 - 16) / 7) < 0.01, true, "barSlot equal slots")
+const mid0 = slot0 + 7
+const mid6 = barSlot(340, 7, 6, 14, 8) + 7
+eq(Math.abs(mid0 - 8 - (340 - 8 - mid6)) < 0.2, true, "barSlot first/last labels symmetric")
+eq(niceAxis(9.1).at(-1) >= 9.1, true, "niceAxis last tick covers $9.10")
+eq(niceAxis(21.81).at(-1) >= 21.81, true, "niceAxis last tick covers $21.81")
+eq(niceAxis(12e6, true).at(-1) >= 12e6, true, "niceAxis last tick covers 12M tokens")
 
 eq(modelSlug("claude-opus-5"), "opus", "modelSlug opus")
 eq(modelSlug("claude-sonnet-5-5"), "sonnet", "modelSlug sonnet")

@@ -107,6 +107,7 @@ export function CostPage() {
       )}
       {d && <ShareRibbon d={d} hot={hot} onHot={setHot} />}
       {d && (
+        <div className="table-scroll">
         <table className="grid">
           <thead>
             <tr>
@@ -143,6 +144,7 @@ export function CostPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "wouter"
 import { useStatus } from "../lib/status"
 import { CopyButton } from "../components/CopyButton"
@@ -37,7 +37,7 @@ export function SettingsPage() {
       <section className="set-sec">
         <h2>Weekly budget</h2>
         <p className="mute">A cap you set. Home and the tray show spend against it only after you type a number. Leave blank for none.</p>
-        <label className="list-search" style={{ maxWidth: 240 }}>
+        <label className="list-search">
           <span className="mute">$</span>
           <input
             type="number"
@@ -78,9 +78,17 @@ export function SettingsPage() {
             on={Boolean(info?.store_content)}
             label="Prompts, responses and tool output"
             detail={
-              info?.store_content
-                ? "Kept. This server runs with --store-content. Claude Code still has to send them (OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES, OTEL_LOG_TOOL_CONTENT)."
-                : "Dropped at ingest. Start aftertrace serve with --store-content, and turn the content flags on in Claude Code, to keep them."
+              info?.store_content ? (
+                <>
+                  Kept. This server runs with <code>--store-content</code>. Claude Code still has to send them
+                  (OTEL_LOG_USER_PROMPTS, OTEL_LOG_ASSISTANT_RESPONSES, OTEL_LOG_TOOL_CONTENT).
+                </>
+              ) : (
+                <>
+                  Dropped at ingest. Start aftertrace serve with <code>--store-content</code>, and turn the content
+                  flags on in Claude Code, to keep them.
+                </>
+              )
             }
           />
           <Gate on={false} label="Your email, account and org ids, OS user name" detail="Always dropped at ingest, whatever the flags." />
@@ -127,7 +135,7 @@ export function SettingsPage() {
   )
 }
 
-function Gate({ on, label, detail }: { on: boolean; label: string; detail: string }) {
+function Gate({ on, label, detail }: { on: boolean; label: string; detail: ReactNode }) {
   return (
     <div className={`gate${on ? " is-on" : ""}`}>
       <span className="gate-dot" aria-hidden="true" />

@@ -5,6 +5,7 @@ import { api } from "../lib/api"
 import { clock, dur, sayTok, usd } from "../lib/format"
 import { readBudget } from "../lib/budget"
 import { modelFamily, primaryModel } from "../lib/model"
+import { barSlot } from "../lib/chart"
 import { receiptLines, receiptMarkdown, receiptPNG, weekLabel } from "../lib/receipt"
 import { useToast } from "../lib/toast"
 import type { Recap, Session, SessionDetail } from "../lib/types"
@@ -245,14 +246,14 @@ function DailyChart({
   const h = 174
   const max = Math.max(...days.map((d) => d.cost_usd), ...ghost, budget ? budget / 7 : 0, 0.01)
   const n = 7
-  const gap = w / n
+  const groupW = 26
   const labels = ["S", "M", "T", "W", "T", "F", "S"]
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`}>
-      <line x1="0" x2={w} y1="150" y2="150" stroke="var(--line)" />
-      {budget ? <line x1="0" x2={w} y1={150 - (budget / 7 / max) * 145} y2={150 - (budget / 7 / max) * 145} stroke="var(--t3)" strokeDasharray="3 3" /> : null}
+      <line x1="8" x2={w - 8} y1="150" y2="150" stroke="var(--line)" />
+      {budget ? <line x1="8" x2={w - 8} y1={150 - (budget / 7 / max) * 145} y2={150 - (budget / 7 / max) * 145} stroke="var(--t3)" strokeDasharray="3 3" /> : null}
       {days.map((d, i) => {
-        const x = 27.6 + i * gap
+        const x = barSlot(w, n, i, groupW, 8)
         const gh = ghost[i] || 0
         const gH = (gh / max) * 145
         const tot = d.by_model.reduce((a, p) => a + p.cost_usd, 0) || d.cost_usd
@@ -269,7 +270,7 @@ function DailyChart({
                   return (
                     <rect
                       key={p.model}
-                      x={x + 15.5}
+                      x={x + 14}
                       y={y}
                       width="12"
                       height={Math.max(ph, 0)}
@@ -279,9 +280,9 @@ function DailyChart({
                   )
                 })
               : tot > 0
-                ? <rect x={x + 15.5} y={150 - bh} width="12" height={bh} rx="1.5" fill="var(--m-opus)" />
+                ? <rect x={x + 14} y={150 - bh} width="12" height={bh} rx="1.5" fill="var(--m-opus)" />
                 : null}
-            <text className="v4-tick" x={x + 13.5} y="168" textAnchor="middle">{labels[dow]}</text>
+            <text className="v4-tick" x={x + groupW / 2} y="168" textAnchor="middle">{labels[dow]}</text>
           </g>
         )
       })}

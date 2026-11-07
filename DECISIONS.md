@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: one content grid for the site, one page gutter for the app.
+
+**Choice.** Landing, docs and footer share `--site: 1120px` and `--site-inset` (header already used this inset; the How-it-works figure had been capped at 980px, Start cards at 760px, footer/docs padded 16px inside the 1120 box). Long CLI text is a wrapping `<pre><code>` in the card, not `overflow: hidden` on the page. Landing privacy chips (`.ps code`) stay nowrap so `--store-content` does not split; docs inline code still wraps so a long flag cannot blow the page. The demo/app uses `--page-x` (40px, 16px on a phone) for `.v4`, `.page` and the demo banner so Overview, Findings, Sessions, Recap, Settings and Connect share one left edge. `.page` is left-aligned like `.v4` (no `margin: auto`); Settings' 860px cap must not recenter the column. Week/day bars use `barSlot()`; `niceAxis()` always tops at ≥ max so spend bars stay in the plot; chart SVGs clip instead of painting through the header. Session rows keep five columns when extra metrics hide. Findings tracks stay visible through 1024 (evidence counts hide first; tracks hide at 720). Cost tables scroll inside `.table-scroll`. No new desktop package.
+
+**Why.** Rahul's three shots (illustration vs Local-first cards, the install command crossing the Download card, Overview at 1024) and then "all the pages" were the same class of bug: arbitrary widths, unwrapped mono, and gutters that jumped 16–40px by route. Stacking the home grid away would have hidden the 2-column identity he was looking at.
+
+**How to reverse.** Restore `.band.how .figure-embed { max-width: 980px }`, `.steps { max-width: 760px }`, footer/docs 16px-inside-1120, inline CLI, `.v4-sep { margin: auto -20px 18px }`, and the magic `20.7` / `27.6` bar origins.
+
 ## Nov 7 2026: REQUIRE_MAC_NOTARIZE stays on the Package step, not the mac job env.
 
 **Choice.** Desktop `mac` job env does not set `REQUIRE_MAC_NOTARIZE`. The Package step does (Release `workflow_call` / `v*` tag) so fail-closed pack is unchanged. Every Desktop `npm test` (Mac/Win/Linux, including PRs) sets `REQUIRE_MAC_NOTARIZE=true` so a leak cannot stay green on a PR. Tests that spawn `verify-release-assets.sh` clear that variable unless they are testing fail-closed.

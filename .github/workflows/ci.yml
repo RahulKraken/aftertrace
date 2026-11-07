@@ -124,7 +124,7 @@ jobs:
           shellcheck -s sh desktop/scripts/ci-signing-env.sh
           shellcheck -s sh desktop/scripts/ci-verify-mac.sh
       - name: Site download tests
-        run: node --test site/test/mac-download.test.js
+        run: node --test site/test/
 
   install:
     name: Installer (${{ matrix.os }})

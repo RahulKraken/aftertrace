@@ -647,6 +647,7 @@ export const ISO_CSS = `
 .iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
 .iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
 .iso-figure{margin:32px 0 36px}
+html[data-embed] .iso-figure{margin:0}
 .iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
 .iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
 .iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
@@ -669,6 +670,6 @@ export const ISO_CSS = `
 .iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
 .iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
 .iso-swatch-crease{stroke:var(--anatomy-lo)!important}
-@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px;white-space:normal;max-width:42%}.iso-plate-corner[data-corner="readout"]{white-space:normal;max-width:54%;text-align:right}}
 @media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
 `;

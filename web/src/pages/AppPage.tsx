@@ -169,6 +169,7 @@ function Groups({ title, hint, rows }: { title: string; hint?: string; rows: App
         <h2>{title}</h2>
         {hint && <span className="sec-sub">{hint}</span>}
       </div>
+      <div className="table-scroll">
       <table className="grid app-table">
         <thead>
           <tr>
@@ -206,6 +207,7 @@ function Groups({ title, hint, rows }: { title: string; hint?: string; rows: App
           ))}
         </tbody>
       </table>
+      </div>
     </section>
   )
 }
