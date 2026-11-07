@@ -51,12 +51,22 @@ plist_version() {
 assert_no_runner_writes() {
   if [ -e "$runner_home/.aftertrace" ]; then
     log "FAIL: wrote $runner_home/.aftertrace"
+    find "$runner_home/.aftertrace" -maxdepth 2 -print | tee -a "$report" || true
     exit 1
   fi
   if [ -e "$runner_home/Library/Application Support/Aftertrace" ]; then
     log "FAIL: wrote $runner_home/Library/Application Support/Aftertrace"
+    find "$runner_home/Library/Application Support/Aftertrace" -maxdepth 2 -print | tee -a "$report" || true
     exit 1
   fi
+}
+
+kill_bundle() {
+  app=$1
+  pkill -KILL -f "$app/Contents/MacOS/Aftertrace" 2>/dev/null || true
+  pkill -KILL -f "$app/Contents/Frameworks/Aftertrace Helper" 2>/dev/null || true
+  pkill -KILL -f "$app/Contents/Resources/engine/aftertrace" 2>/dev/null || true
+  sleep 2
 }
 
 # --- 0.5.3 old updater evidence (read-only on the published signed zip) ---
@@ -118,8 +128,6 @@ old_pid=$!
 sleep 8
 if kill -0 "$old_pid" 2>/dev/null; then
   log "v0.5.3 still running pid=$old_pid version=$old_ver (did not self-quit)"
-  kill "$old_pid" 2>/dev/null || true
-  wait "$old_pid" 2>/dev/null || true
 else
   log "v0.5.3 pid $old_pid exited; stderr follows"
   tail -n 40 "$iso/v053/stderr.txt" | tee -a "$report" || true
@@ -127,14 +135,22 @@ fi
 if [ -e "$runner_home/.aftertrace" ]; then
   log "v0.5.3 Cocoa wrote $runner_home/.aftertrace despite HOME=$old_home (0.5.0 has no AFTERTRACE_HOME)"
 fi
+kill_bundle "$old_app"
+wait "$old_pid" 2>/dev/null || true
 if [ "$created_dot" = 1 ]; then
   rm -rf "$runner_home/.aftertrace"
 fi
 if [ "$created_support" = 1 ]; then
   rm -rf "$runner_home/Library/Application Support/Aftertrace"
 fi
+if [ -e "$runner_home/.aftertrace" ] || [ -e "$runner_home/Library/Application Support/Aftertrace" ]; then
+  log "FAIL: could not remove v0.5.3 runner-home leak (helpers still alive?)"
+  pgrep -lf Aftertrace | tee -a "$report" || true
+  find "$runner_home/.aftertrace" "$runner_home/Library/Application Support/Aftertrace" -maxdepth 2 -print 2>/dev/null | tee -a "$report" || true
+  exit 1
+fi
 [ -f "$old_home/.aftertrace/marker.txt" ]
-log "v0.5.3 marker retained; runner-home leak from 0.5.0 cleaned; 0.5.4 uses explicit paths"
+log "v0.5.3 marker retained; 0.5.0 runner-home leak cleaned; 0.5.4 uses explicit paths"
 
 # --- 0.5.4 → CI fixture 0.5.5 ---
 log "== 0.5.4 plus local 0.5.5 fixture feed =="

@@ -171,7 +171,7 @@ function createEngine(opts = {}) {
     appendLog(logFile, `\n[${new Date().toISOString()}] starting ${bin} serve\n`)
     const proc = spawnFn(bin, opts.args || ["serve"], {
       cwd: os.homedir(),
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "", AFTERTRACE_HOME: aftertraceDir() },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     })
