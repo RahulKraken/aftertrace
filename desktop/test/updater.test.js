@@ -272,6 +272,38 @@ test("retry after an offline error inspects again", async () => {
   assert.equal(auto.downloads, 1)
 })
 
+test("localhost 127.0.0.1 feed is the only generic override", () => {
+  const auto = mockAuto({
+    version: "0.5.5",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  auto.feed = null
+  auto.setFeedURL = (opts) => {
+    auto.feed = opts
+  }
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.4",
+    dialog: dialog(),
+    feedUrl: "http://127.0.0.1:8765/",
+  })
+  updater.wire()
+  assert.deepEqual(auto.feed, { provider: "generic", url: "http://127.0.0.1:8765/" })
+
+  const blockedAuto = mockAuto({ version: "0.5.5" })
+  blockedAuto.setFeedURL = (opts) => {
+    blockedAuto.feed = opts
+  }
+  const blocked = createUpdater({
+    autoUpdater: blockedAuto,
+    getVersion: () => "0.5.4",
+    dialog: dialog(),
+    feedUrl: "https://github.com/RahulKraken/aftertrace/releases",
+  })
+  blocked.wire()
+  assert.equal(blockedAuto.feed, undefined)
+})
+
 test("requestInstall is a no-op until ready", async () => {
   const auto = mockAuto({
     version: "0.5.4",

@@ -23,11 +23,13 @@ Privacy: the check contacts GitHub Releases. No usage telemetry. Logs strip `ghp
 | `desktop/test/updater.test.js` — 0.5.0 sees 0.5.4, downloads, stays running, Restart calls `quitAndInstall`, Later does not, overlapping checks share one download, offline/cancel retry | **Unit / mock** |
 | `desktop/test/quit.test.js` — sidecar stop then install | **Unit / mock** |
 | Playwright popover/recap PNGs | **Chromium layout**, not the native Mac menu extra |
-| Packed `Aftertrace.app` Info.plist + `latest-mac.yml` + zip sha512 vs published v0.5.3 zip (`CFBundleShortVersionString` `0.5.0`) on `macos-latest` (`artifact-feed-smoke.sh`) | **Real files** on the GitHub-hosted Mac runner. Isolated `$HOME`. No tag/Release. No `quitAndInstall`. |
+| Packed `Aftertrace.app` Info.plist + `latest-mac.yml` + zip sha512 vs published v0.5.3 zip (`CFBundleShortVersionString` `0.5.0`) on `macos-15` (`artifact-feed-smoke.sh`) | **Real files** on the GitHub-hosted Mac runner. Isolated `$HOME` is not enough: `AFTERTRACE_HOME` + `AFTERTRACE_USER_DATA_DIR` too. No tag/Release. |
 | Developer ID / Apple Accepted / stapler / app `spctl` | **Real** on that runner when secrets exist (`ci-verify-mac.sh`) |
-| Native menu extra, Dock, Cmd+Tab, tray click, signed 0.5.3 app live-upgrading itself | **Not run here.** `macos-latest` has no interactive Aqua session for those. Published v0.5.3’s background updater does not download; its interactive Download then `quitAndInstall` immediately. No connected self-hosted Mac GUI worker. |
+| `macos-session-probe.sh` on `macos-15` | **Real session.** Records arch, console user, `launchctl gui/$uid`, WindowServer/Dock, a `screencapture` (Allow dialog click only; no TCC.db writes). Read the job log before claiming Aqua is missing. |
+| Signed 0.5.4 app in `$RUNNER_TEMP` + local `127.0.0.1` generic feed of a CI-only signed **0.5.5** fixture (`signed-upgrade-smoke.sh`) | **Real process.** ditto of the shipping signed app (no ad-hoc resign). File-protocol smoke (`AFTERTRACE_SMOKE=1`): check → download → **ready while still running** → explicit Restart → replacement plist 0.5.5, engine binary, marker data retained. Playwright Electron is not used (hardened runtime typically disables `EnableNodeCliInspectArguments`). Native Dock/popover: best-effort `screencapture` / System Events after opening the dashboard; not a Chromium mock. |
+| Shipped signed v0.5.3 (internal 0.5.0) | **Read-only on the published zip.** asar contains `autoRunAppAfterInstall = true` and `quitAndInstall()`. Background check does not download. Interactive Download then quits immediately. This smoke launches it `--hidden` without rewriting `app-update.yml` (that would break the seal) and does **not** click Download. |
 
-Do not treat unit tests or Playwright shots as a real Mac upgrade or native menu-bar test.
+Production checks stay on GitHub Releases. `AFTERTRACE_UPDATE_FEED_URL` is CI-only and must be `http(s)://127.0.0.1[:port]/`. The 0.5.5 fixture is not tagged or attached to a Release. Shipping identity stays 0.5.4. Do not treat unit tests or Playwright shots as a real Mac upgrade or native menu-bar test.
 
 ## 2. Dock / Cmd+Tab
 

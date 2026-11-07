@@ -13,6 +13,7 @@ const { getUpdater } = require("./updater")
 const { finishQuit } = require("./quit")
 const { UI_ORIGIN } = require("./allowlist")
 const { allowSender, dashboardHash } = require("./ipc")
+const smoke = require("./smoke")
 
 // Start as a menu extra. Dock/Cmd+Tab come back only while the dashboard is open.
 if (process.platform === "darwin" && app.dock) {
@@ -20,6 +21,7 @@ if (process.platform === "darwin" && app.dock) {
 }
 
 app.setName("Aftertrace")
+smoke.applyPaths(app)
 if (process.platform === "win32") {
   app.setAppUserModelId("com.rahulkraken.aftertrace")
 }
@@ -271,6 +273,17 @@ app.whenReady().then(async () => {
   })
 
   updater.startBackgroundChecks()
+
+  if (smoke.enabled()) {
+    settings.save(userData(), { firstLaunchDone: true, openAtLogin: false })
+    smoke.start({
+      updater,
+      openWindow,
+      restartToUpdate,
+      getVersion: () => app.getVersion(),
+      getUserData: userData,
+    })
+  }
 
   const first = !settings.load(userData()).firstLaunchDone
   if (!hiddenLaunch || first) await openWindow()

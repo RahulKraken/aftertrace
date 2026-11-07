@@ -2,6 +2,7 @@
 
 const { dialog, app } = require("electron")
 const { gt, parse } = require("./semver")
+const { localGenericFeedUrl } = require("./feedUrl")
 
 const IDLE = "idle"
 const CHECKING = "checking"
@@ -71,6 +72,12 @@ function createUpdater(deps = {}) {
     autoUpdater.autoRunAppAfterInstall = false
     autoUpdater.allowDowngrade = false
     autoUpdater.allowPrerelease = false
+    const localFeed = Object.prototype.hasOwnProperty.call(deps, "feedUrl")
+      ? localGenericFeedUrl(deps.feedUrl)
+      : localGenericFeedUrl()
+    if (localFeed && typeof autoUpdater.setFeedURL === "function") {
+      autoUpdater.setFeedURL({ provider: "generic", url: localFeed })
+    }
     if (!autoUpdater.logger) {
       autoUpdater.logger = {
         info() {},
@@ -291,6 +298,7 @@ module.exports = {
   startBackgroundChecks,
   getAutoUpdater,
   feedCompatible,
+  localGenericFeedUrl,
   IDLE,
   CHECKING,
   AVAILABLE,

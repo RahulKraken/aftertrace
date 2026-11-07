@@ -2,6 +2,16 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: macos-15 signed upgrade smoke; no Aqua-is-missing claim without a session probe.
+
+**Choice.** Desktop Mac CI is `macos-15` (GitHub-hosted arm64), not a blanket `macos-latest` “no Aqua” skip. The job records the actual session (`uname`, console user, `launchctl gui/$uid`, WindowServer/Dock, `screencapture`) before treating GUI as unavailable. A signed 0.5.4 app is copied with `ditto` into `$RUNNER_TEMP`, pointed at a local generic feed (`AFTERTRACE_UPDATE_FEED_URL` must be `http(s)://127.0.0.1`), and updated to a CI-only CSC-signed **0.5.5** fixture (`NOTARIZE_MAC_ARCHES` empty so the fixture is not notarized or published). Isolation is `HOME` + `AFTERTRACE_HOME` + `AFTERTRACE_USER_DATA_DIR`; writes under `/Users/runner/.aftertrace` fail the smoke. File-protocol commands (`AFTERTRACE_SMOKE`) drive check/restart because Playwright’s Electron launcher needs inspect fuses that hardened shipping builds typically disable. Screen Recording Allow is clicked via System Events if a dialog appears; TCC.db is not edited. Ad-hoc `codesign --force` is forbidden. Shipped v0.5.3 is evidence of the old `quitAndInstall` path (asar read + launch without feed rewrite); it is not live-upgraded (that would need a mutated `app-update.yml` and would break the seal). Shipping identity stays 0.5.4.
+
+**Why.** Parent asked for download→ready→still running→Restart→replacement on a disposable GitHub runner, and for an honest v0.5.3 vs 0.5.4 distinction. Official runners are arm64; herminal’s screenshot workflow shows a GUI session exists on `macos-15`. Claiming Aqua is missing without probing that session was unsupported.
+
+**How to reverse.** Drop the fixture pack and smoke steps; pin `macos-latest` again; do not add a production 0.5.5 tag to “make the feed real.”
+
+**Record.** PR 47 follow-up; still no merge/tag/release.
+
 ## Nov 7 2026: menu bar glance, Dock while the dashboard is open, user-triggered updater, compact glyph, recap numbers.
 
 **Choice.** Ship 0.5.4 (not a bump of one file): tag / `desktop/package.json` / updater yml / `## v0.5.4` in CHANGELOG must agree, and must be newer than 0.5.0 so installed v0.5.3 (internal 0.5.0) can see the feed. electron-updater against GitHub Releases, `autoDownload` false then we download, `autoInstallOnAppQuit` true, `autoRunAppAfterInstall` false, `allowDowngrade` false. Background detect+download; **Restart to update** is the only relaunch. `before-quit` stops the sidecar then `quitAndInstall`. `LSUIElement` stays true; Dock/Cmd+Tab only while the dashboard window is shown (`setActivationPolicy` + `dock.show/hide`). Custom compact popover (not the unused `#/tray` prototype, not a disabled native menu of greys). Attention: activity 5, spend 2, one finding 2, utilities 1. Quiet ≠ waiting. No plan-cap meter. Menu glyph is an 18×18 “trace corner” (one bend + endpoint), not the 28×18 ECG. Recap hero: time and `$` primary, sessions/commits/lines secondary, no decorative chips.

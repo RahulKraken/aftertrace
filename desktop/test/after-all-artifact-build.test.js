@@ -9,6 +9,7 @@ const path = require("path")
 const {
   afterAllArtifactBuild,
   collectNotarizeTargets,
+  parseNotarizeArches,
   collectAppBundles,
   notarytoolSubmitArgs,
   notarytoolWaitArgs,
@@ -71,6 +72,22 @@ describe("collectNotarizeTargets", () => {
         got.map((p) => path.basename(p)),
         ["Aftertrace-mac-arm64.dmg"],
       )
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
+  it("empty NOTARIZE_MAC_ARCHES skips every DMG (CI fixture)", () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    process.env.NOTARIZE_MAC_ARCHES = ""
+    try {
+      assert.deepEqual(parseNotarizeArches(""), [])
+      const got = collectNotarizeTargets([
+        "/out/Aftertrace-mac-arm64.dmg",
+        "/out/Aftertrace-mac-x64.dmg",
+      ])
+      assert.deepEqual(got, [])
     } finally {
       if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
       else process.env.NOTARIZE_MAC_ARCHES = prev
@@ -402,6 +419,38 @@ describe("desktop.yml", () => {
       /REQUIRE_MAC_NOTARIZE: \$\{\{ github\.event_name == 'workflow_call'/,
     )
     assert.match(mac, /artifact-feed-smoke\.sh/)
+    assert.match(mac, /runs-on: macos-15/)
+    assert.match(mac, /macos-session-probe\.sh/)
+    assert.match(mac, /pack-ci-fixture\.sh/)
+    assert.match(mac, /signed-upgrade-smoke\.sh/)
+  })
+})
+
+describe("pack-ci-fixture.sh", () => {
+  it("signs a 0.5.5 fixture into dist-fixture without notarize or shipping dist", () => {
+    const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "pack-ci-fixture.sh"), "utf8")
+    assert.match(sh, /0\.5\.5/)
+    assert.match(sh, /dist-fixture/)
+    assert.match(sh, /mac\.notarize=false/)
+    assert.match(sh, /NOTARIZE_MAC_ARCHES=""/)
+    assert.doesNotMatch(sh, /codesign --force/)
+    assert.doesNotMatch(sh, /git tag/)
+  })
+})
+
+describe("signed-upgrade-smoke.sh", () => {
+  it("uses a writable temp copy, local 127.0.0.1 feed, and does not resign or touch TCC", () => {
+    const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "signed-upgrade-smoke.sh"), "utf8")
+    assert.match(sh, /GITHUB_ACTIONS/)
+    assert.match(sh, /AFTERTRACE_HOME/)
+    assert.match(sh, /AFTERTRACE_USER_DATA_DIR/)
+    assert.match(sh, /AFTERTRACE_UPDATE_FEED_URL="http:\/\/127\.0\.0\.1:\$\{port\}\/"/)
+    assert.match(sh, /ditto/)
+    assert.match(sh, /echo restart/)
+    assert.match(sh, /retain-054/)
+    assert.doesNotMatch(sh, /codesign --force --/)
+    assert.doesNotMatch(sh, /sqlite3 .*(TCC|tcc)/)
+    assert.doesNotMatch(sh, /npx playwright|electron\.launch/)
   })
 })
 

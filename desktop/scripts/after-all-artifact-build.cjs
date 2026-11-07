@@ -43,8 +43,9 @@ function notarytoolWaitArgs(id) {
 }
 
 function parseNotarizeArches(raw) {
-  const s = raw == null ? process.env.NOTARIZE_MAC_ARCHES || "arm64" : String(raw)
-  return s
+  const source = raw == null ? process.env.NOTARIZE_MAC_ARCHES : raw
+  if (source == null) return ["arm64"]
+  return String(source)
     .split(",")
     .map((x) => x.trim())
     .filter((x) => x === "arm64" || x === "x64")
