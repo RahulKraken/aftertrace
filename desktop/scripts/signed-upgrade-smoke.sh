@@ -292,22 +292,12 @@ pgrep -x Dock >/dev/null 2>&1 || {
   exit 1
 }
 export AFTERTRACE_UPDATE_FEED_URL="http://127.0.0.1:${port}/"
+rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
 "$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
   --user-data-dir="$user_data" \
   >"$iso/gui.stdout" 2>"$iso/gui.stderr" &
 gui_pid=$!
 log "gui pid=$gui_pid (hidden; tray+engine only)"
-
-i=0
-while [ "$i" -lt 40 ]; do
-  if [ -f "$smoke_dir/status.json" ] && grep -q '"pid"' "$smoke_dir/status.json"; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-[ -f "$smoke_dir/status.json" ]
-kill -0 "$gui_pid"
 
 dock_names() {
   osascript -e 'tell application "System Events" to tell process "Dock" to get name of UI elements of list 1' 2>/dev/null || true
@@ -331,6 +321,25 @@ assert_engine_and_tray() {
     pgrep -lf aftertrace | tee -a "$report" || true
     exit 1
   }
+}
+wait_gui_ready() {
+  j=0
+  while [ "$j" -lt 40 ]; do
+    if [ -f "$smoke_dir/status.json" ] && grep -q "\"pid\": $gui_pid," "$smoke_dir/status.json"; then
+      if engine_alive; then
+        log "gui ready pid=$gui_pid"
+        return 0
+      fi
+    fi
+    j=$((j + 1))
+    sleep 1
+  done
+  log "FAIL: gui pid $gui_pid did not publish status + engine"
+  if [ -f "$smoke_dir/status.json" ]; then
+    tee -a "$report" <"$smoke_dir/status.json"
+  fi
+  pgrep -lf aftertrace | tee -a "$report" || true
+  exit 1
 }
 wait_dock() {
   want=$1
@@ -389,6 +398,7 @@ print(f"{int(x)} {int(y)} {int(w)} {int(h)}")
 PY
 }
 
+wait_gui_ready
 assert_engine_and_tray
 wait_dock out "hidden boot"
 click_allow
