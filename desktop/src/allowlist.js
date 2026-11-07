@@ -32,4 +32,4 @@ function isAllowedUrl(raw) {
   return isUiOrigin(url)
 }
 
-module.exports = { isAllowedUrl, UI_HOST, UI_PORT, UI_ORIGIN: `http://${UI_HOST}:${UI_PORT}` }
+module.exports = { isAllowedUrl, isUiOrigin, fileIsRenderer, UI_HOST, UI_PORT, UI_ORIGIN: `http://${UI_HOST}:${UI_PORT}` }

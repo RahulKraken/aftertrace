@@ -9,6 +9,7 @@ const {
   tagVersion,
   ymlVersion,
   changelogHasVersion,
+  plistString,
 } = require("../scripts/release-identity.cjs")
 const fs = require("fs")
 
@@ -83,4 +84,21 @@ test("CHANGELOG.md has a heading for this package version", () => {
   const pkg = require("../package.json").version
   const md = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8")
   assert.equal(changelogHasVersion(md, pkg), true)
+})
+
+test("packed app Info.plist must match package.json", () => {
+  const r = checkIdentity({
+    packageVersion: "0.5.4",
+    macYml: feed("0.5.4"),
+    appVersion: "0.5.0",
+    floorVersion: "0.5.0",
+  })
+  assert.equal(r.ok, false)
+  assert.ok(r.errors.some((e) => /CFBundleShortVersionString 0\.5\.0/.test(e)))
+})
+
+test("plistString reads CFBundleShortVersionString", () => {
+  const xml = `<?xml version="1.0"?>
+<plist><dict><key>CFBundleShortVersionString</key><string>0.5.4</string></dict></plist>`
+  assert.equal(plistString(xml, "CFBundleShortVersionString"), "0.5.4")
 })

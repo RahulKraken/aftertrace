@@ -46,6 +46,7 @@ function createUpdater(deps = {}) {
   let state = { status: IDLE, version: null, current: getVersion(), error: null }
   let wired = false
   let checking = null
+  let downloadLock = null
 
   const emit = () => {
     for (const fn of listeners) {
@@ -102,33 +103,40 @@ function createUpdater(deps = {}) {
     return () => listeners.delete(fn)
   }
 
-  async function check({ interactive = false } = {}) {
-    wire()
-    if (state.status === DOWNLOADING) {
-      if (interactive) {
-        await showDialog.showMessageBox({
-          type: "info",
-          message: "Downloading update",
-          detail: state.version ? `Aftertrace ${state.version} is downloading. The app stays open.` : "The download is in progress.",
-        })
+  async function download(version) {
+    if (state.status === READY) return getState()
+    if (downloadLock) return downloadLock
+    const latest = version || state.version
+    setState({ status: DOWNLOADING, version: latest, error: null })
+    downloadLock = (async () => {
+      try {
+        await autoUpdater.downloadUpdate()
+        setState({ status: READY, version: latest, error: null })
+        return getState()
+      } catch (err) {
+        const message = err && err.message ? String(err.message) : "download failed"
+        setState({ status: ERROR, error: message, version: latest })
+        return getState()
+      } finally {
+        downloadLock = null
       }
-      return getState()
-    }
-    if (state.status === READY) {
-      if (interactive) {
-        const { response } = await showDialog.showMessageBox({
-          type: "info",
-          message: `Aftertrace ${state.version} is ready`,
-          detail: `You have ${getVersion()}. Restart when you want the new build. Work is not interrupted until then.`,
-          buttons: ["Restart to update", "Later"],
-          defaultId: 0,
-          cancelId: 1,
-        })
-        if (response === 0) return { ...getState(), restart: true }
-      }
-      return getState()
-    }
+    })()
+    return downloadLock
+  }
 
+  async function promptAvailable(latest) {
+    const { response } = await showDialog.showMessageBox({
+      type: "info",
+      message: `Aftertrace ${latest} is available`,
+      detail: `You have ${getVersion()}. Aftertrace can download it in the background. You choose when to restart.`,
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    return response === 0
+  }
+
+  async function inspect({ interactive = false } = {}) {
     setState({ status: CHECKING, error: null })
     try {
       const result = await autoUpdater.checkForUpdates()
@@ -159,21 +167,8 @@ function createUpdater(deps = {}) {
         return getState()
       }
       setState({ status: AVAILABLE, version: latest, error: null })
-      if (interactive) {
-        const { response } = await showDialog.showMessageBox({
-          type: "info",
-          message: `Aftertrace ${latest} is available`,
-          detail: `You have ${current}. Aftertrace can download it in the background. You choose when to restart.`,
-          buttons: ["Download", "Later"],
-          defaultId: 0,
-          cancelId: 1,
-        })
-        if (response !== 0) return getState()
-      }
-      setState({ status: DOWNLOADING, version: latest, error: null })
-      await autoUpdater.downloadUpdate()
-      setState({ status: READY, version: latest, error: null })
-      return getState()
+      if (interactive && !(await promptAvailable(latest))) return getState()
+      return download(latest)
     } catch (err) {
       const message = err && err.message ? String(err.message) : "update check failed"
       setState({ status: ERROR, error: message })
@@ -188,12 +183,55 @@ function createUpdater(deps = {}) {
     }
   }
 
-  function checkSerialized(opts) {
-    if (checking) return checking
-    checking = check(opts).finally(() => {
-      checking = null
-    })
-    return checking
+  async function check({ interactive = false } = {}) {
+    wire()
+    if (state.status === DOWNLOADING || downloadLock) {
+      if (interactive) {
+        await showDialog.showMessageBox({
+          type: "info",
+          message: "Downloading update",
+          detail: state.version ? `Aftertrace ${state.version} is downloading. The app stays open.` : "The download is in progress.",
+        })
+      }
+      return downloadLock || getState()
+    }
+    if (state.status === READY) {
+      if (interactive) {
+        const { response } = await showDialog.showMessageBox({
+          type: "info",
+          message: `Aftertrace ${state.version} is ready`,
+          detail: `You have ${getVersion()}. Restart when you want the new build. Work is not interrupted until then.`,
+          buttons: ["Restart to update", "Later"],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        if (response === 0) return { ...getState(), restart: true }
+      }
+      return getState()
+    }
+    if (state.status === AVAILABLE && state.version) {
+      if (interactive && !(await promptAvailable(state.version))) return getState()
+      return download(state.version)
+    }
+    return inspect({ interactive })
+  }
+
+  function checkSerialized(opts = {}) {
+    const interactive = Boolean(opts.interactive)
+    const start = () => {
+      const p = check({ interactive }).finally(() => {
+        if (checking === p) checking = null
+      })
+      checking = p
+      return p
+    }
+    if (checking) {
+      // A Check click during an in-flight download must not inherit the
+      // silent background promise (no dialog) and must not start a second zip.
+      if (state.status === DOWNLOADING || downloadLock) return check({ interactive })
+      return checking.then(start, start)
+    }
+    return start()
   }
 
   function startBackgroundChecks() {

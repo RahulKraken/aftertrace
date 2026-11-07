@@ -186,3 +186,98 @@ test("ready state offers Restart, Later does not install", async () => {
   assert.equal(st.restart, undefined)
   assert.equal(auto.installs.length, 0)
 })
+
+test("interactive check during an in-flight download does not start a second one", async () => {
+  let release
+  const gate = new Promise((resolve) => {
+    release = resolve
+  })
+  const auto = mockAuto({
+    version: "0.5.4",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  auto.downloadUpdate = async () => {
+    auto.downloads += 1
+    await gate
+    auto.emit("update-downloaded", { version: "0.5.4" })
+  }
+  const d = dialog()
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.0",
+    dialog: d,
+    platform: "darwin",
+    arch: "arm64",
+  })
+  const bg = updater.check({ interactive: false })
+  while (auto.downloads === 0) await new Promise((r) => setImmediate(r))
+  const fg = updater.check({ interactive: true })
+  release()
+  const [a, b] = await Promise.all([bg, fg])
+  assert.equal(auto.checks, 1)
+  assert.equal(auto.downloads, 1)
+  assert.equal(a.status, "ready")
+  assert.equal(b.status, "ready")
+  assert.equal(auto.installs.length, 0)
+  assert.ok(d.boxes.some((box) => /Downloading/i.test(box.message)))
+})
+
+test("Later then a background check downloads without a second feed inspect", async () => {
+  const auto = mockAuto({
+    version: "0.5.4",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const d = dialog()
+  d.nextResponse = 1
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.0",
+    dialog: d,
+    platform: "darwin",
+    arch: "arm64",
+  })
+  const later = await updater.check({ interactive: true })
+  assert.equal(later.status, "available")
+  assert.equal(auto.downloads, 0)
+  const st = await updater.check({ interactive: false })
+  assert.equal(st.status, "ready")
+  assert.equal(auto.checks, 1)
+  assert.equal(auto.downloads, 1)
+})
+
+test("retry after an offline error inspects again", async () => {
+  const auto = mockAuto({
+    version: "0.5.4",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  let n = 0
+  auto.checkForUpdates = async () => {
+    auto.checks += 1
+    n += 1
+    if (n === 1) throw new Error("ENOTFOUND github.com")
+    return { updateInfo: { version: "0.5.4", files: [{ url: "Aftertrace-mac-arm64.zip" }] } }
+  }
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.0",
+    dialog: dialog(),
+    platform: "darwin",
+    arch: "arm64",
+  })
+  const err = await updater.check({ interactive: false })
+  assert.equal(err.status, "error")
+  const st = await updater.check({ interactive: false })
+  assert.equal(st.status, "ready")
+  assert.equal(auto.checks, 2)
+  assert.equal(auto.downloads, 1)
+})
+
+test("requestInstall is a no-op until ready", async () => {
+  const auto = mockAuto({
+    version: "0.5.4",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const updater = createUpdater({ autoUpdater: auto, getVersion: () => "0.5.0", dialog: dialog() })
+  assert.equal(updater.requestInstall({ relaunch: true }), false)
+  assert.equal(auto.installs.length, 0)
+})

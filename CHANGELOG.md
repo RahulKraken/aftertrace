@@ -3,8 +3,9 @@
 ## v0.5.4
 
 **Desktop**
-- Background update check and download via electron-updater. Visible checking / downloading / ready / error states. **Restart to update** is user-triggered; a finished download does not quit the app. Sidecar is stopped before `quitAndInstall`. Update checks hit GitHub Releases only.
-- Fail-closed release identity: tag, `desktop/package.json`, updater feed, and this CHANGELOG heading must match, and the version must be newer than the shipped 0.5.0 app so installed v0.5.3 can see it.
+- Background update check and download via electron-updater. Visible checking / downloading / ready / error states. **Restart to update** is user-triggered; a finished download does not quit the app. Sidecar is stopped before `quitAndInstall`. Update checks hit GitHub Releases only. In-flight checks serialize (no second download); Later still lets the next background pass fetch the zip; offline/cancel stay in error and retry.
+- Fail-closed release identity: tag, `desktop/package.json`, updater feed, packed `Aftertrace.app` `CFBundleShortVersionString`, and this CHANGELOG heading must match, and the version must be newer than the shipped 0.5.0 app so installed v0.5.3 can see it.
+- Menu popover and first-launch pages are the only IPC senders that can quit, restart, or check for updates. The dashboard origin cannot. Popover navigation is guarded the same way as the dashboard window.
 - Dashboard open → Dock + Cmd+Tab. Dashboard closed → menu bar + engine, process stays. Not always-Dock.
 - Compact menu-bar popover: current activity, today’s spend, one finding, utilities. Honest freshness. No synthetic “needs you”, no plan-cap meter. Compact square “trace corner” template glyph (not the wide ECG).
 

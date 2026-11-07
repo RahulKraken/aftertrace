@@ -8,7 +8,9 @@ Short records of choices that are easy to reverse and easy to forget. Newest fir
 
 **Why.** Rahul approved implementation 2026 Nov 7 2:04pm IST: glance at activity/cost without opening the dashboard; dashboard remains a normal Mac app when opened. v0.5.3’s version mismatch meant installed apps could not see a newer feed.
 
-**How to reverse.** Revert this commit. Do not publish/tag until a separate approval; published v0.5.3 stays.
+**How to reverse.** Replace tray/visual before merge; retain updater safety (identity floor, no auto-restart, GitHub Releases only). Do not publish/tag until a separate approval; published v0.5.3 stays. No merge/release is authorized by this decision.
+
+**Record.** https://app.notion.com/p/4111644e44b681deb108fe7f8eab75d6 (Status Open, Type Auto-decided; chosen: the five approved items).
 
 ## Nov 7 2026: one content grid for the site, one page gutter for the app.
 

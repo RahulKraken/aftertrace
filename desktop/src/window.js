@@ -15,7 +15,7 @@ function background() {
   return nativeTheme.shouldUseDarkColors ? "#141312" : "#f6f5f1"
 }
 
-function attachGuards(win) {
+function attachGuards(win, { fallbackWaiting = true } = {}) {
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   const block = (e, url) => {
     if (!isAllowedUrl(url)) e.preventDefault()
@@ -24,6 +24,7 @@ function attachGuards(win) {
   win.webContents.on("will-redirect", block)
   win.webContents.session.setPermissionRequestHandler((_wc, _perm, cb) => cb(false))
   win.webContents.session.setPermissionCheckHandler(() => false)
+  if (!fallbackWaiting) return
   win.webContents.on("did-fail-load", (_e, code, _desc, url, isMain) => {
     if (!isMain || code === 0) return
     if (url && url.startsWith(UI_ORIGIN)) {

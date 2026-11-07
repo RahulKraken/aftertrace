@@ -146,7 +146,9 @@ function createTray(handlers) {
   if (process.platform !== "linux") {
     tray.on("click", () => {
       if (popover) {
-        popover.toggle()
+        // Tray click blurs the panel first. Ignore that hide so the same
+        // click can close an open popover instead of hiding-then-reopening.
+        popover.toggleFromTray()
         refresh().then((view) => popover.send("desktop:glance", view)).catch(() => {})
         schedule()
       } else {
@@ -154,7 +156,7 @@ function createTray(handlers) {
       }
     })
     tray.on("right-click", () => {
-      if (popover) popover.toggle()
+      if (popover) popover.toggleFromTray()
     })
   }
 

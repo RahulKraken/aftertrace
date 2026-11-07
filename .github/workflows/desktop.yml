@@ -256,6 +256,10 @@ jobs:
           # shellcheck disable=SC1091
           . scripts/ci-signing-env.sh
           sh scripts/ci-verify-mac.sh
+      - name: Artifact feed vs shipped 0.5.0 identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh desktop/scripts/artifact-feed-smoke.sh desktop/dist
       - name: List artifacts
         run: |
           ls -lah desktop/dist

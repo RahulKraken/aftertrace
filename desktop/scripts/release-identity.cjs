@@ -53,6 +53,41 @@ function feedListsX64Zip(text) {
   return /Aftertrace-mac-x64\.zip/.test(String(text || ""))
 }
 
+function plistString(xml, key) {
+  const re = new RegExp(`<key>${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</key>\\s*<string>([^<]*)</string>`)
+  const m = String(xml || "").match(re)
+  return m ? m[1].trim() : ""
+}
+
+function findPackedApps(distDir) {
+  if (!distDir || !fs.existsSync(distDir)) return []
+  const apps = []
+  for (const name of ["mac-arm64", "mac", "mac-x64"]) {
+    const p = path.join(distDir, name, "Aftertrace.app")
+    if (fs.existsSync(path.join(p, "Contents", "Info.plist"))) apps.push(p)
+  }
+  return apps
+}
+
+function readAppShortVersion(appPath) {
+  const plistPath = path.join(appPath, "Contents", "Info.plist")
+  const xml = fs.readFileSync(plistPath, "utf8")
+  if (xml.includes("\u0000") || !xml.includes("<plist")) {
+    throw new Error(`${plistPath} is not XML; read CFBundleShortVersionString with PlistBuddy on macOS`)
+  }
+  const v = plistString(xml, "CFBundleShortVersionString")
+  if (!v) throw new Error(`${plistPath} has no CFBundleShortVersionString`)
+  return v
+}
+
+function ymlSha512(text, fileName) {
+  const src = String(text || "")
+  const named = src.match(new RegExp(`url:\\s*${fileName}[\\s\\S]*?sha512:\\s*(\\S+)`, "m"))
+  if (named) return named[1]
+  const top = src.match(/^sha512:\s*(\S+)/m)
+  return top ? top[1] : ""
+}
+
 function checkIdentity({
   packageVersion,
   githubRef,
@@ -61,6 +96,7 @@ function checkIdentity({
   linuxYml,
   changelog,
   floorVersion,
+  appVersion,
 } = {}) {
   const errors = []
   const pkg = parseSemver(packageVersion)
@@ -103,6 +139,15 @@ function checkIdentity({
     }
   }
 
+  if (appVersion) {
+    const versions = Array.isArray(appVersion) ? appVersion : [appVersion]
+    for (const v of versions) {
+      if (pkg && v !== pkg.raw) {
+        errors.push(`Aftertrace.app CFBundleShortVersionString ${v} does not match package.json ${pkg.raw}`)
+      }
+    }
+  }
+
   return { ok: errors.length === 0, errors, packageVersion: pkg && pkg.raw, tag: tag && tag.raw }
 }
 
@@ -122,6 +167,13 @@ function checkRepo(root, { githubRef, distDir, floorVersion = "0.5.0" } = {}) {
     const p = path.join(distDir, name)
     return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null
   }
+  let appVersion
+  if (distDir) {
+    const apps = findPackedApps(distDir)
+    if (apps.length) {
+      appVersion = apps.map((p) => readAppShortVersion(p))
+    }
+  }
   return checkIdentity({
     packageVersion,
     githubRef,
@@ -130,6 +182,7 @@ function checkRepo(root, { githubRef, distDir, floorVersion = "0.5.0" } = {}) {
     winYml: read("latest.yml"),
     linuxYml: read("latest-linux.yml"),
     floorVersion,
+    appVersion,
   })
 }
 
@@ -162,4 +215,8 @@ module.exports = {
   checkRepo,
   assertOk,
   readPackageVersion,
+  plistString,
+  findPackedApps,
+  readAppShortVersion,
+  ymlSha512,
 }

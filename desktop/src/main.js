@@ -12,6 +12,7 @@ const settings = require("./settings")
 const { getUpdater } = require("./updater")
 const { finishQuit } = require("./quit")
 const { UI_ORIGIN } = require("./allowlist")
+const { allowSender, dashboardHash } = require("./ipc")
 
 // Start as a menu extra. Dock/Cmd+Tab come back only while the dashboard is open.
 if (process.platform === "darwin" && app.dock) {
@@ -185,28 +186,50 @@ app.on("activate", () => {
   openWindow()
 })
 
-ipcMain.handle("desktop:getOpenAtLogin", () => isOpenAtLogin())
-ipcMain.handle("desktop:setOpenAtLogin", (_e, enabled) => setOpenAtLogin(enabled))
-ipcMain.handle("desktop:continue", async () => {
+ipcMain.handle("desktop:getOpenAtLogin", (e) => {
+  allowSender(e, ["popover", "first-launch"])
+  return isOpenAtLogin()
+})
+ipcMain.handle("desktop:setOpenAtLogin", (e, enabled) => {
+  allowSender(e, ["popover", "first-launch"])
+  return setOpenAtLogin(enabled)
+})
+ipcMain.handle("desktop:continue", async (e) => {
+  allowSender(e, ["first-launch"])
   settings.save(userData(), { firstLaunchDone: true })
   await loadUi()
   return true
 })
-ipcMain.handle("desktop:engineStatus", () => (engine ? engine.status() : { state: "idle" }))
-ipcMain.handle("desktop:getGlance", async () => {
+ipcMain.handle("desktop:engineStatus", (e) => {
+  allowSender(e, ["waiting", "first-launch", "ui"])
+  return engine ? engine.status() : { state: "idle" }
+})
+ipcMain.handle("desktop:getGlance", async (e) => {
+  allowSender(e, ["popover"])
   if (trayApi && trayApi.refresh) return trayApi.refresh()
   return presentGlance({ ok: false, sessions: [] }, updater.getState())
 })
-ipcMain.handle("desktop:getUpdate", () => updater.getState())
-ipcMain.handle("desktop:openDashboard", (_e, hash) => openWindow(hash))
-ipcMain.handle("desktop:checkUpdates", async () => {
+ipcMain.handle("desktop:getUpdate", (e) => {
+  allowSender(e, ["popover"])
+  return updater.getState()
+})
+ipcMain.handle("desktop:openDashboard", (e, hash) => {
+  allowSender(e, ["popover"])
+  return openWindow(dashboardHash(hash))
+})
+ipcMain.handle("desktop:checkUpdates", async (e) => {
+  allowSender(e, ["popover"])
   const st = await updater.check({ interactive: true })
   if (st && st.restart) return restartToUpdate()
   pushUpdate(updater.getState())
   return updater.getState()
 })
-ipcMain.handle("desktop:restartToUpdate", () => restartToUpdate())
-ipcMain.handle("desktop:quit", () => {
+ipcMain.handle("desktop:restartToUpdate", (e) => {
+  allowSender(e, ["popover"])
+  return restartToUpdate()
+})
+ipcMain.handle("desktop:quit", (e) => {
+  allowSender(e, ["popover"])
   app.quit()
   return true
 })

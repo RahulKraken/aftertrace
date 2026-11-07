@@ -12,7 +12,7 @@ Visible states: checking, downloading, ready, error / retry, up to date. Offline
 
 `before-quit` stops the sidecar, then `quitAndInstall(false, true)` on Restart. Engine data lives in `~/.aftertrace` and survives.
 
-**Identity (fail-closed).** Tag `vX.Y.Z`, `desktop/package.json`, updater yml `version:`, and `CHANGELOG.md` `## vX.Y.Z` must match. Package version must be newer than `0.5.0`. Mac feed must list `Aftertrace-mac-arm64.zip` and must not list an Intel zip. Checks: `node desktop/scripts/release-identity.cjs` (and with a `dist/` after pack) plus `EXPECT_DESKTOP_VERSION` in `scripts/verify-release-assets.sh`.
+**Identity (fail-closed).** Tag `vX.Y.Z`, `desktop/package.json`, updater yml `version:`, packed `Aftertrace.app` `CFBundleShortVersionString`, and `CHANGELOG.md` `## vX.Y.Z` must match. Package version must be newer than `0.5.0`. Mac feed must list `Aftertrace-mac-arm64.zip` and must not list an Intel zip. Checks: `node desktop/scripts/release-identity.cjs` (and with a `dist/` after pack), `PlistBuddy` in `ci-verify-mac.sh`, plus `EXPECT_DESKTOP_VERSION` in `scripts/verify-release-assets.sh`.
 
 Privacy: the check contacts GitHub Releases. No usage telemetry. Logs strip `ghp_` / `github_pat_` tokens.
 
@@ -20,11 +20,14 @@ Privacy: the check contacts GitHub Releases. No usage telemetry. Logs strip `ghp
 
 | What | Kind |
 | - | - |
-| `desktop/test/updater.test.js` — 0.5.0 sees 0.5.4, downloads, stays running, Restart calls `quitAndInstall`, Later does not, offline/cancel are errors | **Unit / mock** |
+| `desktop/test/updater.test.js` — 0.5.0 sees 0.5.4, downloads, stays running, Restart calls `quitAndInstall`, Later does not, overlapping checks share one download, offline/cancel retry | **Unit / mock** |
 | `desktop/test/quit.test.js` — sidecar stop then install | **Unit / mock** |
-| Installed v0.5.3 (internal 0.5.0) → signed 0.5.4 zip on a Mac, engine/data survive | **Not run here** (no connected macOS GUI worker / pool). Needs a signed feed on a real Mac after parent approves a release. |
+| Playwright popover/recap PNGs | **Chromium layout**, not the native Mac menu extra |
+| Packed `Aftertrace.app` Info.plist + `latest-mac.yml` + zip sha512 vs published v0.5.3 zip (`CFBundleShortVersionString` `0.5.0`) on `macos-latest` (`artifact-feed-smoke.sh`) | **Real files** on the GitHub-hosted Mac runner. Isolated `$HOME`. No tag/Release. No `quitAndInstall`. |
+| Developer ID / Apple Accepted / stapler / app `spctl` | **Real** on that runner when secrets exist (`ci-verify-mac.sh`) |
+| Native menu extra, Dock, Cmd+Tab, tray click, signed 0.5.3 app live-upgrading itself | **Not run here.** `macos-latest` has no interactive Aqua session for those. Published v0.5.3’s background updater does not download; its interactive Download then `quitAndInstall` immediately. No connected self-hosted Mac GUI worker. |
 
-Do not treat unit tests as a real Mac upgrade test.
+Do not treat unit tests or Playwright shots as a real Mac upgrade or native menu-bar test.
 
 ## 2. Dock / Cmd+Tab
 

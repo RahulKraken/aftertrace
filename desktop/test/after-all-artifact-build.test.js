@@ -401,6 +401,7 @@ describe("desktop.yml", () => {
       mac.slice(mac.indexOf("name: Package")),
       /REQUIRE_MAC_NOTARIZE: \$\{\{ github\.event_name == 'workflow_call'/,
     )
+    assert.match(mac, /artifact-feed-smoke\.sh/)
   })
 })
 
@@ -447,5 +448,7 @@ describe("ci-verify-mac.sh", () => {
     assert.match(sh, /informational/)
     assert.match(sh, /Notarized Developer ID/)
     assert.match(sh, /must not list Aftertrace-mac-x64\.zip/)
+    assert.match(sh, /CFBundleShortVersionString/)
+    assert.match(sh, /PlistBuddy/)
   })
 })

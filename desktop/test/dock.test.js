@@ -32,3 +32,14 @@ test("non-Mac is a no-op", () => {
   const r = setDashboardVisible(true, { app, platform: "linux" })
   assert.equal(r.skipped, true)
 })
+
+test("hiding twice stays accessory (popover must not reopen the Dock)", () => {
+  const calls = []
+  const app = {
+    setActivationPolicy: (p) => calls.push(`policy:${p}`),
+    dock: { show: () => calls.push("show"), hide: () => calls.push("hide") },
+  }
+  setDashboardVisible(false, { app, platform: "darwin" })
+  setDashboardVisible(false, { app, platform: "darwin" })
+  assert.deepEqual(calls, ["policy:accessory", "hide", "policy:accessory", "hide"])
+})

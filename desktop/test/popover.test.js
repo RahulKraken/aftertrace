@@ -2,7 +2,7 @@
 
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
-const { placeNearTray, WIDTH, HEIGHT } = require("../src/popover")
+const { placeNearTray, shouldHideOnBlur, WIDTH, HEIGHT } = require("../src/popover")
 const { sessionSlice, updateFooter, freshnessKind } = require("../renderer/popoverView.js")
 
 test("places the popover under the menu extra, on-screen", () => {
@@ -14,6 +14,26 @@ test("places the popover under the menu extra, on-screen", () => {
   assert.ok(b.x >= 8)
   assert.ok(b.x + b.width <= 1440 - 8)
   assert.ok(b.y >= 22)
+})
+
+test("left-of-primary monitor keeps the popover on that work area", () => {
+  const work = { x: -1920, y: 0, width: 1920, height: 1080 }
+  const b = placeNearTray({ x: -40, y: 0, width: 22, height: 22 }, { display: { workArea: work } })
+  assert.ok(b.x >= work.x + 8)
+  assert.ok(b.x + b.width <= work.x + work.width - 8)
+  assert.ok(b.y >= work.y + 8)
+})
+
+test("bottom menu bar opens above the extra", () => {
+  const work = { x: 0, y: 0, width: 1440, height: 900 }
+  const b = placeNearTray({ x: 700, y: 878, width: 22, height: 22 }, { display: { workArea: work } })
+  assert.ok(b.y + b.height <= 878)
+  assert.ok(b.y >= 8)
+})
+
+test("tray click grace suppresses the blur hide", () => {
+  assert.equal(shouldHideOnBlur(1000, 999), false)
+  assert.equal(shouldHideOnBlur(1000, 1000), true)
 })
 
 test("multiple live sessions stay compact", () => {

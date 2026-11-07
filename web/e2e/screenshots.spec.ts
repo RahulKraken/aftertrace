@@ -487,9 +487,16 @@ test("menu-bar popover: live, idle, stale, multi-session, update ready", async (
   await expect(page.locator("#finding")).toBeInViewport()
   await expect(page.locator("#restart")).toBeInViewport()
   await expect(page.locator("#quit")).toBeInViewport()
+  const popShot = async (name: string, theme: "light" | "dark") => {
+    await page.emulateMedia({ colorScheme: theme })
+    const file = `popover-${name}-${theme}.png`
+    await page.screenshot({ path: resolve(outDir, file) })
+    await page.screenshot({ path: resolve(docsDir, file) })
+  }
+  await popShot("ready", "light")
   await page.screenshot({ path: resolve(outDir, "popover-light.png") })
   await page.screenshot({ path: resolve(docsDir, "popover-light.png") })
-  await page.emulateMedia({ colorScheme: "dark" })
+  await popShot("ready", "dark")
   await page.screenshot({ path: resolve(outDir, "popover-dark.png") })
   await page.screenshot({ path: resolve(docsDir, "popover-dark.png") })
   await page.emulateMedia({ colorScheme: "light" })
@@ -500,18 +507,36 @@ test("menu-bar popover: live, idle, stale, multi-session, update ready", async (
       freshness: "Engine data is stale",
       sessions: [],
     })
-    window.aftertracePopover.renderUpdate({ status: "error" })
+    window.aftertracePopover.renderUpdate({ status: "idle" })
   })
   await expect(page.locator("#fresh")).toHaveAttribute("data-kind", "stale")
   await expect(page.locator("#sessions")).toContainText("stale")
-  await expect(page.locator("#updates")).toHaveText("Retry update")
+  await popShot("stale", "light")
+  await popShot("stale", "dark")
+  await page.emulateMedia({ colorScheme: "light" })
   await page.screenshot({ path: resolve(outDir, "popover-stale-light.png") })
   await page.evaluate(() => {
     window.aftertracePopover.renderGlance({ ok: true, stale: false, freshness: "Updated just now", sessions: [] })
     window.aftertracePopover.renderUpdate({ status: "idle" })
   })
   await expect(page.locator("#sessions")).toContainText("Idle")
+  await popShot("idle", "light")
+  await popShot("idle", "dark")
+  await page.emulateMedia({ colorScheme: "light" })
   await page.screenshot({ path: resolve(outDir, "popover-idle-light.png") })
+  await page.evaluate(() => {
+    window.aftertracePopover.renderUpdate({ status: "error" })
+  })
+  await expect(page.locator("#updates")).toHaveText("Retry update")
+  await popShot("error", "light")
+  await popShot("error", "dark")
+  await page.emulateMedia({ colorScheme: "light" })
+  await page.evaluate(() => {
+    window.aftertracePopover.renderUpdate({ status: "downloading", version: "0.5.4" })
+  })
+  await expect(page.locator("#updates")).toContainText("Downloading")
+  await popShot("downloading", "light")
+  await popShot("downloading", "dark")
 })
 
 test("apps: list, app page, findings, trace", async ({ page }) => {

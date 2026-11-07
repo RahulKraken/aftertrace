@@ -123,6 +123,7 @@ jobs:
           shellcheck -s sh desktop/scripts/ci-pack.sh
           shellcheck -s sh desktop/scripts/ci-signing-env.sh
           shellcheck -s sh desktop/scripts/ci-verify-mac.sh
+          shellcheck -s sh desktop/scripts/artifact-feed-smoke.sh
       - name: Site download tests
         working-directory: site
         run: npm test

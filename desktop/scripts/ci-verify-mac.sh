@@ -84,6 +84,19 @@ fi
 
 echo "arm64 app: $arm_app" | tee -a "$report"
 check_engine "$arm_app" arm64
+
+pkg=$(node -p "require('./package.json').version")
+if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
+  for app in $arm_app $x64_app; do
+    [ -n "$app" ] || continue
+    short=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+    echo "CFBundleShortVersionString $app: $short (package.json $pkg)" | tee -a "$report"
+    if [ "$short" != "$pkg" ]; then
+      echo "Info.plist $short does not match package.json $pkg" >&2
+      exit 1
+    fi
+  done
+fi
 if [ -n "$x64_app" ]; then
   echo "x64 app (optional): $x64_app" | tee -a "$report"
   check_engine "$x64_app" x86_64

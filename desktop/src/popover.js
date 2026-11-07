@@ -1,30 +1,47 @@
 "use strict"
 
 const path = require("path")
-const { BrowserWindow, screen } = require("electron")
 
 const WIDTH = 320
 const HEIGHT = 400
+const TRAY_BLUR_GRACE_MS = 400
+
+function clampOnWorkArea(value, start, size, extent, pad = 8) {
+  const min = start + pad
+  const max = start + size - extent - pad
+  return Math.round(Math.min(Math.max(value, min), Math.max(min, max)))
+}
 
 function placeNearTray(trayBounds, { display, width = WIDTH, height = HEIGHT } = {}) {
   const work = (display && display.workArea) || { x: 0, y: 0, width: 1440, height: 900 }
   const tb = trayBounds || { x: work.x + work.width - 80, y: work.y, width: 22, height: 22 }
-  let x = Math.round(tb.x + tb.width / 2 - width / 2)
-  let y = Math.round(tb.y + tb.height + 6)
-  if (tb.y > work.y + 80) y = Math.round(tb.y - height - 6)
-  x = Math.min(Math.max(x, work.x + 8), work.x + work.width - width - 8)
-  y = Math.min(Math.max(y, work.y + 8), work.y + work.height - height - 8)
+  let x = tb.x + tb.width / 2 - width / 2
+  let y = tb.y + tb.height + 6
+  if (tb.y > work.y + 80) y = tb.y - height - 6
+  x = clampOnWorkArea(x, work.x, work.width, width)
+  y = clampOnWorkArea(y, work.y, work.height, height)
   return { x, y, width, height }
 }
 
+function shouldHideOnBlur(ignoreBlurUntil, t = Date.now()) {
+  return t >= ignoreBlurUntil
+}
+
 function createPopover({ tray } = {}) {
+  const { BrowserWindow, screen } = require("electron")
+  const { attachGuards } = require("./window")
   let win = null
+  let ignoreBlurUntil = 0
 
   const boundsFor = () => {
     const tb = tray && typeof tray.getBounds === "function" ? tray.getBounds() : null
     const pt = tb ? { x: tb.x, y: tb.y } : screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(pt)
     return placeNearTray(tb, { display })
+  }
+
+  const markTrayInteraction = () => {
+    ignoreBlurUntil = Date.now() + TRAY_BLUR_GRACE_MS
   }
 
   const ensure = () => {
@@ -50,11 +67,14 @@ function createPopover({ tray } = {}) {
         nodeIntegration: false,
         sandbox: true,
         webviewTag: false,
+        navigateOnDragDrop: false,
       },
     })
+    attachGuards(win, { fallbackWaiting: false })
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     win.setMenuBarVisibility(false)
     win.on("blur", () => {
+      if (!shouldHideOnBlur(ignoreBlurUntil)) return
       if (win && !win.isDestroyed()) win.hide()
     })
     win.on("closed", () => {
@@ -81,6 +101,11 @@ function createPopover({ tray } = {}) {
     else show()
   }
 
+  const toggleFromTray = () => {
+    markTrayInteraction()
+    toggle()
+  }
+
   const send = (channel, payload) => {
     if (!win || win.isDestroyed()) return
     win.webContents.send(channel, payload)
@@ -88,7 +113,15 @@ function createPopover({ tray } = {}) {
 
   const isOpen = () => Boolean(win && !win.isDestroyed() && win.isVisible())
 
-  return { show, hide, toggle, send, isOpen, placeNearTray }
+  return { show, hide, toggle, toggleFromTray, send, isOpen, placeNearTray, markTrayInteraction }
 }
 
-module.exports = { createPopover, placeNearTray, WIDTH, HEIGHT }
+module.exports = {
+  createPopover,
+  placeNearTray,
+  shouldHideOnBlur,
+  clampOnWorkArea,
+  WIDTH,
+  HEIGHT,
+  TRAY_BLUR_GRACE_MS,
+}

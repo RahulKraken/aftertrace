@@ -2,6 +2,7 @@
 
 // Dashboard window visible → regular app (Dock + Cmd+Tab).
 // Window closed → accessory again (menu bar + engine). Never always-Dock.
+// The menu-bar popover is skipTaskbar + panel; it must not call this.
 
 function setDashboardVisible(visible, { app, platform } = {}) {
   const plat = platform || process.platform
