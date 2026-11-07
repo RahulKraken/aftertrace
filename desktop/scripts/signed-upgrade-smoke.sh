@@ -96,7 +96,14 @@ old_home=$iso/v053/home
 mkdir -p "$old_home/.aftertrace" "$iso/v053/tmp"
 echo "retain-v053" >"$old_home/.aftertrace/marker.txt"
 # Launch signed 0.5.3 without rewriting app-update.yml (that would break the seal).
-# Do not ad-hoc resign.
+# Do not ad-hoc resign. Published 0.5.0 has no AFTERTRACE_HOME, and Cocoa
+# NSHomeDirectory ignores HOME, so this launch may write the runner NFS
+# home. Record that, then delete only what we created, so the 0.5.4 half
+# can require explicit paths.
+created_dot=0
+created_support=0
+[ -e "$runner_home/.aftertrace" ] || created_dot=1
+[ -e "$runner_home/Library/Application Support/Aftertrace" ] || created_support=1
 xattr -dr com.apple.quarantine "$old_app" 2>/dev/null || true
 codesign -v "$old_app"
 if codesign -dv --verbose=4 "$old_app" 2>&1 | grep -q "Signature=adhoc"; then
@@ -117,9 +124,17 @@ else
   log "v0.5.3 pid $old_pid exited; stderr follows"
   tail -n 40 "$iso/v053/stderr.txt" | tee -a "$report" || true
 fi
-assert_no_runner_writes
+if [ -e "$runner_home/.aftertrace" ]; then
+  log "v0.5.3 Cocoa wrote $runner_home/.aftertrace despite HOME=$old_home (0.5.0 has no AFTERTRACE_HOME)"
+fi
+if [ "$created_dot" = 1 ]; then
+  rm -rf "$runner_home/.aftertrace"
+fi
+if [ "$created_support" = 1 ]; then
+  rm -rf "$runner_home/Library/Application Support/Aftertrace"
+fi
 [ -f "$old_home/.aftertrace/marker.txt" ]
-log "v0.5.3 marker retained; runner home untouched"
+log "v0.5.3 marker retained; runner-home leak from 0.5.0 cleaned; 0.5.4 uses explicit paths"
 
 # --- 0.5.4 → CI fixture 0.5.5 ---
 log "== 0.5.4 plus local 0.5.5 fixture feed =="

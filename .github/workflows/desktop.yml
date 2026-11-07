@@ -280,14 +280,16 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
         run: sh desktop/scripts/signed-upgrade-smoke.sh desktop/dist desktop/dist-fixture
       - name: List artifacts
+        if: always()
         run: |
-          ls -lah desktop/dist
+          ls -lah desktop/dist || true
           for app in desktop/dist/mac-arm64/Aftertrace.app desktop/dist/mac-x64/Aftertrace.app desktop/dist/mac/Aftertrace.app; do
             [ -d "$app" ] || continue
             codesign -dv --verbose=4 "$app" || true
           done
-          cat desktop/dist/mac-engine-report.txt
+          cat desktop/dist/mac-engine-report.txt || true
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: aftertrace-desktop-mac
           path: |
