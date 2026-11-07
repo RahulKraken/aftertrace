@@ -154,8 +154,7 @@ jobs:
           cd dist
           set -- aftertrace_*.tar.gz checksums.txt \
             Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml \
-            Aftertrace-mac-arm64.dmg Aftertrace-mac-x64.dmg \
-            Aftertrace-mac-arm64.zip Aftertrace-mac-x64.zip \
+            Aftertrace-mac-arm64.dmg Aftertrace-mac-arm64.zip \
             Aftertrace-win.exe latest.yml \
             Aftertrace-linux.AppImage Aftertrace-linux.deb
           for f in Aftertrace-*-mac.dmg Aftertrace-*-mac.zip \
@@ -169,6 +168,9 @@ jobs:
                    Aftertrace-mac-notarized.json \
                    latest-linux.yml; do
             [ -f "$f" ] || continue
+            case "$f" in
+              *x64*) continue ;;
+            esac
             case " $* " in
               *" $f "*) ;;
               *) set -- "$@" "$f" ;;

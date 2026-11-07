@@ -1,11 +1,11 @@
 "use strict"
 
 // After electron-builder, make sure GitHub Release / site download names exist:
-//   Aftertrace-mac-arm64.dmg / Aftertrace-mac-x64.dmg (and zips)
+//   Aftertrace-mac-arm64.dmg (and zip)
 //   Aftertrace-mac.dmg  (copy of the arm64 DMG, so /releases/latest/download/Aftertrace-mac.dmg stays valid)
 //   Aftertrace-win.exe, Aftertrace-linux.AppImage, Aftertrace-linux.deb
 // plus versioned copies and latest-mac.yml / latest.yml
-// so electron-updater can pick the zip that matches the machine's chip.
+// Consumer Mac is Apple silicon; latest-mac.yml lists the arm64 zip only.
 
 const crypto = require("crypto")
 const fs = require("fs")
@@ -88,20 +88,16 @@ function findMacArtifact(outDir, files, arch, ext) {
 }
 
 function writeMacLatestYml(outDir, version) {
-  const entries = MAC_ARCHES.map((arch) => {
-    const fileName = `Aftertrace-${macKind(arch)}.zip`
-    const { sha512, size } = sha512Base64(path.join(outDir, fileName))
-    return { url: fileName, sha512, size }
-  })
-  const primary = entries[0]
+  const fileName = "Aftertrace-mac-arm64.zip"
+  const zipPath = path.join(outDir, fileName)
+  if (!fs.existsSync(zipPath)) return
+  const { sha512, size } = sha512Base64(zipPath)
   const body =
     `version: ${version}\n` +
     `files:\n` +
-    entries
-      .map((e) => `  - url: ${e.url}\n    sha512: ${e.sha512}\n    size: ${e.size}\n`)
-      .join("") +
-    `path: ${primary.url}\n` +
-    `sha512: ${primary.sha512}\n` +
+    `  - url: ${fileName}\n    sha512: ${sha512}\n    size: ${size}\n` +
+    `path: ${fileName}\n` +
+    `sha512: ${sha512}\n` +
     `releaseDate: '${new Date().toISOString()}'\n`
   fs.writeFileSync(path.join(outDir, "latest-mac.yml"), body)
 }
@@ -111,8 +107,8 @@ function stabilizeMac(outDir, files, version, made, missing) {
   for (const arch of MAC_ARCHES) {
     const dmg = findMacArtifact(outDir, files, arch, "dmg")
     const zip = findMacArtifact(outDir, files, arch, "zip")
-    if (!dmg) missing.push(`Aftertrace-${macKind(arch)}.dmg`)
-    if (!zip) missing.push(`Aftertrace-${macKind(arch)}.zip`)
+    if (!dmg && arch === "arm64") missing.push(`Aftertrace-${macKind(arch)}.dmg`)
+    if (!zip && arch === "arm64") missing.push(`Aftertrace-${macKind(arch)}.zip`)
     byArch[arch] = { dmg, zip }
     if (dmg) {
       const vname = versionedName(version, macKind(arch), "dmg")
@@ -156,10 +152,10 @@ function stabilizeMac(outDir, files, version, made, missing) {
     }
   }
 
-  if (MAC_ARCHES.every((arch) => byArch[arch] && byArch[arch].zip)) {
+  if (arm && arm.zip) {
     writeMacLatestYml(outDir, version)
-  } else if (arm && arm.zip) {
-    missing.push("latest-mac.yml (need both Aftertrace-mac-arm64.zip and Aftertrace-mac-x64.zip)")
+  } else {
+    missing.push("latest-mac.yml (need Aftertrace-mac-arm64.zip)")
   }
 }
 

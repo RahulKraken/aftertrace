@@ -1,6 +1,6 @@
 # Signing and notarizing the Mac app
 
-A tagged release (`v*`) builds two Mac apps (Apple silicon and Intel), plus Windows and Linux packages, and attaches them to the GitHub Release next to the Go engine archives `install.sh` uses. Each Mac DMG bundles only the Go engine for that chip.
+A tagged release (`v*`) builds the Apple-silicon Mac app, plus Windows and Linux packages, and attaches them to the GitHub Release next to the Go engine archives `install.sh` uses. The Mac DMG bundles only the arm64 Go engine. Intel Mac is not a consumer download.
 
 The Mac apps are signed with a Developer ID, notarized, and stapled when these GitHub Actions secrets exist. If they do not, the same workflow still succeeds: it ships unsigned builds, and the website shows the right-click → Open note until a notarized release is published.
 
@@ -73,10 +73,10 @@ You need **signing** and **one** notarization method. Signing without notarizati
 `.github/workflows/desktop.yml` (PRs, `main`, and the Release workflow on a `v*` tag):
 
 1. If `CSC_LINK` is empty, sets `CSC_IDENTITY_AUTO_DISCOVERY=false` and builds unsigned.
-2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), then `afterAllArtifactBuild` notarizes DMGs one at a time (`notarytool wait --timeout 5400`) and staples them. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel stays signed). The Release workflow (`workflow_call` / `v*` tag) sets `REQUIRE_MAC_NOTARIZE` and notarizes both chips. electron-builder's own `mac.notarize` stays off. `Aftertrace-mac-notarized.json` is written **only** after Apple Accepted and stapler succeeded. A PR wait timeout may keep signed artifacts without that marker. A tagged GitHub Release **fails closed** without it. Invalid/Rejected still fails.
+2. If a signing identity **and** `APPLE_ID` or `APPLE_API_KEY` are set: signs with Developer ID (hardened runtime; Electron entitlements on the app, a separate empty entitlements file on the Go sidecar), then `afterAllArtifactBuild` notarizes the arm64 DMG (`notarytool wait --timeout 5400`) and staples it. `NOTARIZE_MAC_ARCHES` is `arm64`. The Release workflow (`workflow_call` / `v*` tag) sets `REQUIRE_MAC_NOTARIZE`. electron-builder's own `mac.notarize` stays off. `Aftertrace-mac-notarized.json` is written **only** after Apple Accepted and stapler succeeded. A PR wait timeout may keep signed artifacts without that marker. A tagged GitHub Release **fails closed** without it. Invalid/Rejected still fails.
 3. If those secrets are missing, notarization is not attempted (`-c.mac.notarize=false`; the hook skips). The build stays green.
 4. Empty secret values are unset. electron-builder otherwise treats `CSC_LINK=""` as a path and fails.
-5. When `CSC_LINK` is set, CI requires `codesign -v` and a `Developer ID Application` identity on each `.app`. When `Aftertrace-mac-notarized.json` is present, it also runs `spctl -a -vv --type install` and `xcrun stapler validate` on each notarized DMG (and `spctl -a -vv` on each `.app`).
+5. When `CSC_LINK` is set, CI requires `codesign -v` and a `Developer ID Application` identity on the `.app`. When `Aftertrace-mac-notarized.json` is present, it requires `xcrun stapler validate` on the DMG and `spctl -a -vv` **accepted / Notarized Developer ID** on the `.app`. `spctl --type install` on the DMG is informational: Gatekeeper does not treat a Developer ID disk image as an installer package (`no usable signature` is expected).
 6. Data files (the Apache LICENSE) go in `extraResources` (`Contents/Resources/` on Mac). `extraFiles` copies into `Contents/`, and `codesign` treats a loose file there as nested code (`code object is not signed at all`). `after-pack` fails the Mac build if anything unexpected is at `Contents/` top level.
 
 A PR never publishes a GitHub Release. Desktop packages upload as Actions artifacts named `aftertrace-desktop-mac` / `windows` / `linux`, using the same file names a release will attach.
@@ -90,9 +90,8 @@ Desktop files on the same release:
 | File | Who uses it |
 | - | - |
 | `Aftertrace-mac-arm64.dmg` | Apple silicon download |
-| `Aftertrace-mac-x64.dmg` | Intel Mac download |
-| `Aftertrace-mac.dmg` | Copy of the arm64 DMG. Site **Download for Mac** fallback and `/releases/latest/download/Aftertrace-mac.dmg` |
-| `Aftertrace-mac-arm64.zip` / `Aftertrace-mac-x64.zip` | electron-updater (Mac). `latest-mac.yml` lists both; the running app picks its chip |
+| `Aftertrace-mac.dmg` | Copy of the arm64 DMG. Site **Download for Mac** and `/releases/latest/download/Aftertrace-mac.dmg` |
+| `Aftertrace-mac-arm64.zip` | electron-updater (Mac). `latest-mac.yml` lists this zip only |
 | `Aftertrace-mac.zip` | Copy of the arm64 zip (link stability only; not what the updater reads) |
 | `latest-mac.yml` | electron-updater (Mac) |
 | `Aftertrace-mac-notarized.json` | Present only on a notarized build. The website hides the first-open note when this file is on the latest release |
@@ -101,7 +100,7 @@ Desktop files on the same release:
 | `Aftertrace-linux.AppImage` | Linux download |
 | `Aftertrace-linux.deb` | Debian/Ubuntu |
 | `latest-linux.yml` | electron-updater (Linux AppImage) |
-| `Aftertrace-<version>-mac-arm64.dmg` (and the same for x64 / zip / win / linux) | Optional pin to a version |
+| `Aftertrace-<version>-mac-arm64.dmg` (and the same for zip / win / linux) | Optional pin to a version |
 
 ## First open while unsigned
 

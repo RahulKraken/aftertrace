@@ -59,6 +59,24 @@ describe("collectNotarizeTargets", () => {
     assert.equal(got.length, 1)
   })
 
+  it("defaults to arm64 when NOTARIZE_MAC_ARCHES is unset", () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    delete process.env.NOTARIZE_MAC_ARCHES
+    try {
+      const got = collectNotarizeTargets([
+        "/out/Aftertrace-mac-arm64.dmg",
+        "/out/Aftertrace-mac-x64.dmg",
+      ])
+      assert.deepEqual(
+        got.map((p) => path.basename(p)),
+        ["Aftertrace-mac-arm64.dmg"],
+      )
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+    }
+  })
+
   it("NOTARIZE_MAC_ARCHES=arm64 drops the x64 DMG", () => {
     const prev = process.env.NOTARIZE_MAC_ARCHES
     process.env.NOTARIZE_MAC_ARCHES = "arm64"
@@ -372,6 +390,8 @@ describe("ci-pack.sh", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "ci-pack.sh"), "utf8")
     assert.match(sh, /mac\.notarize=false/)
     assert.doesNotMatch(sh, /mac\.notarize=true/)
+    assert.match(sh, /electron-builder --mac --arm64 --publish/)
+    assert.doesNotMatch(sh, /electron-builder --mac --arm64 --x64/)
   })
 })
 
@@ -405,5 +425,8 @@ describe("ci-verify-mac.sh", () => {
     assert.match(sh, /Developer ID Application/)
     assert.match(sh, /Aftertrace-mac-notarized\.json/)
     assert.match(sh, /NOTARIZE_MAC_ARCHES/)
+    assert.match(sh, /informational/)
+    assert.match(sh, /Notarized Developer ID/)
+    assert.match(sh, /must not list Aftertrace-mac-x64\.zip/)
   })
 })

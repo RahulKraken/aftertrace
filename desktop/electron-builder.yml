@@ -52,9 +52,9 @@ publish:
   releaseType: release
 
 # Win/Linux keep Aftertrace-${os}.${ext}. Mac uses Aftertrace-${os}-${arch}.${ext}
-# (Aftertrace-mac-arm64.dmg / Aftertrace-mac-x64.dmg). Aftertrace-mac.dmg is
-# copied from the arm64 DMG after pack so the existing latest/download link
-# still works.
+# (Aftertrace-mac-arm64.dmg). Aftertrace-mac.dmg is copied from the arm64 DMG
+# after pack so the existing latest/download link still works. CI packs
+# Apple silicon only.
 artifactName: Aftertrace-${os}.${ext}
 generateUpdatesFilesForAllChannels: true
 
@@ -70,10 +70,10 @@ mac:
   binaries:
     - Contents/Resources/engine/aftertrace
   # CI always passes -c.mac.notarize=false. Signing still happens via CSC_*.
-  # afterAllArtifactBuild notarizes DMGs one at a time (PRs: arm64 only).
-  # Do not set notarize: true here: unsigned local builds would fail, and
-  # electron-builder's sequential app --wait blew the job budget.
-  # No Mac App Store target. Per-chip (arm64 + x64), not universal.
+  # afterAllArtifactBuild notarizes the arm64 DMG. Do not set notarize: true
+  # here: unsigned local builds would fail, and electron-builder's sequential
+  # app --wait blew the job budget. Consumer Mac is Apple silicon, not
+  # universal / Intel.
   target:
     - dmg
     - zip

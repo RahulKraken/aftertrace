@@ -12,11 +12,11 @@ cd "$(dirname "$0")/.."
 target="${1:-}"
 case "$target" in
   mac)
-    # Sign in electron-builder. Notarize in afterAllArtifactBuild (the two
-    # per-chip DMGs: upload both, then wait both). electron-builder's own
-    # mac.notarize --waits on each .app in series and cancelled the signed
-    # PR 44 Mac job at 60 minutes after codesign had already succeeded.
-    npx electron-builder --mac --arm64 --x64 --publish never -c.mac.notarize=false
+    # Sign in electron-builder. Notarize in afterAllArtifactBuild (Apple
+    # silicon DMG). electron-builder's own mac.notarize --waits on each
+    # .app in series and cancelled the signed PR 44 Mac job at 60 minutes
+    # after codesign had already succeeded. Intel is not a consumer target.
+    npx electron-builder --mac --arm64 --publish never -c.mac.notarize=false
     ;;
   win)
     npx electron-builder --win --x64 --publish never

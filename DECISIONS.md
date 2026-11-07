@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: consumer Mac is Apple silicon; palette Enter activates the selected row.
+
+**Choice.** CI packs and notarizes `arm64` only (`NOTARIZE_MAC_ARCHES=arm64`, `electron-builder --mac --arm64`). `latest-mac.yml` lists `Aftertrace-mac-arm64.zip` only. The site **Download for Mac** always points at `Aftertrace-mac.dmg` (arm64 alias) and hides the Intel link. A tagged release does not attach `*x64*` Mac files. Gatekeeper evidence is `xcrun stapler validate` on the DMG plus `spctl -a -vv` **accepted / Notarized Developer ID** on the `.app`. `spctl --type install` on the DMG is logged and ignored: a Developer ID disk image is not an installer package, so `no usable signature` is expected. The command palette handles Enter/arrows on the search field; the e2e test waits for the selected row to be the Sessions match before Enter.
+
+**Why.** Rahul does not want an Intel consumer package. Advertising a signed-only x64 DMG next to a notarized arm64 marker would hide the Gatekeeper note for Intel. `spctl --type install` on the arm64 DMG rejected after Apple Accepted and stapler succeeded (Desktop 42268211484); the app assessed as Notarized Developer ID. Playwright `sidebar: g-shortcuts and command palette` stayed on `/#/findings` because Enter in the focused input did not activate the session row (and findings can match `zsh` before sessions load).
+
+**How to reverse.** Pack `--x64` again, list that zip in `latest-mac.yml`, show the Intel site link, and require `spctl --type install` on the DMG if Apple starts treating Developer ID disk images as installers.
+
 ## Nov 6 2026: notarize Mac DMGs after pack, one at a time; PRs only send the arm64 DMG.
 
 **Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and Release (`workflow_call`) set `REQUIRE_MAC_NOTARIZE=true` and notarize both chips. A wait timeout (`notarytool` exit 124) may keep **PR** signed artifacts without `Aftertrace-mac-notarized.json`. The marker is written only after Apple **Accepted** and `stapler staple` succeeds. A `v*` GitHub Release **fails closed** without that marker (`verify-release-assets` + `gh release create` guard). Invalid/Rejected still fails everywhere.

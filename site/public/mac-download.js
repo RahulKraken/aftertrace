@@ -1,5 +1,6 @@
-/* Chip-aware Mac download + hide the Gatekeeper note once a notarized
-   build is on GitHub Releases. No-JS keeps Aftertrace-mac.dmg (arm64 alias). */
+/* Apple-silicon Mac download + hide the Gatekeeper note once a notarized
+   build is on GitHub Releases. No-JS keeps Aftertrace-mac.dmg (arm64 alias).
+   Intel is not a consumer download; do not point anyone at a signed-only x64 DMG. */
 (function (root) {
   "use strict"
 
@@ -46,26 +47,26 @@
   }
 
   function hrefFor(chip) {
-    return RELEASE + "/Aftertrace-mac-" + chip + ".dmg"
+    if (chip === "x64") return RELEASE + "/Aftertrace-mac-x64.dmg"
+    return RELEASE + "/Aftertrace-mac.dmg"
   }
 
   function otherLabel(chip) {
     return chip === "x64" ? "Download for Intel Mac" : "Download for Apple silicon"
   }
 
-  function apply(doc, chip) {
+  function apply(doc) {
     if (!doc) return
     var primary = doc.getElementById("mac-download")
     var other = doc.getElementById("mac-download-other")
     var start = doc.getElementById("mac-start")
-    if (!chip) chip = "arm64"
-    var otherChip = chip === "arm64" ? "x64" : "arm64"
-    if (primary) primary.setAttribute("href", hrefFor(chip))
-    if (start) start.setAttribute("href", hrefFor(chip))
-    if (other) {
-      other.setAttribute("href", hrefFor(otherChip))
-      other.textContent = otherLabel(otherChip)
+    var href = hrefFor("arm64")
+    if (primary) {
+      primary.setAttribute("href", href)
+      primary.textContent = "Download for Mac"
     }
+    if (start) start.setAttribute("href", href)
+    if (other) other.hidden = true
   }
 
   function hideOpenNotes(doc) {

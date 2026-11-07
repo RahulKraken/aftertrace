@@ -1,9 +1,9 @@
 "use strict"
 
 // electron-builder signs the .apps (CSC_*). This hook notarizes DMGs one at
-// a time (arm64 first). PRs set NOTARIZE_MAC_ARCHES=arm64 so Apple sees one
-// submission; tags/main notarize both. electron-builder mac.notarize stays
-// off. Two parallel waits stayed In Progress for 60 minutes (PR 44,
+// a time (arm64 first). Consumer Mac is Apple silicon: default
+// NOTARIZE_MAC_ARCHES=arm64. electron-builder mac.notarize stays off.
+// Two parallel waits stayed In Progress for 60 minutes (PR 44,
 // run 42235990924). Skip when secrets are absent.
 
 const fs = require("fs")
@@ -43,7 +43,7 @@ function notarytoolWaitArgs(id) {
 }
 
 function parseNotarizeArches(raw) {
-  const s = raw == null ? process.env.NOTARIZE_MAC_ARCHES || "arm64,x64" : String(raw)
+  const s = raw == null ? process.env.NOTARIZE_MAC_ARCHES || "arm64" : String(raw)
   return s
     .split(",")
     .map((x) => x.trim())

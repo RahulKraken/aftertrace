@@ -1,8 +1,8 @@
 #!/bin/sh
-# Confirm per-chip Mac packages: each app ships one matching Go engine,
+# Confirm the Apple-silicon Mac package: the app ships the arm64 Go engine,
 # Aftertrace-mac.dmg is a copy of the arm64 DMG, and when Apple secrets
-# signed+notarized the build, the DMGs pass Gatekeeper and stapler.
-# Run from desktop/ after electron-builder and stable-artifacts.
+# signed+notarized the build, stapler validates the DMG and spctl accepts
+# the app. Run from desktop/ after electron-builder and stable-artifacts.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -76,22 +76,20 @@ arm_app=$(find_app arm64) || {
   ls -la "$dist" >&2
   exit 1
 }
-x64_app=$(find_app x86_64) || {
-  echo "mac x86_64 Aftertrace.app not found under $dist" >&2
-  ls -la "$dist" >&2
-  exit 1
-}
-if [ "$arm_app" = "$x64_app" ]; then
+x64_app=$(find_app x86_64) || x64_app=""
+if [ -n "$x64_app" ] && [ "$arm_app" = "$x64_app" ]; then
   echo "arm64 and x64 resolved to the same app bundle: $arm_app" >&2
   exit 1
 fi
 
 echo "arm64 app: $arm_app" | tee -a "$report"
 check_engine "$arm_app" arm64
-echo "x64 app: $x64_app" | tee -a "$report"
-check_engine "$x64_app" x86_64
+if [ -n "$x64_app" ]; then
+  echo "x64 app (optional): $x64_app" | tee -a "$report"
+  check_engine "$x64_app" x86_64
+fi
 
-for app in "$arm_app" "$x64_app"; do
+for app in $arm_app $x64_app; do
   if [ -f "$app/Contents/LICENSE" ]; then
     echo "LICENSE must not sit at $app/Contents/LICENSE (codesign nested code)" >&2
     exit 1
@@ -104,8 +102,7 @@ for app in "$arm_app" "$x64_app"; do
 done
 
 for f in \
-  Aftertrace-mac-arm64.dmg Aftertrace-mac-x64.dmg \
-  Aftertrace-mac-arm64.zip Aftertrace-mac-x64.zip \
+  Aftertrace-mac-arm64.dmg Aftertrace-mac-arm64.zip \
   Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml; do
   if [ ! -f "$dist/$f" ]; then
     echo "missing $dist/$f" >&2
@@ -134,11 +131,15 @@ with open(report, "a", encoding="utf-8") as fh:
 PY
 
 grep -q "Aftertrace-mac-arm64.zip" "$dist/latest-mac.yml"
-grep -q "Aftertrace-mac-x64.zip" "$dist/latest-mac.yml"
+if grep -q "Aftertrace-mac-x64.zip" "$dist/latest-mac.yml"; then
+  echo "latest-mac.yml must not list Aftertrace-mac-x64.zip (Apple-silicon-only consumer)" >&2
+  cat "$dist/latest-mac.yml" >&2
+  exit 1
+fi
 
 if [ -n "${CSC_LINK-}" ]; then
   echo "Developer ID:" | tee -a "$report"
-  for app in "$arm_app" "$x64_app"; do
+  for app in $arm_app $x64_app; do
     echo "codesign $app" | tee -a "$report"
     ident=$(codesign -dv --verbose=4 "$app" 2>&1)
     echo "$ident" | tee -a "$report"
@@ -154,7 +155,7 @@ if [ -n "${CSC_LINK-}" ]; then
 fi
 
 if [ -f "$dist/Aftertrace-mac-notarized.json" ]; then
-  notarize_arches=${NOTARIZE_MAC_ARCHES:-arm64,x64}
+  notarize_arches=${NOTARIZE_MAC_ARCHES:-arm64}
   echo "Signed+notarized arches: $notarize_arches" | tee -a "$report"
   wants_arch() {
     case ",$notarize_arches," in
@@ -162,23 +163,43 @@ if [ -f "$dist/Aftertrace-mac-notarized.json" ]; then
       *) return 1 ;;
     esac
   }
-  check_dmg() {
+  # Gatekeeper assesses the .app. `spctl --type install` is for installer
+  # packages; a Developer ID DMG reports "no usable signature" even when
+  # stapler validate works and the app is Notarized Developer ID. Ticket is
+  # on the DMG (stapler); assessment is on the app (spctl -a -vv).
+  staple_dmg() {
     dmg=$1
-    echo "spctl $dmg" | tee -a "$report"
-    # Disk images need --type install; -vv is the assess verbose form.
-    spctl -a -vv --type install "$dmg" 2>&1 | tee -a "$report"
+    echo "stapler $dmg" | tee -a "$report"
     xcrun stapler validate "$dmg" 2>&1 | tee -a "$report"
+    echo "spctl --type install (informational) $dmg" | tee -a "$report"
+    spctl -a -vv --type install "$dmg" 2>&1 | tee -a "$report" || true
+  }
+  assess_app() {
+    app=$1
+    echo "spctl $app" | tee -a "$report"
+    out=$(spctl -a -vv "$app" 2>&1) || true
+    echo "$out" | tee -a "$report"
+    echo "$out" | grep -qi "accepted" || {
+      echo "spctl did not accept $app" >&2
+      exit 1
+    }
+    echo "$out" | grep -qi "Notarized Developer ID" || {
+      echo "spctl did not report Notarized Developer ID for $app" >&2
+      exit 1
+    }
   }
   if wants_arch arm64; then
-    check_dmg "$dist/Aftertrace-mac-arm64.dmg"
-    check_dmg "$dist/Aftertrace-mac.dmg"
-    echo "spctl $arm_app" | tee -a "$report"
-    spctl -a -vv "$arm_app" 2>&1 | tee -a "$report"
+    staple_dmg "$dist/Aftertrace-mac-arm64.dmg"
+    staple_dmg "$dist/Aftertrace-mac.dmg"
+    assess_app "$arm_app"
   fi
   if wants_arch x64; then
-    check_dmg "$dist/Aftertrace-mac-x64.dmg"
-    echo "spctl $x64_app" | tee -a "$report"
-    spctl -a -vv "$x64_app" 2>&1 | tee -a "$report"
+    if [ -z "$x64_app" ] || [ ! -f "$dist/Aftertrace-mac-x64.dmg" ]; then
+      echo "NOTARIZE_MAC_ARCHES includes x64 but the Intel app/DMG is missing" >&2
+      exit 1
+    fi
+    staple_dmg "$dist/Aftertrace-mac-x64.dmg"
+    assess_app "$x64_app"
   fi
 elif [ -n "${CSC_LINK-}" ]; then
   echo "Signed, notarization not stapled (no Aftertrace-mac-notarized.json)" | tee -a "$report"

@@ -58,7 +58,7 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
 
   useEffect(() => {
     setI(0)
-  }, [q])
+  }, [q, items])
 
   const choose = useCallback(
     (item: Item) => {
@@ -69,9 +69,8 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
     [nav, onClose],
   )
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
+  const onKey = useCallback(
+    (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose()
         e.preventDefault()
@@ -82,13 +81,19 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
         setI((n) => Math.max(0, n - 1))
         e.preventDefault()
       } else if (e.key === "Enter" && items[i]) {
-        choose(items[i])
         e.preventDefault()
+        e.stopPropagation()
+        choose(items[i])
       }
-    }
+    },
+    [items, i, choose, onClose],
+  )
+
+  useEffect(() => {
+    if (!open) return
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, items, i, choose, onClose])
+  }, [open, onKey])
 
   if (!open) return null
   return (
@@ -101,6 +106,7 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
             placeholder="Search pages, sessions by prompt, findings, actions"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => onKey(e.nativeEvent)}
           />
           <span className="kbd">esc</span>
         </div>
