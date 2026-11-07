@@ -62,6 +62,10 @@ jobs:
         run: npm ci && npm run build:embed
       - name: Desktop unit tests
         working-directory: desktop
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build Go engine
         run: |
@@ -202,6 +206,10 @@ jobs:
         run: npm ci && npm run build:embed
       - name: Desktop unit tests
         working-directory: desktop
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build per-chip Go engines
         run: |
@@ -315,6 +323,10 @@ jobs:
       - name: Desktop unit tests
         working-directory: desktop
         shell: bash
+        env:
+          # Same as a tagged Release mac job. PRs used to omit this, so
+          # v0.5.2's verify-release-assets leak stayed green on #44.
+          REQUIRE_MAC_NOTARIZE: "true"
         run: npm ci && npm test
       - name: Build Go engine
         shell: bash

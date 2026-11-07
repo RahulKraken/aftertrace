@@ -386,12 +386,19 @@ describe("afterAllArtifactBuild", () => {
 })
 
 describe("desktop.yml", () => {
-  it("sets REQUIRE_MAC_NOTARIZE on Package, not the mac job env", () => {
+  it("runs unit tests under Release REQUIRE_MAC_NOTARIZE; fail-closed stays on Package", () => {
     const yml = fs.readFileSync(path.join(__dirname, "..", "..", ".github/workflows/desktop.yml"), "utf8")
-    const mac = yml.slice(yml.indexOf("  mac:"))
-    const beforePack = mac.slice(0, mac.indexOf("name: Package"))
-    assert.doesNotMatch(beforePack, /REQUIRE_MAC_NOTARIZE/)
-    assert.match(mac.slice(mac.indexOf("name: Package")), /REQUIRE_MAC_NOTARIZE/)
+    const unitBlocks = [...yml.matchAll(/name: Desktop unit tests\n[\s\S]*?run: npm ci && npm test/g)]
+    assert.equal(unitBlocks.length, 3)
+    for (const m of unitBlocks) {
+      assert.match(m[0], /REQUIRE_MAC_NOTARIZE: "true"/)
+    }
+    const mac = yml.slice(yml.indexOf("    name: macOS"))
+    assert.doesNotMatch(mac.slice(0, mac.indexOf("steps:")), /REQUIRE_MAC_NOTARIZE/)
+    assert.match(
+      mac.slice(mac.indexOf("name: Package")),
+      /REQUIRE_MAC_NOTARIZE: \$\{\{ github\.event_name == 'workflow_call'/,
+    )
   })
 })
 
