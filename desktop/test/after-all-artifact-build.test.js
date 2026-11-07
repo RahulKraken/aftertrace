@@ -387,7 +387,9 @@ describe("afterAllArtifactBuild", () => {
 
 describe("desktop.yml", () => {
   it("runs unit tests under Release REQUIRE_MAC_NOTARIZE; fail-closed stays on Package", () => {
-    const yml = fs.readFileSync(path.join(__dirname, "..", "..", ".github/workflows/desktop.yml"), "utf8")
+    const yml = fs
+      .readFileSync(path.join(__dirname, "..", "..", ".github/workflows/desktop.yml"), "utf8")
+      .replace(/\r\n/g, "\n")
     const unitBlocks = [...yml.matchAll(/name: Desktop unit tests\n[\s\S]*?run: npm ci && npm test/g)]
     assert.equal(unitBlocks.length, 3)
     for (const m of unitBlocks) {
