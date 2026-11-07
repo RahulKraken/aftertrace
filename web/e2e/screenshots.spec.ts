@@ -413,8 +413,14 @@ test("sidebar: g-shortcuts and command palette", async ({ page }) => {
   await page.keyboard.press("f")
   await expect(page).toHaveURL(/#\/findings/)
   await page.keyboard.press("Meta+k")
+  const palette = page.getByRole("dialog", { name: "Command palette" })
+  await expect(palette).toBeVisible()
   await page.keyboard.type("zsh")
-  await expect(page.locator(".cmd-list button").first()).toContainText("zsh")
+  // Wait until the selected row is the session whose prompt contains zsh.
+  // Findings can match first while sessions are still loading.
+  const selected = palette.locator("button.on")
+  await expect(selected.locator(".mute")).toHaveText("Sessions")
+  await expect(selected).toContainText("zsh")
   await page.keyboard.press("Enter")
   await expect(page).toHaveURL(/#\/session\//)
 })

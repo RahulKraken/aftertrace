@@ -22,7 +22,7 @@ function write(name, body = "x") {
 }
 
 describe("stable-artifacts", () => {
-  it("keeps per-chip names, aliases Aftertrace-mac.dmg to arm64, and lists both zips in latest-mac.yml", () => {
+  it("aliases Aftertrace-mac.dmg to arm64 and lists only the arm64 zip in latest-mac.yml", () => {
     write("Aftertrace-mac-arm64.dmg", "arm-dmg")
     write("Aftertrace-mac-x64.dmg", "x64-dmg")
     write("Aftertrace-mac-arm64.zip", "arm-zip")
@@ -39,7 +39,7 @@ describe("stable-artifacts", () => {
     assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.zip"), "utf8"), "arm-zip")
     const yml = fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8")
     assert.match(yml, /url: Aftertrace-mac-arm64\.zip/)
-    assert.match(yml, /url: Aftertrace-mac-x64\.zip/)
+    assert.doesNotMatch(yml, /url: Aftertrace-mac-x64\.zip/)
     assert.match(yml, /path: Aftertrace-mac-arm64\.zip/)
     assert.doesNotMatch(yml, /url: Aftertrace-mac\.zip\n/)
     assert.doesNotMatch(yml, /universal/)
@@ -60,14 +60,24 @@ describe("stable-artifacts", () => {
     assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.dmg"), "utf8"), "arm-dmg")
     const yml = fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8")
     assert.match(yml, /url: Aftertrace-mac-arm64\.zip/)
-    assert.match(yml, /url: Aftertrace-mac-x64\.zip/)
+    assert.doesNotMatch(yml, /url: Aftertrace-mac-x64\.zip/)
     assert.doesNotMatch(yml, /0\.5\.0-mac-arm64\.zip/)
   })
 
-  it("does not treat a lone Aftertrace-mac.dmg as enough — both chips are required", () => {
+  it("does not treat a lone Aftertrace-mac.dmg as enough — the arm64-named DMG is required", () => {
     write("Aftertrace-mac.dmg", "old")
     write("Aftertrace-mac.zip", "old-zip")
     assert.throws(() => run(dir, "0.5.0"), /Aftertrace-mac-arm64/)
+  })
+
+  it("Apple-silicon-only pack is enough without an Intel DMG", () => {
+    write("Aftertrace-mac-arm64.dmg", "arm-dmg")
+    write("Aftertrace-mac-arm64.zip", "arm-zip")
+    run(dir, "0.5.0")
+    assert.equal(fs.readFileSync(path.join(dir, "Aftertrace-mac.dmg"), "utf8"), "arm-dmg")
+    const yml = fs.readFileSync(path.join(dir, "latest-mac.yml"), "utf8")
+    assert.match(yml, /url: Aftertrace-mac-arm64\.zip/)
+    assert.doesNotMatch(yml, /x64/)
   })
 
   it("writes latest.yml for Windows when electron-builder omitted it", () => {

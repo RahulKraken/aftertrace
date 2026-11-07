@@ -4,6 +4,7 @@ const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
 const { archName } = require("./mac-arch.cjs")
+const { assertMacBundleLayout, assertPackagedLicense } = require("./mac-bundle-layout.cjs")
 
 function sidecarPath(context, engineName) {
   if (context.electronPlatformName === "darwin") {
@@ -48,6 +49,11 @@ exports.default = async function afterPack(context) {
   if (!st.size) throw new Error(`Packaged Go engine is empty: ${sidecar}`)
   if (context.electronPlatformName === "darwin") {
     assertEngineArch(sidecar, context.arch)
+    const appName = `${context.packager.appInfo.productFilename}.app`
+    const appBundle = path.join(context.appOutDir, appName)
+    assertMacBundleLayout(appBundle)
+  } else {
+    assertPackagedLicense(context.electronPlatformName, context.appOutDir)
   }
 }
 

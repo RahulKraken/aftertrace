@@ -2,6 +2,30 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: consumer Mac is Apple silicon; palette Enter activates the selected row.
+
+**Choice.** CI packs and notarizes `arm64` only (`NOTARIZE_MAC_ARCHES=arm64`, `electron-builder --mac --arm64`). `latest-mac.yml` lists `Aftertrace-mac-arm64.zip` only. The site **Download for Mac** always points at `Aftertrace-mac.dmg` (arm64 alias) and hides the Intel link. A tagged release does not attach `*x64*` Mac files. Gatekeeper evidence is `xcrun stapler validate` on the DMG plus `spctl -a -vv` **accepted / Notarized Developer ID** on the `.app`. `spctl --type install` on the DMG is logged and ignored: a Developer ID disk image is not an installer package, so `no usable signature` is expected. The command palette handles Enter/arrows on the search field; the e2e test waits for the selected row to be the Sessions match before Enter.
+
+**Why.** Rahul does not want an Intel consumer package. Advertising a signed-only x64 DMG next to a notarized arm64 marker would hide the Gatekeeper note for Intel. `spctl --type install` on the arm64 DMG rejected after Apple Accepted and stapler succeeded (Desktop 42268211484); the app assessed as Notarized Developer ID. Playwright `sidebar: g-shortcuts and command palette` stayed on `/#/findings` because Enter in the focused input did not activate the session row (and findings can match `zsh` before sessions load).
+
+**How to reverse.** Pack `--x64` again, list that zip in `latest-mac.yml`, show the Intel site link, and require `spctl --type install` on the DMG if Apple starts treating Developer ID disk images as installers.
+
+## Nov 6 2026: notarize Mac DMGs after pack, one at a time; PRs only send the arm64 DMG.
+
+**Choice.** CI always passes `-c.mac.notarize=false`. `afterAllArtifactBuild` submits DMGs one at a time (arm64 first), `notarytool wait --timeout 5400`. PRs set `NOTARIZE_MAC_ARCHES=arm64` (Intel still signed). Tags and Release (`workflow_call`) set `REQUIRE_MAC_NOTARIZE=true` and notarize both chips. A wait timeout (`notarytool` exit 124) may keep **PR** signed artifacts without `Aftertrace-mac-notarized.json`. The marker is written only after Apple **Accepted** and `stapler staple` succeeds. A `v*` GitHub Release **fails closed** without that marker (`verify-release-assets` + `gh release create` guard). Invalid/Rejected still fails everywhere.
+
+**Why.** Codesign succeeded once LICENSE left `Contents/`. Apple notary then stayed In Progress: 60 minutes (job cancelled), 40 minutes (4 submits, one Accepted), 60 minutes (2 DMGs), 90 minutes (1 arm64 DMG, submission `93496256-a4e0-417e-9037-cab50d3d2ac3`). A green signed PR pack is not a consumer download. Rahul wants an app that opens normally: Developer ID **and** Apple Accepted + stapler/spctl.
+
+**How to reverse.** Drop `REQUIRE_MAC_NOTARIZE` on the Release workflow. Do not write the notarized marker on timeout. Do not re-enable sequential app notarize.
+
+## Nov 6 2026: ship LICENSE via extraResources, not extraFiles, so Mac codesign can seal the app.
+
+**Choice.** Put the Apache LICENSE in electron-builder `extraResources` (`Contents/Resources/LICENSE` on Mac, `resources/LICENSE` on Windows and Linux). Do not use `extraFiles` for it. `after-pack` fails if anything unexpected sits at `Contents/` top level.
+
+**Why.** `extraFiles` copies into `Aftertrace.app/Contents/` on Mac. `codesign` then treats `Contents/LICENSE` as nested code: `code object is not signed at all / In subcomponent: …/Contents/LICENSE`. That is what failed v0.5.1 after Developer ID secrets were present. Unsigned PRs never ran codesign, so the placement was invisible until then. Windows and Linux extraFiles placement was valid; they still get LICENSE, just under `resources/`.
+
+**How to reverse.** Restore the `extraFiles: { from: ../LICENSE, to: LICENSE }` block and drop the Contents/ layout assertion. Do not do that unless Apple changes nested-code rules.
+
 ## Nov 3 2026: per-chip Mac DMGs instead of universal, with Aftertrace-mac.dmg kept as an arm64 alias.
 
 **Choice.** Build separate `arm64` and `x64` Mac apps (DMG + zip), each bundling only the matching Go engine. Stable names `Aftertrace-mac-arm64.dmg` and `Aftertrace-mac-x64.dmg`. Copy the arm64 DMG to `Aftertrace-mac.dmg` so `/releases/latest/download/Aftertrace-mac.dmg` and the site button stay valid. `latest-mac.yml` lists both zips; electron-updater picks by arch. Notarize and staple when `CSC_LINK` + Apple credentials are present; unsigned otherwise.

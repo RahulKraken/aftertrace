@@ -25,6 +25,11 @@ extraResources:
       - aftertrace.exe
   - from: resources/icons
     to: icons
+  # extraFiles would land at Aftertrace.app/Contents/LICENSE on Mac, which
+  # codesign treats as nested code ("code object is not signed at all").
+  # Resources/ is the valid place; Windows/Linux get resources/LICENSE.
+  - from: ../LICENSE
+    to: LICENSE
 
 extraMetadata:
   name: aftertrace-desktop
@@ -47,9 +52,9 @@ publish:
   releaseType: release
 
 # Win/Linux keep Aftertrace-${os}.${ext}. Mac uses Aftertrace-${os}-${arch}.${ext}
-# (Aftertrace-mac-arm64.dmg / Aftertrace-mac-x64.dmg). Aftertrace-mac.dmg is
-# copied from the arm64 DMG after pack so the existing latest/download link
-# still works.
+# (Aftertrace-mac-arm64.dmg). Aftertrace-mac.dmg is copied from the arm64 DMG
+# after pack so the existing latest/download link still works. CI packs
+# Apple silicon only.
 artifactName: Aftertrace-${os}.${ext}
 generateUpdatesFilesForAllChannels: true
 
@@ -64,11 +69,11 @@ mac:
   entitlementsInherit: resources/entitlements.mac.inherit.plist
   binaries:
     - Contents/Resources/engine/aftertrace
-  # Notarize when Apple credentials are present. CI passes
-  # -c.mac.notarize=false when they are not, so unsigned builds still succeed,
-  # and -c.mac.notarize=true when they are, so notarization is required.
-  # Do not set notarize: true here — that would fail unsigned builds.
-  # No Mac App Store target. Per-chip (arm64 + x64), not universal.
+  # CI always passes -c.mac.notarize=false. Signing still happens via CSC_*.
+  # afterAllArtifactBuild notarizes the arm64 DMG. Do not set notarize: true
+  # here: unsigned local builds would fail, and electron-builder's sequential
+  # app --wait blew the job budget. Consumer Mac is Apple silicon, not
+  # universal / Intel.
   target:
     - dmg
     - zip
@@ -117,7 +122,3 @@ linux:
     - AppImage
     - deb
   artifactName: Aftertrace-${os}.${ext}
-
-extraFiles:
-  - from: ../LICENSE
-    to: LICENSE

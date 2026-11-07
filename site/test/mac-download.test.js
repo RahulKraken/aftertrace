@@ -32,22 +32,22 @@ describe("mac-download", () => {
     assert.equal(m.detectMacChip({ __gpuRenderer: "AMD Radeon Pro 5500M" }), "x64")
   })
 
-  it("points the primary button at the detected chip and the secondary at the other", () => {
+  it("points the primary button at the Apple-silicon alias and hides the Intel link", () => {
     const m = load()
     const ids = {}
     const doc = {
       getElementById(id) {
-        if (!ids[id]) ids[id] = { href: "", textContent: "", setAttribute(k, v) { this[k] = v } }
+        if (!ids[id]) ids[id] = { href: "", textContent: "", hidden: false, setAttribute(k, v) { this[k] = v } }
         return ids[id]
       },
     }
     m.apply(doc, "x64")
-    assert.equal(ids["mac-download"].href, m.RELEASE + "/Aftertrace-mac-x64.dmg")
-    assert.equal(ids["mac-download-other"].href, m.RELEASE + "/Aftertrace-mac-arm64.dmg")
-    assert.equal(ids["mac-download-other"].textContent, "Download for Apple silicon")
+    assert.equal(ids["mac-download"].href, m.RELEASE + "/Aftertrace-mac.dmg")
+    assert.equal(ids["mac-download"].textContent, "Download for Mac")
+    assert.equal(ids["mac-download-other"].hidden, true)
     m.apply(doc, "arm64")
-    assert.equal(ids["mac-download"].href, m.RELEASE + "/Aftertrace-mac-arm64.dmg")
-    assert.equal(ids["mac-download-other"].textContent, "Download for Intel Mac")
+    assert.equal(ids["mac-download"].href, m.RELEASE + "/Aftertrace-mac.dmg")
+    assert.equal(ids["mac-download-other"].hidden, true)
   })
 
   it("hides open-notes only when the latest release has the notarized marker", async () => {
@@ -74,6 +74,8 @@ describe("site landing page", () => {
     const html = fs.readFileSync(path.join(here, "..", "public", "index.html"), "utf8")
     assert.match(html, /id="mac-download"/)
     assert.match(html, /id="mac-download-other"/)
+    assert.match(html, /class="dl-chip" hidden/)
+    assert.doesNotMatch(html, /Aftertrace-mac-x64\.dmg/)
     assert.match(html, /mac-download\.js/)
     assert.match(html, /Aftertrace-mac\.dmg/)
     assert.match(html, /class="open-note"/)

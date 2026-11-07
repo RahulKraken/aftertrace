@@ -45,7 +45,7 @@ go build -o aftertrace ./cmd/aftertrace
 cd desktop && npm ci && npm test && npm start
 ```
 
-`npm start` uses the repo-root `aftertrace` binary if `desktop/resources/engine/` is empty. Packaging (CI does this per OS): put the engine in `desktop/resources/engine/` (Windows/Linux) or `desktop/resources/engine-arch/darwin-arm64/` and `darwin-x64/` (Mac), then `npm run pack`. The Desktop workflow uploads Mac/Windows/Linux artifacts on every PR, using the same `Aftertrace-mac-arm64.dmg` / `Aftertrace-mac-x64.dmg` names a GitHub Release will attach (`Aftertrace-mac.dmg` is a copy of the arm64 DMG).
+`npm start` uses the repo-root `aftertrace` binary if `desktop/resources/engine/` is empty. Packaging (CI does this per OS): put the engine in `desktop/resources/engine/` (Windows/Linux) or `desktop/resources/engine-arch/darwin-arm64/` (Mac), then `npm run pack`. The Desktop workflow uploads Mac/Windows/Linux artifacts on every PR, using the same `Aftertrace-mac-arm64.dmg` name a GitHub Release will attach (`Aftertrace-mac.dmg` is a copy of the arm64 DMG).
 
 ## Website
 
@@ -64,7 +64,7 @@ Docs navigation lives in `NAV` in `site/build.mjs`; add new docs there.
 Push a `v*` tag. Rahul does that, not a PR. `.github/workflows/release.yml` builds:
 
 - Go engine archives: `aftertrace_<tag>_{darwin,linux}_{arm64,amd64}.tar.gz` plus `checksums.txt` (those four files only). `install.sh` still downloads those names from the latest release.
-- Desktop packages: `Aftertrace-mac-arm64.dmg` / `Aftertrace-mac-x64.dmg` (and zips), `Aftertrace-mac.dmg` as an arm64 alias, `Aftertrace-win.exe`, `Aftertrace-linux.AppImage` / `.deb`, versioned copies, and `latest-mac.yml` / `latest.yml` / `latest-linux.yml` for electron-updater.
+- Desktop packages: `Aftertrace-mac-arm64.dmg` (and zip), `Aftertrace-mac.dmg` as an arm64 alias, `Aftertrace-win.exe`, `Aftertrace-linux.AppImage` / `.deb`, versioned copies, and `latest-mac.yml` / `latest.yml` / `latest-linux.yml` for electron-updater. Consumer Mac is Apple silicon.
 
 Notes come from the matching `CHANGELOG.md` section. Add the section first. Signing secrets: [docs/signing.md](docs/signing.md).
 

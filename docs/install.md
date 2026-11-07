@@ -4,13 +4,13 @@ Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothi
 
 ## Download for Mac
 
-**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)** (Apple silicon) · [Intel Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-x64.dmg) — Open the DMG, drag Aftertrace to Applications. Double-click to open. If macOS says the developer cannot be verified, right-click Aftertrace, choose Open, then Open again (only while builds are unsigned).
+**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)** (Apple silicon) — Open the DMG, drag Aftertrace to Applications. Double-click to open. If macOS says the developer cannot be verified, right-click Aftertrace, choose Open, then Open again (only while builds are unsigned).
 
 [Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux AppImage](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage) · [Linux .deb](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.deb)
 
 The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens http://127.0.0.1:7311. Start at login is off until you opt in from the first-launch screen or the tray. Closing the window keeps Aftertrace in the menu bar.
 
-Mac builds are per-chip, signed and notarized when Apple secrets are present, and unsigned otherwise. [Signing](signing.md).
+The consumer Mac download is Apple silicon, signed and notarized when Apple secrets are present, and unsigned otherwise. [Signing](signing.md).
 
 ## CLI (macOS and Linux)
 

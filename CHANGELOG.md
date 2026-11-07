@@ -3,9 +3,11 @@
 ## Unreleased
 
 **Desktop**
-- Mac builds are per-chip: `Aftertrace-mac-arm64.dmg` / `Aftertrace-mac-x64.dmg` (and zips), each with only that chip's Go engine. `Aftertrace-mac.dmg` is a copy of the Apple silicon DMG so existing `/releases/latest/download` links still work. `latest-mac.yml` lists both zips so electron-updater serves the matching arch.
-- When Apple signing and notarization secrets are set, CI signs with Developer ID (hardened runtime, sidecar entitlements), notarizes, staples the DMGs, and checks them with `spctl` and `stapler validate`. Unsigned builds still succeed without those secrets.
-- Site **Download for Mac** picks Apple silicon vs Intel when it can, defaults to Apple silicon, and shows the right-click first-open note only while the latest release is unsigned.
+- Mac signing: LICENSE ships in `Contents/Resources/` (electron-builder `extraResources`), not `Contents/`. `extraFiles` put it where `codesign` treats it as nested code and v0.5.1 failed with `code object is not signed at all`. Windows and Linux still include LICENSE under `resources/`.
+- Mac notarization runs after pack on the Apple-silicon DMG. If Apple stays In Progress until `notarytool` times out, PR artifacts may stay signed without `Aftertrace-mac-notarized.json`. A tagged GitHub Release fails closed until Apple Accepts and the DMG is stapled. electron-builder's sequential per-app wait cancelled the first signed CI job at 60 minutes after codesign had already succeeded.
+- Consumer Mac is Apple silicon: `Aftertrace-mac-arm64.dmg` (and zip) with that chip's Go engine. `Aftertrace-mac.dmg` is a copy so existing `/releases/latest/download` links still work. `latest-mac.yml` lists the arm64 zip only. Intel Mac is not packed, notarized, or advertised.
+- When Apple signing and notarization secrets are set, CI signs with Developer ID (hardened runtime, sidecar entitlements), notarizes, staples the arm64 DMG, and requires `stapler validate` plus app `spctl` **accepted / Notarized Developer ID**. Unsigned builds still succeed without those secrets.
+- Site **Download for Mac** is the Apple-silicon alias. The right-click first-open note shows only while the latest release is unsigned.
 
 ## v0.5.0
 
