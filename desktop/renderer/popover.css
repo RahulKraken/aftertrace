@@ -1,0 +1,106 @@
+:root {
+  color-scheme: light;
+  --bg: #fffefb;
+  --ink: #1f1d1a;
+  --mute: #75716a;
+  --faint: #a8a39a;
+  --line: #e7e4dd;
+  --sel: #f6f5f1;
+  --ok: #3fa16a;
+  --wait: #e29a2e;
+  --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1b1a18;
+    --ink: #edebe6;
+    --mute: #9d988e;
+    --faint: #6d6962;
+    --line: #2b2926;
+    --sel: #241f1c;
+    --ok: #5bbf80;
+    --wait: #f0b45a;
+    --err: #f97066;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
+body {
+  font: 13px/1.4 ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.pop { display: flex; flex-direction: column; height: 100vh; }
+.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.fresh {
+  padding: 10px 14px 8px;
+  font: 500 11px/1.3 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--mute);
+  border-bottom: 1px solid var(--line);
+}
+.fresh[data-kind="live"] { color: var(--ok); }
+.fresh[data-kind="stale"],
+.fresh[data-kind="offline"],
+.fresh[data-kind="error"] { color: var(--err); }
+.block { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.empty { color: var(--mute); font-size: 13px; }
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+.lane + .lane { border-top: 1px solid var(--line); }
+.lane .doing {
+  font: 600 13.5px/1.3 ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+}
+.lane .title { color: var(--mute); font-size: 12px; }
+.more { color: var(--faint); font-size: 12px; padding-top: 6px; }
+.spend { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lbl { font: 500 11px/1 ui-sans-serif, system-ui, sans-serif; color: var(--mute); letter-spacing: 0.04em; text-transform: uppercase; }
+.num { font: 600 20px/1.1 ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.finding {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font: 500 13px/1.35 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+.finding:hover { background: var(--sel); }
+.foot {
+  margin-top: auto;
+  flex: 0 0 auto;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+}
+.link, .login {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+  padding: 7px 4px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.link:hover, .login:hover { background: var(--sel); }
+.link.dim { color: var(--mute); font-weight: 500; }
+.link.ready { color: var(--ink); font-weight: 600; }
+.link:disabled { color: var(--faint); cursor: default; }
+.login { color: var(--mute); }
+.login input { margin: 0; }
+[hidden] { display: none !important; }

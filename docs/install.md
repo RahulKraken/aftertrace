@@ -8,7 +8,7 @@ Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothi
 
 [Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux AppImage](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage) · [Linux .deb](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.deb)
 
-The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens http://127.0.0.1:7311. Start at login is off until you opt in from the first-launch screen or the tray. Closing the window keeps Aftertrace in the menu bar.
+The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens http://127.0.0.1:7311. While the dashboard is open it is a normal Mac app (Dock and Cmd+Tab). Closing the window keeps the menu bar and the engine; it does not quit. Start at login is off until you opt in from the first-launch screen or the menu. The menu extra is a compact square “trace corner” glyph; click it for the current session, today’s spend, one finding, and utilities (including Check for updates / Restart to update). Update checks hit GitHub Releases only — not usage telemetry. See [desktop-shell.md](desktop-shell.md).
 
 The consumer Mac download is Apple silicon, signed and notarized when Apple secrets are present, and unsigned otherwise. [Signing](signing.md).
 

@@ -1,7 +1,7 @@
 {
   "name": "aftertrace-desktop",
   "productName": "Aftertrace",
-  "version": "0.5.0",
+  "version": "0.5.4",
   "description": "Time, cost and usage for your AI work. Local desktop shell around the Aftertrace engine.",
   "private": true,
   "license": "Apache-2.0",
@@ -15,7 +15,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/*.test.js && node scripts/release-identity.cjs",
     "pack": "electron-builder --publish never",
     "pack:dir": "electron-builder --dir --publish never",
     "pack:mac": "electron-builder --mac --arm64 --publish never",

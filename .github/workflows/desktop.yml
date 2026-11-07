@@ -81,6 +81,8 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: sh scripts/ci-pack.sh linux
+      - name: Release identity
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - name: Idle memory
         continue-on-error: true
         working-directory: desktop
@@ -237,6 +239,8 @@ jobs:
           # 42330980385 failed before pack).
           REQUIRE_MAC_NOTARIZE: ${{ github.event_name == 'workflow_call' || startsWith(github.ref, 'refs/tags/v') }}
         run: sh scripts/ci-pack.sh mac
+      - name: Release identity
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - name: Verify per-chip packages
         working-directory: desktop
         env:
@@ -345,6 +349,9 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: sh scripts/ci-pack.sh win
+      - name: Release identity
+        shell: bash
+        run: node desktop/scripts/release-identity.cjs desktop/dist
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-windows

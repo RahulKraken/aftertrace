@@ -14,6 +14,7 @@ import { Money } from "../components/Money"
 import { StateChip } from "../components/StateChip"
 import { TraceLine } from "../components/TraceLine"
 
+/** Unused prototype at `#/tray`. Production menu bar is `desktop/renderer/popover.html`. */
 export function TrayPage() {
   const [ov, setOv] = useState<Overview | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])

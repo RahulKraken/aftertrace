@@ -2,6 +2,8 @@
 
 const http = require("http")
 
+const STALE_MS = 90_000
+
 function sayUsd(v) {
   if (v == null || Number.isNaN(v)) return ""
   const neg = v < 0
@@ -17,6 +19,19 @@ function sayUsd(v) {
   return neg ? `-${s}` : s
 }
 
+function clip(s, n = 36) {
+  const t = String(s || "").replace(/\s+/g, " ").trim()
+  if (t.length <= n) return t
+  return `${t.slice(0, n - 1)}…`
+}
+
+function formatTitle(data = {}) {
+  if (!data.ok) return ""
+  const live = (data.sessions || []).filter((s) => s && s.running)
+  if (live[0]) return clip(live[0].doing || live[0].title || "Running", 28)
+  return ""
+}
+
 function formatGlance({ ok, todayCost, weekCost, findings, running } = {}) {
   if (!ok) return "Starting…"
   const parts = []
@@ -27,6 +42,18 @@ function formatGlance({ ok, todayCost, weekCost, findings, running } = {}) {
     parts.push(findings === 1 ? "1 finding" : `${findings} findings`)
   }
   return parts.length ? parts.join(" · ") : "Open Aftertrace"
+}
+
+function freshnessLabel(data, now = Date.now()) {
+  if (!data || !data.ok) return data && data.error ? "Engine offline" : "Starting…"
+  if (data.stale) return "Engine data is stale"
+  const at = data.fetchedAt || now
+  const s = Math.max(0, Math.round((now - at) / 1000))
+  if (s < 5) return "Updated just now"
+  if (s < 60) return `Updated ${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `Updated ${m}m ago`
+  return `Updated ${Math.floor(m / 60)}h ago`
 }
 
 function getJson(origin, path, timeoutMs = 1500) {
@@ -61,46 +88,100 @@ function getJson(origin, path, timeoutMs = 1500) {
   })
 }
 
-async function readGlance(origin) {
+function todayCostFromDays(days, now = Date.now()) {
+  if (!Array.isArray(days) || !days.length) return undefined
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const todayNs = start.getTime() * 1e6
+  const hit = days.find((d) => typeof d.start_ns === "number" && d.start_ns >= todayNs && d.start_ns < todayNs + 86400e9)
+  const row = hit || days[days.length - 1]
+  return row && typeof row.cost_usd === "number" ? row.cost_usd : undefined
+}
+
+function pickFinding(overview) {
+  const shown = overview && overview.savings && overview.savings.shown
+  const top = (Array.isArray(shown) && shown[0]) || (overview && overview.top) || null
+  if (!top) return { text: undefined, id: null }
+  const text = top.action || top.headline
+  if (!text) return { text: undefined, id: null }
+  return { text: clip(text, 88), id: top.id != null ? String(top.id) : null }
+}
+
+function lanesFromOverview(overview) {
+  const live = overview && Array.isArray(overview.live) ? overview.live : []
+  return live.slice(0, 8).map((l) => ({
+    session_id: l.session_id,
+    trace_id: l.trace_id,
+    title: l.title || null,
+    doing: l.doing || "",
+    running: true,
+    // quiet means nothing new for 90s (thinking / long tool). Never "needs you".
+    quiet: Boolean(l.quiet),
+  }))
+}
+
+async function readGlance(origin, { now = Date.now() } = {}) {
   try {
     const status = await getJson(origin, "/api/status")
     let weekCost
     let todayCost
-    let runningTitle
     let topFinding
+    let topFindingId
+    let sessions = []
     try {
       const overview = await getJson(origin, "/api/overview", 2500)
       if (overview && overview.week && typeof overview.week.cost_usd === "number") {
         weekCost = overview.week.cost_usd
       }
-      const days = overview && overview.days
-      if (Array.isArray(days) && days.length) {
-        todayCost = days[days.length - 1].cost_usd
-      }
-      if (overview && Array.isArray(overview.live) && overview.live[0]) {
-        runningTitle = overview.live[0].title || overview.live[0].doing || "Running"
-      }
-      const shown = overview && overview.savings && overview.savings.shown
-      if (Array.isArray(shown) && shown[0] && shown[0].headline) {
-        topFinding = shown[0].headline
-      } else if (overview && overview.top && overview.top.headline) {
-        topFinding = overview.top.headline
-      }
+      todayCost = todayCostFromDays(overview && overview.days, now)
+      sessions = lanesFromOverview(overview)
+      const finding = pickFinding(overview)
+      topFinding = finding.text
+      topFindingId = finding.id
     } catch {
       // Overview is heavier; findings from /api/status are enough for a glance.
     }
+    const running = Boolean(status.running || sessions.length)
     return {
       ok: true,
+      stale: false,
+      fetchedAt: now,
       findings: status.findings,
       weekCost,
       todayCost,
-      running: Boolean(status.running || runningTitle),
-      runningTitle,
+      running,
+      sessions,
       topFinding,
+      topFindingId,
+      error: null,
     }
-  } catch {
-    return { ok: false }
+  } catch (err) {
+    return {
+      ok: false,
+      stale: true,
+      fetchedAt: now,
+      sessions: [],
+      error: err && err.message ? String(err.message) : "offline",
+    }
   }
 }
 
-module.exports = { formatGlance, readGlance, sayUsd, getJson }
+function markStale(data, now = Date.now()) {
+  if (!data || !data.ok) return { ...data, stale: true }
+  const age = now - (data.fetchedAt || 0)
+  return { ...data, stale: age > STALE_MS }
+}
+
+module.exports = {
+  formatGlance,
+  formatTitle,
+  readGlance,
+  sayUsd,
+  getJson,
+  freshnessLabel,
+  markStale,
+  clip,
+  STALE_MS,
+  todayCostFromDays,
+  pickFinding,
+}

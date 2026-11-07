@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test"
-import { mkdirSync } from "node:fs"
+
+declare global {
+  interface Window {
+    aftertracePopover: {
+      renderGlance: (g: unknown) => void
+      renderUpdate: (u: unknown) => void
+    }
+  }
+}
+import { mkdirSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -37,7 +46,7 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
   await page.waitForTimeout(120)
   const file = `${name}-${theme}.png`
   await page.screenshot({ path: resolve(outDir, file), fullPage: false })
-  const docs = ["home", "home-history", "findings", "sessions", "recap", "tray"]
+  const docs = ["home", "home-history", "findings", "sessions", "recap", "recap-empty", "recap-long", "tray", "popover"]
   if (docs.includes(name)) {
     await page.screenshot({ path: resolve(docsDir, file), fullPage: false })
   }
@@ -440,6 +449,71 @@ test("tray popover", async ({ page }) => {
   await shot(page, "tray", "dark")
 })
 
+test("menu-bar popover: live, idle, stale, multi-session, update ready", async ({ page }) => {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../desktop/renderer")
+  const html = readFileSync(resolve(root, "popover.html"), "utf8")
+    .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, "")
+    .replace('<link rel="stylesheet" href="./popover.css" />', `<style>${readFileSync(resolve(root, "popover.css"), "utf8")}</style>`)
+    .replace("height: 100vh", "height: 400px")
+    .replace('<script src="./popoverView.js"></script>', `<script>${readFileSync(resolve(root, "popoverView.js"), "utf8")}</script>`)
+    .replace('<script src="./popover.js"></script>', `<script>${readFileSync(resolve(root, "popover.js"), "utf8")}</script>`)
+  await page.setViewportSize({ width: 320, height: 400 })
+  await page.setContent(html, { waitUntil: "domcontentloaded" })
+  const live = {
+    ok: true,
+    stale: false,
+    freshness: "Updated just now",
+    todayLabel: "$12.40",
+    topFinding: "Allow npm test",
+    topFindingId: "4",
+    sessions: [
+      { doing: "Running tests", title: "fix the parser" },
+      { doing: "Editing main.go", title: "two" },
+      { doing: "Reading orders.go", title: "three" },
+      { doing: "Searching", title: "four" },
+    ],
+  }
+  await page.evaluate((g) => {
+    window.aftertracePopover.renderGlance(g)
+    window.aftertracePopover.renderUpdate({ status: "ready", version: "0.5.4" })
+  }, live)
+  await expect(page.locator("#sessions .lane")).toHaveCount(3)
+  await expect(page.locator("#sessions")).toContainText("+1 more")
+  await expect(page.locator("#fresh")).toHaveAttribute("data-kind", "live")
+  await expect(page.locator("#restart")).toContainText("Restart to update")
+  await expect(page.locator("#spend")).toHaveText("$12.40")
+  await expect(page.locator("#spend")).toBeInViewport()
+  await expect(page.locator("#finding")).toHaveText("Allow npm test")
+  await expect(page.locator("#finding")).toBeInViewport()
+  await expect(page.locator("#restart")).toBeInViewport()
+  await expect(page.locator("#quit")).toBeInViewport()
+  await page.screenshot({ path: resolve(outDir, "popover-light.png") })
+  await page.screenshot({ path: resolve(docsDir, "popover-light.png") })
+  await page.emulateMedia({ colorScheme: "dark" })
+  await page.screenshot({ path: resolve(outDir, "popover-dark.png") })
+  await page.screenshot({ path: resolve(docsDir, "popover-dark.png") })
+  await page.emulateMedia({ colorScheme: "light" })
+  await page.evaluate(() => {
+    window.aftertracePopover.renderGlance({
+      ok: true,
+      stale: true,
+      freshness: "Engine data is stale",
+      sessions: [],
+    })
+    window.aftertracePopover.renderUpdate({ status: "error" })
+  })
+  await expect(page.locator("#fresh")).toHaveAttribute("data-kind", "stale")
+  await expect(page.locator("#sessions")).toContainText("stale")
+  await expect(page.locator("#updates")).toHaveText("Retry update")
+  await page.screenshot({ path: resolve(outDir, "popover-stale-light.png") })
+  await page.evaluate(() => {
+    window.aftertracePopover.renderGlance({ ok: true, stale: false, freshness: "Updated just now", sessions: [] })
+    window.aftertracePopover.renderUpdate({ status: "idle" })
+  })
+  await expect(page.locator("#sessions")).toContainText("Idle")
+  await page.screenshot({ path: resolve(outDir, "popover-idle-light.png") })
+})
+
 test("apps: list, app page, findings, trace", async ({ page }) => {
   await page.goto("/#/apps")
   await waitFonts(page)
@@ -463,7 +537,10 @@ test("recap: story, lanes, receipt, week switch", async ({ page }) => {
   await page.goto("/#/recap")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: "Recap" })).toBeVisible()
+  await expect(page.locator(".recap-lead")).toBeVisible()
+  await expect(page.locator(".recap-primary").first()).toBeVisible()
   await expect(page.locator(".v4-hero")).toBeVisible()
+  await expect(page.locator(".v4-chip")).toHaveCount(0)
   await expect(page.locator(".receipt")).toContainText("AFTERTRACE")
   await expect(page.locator(".v4-g4")).toBeVisible()
   await shot(page, "recap", "light")
@@ -471,4 +548,14 @@ test("recap: story, lanes, receipt, week switch", async ({ page }) => {
   const label = await page.locator(".v4-seg button.on").textContent()
   await page.getByRole("button", { name: "Previous week" }).click()
   await expect(page.locator(".v4-seg button.on")).not.toHaveText(label || "")
+  await page.getByRole("button", { name: "Previous week" }).click()
+  await expect(page.locator(".recap-lead")).toContainText("Nothing ran this week")
+  await expect(page.locator(".v4-chip")).toHaveCount(0)
+  await shot(page, "recap-empty", "light")
+  await shot(page, "recap-empty", "dark")
+  await page.getByRole("button", { name: "Previous week" }).click()
+  await expect(page.locator(".recap-primary").filter({ hasText: "$12345.67" })).toBeVisible()
+  await expect(page.locator(".recap-lead")).toContainText("128")
+  await shot(page, "recap-long", "light")
+  await shot(page, "recap-long", "dark")
 })

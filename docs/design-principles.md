@@ -75,6 +75,27 @@ If two things both look important, the budget is already blown. Cut one.
 | Live lanes | 3 | What is running. |
 | Top finding | 2 | One change. |
 
+### Recap (header)
+
+| Element | Units | Why |
+|---|---:|---|
+| Time and API value | 7 | The two numbers that matter. Quiet connecting prose. |
+| Sessions / commits / lines | 2 | Secondary, same sentence, not a second story. |
+| Export actions | 1 | Copy / download, summoned by looking for them. |
+
+No decorative chips. No rainbow highlights. No KPI tile row in the header.
+
+### Menu bar (popover)
+
+| Element | Units | Why |
+|---|---:|---|
+| Current session / activity | 5 | What is running, including several sessions without overflow. |
+| Today’s spend | 2 | One number. No plan-cap meter. |
+| One finding | 2 | Opens the finding. |
+| Utilities | 1 | Settings, start at login, check / restart to update, quit. |
+
+Quiet is not “needs you”. Stale engine data must never look live. The unused `#/tray` prototype is not this menu.
+
 ### Home (history-only)
 
 | Element | Units | Why |

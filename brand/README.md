@@ -9,6 +9,6 @@ Requires Python 3 with Pillow (and `iconutil` on macOS for `.icns`). The Newsrea
 - `AppIcon.iconset/` + `AppIcon.icns` (all 10 slots; 16/32/64/128 use the dedicated drawings)
 - `windows/Aftertrace.ico` (16–256), `favicon.ico` (16/32/48)
 - `linux/hicolor/<N>x<N>/apps/aftertrace.png` + `scalable/apps/aftertrace.svg`
-- `glyphs/TrayTemplate.png` / `@2x` (28×18 pt), plus `-22` and `-16` attempts. Black on transparent; for Electron use `nativeImage.createFromPath(...)` then `setTemplateImage(true)`; the `Template` suffix is the macOS convention.
+- `glyphs/TrayTemplate.png` / `@2x` (18×18 pt “trace corner”: one bend + endpoint), plus `-22` and `-16`. The retired wide ECG is `w28` in `mark.py`. Black on transparent; for Electron use `nativeImage.createFromPath(...)` then `setTemplateImage(true)`; the `Template` suffix is the macOS convention.
 - `png/` — icon PNGs at each size, lockups @3x, README mark @2x
 - Font: Newsreader (SIL OFL), static instance wght 520 / opsz 72 in `fonts/`

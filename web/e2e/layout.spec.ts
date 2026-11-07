@@ -116,4 +116,15 @@ test.describe("shared app layout", () => {
     const setX = await page.locator("h1").evaluate((el) => el.getBoundingClientRect().x)
     expect(Math.abs(homeX - setX)).toBeLessThan(2)
   })
+
+  test("recap long numerals wrap instead of overflowing the page", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto("/#/recap")
+    await page.getByRole("button", { name: "Previous week" }).click()
+    await page.getByRole("button", { name: "Previous week" }).click()
+    await page.getByRole("button", { name: "Previous week" }).click()
+    await expect(page.locator(".recap-primary").filter({ hasText: "$12345.67" })).toBeVisible()
+    const extra = await pageOverflow(page)
+    expect(extra).toBeLessThanOrEqual(1)
+  })
 })

@@ -85,6 +85,8 @@ A PR never publishes a GitHub Release. Desktop packages upload as Actions artifa
 
 `install.sh` keeps downloading `aftertrace_<tag>_<os>_<arch>.tar.gz` and `checksums.txt` (sha256 of those archives only).
 
+Release identity is fail-closed: GitHub tag, `desktop/package.json`, `latest-mac.yml` / `latest.yml` / `latest-linux.yml` `version:`, and `CHANGELOG.md` `## vX.Y.Z` must be the same number. `node desktop/scripts/release-identity.cjs dist` runs after pack. `EXPECT_DESKTOP_VERSION` is the same number on `scripts/verify-release-assets.sh`. v0.5.3 shipped as app `0.5.0`; the next package version must be newer than `0.5.0` so those installs see the feed. Intel zip must not appear in `latest-mac.yml`.
+
 Desktop files on the same release:
 
 | File | Who uses it |

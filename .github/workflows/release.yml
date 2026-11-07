@@ -92,7 +92,11 @@ jobs:
       - name: Verify release assets
         env:
           REQUIRE_MAC_NOTARIZE: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'false' }}
-        run: sh scripts/verify-release-assets.sh dist
+        run: |
+          EXPECT_DESKTOP_VERSION=$(node -p "require('./desktop/package.json').version")
+          export EXPECT_DESKTOP_VERSION
+          sh scripts/verify-release-assets.sh dist
+          node desktop/scripts/release-identity.cjs dist
       - name: List what a release would attach
         run: |
           echo "Engine (install.sh):"

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.4
+
+**Desktop**
+- Background update check and download via electron-updater. Visible checking / downloading / ready / error states. **Restart to update** is user-triggered; a finished download does not quit the app. Sidecar is stopped before `quitAndInstall`. Update checks hit GitHub Releases only.
+- Fail-closed release identity: tag, `desktop/package.json`, updater feed, and this CHANGELOG heading must match, and the version must be newer than the shipped 0.5.0 app so installed v0.5.3 can see it.
+- Dashboard open → Dock + Cmd+Tab. Dashboard closed → menu bar + engine, process stays. Not always-Dock.
+- Compact menu-bar popover: current activity, today’s spend, one finding, utilities. Honest freshness. No synthetic “needs you”, no plan-cap meter. Compact square “trace corner” template glyph (not the wide ECG).
+
+**Recap**
+- Header numbers (time and value) are loud; connecting prose is quiet. Sessions, commits and lines stay secondary. Decorative chips in the hero are gone.
+
 ## Unreleased
 
 **Desktop**

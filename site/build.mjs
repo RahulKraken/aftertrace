@@ -14,7 +14,7 @@ const repo = "https://github.com/RahulKraken/aftertrace"
 
 const NAV = [
   ["How it works", [["how-it-works", "Overview"], ["how-it-works/receive", "Receiving"], ["how-it-works/redaction", "Redaction"], ["how-it-works/store", "The store"], ["how-it-works/findings", "Findings"], ["how-it-works/turn", "Reading a turn"], ["how-it-works/ask", "Ask"]]],
-  ["Get started", [["install", "Install"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
+  ["Get started", [["install", "Install"], ["desktop-shell", "Desktop shell"], ["claude-code-setup", "Connect Claude Code"], ["apps", "Apps and agents"], ["behind-a-collector", "Behind a collector"]]],
   ["Use", [["findings", "Findings"], ["cli", "CLI"], ["privacy", "Privacy"], ["troubleshooting", "Troubleshooting"]]],
   ["Extend", [["writing-rules", "Writing rules"], ["api", "JSON API"], ["schema-notes", "Schema notes"]]],
   ["Project", [["product/brief", "Product brief"], ["product/design", "Design"], ["design-principles", "Design principles"], ["spec", "Spec"], ["stack", "Stack decision"], ["signing", "Signing"]]],

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 7 2026: menu bar glance, Dock while the dashboard is open, user-triggered updater, compact glyph, recap numbers.
+
+**Choice.** Ship 0.5.4 (not a bump of one file): tag / `desktop/package.json` / updater yml / `## v0.5.4` in CHANGELOG must agree, and must be newer than 0.5.0 so installed v0.5.3 (internal 0.5.0) can see the feed. electron-updater against GitHub Releases, `autoDownload` false then we download, `autoInstallOnAppQuit` true, `autoRunAppAfterInstall` false, `allowDowngrade` false. Background detect+download; **Restart to update** is the only relaunch. `before-quit` stops the sidecar then `quitAndInstall`. `LSUIElement` stays true; Dock/Cmd+Tab only while the dashboard window is shown (`setActivationPolicy` + `dock.show/hide`). Custom compact popover (not the unused `#/tray` prototype, not a disabled native menu of greys). Attention: activity 5, spend 2, one finding 2, utilities 1. Quiet ≠ waiting. No plan-cap meter. Menu glyph is an 18×18 “trace corner” (one bend + endpoint), not the 28×18 ECG. Recap hero: time and `$` primary, sessions/commits/lines secondary, no decorative chips.
+
+**Why.** Rahul approved implementation 2026 Nov 7 2:04pm IST: glance at activity/cost without opening the dashboard; dashboard remains a normal Mac app when opened. v0.5.3’s version mismatch meant installed apps could not see a newer feed.
+
+**How to reverse.** Revert this commit. Do not publish/tag until a separate approval; published v0.5.3 stays.
+
 ## Nov 7 2026: one content grid for the site, one page gutter for the app.
 
 **Choice.** Landing, docs and footer share `--site: 1120px` and `--site-inset` (header already used this inset; the How-it-works figure had been capped at 980px, Start cards at 760px, footer/docs padded 16px inside the 1120 box). Long CLI text is a wrapping `<pre><code>` in the card, not `overflow: hidden` on the page. Landing privacy chips (`.ps code`) stay nowrap so `--store-content` does not split; docs inline code still wraps so a long flag cannot blow the page. The demo/app uses `--page-x` (40px, 16px on a phone) for `.v4`, `.page` and the demo banner so Overview, Findings, Sessions, Recap, Settings and Connect share one left edge. `.page` is left-aligned like `.v4` (no `margin: auto`); Settings' 860px cap must not recenter the column. Week/day bars use `barSlot()`; `niceAxis()` always tops at ≥ max so spend bars stay in the plot; chart SVGs clip instead of painting through the header. Session rows keep five columns when extra metrics hide. Findings tracks stay visible through 1024 (evidence counts hide first; tracks hide at 720). Cost tables scroll inside `.table-scroll`. No new desktop package.

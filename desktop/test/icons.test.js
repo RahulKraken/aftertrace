@@ -35,3 +35,28 @@ test("desktop icon set is present for every pack target", () => {
     assert.ok(fs.existsSync(path.join(root, f)), f)
   }
 })
+
+function pngSize(file) {
+  const buf = fs.readFileSync(file)
+  assert.equal(buf.toString("ascii", 1, 4), "PNG")
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+}
+
+test("menu-bar template is a compact square, not the wide ECG", () => {
+  const one = pngSize(path.join(root, "icons/trayTemplate.png"))
+  const two = pngSize(path.join(root, "icons/trayTemplate@2x.png"))
+  assert.equal(one.w, 18)
+  assert.equal(one.h, 18)
+  assert.equal(two.w, 36)
+  assert.equal(two.h, 36)
+  assert.ok(one.w < 28, "retired ECG was 28 wide")
+})
+
+test("tray-22 assets stay square for the native capsule", () => {
+  const one = pngSize(path.join(root, "icons/tray-22.png"))
+  const two = pngSize(path.join(root, "icons/tray-22@2x.png"))
+  assert.equal(one.w, 22)
+  assert.equal(one.h, 22)
+  assert.equal(two.w, 44)
+  assert.equal(two.h, 44)
+})

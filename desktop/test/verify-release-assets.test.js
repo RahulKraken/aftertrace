@@ -72,6 +72,14 @@ it("rejects latest-mac.yml that lists the Intel zip", () => {
   assert.match(r.stderr || "", /x64/)
 })
 
+it("rejects a feed version that does not match EXPECT_DESKTOP_VERSION", () => {
+  const dir = fixtureDir()
+  const r = runScript(dir, { EXPECT_DESKTOP_VERSION: "0.5.4" })
+  fs.rmSync(dir, { recursive: true, force: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr || "", /0\.5\.4/)
+})
+
 it("consumer release requires Aftertrace-mac-notarized.json when REQUIRE_MAC_NOTARIZE is set", () => {
   const dir = fixtureDir()
   const missing = runScript(dir, { REQUIRE_MAC_NOTARIZE: "true" })

@@ -55,6 +55,13 @@ if grep -q "Aftertrace-mac-x64.zip" latest-mac.yml; then
   cat latest-mac.yml >&2
   exit 1
 fi
+if [ -n "${EXPECT_DESKTOP_VERSION-}" ]; then
+  if ! grep -q "^version: ${EXPECT_DESKTOP_VERSION}$" latest-mac.yml; then
+    echo "verify-release-assets: latest-mac.yml version must be ${EXPECT_DESKTOP_VERSION} (package/feed identity)" >&2
+    cat latest-mac.yml >&2
+    exit 1
+  fi
+fi
 if [ -f Aftertrace-mac-arm64.dmg ] && [ -f Aftertrace-mac.dmg ]; then
   if ! cmp -s Aftertrace-mac.dmg Aftertrace-mac-arm64.dmg; then
     echo "verify-release-assets: Aftertrace-mac.dmg is not a copy of Aftertrace-mac-arm64.dmg" >&2

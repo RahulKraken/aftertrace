@@ -3,9 +3,11 @@
 const UI_HOST = "127.0.0.1"
 const UI_PORT = "7311"
 
+const RENDERER = ["first-launch.html", "waiting.html", "popover.html"]
+
 function fileIsRenderer(pathname) {
   const p = decodeURIComponent(pathname).replace(/\\/g, "/")
-  return p.endsWith("/renderer/first-launch.html") || p.endsWith("/renderer/waiting.html")
+  return RENDERER.some((name) => p.endsWith(`/renderer/${name}`))
 }
 
 function isUiOrigin(url) {
