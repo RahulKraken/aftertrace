@@ -10,7 +10,7 @@ Short records of choices that are easy to reverse and easy to forget. Newest fir
 
 **How to reverse.** Restore Darwin `createPopover` + `tray.setTitle(formatTitle)` in `desktop/src/tray.js`; drop `sessionMenu.js` and the `/api/sessions` join; remove `blocked_on_user` from `liveDoingSpanNames`. Keep updater/Dock/smoke gates.
 
-**Record.** Implementation of the session-first native menu proposal (canvas `0a754f36-728e-4005-9086-aa8291c64a35`) after t125u. No merge/tag/release in this PR.
+**Record.** Implementation of the session-first native menu proposal (canvas `0a754f36-728e-4005-9086-aa8291c64a35`) after t125u. Notion Decision Log: https://app.notion.com/p/4121644e44b6814d840dd2d2f839f9ea. No merge/tag/release in this PR.
 
 ## Nov 7 2026: alias stapler fail-closed, Aqua Dock close/reopen, CI-only smoke hooks.
 
