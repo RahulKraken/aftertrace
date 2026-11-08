@@ -542,13 +542,18 @@ assert any((r.get("cost_usd") or 0)>0 for r in rows), rows
 print("sessions=%d" % len(rows))' | tee -a "$report"
 
 echo refresh >"$smoke_dir/cmd"
+labels_have() {
+  python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+need = ("40k tok", "$1.23", "acme-payments-platform-service")
+sys.exit(0 if all(s in labs for s in need) else 1)
+PY
+}
 labels_ok=0
 j=0
 while [ "$j" -lt 24 ]; do
-  if [ -f "$smoke_dir/status.json" ] \
-    && grep -q '40k tok' "$smoke_dir/status.json" \
-    && grep -q '\$1.23' "$smoke_dir/status.json" \
-    && grep -q 'acme-payments-platform-service' "$smoke_dir/status.json"; then
+  if [ -f "$smoke_dir/status.json" ] && labels_have; then
     labels_ok=1
     break
   fi
@@ -567,7 +572,12 @@ if grep -q 'Engine offline' "$smoke_dir/status.json"; then
   tee -a "$report" <"$smoke_dir/status.json"
   exit 1
 fi
-if grep -E '"\$0"|0 tok' "$smoke_dir/status.json" >/dev/null 2>&1; then
+if ! python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys, re
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+sys.exit(1 if re.search(r"\$0\b|0 tok", labs) else 0)
+PY
+then
   log "FAIL: unknown rendered as zero"
   tee -a "$report" <"$smoke_dir/status.json"
   exit 1
@@ -592,12 +602,9 @@ assert_icon_only() {
 }
 assert_icon_only "after ingest"
 
-mx=$((tx + tw / 2 - 240))
-my=$ty
-mw=520
-mh=420
-if [ "$mx" -lt 0 ]; then mx=0; fi
-if [ "$my" -lt 0 ]; then my=0; fi
+# Status-item NSMenu hangs left of the extra. Centering the crop on the extra
+# (mx=tx+tw/2-240 on 2b12cc7) clipped repo prefixes. Full-display capture keeps
+# identities, tokens, and $ in frame at Aqua size.
 
 open_menu() {
   echo hide-menu >"$smoke_dir/cmd"
@@ -635,10 +642,11 @@ set_dark() {
 
 set_dark Light
 open_menu
-capture_rect "$iso/native-menu.png" "$mx" "$my" "$mw" "$mh"
+log "menu capture=fullscreen (NSMenu hangs left of extra)"
+screencapture -x "$iso/native-menu.png"
 osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
 sleep 0.4
-capture_rect "$iso/native-menu-keyboard.png" "$mx" "$my" "$mw" "$mh"
+screencapture -x "$iso/native-menu-keyboard.png"
 osascript -e 'tell application "System Events" to key code 36' >/dev/null 2>&1 || true
 sleep 1.5
 echo hide-menu >"$smoke_dir/cmd"
@@ -665,7 +673,7 @@ echo hide-menu >"$smoke_dir/cmd"
 sleep 0.3
 set_dark Dark
 open_menu
-capture_rect "$iso/native-menu-dark.png" "$mx" "$my" "$mw" "$mh"
+screencapture -x "$iso/native-menu-dark.png"
 osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
 echo hide-menu >"$smoke_dir/cmd"
 set_dark Light || true
@@ -676,7 +684,12 @@ echo refresh >"$smoke_dir/cmd"
 bump_ok=0
 j=0
 while [ "$j" -lt 20 ]; do
-  if grep -q '41k tok' "$smoke_dir/status.json" && grep -q '\$1.73' "$smoke_dir/status.json"; then
+  if python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+sys.exit(0 if ("41k tok" in labs and "$1.73" in labs) else 1)
+PY
+  then
     bump_ok=1
     break
   fi
@@ -689,8 +702,10 @@ done
   tee -a "$report" <"$smoke_dir/status.json" || true
   exit 1
 }
+log "synthetic menuLabels after bump:"
+python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1])).get("menuLabels") or []))' "$smoke_dir/status.json" | tee -a "$report"
 open_menu
-capture_rect "$iso/native-menu-reopen.png" "$mx" "$my" "$mw" "$mh"
+screencapture -x "$iso/native-menu-reopen.png"
 osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
 echo hide-menu >"$smoke_dir/cmd"
 

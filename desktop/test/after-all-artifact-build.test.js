@@ -458,6 +458,8 @@ describe("signed-upgrade-smoke.sh", () => {
     assert.match(sh, /otlp-menu-fixture/)
     assert.match(sh, /aftertrace\.synthetic/)
     assert.match(sh, /40k tok/)
+    assert.match(sh, /menuLabels/)
+    assert.match(sh, /menu capture=fullscreen/)
     assert.match(sh, /native-menu-dark/)
     assert.match(sh, /GITHUB_SHA/)
     assert.match(sh, /Aftertrace-mac-notarized\.json/)
