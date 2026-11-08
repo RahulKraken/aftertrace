@@ -85,16 +85,15 @@ If two things both look important, the budget is already blown. Cut one.
 
 No decorative chips. No rainbow highlights. No KPI tile row in the header.
 
-### Menu bar (popover)
+### Menu bar (native NSMenu on Mac)
 
 | Element | Units | Why |
 |---|---:|---|
-| Current session / activity | 5 | What is running, including several sessions without overflow. |
-| Today’s spend | 2 | One number. No plan-cap meter. |
-| One finding | 2 | Opens the finding. |
-| Utilities | 1 | Settings, start at login, check / restart to update, quit. |
+| Live sessions | 5 | Identity, current activity, session tokens and session $ on the top-level line. Overflow is explicit. |
+| Today’s spend | 2 | Period total, labelled Today, distinct from session $. |
+| Utilities | 1 | Open, start at login, check / restart to update, quit. |
 
-Quiet is not “needs you”. Stale engine data must never look live. The unused `#/tray` prototype is not this menu.
+Quiet is not “needs you”. Historical findings stay in the dashboard. Stale engine data must never look live. The unused `#/tray` prototype is not this menu. Windows still uses the compact popover.
 
 ### Home (history-only)
 

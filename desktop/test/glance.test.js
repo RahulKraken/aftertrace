@@ -3,7 +3,7 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const http = require("http")
-const { formatGlance, formatTitle, readGlance, sayUsd, freshnessLabel, markStale, todayCostFromDays, pickFinding } = require("../src/glance")
+const { formatGlance, formatTitle, readGlance, sayUsd, freshnessLabel, markStale, todayCostFromDays, pickFinding, joinLiveSessions } = require("../src/glance")
 
 test("sayUsd matches spoken copy", () => {
   assert.equal(sayUsd(0.41), "41¢")
@@ -129,4 +129,67 @@ test("one finding prefers the action line", () => {
   })
   assert.equal(f.text, "Allow npm test")
   assert.equal(f.id, "4")
+})
+
+test("joinLiveSessions uses /api/sessions for long-lived ids not in recent", () => {
+  const live = joinLiveSessions(
+    {
+      live: [
+        {
+          session_id: "old-sid",
+          doing: "Thinking · Opus 5.5",
+          quiet: true,
+          source: "claude-code",
+          cost_usd: 2.5,
+        },
+      ],
+      recent: [{ session_id: "new-sid", repo: "other", tokens: 9 }],
+    },
+    [{ session_id: "old-sid", repo: "aftertrace", entrypoint: "cli", tokens: 40123, cost_usd: 2.5 }],
+  )
+  assert.equal(live.length, 1)
+  assert.equal(live[0].repo, "aftertrace")
+  assert.equal(live[0].entrypoint, "cli")
+  assert.equal(live[0].tokens, 40123)
+  assert.equal(live[0].cost_usd, 2.5)
+  assert.equal(live[0].quiet, true)
+  assert.equal(live[0].doing, "Thinking · Opus 5.5")
+})
+
+test("readGlance joins /api/sessions and records history_only as estimated", async () => {
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json")
+    if (req.url === "/api/status") res.end(JSON.stringify({ findings: 1, running: 1 }))
+    else if (req.url === "/api/overview") {
+      res.end(JSON.stringify({
+        week: { cost_usd: 3 },
+        history_only: true,
+        live: [{ session_id: "old-sid", doing: "Waiting for your approval", quiet: false, cost_usd: 1.2 }],
+        recent: [],
+      }))
+    } else if (req.url === "/api/sessions") {
+      res.end(JSON.stringify([
+        { session_id: "old-sid", repo: "aftertrace", tokens: 8000, cost_usd: 1.2, entrypoint: "cli" },
+        { session_id: "other", repo: "idle-one", tokens: 1, cost_usd: 0.01 },
+      ]))
+    } else {
+      res.statusCode = 404
+      res.end("{}")
+    }
+  })
+  await new Promise((r) => server.listen(0, "127.0.0.1", r))
+  const { port } = server.address()
+  try {
+    const g = await readGlance(`http://127.0.0.1:${port}`)
+    assert.equal(g.ok, true)
+    assert.equal(g.estimated, true)
+    assert.equal(g.sessions.length, 1)
+    assert.equal(g.sessions[0].repo, "aftertrace")
+    assert.equal(g.sessions[0].tokens, 8000)
+    assert.equal(g.sessions[0].cost_usd, 1.2)
+    assert.equal(g.sessions[0].doing, "Waiting for your approval")
+    assert.doesNotMatch(JSON.stringify(g.sessions), /needs you/i)
+  } finally {
+    server.close()
+  }
 })

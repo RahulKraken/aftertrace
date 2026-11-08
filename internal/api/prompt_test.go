@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCleanPrompt(t *testing.T) {
 	cases := []struct{ in, want string }{
@@ -40,5 +43,11 @@ func TestDoing(t *testing.T) {
 		if got := doing(c.name, c.a); got != c.want {
 			t.Errorf("doing(%q, %v) = %q, want %q", c.name, c.a, got, c.want)
 		}
+	}
+}
+
+func TestLiveDoingIncludesBlockedOnUser(t *testing.T) {
+	if !strings.Contains(liveDoingSpanNames, "claude_code.tool.blocked_on_user") {
+		t.Fatal("live doing query must include blocked_on_user so approval-wait is not dropped")
 	}
 }

@@ -105,7 +105,7 @@ test("start without AFTERTRACE_SMOKE_DIR does not write tmp", () => {
   )
 })
 
-test("file-protocol cmd check/restart/close/popover does not use Playwright", async () => {
+test("file-protocol cmd check/restart/close/menu does not use Playwright", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-smoke-"))
   const prev = {
     AFTERTRACE_SMOKE: process.env.AFTERTRACE_SMOKE,
@@ -116,7 +116,7 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
   process.env.AFTERTRACE_SMOKE_ALLOW = "1"
   process.env.AFTERTRACE_SMOKE_DIR = dir
   const events = new EventEmitter()
-  const seen = { close: 0, popover: 0 }
+  const seen = { close: 0, popover: 0, menu: 0 }
   try {
     const smoke = loadSmoke()
     const updater = {
@@ -141,6 +141,10 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
       showPopover: () => {
         seen.popover += 1
       },
+      showMenu: () => {
+        seen.menu += 1
+      },
+      getMenuLabels: () => ["Idle", "Open Aftertrace"],
     })
     const status = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(status.version, "0.5.4")
@@ -162,6 +166,12 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
     fs.writeFileSync(path.join(dir, "cmd"), "popover\n")
     await new Promise((r) => setTimeout(r, 400))
     assert.equal(seen.popover, 1)
+    fs.writeFileSync(path.join(dir, "cmd"), "menu\n")
+    await new Promise((r) => setTimeout(r, 400))
+    assert.equal(seen.menu, 1)
+    const afterMenu = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterMenu.menuOpen, false)
+    assert.deepEqual(afterMenu.menuLabels, ["Idle", "Open Aftertrace"])
   } finally {
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]

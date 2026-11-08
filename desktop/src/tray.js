@@ -4,6 +4,7 @@ const fs = require("fs")
 const path = require("path")
 const { Tray, Menu, nativeImage, nativeTheme } = require("electron")
 const { formatGlance, formatTitle, readGlance, freshnessLabel, markStale, sayUsd } = require("./glance")
+const { menuTemplate, menuLabels } = require("./sessionMenu")
 const { createPopover } = require("./popover")
 const { UI_ORIGIN } = require("./allowlist")
 
@@ -53,11 +54,15 @@ function trayImage() {
   return loadPng(dark ? "tray-16-light.png" : "tray-16.png")
 }
 
+function usesNativeMenu(platform = process.platform) {
+  return platform === "darwin" || platform === "linux"
+}
+
 function presentGlance(data, update, now = Date.now()) {
   const g = markStale(data, now)
   const todayLabel =
     g.ok && typeof g.todayCost === "number" && g.todayCost > 0 ? sayUsd(g.todayCost) : ""
-  return {
+  const view = {
     ...g,
     todayLabel,
     freshness: freshnessLabel(g, now),
@@ -65,32 +70,32 @@ function presentGlance(data, update, now = Date.now()) {
     glance: formatGlance(g),
     update: update || null,
   }
+  view.menuLabels = menuLabels(view)
+  return view
 }
 
-function linuxMenu({ glance, extra = {}, openAtLogin, onOpen, onToggleLogin, onCheckUpdates, onRestart, onQuit, update }) {
-  const items = [{ label: glance || "Open Aftertrace", enabled: false }]
-  if (extra.runningTitle) items.push({ label: extra.runningTitle, enabled: false })
-  if (extra.topFinding) items.push({ type: "separator" }, { label: extra.topFinding, enabled: false })
-  items.push(
-    { type: "separator" },
-    { label: "Open Aftertrace", accelerator: "CommandOrControl+O", click: onOpen },
-    { label: "Start at login", type: "checkbox", checked: Boolean(openAtLogin), click: onToggleLogin },
+function nativeMenu(view, handlers = {}) {
+  return Menu.buildFromTemplate(
+    menuTemplate(view, {
+      openAtLogin: typeof handlers.isOpenAtLogin === "function" ? handlers.isOpenAtLogin() : handlers.openAtLogin,
+      onOpen: handlers.onOpen,
+      onOpenSession: handlers.onOpenSession,
+      onToggleLogin: handlers.onToggleLogin,
+      onCheckUpdates: handlers.onCheckUpdates,
+      onRestart: handlers.onRestart,
+      onQuit: handlers.onQuit,
+    }),
   )
-  if (update && update.status === "ready") {
-    items.push({ label: update.version ? `Restart to update · ${update.version}` : "Restart to update", click: onRestart })
-  } else {
-    items.push({ label: "Check for updates", click: onCheckUpdates })
-  }
-  items.push({ type: "separator" }, { label: "Quit Aftertrace", click: onQuit })
-  return Menu.buildFromTemplate(items)
 }
 
 function createTray(handlers) {
   const tray = new Tray(trayImage())
   tray.setToolTip("Aftertrace")
-  const popover = process.platform === "linux" ? null : createPopover({ tray })
+  const native = usesNativeMenu()
+  const popover = native ? null : createPopover({ tray })
   let glanceData = { ok: false, sessions: [] }
   let timer = null
+  let lastLabels = []
 
   const applyIcon = () => {
     tray.setImage(trayImage())
@@ -99,37 +104,37 @@ function createTray(handlers) {
 
   const payload = () => presentGlance(glanceData, handlers.getUpdate && handlers.getUpdate())
 
-  const applyTitle = (data) => {
-    const title = formatTitle(data)
+  const applyTitle = () => {
+    // Icon-only extra on Mac. Changing setTitle text shifts neighboring extras.
     if (process.platform === "darwin" && typeof tray.setTitle === "function") {
-      tray.setTitle(title)
+      tray.setTitle("")
     }
-    const glance = formatGlance(data)
-    tray.setToolTip(title ? `Aftertrace · ${title}` : glance === "Open Aftertrace" ? "Aftertrace" : `Aftertrace · ${glance}`)
+    tray.setToolTip("Aftertrace")
+  }
+
+  const buildMenu = (view) =>
+    nativeMenu(view, {
+      isOpenAtLogin: handlers.isOpenAtLogin,
+      onOpen: handlers.onOpen,
+      onOpenSession: handlers.onOpenSession,
+      onToggleLogin: handlers.onToggleLogin,
+      onCheckUpdates: handlers.onCheckUpdates,
+      onRestart: handlers.onRestart,
+      onQuit: handlers.onQuit,
+    })
+
+  const applyNativeMenu = (view) => {
+    lastLabels = view.menuLabels || menuLabels(view)
+    if (!native) return
+    tray.setContextMenu(buildMenu(view))
   }
 
   const refresh = async () => {
     glanceData = await readGlance(UI_ORIGIN)
     const view = payload()
-    applyTitle(view)
+    applyTitle()
+    applyNativeMenu(view)
     if (popover) popover.send("desktop:glance", view)
-    if (process.platform === "linux") {
-      const menu = linuxMenu({
-        glance: view.glance,
-        extra: {
-          runningTitle: view.title,
-          topFinding: view.topFinding,
-        },
-        openAtLogin: handlers.isOpenAtLogin(),
-        onOpen: handlers.onOpen,
-        onToggleLogin: handlers.onToggleLogin,
-        onCheckUpdates: handlers.onCheckUpdates,
-        onRestart: handlers.onRestart,
-        onQuit: handlers.onQuit,
-        update: view.update,
-      })
-      tray.setContextMenu(menu)
-    }
     schedule()
     return view
   }
@@ -143,11 +148,17 @@ function createTray(handlers) {
     timer.unref?.()
   }
 
-  if (process.platform !== "linux") {
+  const showNativeMenu = () => {
+    const view = payload()
+    lastLabels = view.menuLabels || menuLabels(view)
+    const menu = buildMenu(view)
+    // Rebuilds on each open. An already-open NSMenu is not mutated in place.
+    tray.popUpContextMenu(menu)
+  }
+
+  if (!native) {
     tray.on("click", () => {
       if (popover) {
-        // Tray click blurs the panel first. Ignore that hide so the same
-        // click can close an open popover instead of hiding-then-reopening.
         popover.toggleFromTray()
         refresh().then((view) => popover.send("desktop:glance", view)).catch(() => {})
         schedule()
@@ -168,7 +179,16 @@ function createTray(handlers) {
     refresh,
     popover,
     presentGlance,
+    showNativeMenu,
+    menuLabels: () => lastLabels,
   }
 }
 
-module.exports = { createTray, trayImage, presentGlance, linuxMenu }
+module.exports = {
+  createTray,
+  trayImage,
+  presentGlance,
+  nativeMenu,
+  usesNativeMenu,
+  linuxMenu: nativeMenu,
+}

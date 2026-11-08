@@ -57,6 +57,8 @@ function start({
   closeWindow,
   showPopover,
   hidePopover,
+  showMenu,
+  getMenuLabels,
   restartToUpdate,
   getVersion,
   getUserData,
@@ -73,6 +75,7 @@ function start({
   } catch {
     // first run
   }
+  let menuOpen = false
   const snapshot = (more = {}) => ({
     version: getVersion ? getVersion() : null,
     update: updater ? updater.getState() : null,
@@ -80,6 +83,8 @@ function start({
     trayBounds: getTrayBounds ? getTrayBounds() : null,
     popoverBounds: getPopoverBounds ? getPopoverBounds() : null,
     popoverOpen: Boolean(getPopoverBounds && getPopoverBounds()),
+    menuOpen,
+    menuLabels: getMenuLabels ? getMenuLabels() : [],
     ...more,
   })
   const tick = () => {
@@ -107,6 +112,15 @@ function start({
       openWindow()
     } else if (cmd === "close" && closeWindow) {
       closeWindow()
+    } else if (cmd === "menu" && showMenu) {
+      menuOpen = true
+      writeStatus(snapshot())
+      try {
+        showMenu()
+      } finally {
+        menuOpen = false
+        writeStatus(snapshot())
+      }
     } else if (cmd === "popover" && showPopover) {
       showPopover()
     } else if (cmd === "hide-popover" && hidePopover) {

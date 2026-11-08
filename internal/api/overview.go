@@ -232,7 +232,7 @@ func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 		l.CostUSD = cost.Float64
 		var name, attrs, res string
 		if err := db.QueryRow(`SELECT name, attrs::VARCHAR, coalesce(resource::VARCHAR,'{}') FROM spans WHERE trace_id=?
-			AND name IN ('claude_code.tool','claude_code.llm_request','claude_code.hook') ORDER BY end_ns DESC LIMIT 1`, l.TraceID).
+			AND name IN (`+liveDoingSpanNames+`) ORDER BY end_ns DESC LIMIT 1`, l.TraceID).
 			Scan(&name, &attrs, &res); err == nil {
 			l.Doing = doing(name, parseObj(attrs))
 			l.Source = sourceName(parseObj(res))
@@ -245,6 +245,10 @@ func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
 	}
 	return lanes, nil
 }
+
+// liveDoingSpanNames is the latest-span set for "doing". blocked_on_user
+// must stay here so a live approval wait is not dropped for an older LLM span.
+const liveDoingSpanNames = "'claude_code.tool','claude_code.llm_request','claude_code.hook','claude_code.tool.blocked_on_user'"
 
 // doing says what a live turn is doing now, in the present tense:
 // "Running npm test", "Reading service.go", "Thinking · Opus 5.5".

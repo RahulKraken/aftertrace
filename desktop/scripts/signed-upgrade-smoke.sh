@@ -280,11 +280,12 @@ fi
 [ -f "$engine_home/marker.txt" ]
 assert_no_runner_writes
 
-log "== GUI: Dock open/close/reopen + native popover/glyph (not System Events process list alone) =="
+log "== GUI: Dock open/close/reopen + native NSMenu/glyph (not System Events process list alone) =="
 # Hardened runtime typically disables nodeCliInspect. Native: file-protocol
-# smoke cmds + Dock AX tiles + screencapture of the compact popover window.
+# smoke cmds + Dock AX tiles + screencapture of NSMenu via popUpContextMenu.
+# An open NSMenu is not live-updated; labels rebuild on the next open.
 pgrep -x WindowServer >/dev/null 2>&1 || {
-  log "FAIL: WindowServer not running; Aqua Dock/popover cannot be asserted"
+  log "FAIL: WindowServer not running; Aqua Dock/NSMenu cannot be asserted"
   exit 1
 }
 pgrep -x Dock >/dev/null 2>&1 || {
@@ -410,35 +411,8 @@ assert_engine_and_tray
 click_allow
 screencapture -x "$iso/native-dock-open.png"
 
-echo popover >"$smoke_dir/cmd"
-k=0
-popover_ok=0
-while [ "$k" -lt 16 ]; do
-  if [ -f "$smoke_dir/status.json" ] && grep -q '"popoverOpen": true' "$smoke_dir/status.json"; then
-    popover_ok=1
-    break
-  fi
-  k=$((k + 1))
-  sleep 1
-done
-[ "$popover_ok" = 1 ] || {
-  log "FAIL: native popover did not open (status.popoverOpen)"
-  tee -a "$report" <"$smoke_dir/status.json" || true
-  exit 1
-}
-click_allow
-screencapture -x "$iso/native-desktop.png"
-pb=$(bounds_from_status popoverBounds) || {
-  log "FAIL: popoverBounds missing from status.json"
-  tee -a "$report" <"$smoke_dir/status.json" || true
-  exit 1
-}
-px=$(printf '%s\n' "$pb" | awk '{print $1}')
-py=$(printf '%s\n' "$pb" | awk '{print $2}')
-pw=$(printf '%s\n' "$pb" | awk '{print $3}')
-ph=$(printf '%s\n' "$pb" | awk '{print $4}')
-capture_rect "$iso/native-popover.png" "$px" "$py" "$pw" "$ph"
-log "native popover crop $px,$py ${pw}x${ph}"
+appearance=$(defaults read -g AppleInterfaceStyle 2>/dev/null || echo Light)
+log "AppleInterfaceStyle=$appearance (NSMenu follows the OS; this job captures that one appearance)"
 tb=$(bounds_from_status trayBounds) || {
   log "FAIL: trayBounds missing from status.json"
   tee -a "$report" <"$smoke_dir/status.json" || true
@@ -452,6 +426,50 @@ if [ "$tw" -lt 8 ] || [ "$th" -lt 8 ]; then
   log "FAIL: trayBounds too small for a menu extra ($tb)"
   exit 1
 fi
+if [ "$tw" -gt 64 ]; then
+  log "FAIL: tray extra is not icon-only (trayBounds width $tw > 64; setTitle text would shift neighbors)"
+  exit 1
+fi
+mx=$((tx + tw / 2 - 200))
+my=$ty
+mw=420
+mh=280
+if [ "$mx" -lt 0 ]; then mx=0; fi
+if [ "$my" -lt 0 ]; then my=0; fi
+(
+  sleep 2
+  click_allow
+  capture_rect "$iso/native-menu.png" "$mx" "$my" "$mw" "$mh"
+  osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
+  sleep 0.4
+  capture_rect "$iso/native-menu-keyboard.png" "$mx" "$my" "$mw" "$mh"
+  osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+) &
+menu_cap=$!
+echo menu >"$smoke_dir/cmd"
+k=0
+menu_ok=0
+while [ "$k" -lt 16 ]; do
+  if [ -f "$smoke_dir/status.json" ] && grep -q '"menuOpen": true' "$smoke_dir/status.json"; then
+    menu_ok=1
+    break
+  fi
+  k=$((k + 1))
+  sleep 0.5
+done
+wait "$menu_cap" || true
+[ "$menu_ok" = 1 ] || {
+  log "FAIL: native NSMenu did not open (status.menuOpen)"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+if ! grep -E '"Idle"|"Open Aftertrace"' "$smoke_dir/status.json" >/dev/null 2>&1; then
+  log "FAIL: menuLabels missing from status.json"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+fi
+click_allow
+screencapture -x "$iso/native-desktop.png"
 gx=$((tx - 8))
 gy=$((ty - 4))
 gw=$((tw + 16))
@@ -459,8 +477,14 @@ gh=$((th + 8))
 if [ "$gx" -lt 0 ]; then gx=0; fi
 if [ "$gy" -lt 0 ]; then gy=0; fi
 capture_rect "$iso/native-glyph.png" "$gx" "$gy" "$gw" "$gh"
-log "native glyph crop $gx,$gy ${gw}x${gh}"
-log "native popover bytes=$(wc -c < "$iso/native-popover.png") glyph bytes=$(wc -c < "$iso/native-glyph.png")"
+log "native glyph crop $gx,$gy ${gw}x${gh} trayWidth=$tw"
+log "native menu bytes=$(wc -c < "$iso/native-menu.png") keyboard bytes=$(wc -c < "$iso/native-menu-keyboard.png") glyph bytes=$(wc -c < "$iso/native-glyph.png")"
+for shot in native-menu.png native-menu-keyboard.png native-glyph.png; do
+  [ -s "$iso/$shot" ] || {
+    log "FAIL: $shot missing or empty"
+    exit 1
+  }
+done
 
 echo close >"$smoke_dir/cmd"
 wait_dock out "dashboard closed"
@@ -478,7 +502,7 @@ kill "$gui_pid" 2>/dev/null || true
 wait "$gui_pid" 2>/dev/null || true
 
 cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || cp "$report" "$iso/../signed-upgrade-smoke.txt"
-for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-popover.png native-glyph.png; do
+for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-menu.png native-menu-keyboard.png native-glyph.png; do
   if [ -f "$iso/$shot" ]; then
     dest=$shot
     if [ "$shot" = "native-desktop.png" ]; then dest=signed-upgrade-native.png

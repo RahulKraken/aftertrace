@@ -2,6 +2,16 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 8 2026: native session-first NSMenu; tokens and cost on the top-level line.
+
+**Choice.** Mac (and Linux) tray uses Electron `Menu.buildFromTemplate` / `tray.setContextMenu` (real NSMenu on Darwin). The extra is icon-only (`setTitle("")`); the packed glyph is unchanged. Each live session is one enabled item: `repo|tool · doing · session tokens · session $`. Today is a disabled `Today · $X` row (`· estimated` when `history_only`). No Chromium panel on Mac. No submenu for those four fields — NSMenu items are one `NSString`, so this is a compact single line, not a 2–3 line cell. Click opens `/session/{id}`. More than five live lanes: first five + `N more in Aftertrace…` → `/sessions`. Glance joins `/api/overview` live with `/api/sessions` by `session_id`. `liveLanes` latest-span set includes `claude_code.tool.blocked_on_user`. Historical `savings.shown` findings are not on the native menu. Windows popover is unchanged. Shipping version stays 0.5.4; no tag/release.
+
+**Why.** After v0.5.4, the web popover showed `live[0].doing`, a prompt snippet, today’s period total, and a permission-count finding. It did not identify concurrent sessions or show per-session tokens/cost, and `setTitle(doing)` shifted other extras. Rahul t125u required identity, activity, **session** tokens and **session** cost visible in the opened top-level menu, a static icon slot, and a real Apple menu.
+
+**How to reverse.** Restore Darwin `createPopover` + `tray.setTitle(formatTitle)` in `desktop/src/tray.js`; drop `sessionMenu.js` and the `/api/sessions` join; remove `blocked_on_user` from `liveDoingSpanNames`. Keep updater/Dock/smoke gates.
+
+**Record.** Implementation of the session-first native menu proposal (canvas `0a754f36-728e-4005-9086-aa8291c64a35`) after t125u. No merge/tag/release in this PR.
+
 ## Nov 7 2026: alias stapler fail-closed, Aqua Dock close/reopen, CI-only smoke hooks.
 
 **Choice.** `Aftertrace-mac.dmg` (site `/releases/latest/download`) is a byte copy of the stapled arm64 DMG. `ci-verify-mac.sh` recopy-then-`stapler validate` on the alias and fails the job unless “The validate action worked” (retry CloudKit Error 68). `spctl --type install` on Developer ID DMGs stays informational; Gatekeeper is app `spctl -a -vv` accepted / Notarized Developer ID. Smoke file-protocol + `AFTERTRACE_UPDATE_FEED_URL` + `AFTERTRACE_USER_DATA_DIR` relocate require `AFTERTRACE_SMOKE=1` and either `AFTERTRACE_SMOKE_ALLOW=1` (unit tests) or `GITHUB_ACTIONS=true` plus `RUNNER_TEMP`/`GITHUB_WORKSPACE`. `AFTERTRACE_SMOKE_DIR` is required; no tmpdir cmd file. Not reachable from engine HTTP, dashboard origin, or IPC. electron-updater still requires the same Developer ID (not a signature bypass). macos-15 smoke asserts Dock membership while the dashboard is open, close removes Dock/app-switcher while engine+tray live, reopen restores; captures native popover + compact glyph.
