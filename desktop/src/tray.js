@@ -151,9 +151,12 @@ function createTray(handlers) {
   const showNativeMenu = () => {
     const view = payload()
     lastLabels = view.menuLabels || menuLabels(view)
-    const menu = buildMenu(view)
+    applyNativeMenu(view)
     // Rebuilds on each open. An already-open NSMenu is not mutated in place.
-    tray.popUpContextMenu(menu)
+    // Position is Windows-only; passing it on Darwin can no-op the popup.
+    if (typeof tray.popUpContextMenu === "function") {
+      tray.popUpContextMenu(buildMenu(view))
+    }
   }
 
   if (!native) {

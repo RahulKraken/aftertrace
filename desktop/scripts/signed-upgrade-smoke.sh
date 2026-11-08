@@ -436,34 +436,34 @@ mw=420
 mh=280
 if [ "$mx" -lt 0 ]; then mx=0; fi
 if [ "$my" -lt 0 ]; then my=0; fi
-(
-  sleep 2
-  click_allow
-  capture_rect "$iso/native-menu.png" "$mx" "$my" "$mw" "$mh"
-  osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
-  sleep 0.4
-  capture_rect "$iso/native-menu-keyboard.png" "$mx" "$my" "$mw" "$mh"
-  osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
-) &
-menu_cap=$!
+click_allow
 echo menu >"$smoke_dir/cmd"
 k=0
 menu_ok=0
-while [ "$k" -lt 16 ]; do
+while [ "$k" -lt 20 ]; do
   if [ -f "$smoke_dir/status.json" ] && grep -q '"menuOpen": true' "$smoke_dir/status.json"; then
     menu_ok=1
     break
   fi
   k=$((k + 1))
-  sleep 0.5
+  sleep 0.25
 done
-wait "$menu_cap" || true
 [ "$menu_ok" = 1 ] || {
   log "FAIL: native NSMenu did not open (status.menuOpen)"
   tee -a "$report" <"$smoke_dir/status.json" || true
   exit 1
 }
-if ! grep -E '"Idle"|"Open Aftertrace"' "$smoke_dir/status.json" >/dev/null 2>&1; then
+# Do not click the extra while popUpContextMenu is up: a second click dismisses NSMenu.
+# Do not click_allow here: a stray click also dismisses. menuOpen stays true until hide-menu
+# because Electron 45 popUpContextMenu returns immediately on Darwin.
+sleep 1
+capture_rect "$iso/native-menu.png" "$mx" "$my" "$mw" "$mh"
+osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
+sleep 0.4
+capture_rect "$iso/native-menu-keyboard.png" "$mx" "$my" "$mw" "$mh"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+if ! grep -E '"Idle"|"Open Aftertrace"|"Restart to update"' "$smoke_dir/status.json" >/dev/null 2>&1; then
   log "FAIL: menuLabels missing from status.json"
   tee -a "$report" <"$smoke_dir/status.json" || true
   exit 1

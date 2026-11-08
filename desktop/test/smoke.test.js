@@ -170,8 +170,12 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
     await new Promise((r) => setTimeout(r, 400))
     assert.equal(seen.menu, 1)
     const afterMenu = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
-    assert.equal(afterMenu.menuOpen, false)
+    assert.equal(afterMenu.menuOpen, true)
     assert.deepEqual(afterMenu.menuLabels, ["Idle", "Open Aftertrace"])
+    fs.writeFileSync(path.join(dir, "cmd"), "hide-menu\n")
+    await new Promise((r) => setTimeout(r, 400))
+    const afterHide = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterHide.menuOpen, false)
   } finally {
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]

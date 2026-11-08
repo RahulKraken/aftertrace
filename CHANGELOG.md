@@ -5,7 +5,7 @@
 **Desktop**
 - Mac menu bar is a native NSMenu (Electron `Menu.buildFromTemplate`), icon-only extra, current glyph kept. Each live session is one top-level line: project/tool identity, current activity, **session** tokens and **session** dollars. Today’s total is a separate disabled row. Historical permission findings are off the menu. Click a session to open it. More than five live sessions: first five plus `N more in Aftertrace…`. Linux shares the same template. Windows still uses the compact web popover.
 - Glance joins `GET /api/overview` live lanes with `GET /api/sessions` by `session_id` (not the six-row `recent` list). Unknown tokens/cost are omitted, never shown as zero. History-only dollars are labelled estimated. Quiet 90s is not waiting. Live approval-wait includes `claude_code.tool.blocked_on_user`.
-- macos-15 smoke captures the native menu (and a down-arrow keyboard frame) plus glyph bounds, and fails if the extra is wider than an icon. Open NSMenu is not live-updated; labels rebuild on reopen. CI fixture version stays 0.5.5 and is not tagged.
+- macos-15 smoke captures the native menu (and a down-arrow keyboard frame) plus glyph bounds, and fails if the extra is wider than an icon. Smoke `menuOpen` stays true until `hide-menu` because Electron 45 `popUpContextMenu` returns immediately. Open NSMenu is not live-updated; labels rebuild on reopen. CI fixture version stays 0.5.5 and is not tagged.
 
 ## v0.5.4
 

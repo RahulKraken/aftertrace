@@ -113,14 +113,20 @@ function start({
     } else if (cmd === "close" && closeWindow) {
       closeWindow()
     } else if (cmd === "menu" && showMenu) {
+      // popUpContextMenu often returns immediately on Darwin (Electron 45).
+      // Keep menuOpen until hide-menu so the runner can screenshot.
       menuOpen = true
       writeStatus(snapshot())
-      try {
-        showMenu()
-      } finally {
-        menuOpen = false
-        writeStatus(snapshot())
-      }
+      setImmediate(() => {
+        try {
+          showMenu()
+        } catch (err) {
+          writeStatus(snapshot({ error: err && err.message }))
+        }
+      })
+    } else if (cmd === "hide-menu") {
+      menuOpen = false
+      writeStatus(snapshot())
     } else if (cmd === "popover" && showPopover) {
       showPopover()
     } else if (cmd === "hide-popover" && hidePopover) {

@@ -452,6 +452,8 @@ describe("signed-upgrade-smoke.sh", () => {
     assert.match(sh, /retain-054/)
     assert.match(sh, /echo close/)
     assert.match(sh, /echo menu/)
+    assert.match(sh, /echo hide-menu/)
+    assert.match(sh, /menuOpen/)
     assert.match(sh, /wait_gui_ready/)
     assert.match(sh, /UI elements of list 1/)
     assert.match(sh, /background only is false/)
