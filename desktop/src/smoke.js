@@ -59,6 +59,8 @@ function start({
   hidePopover,
   showMenu,
   getMenuLabels,
+  refreshTray,
+  getWindowHash,
   restartToUpdate,
   getVersion,
   getUserData,
@@ -85,6 +87,7 @@ function start({
     popoverOpen: Boolean(getPopoverBounds && getPopoverBounds()),
     menuOpen,
     menuLabels: getMenuLabels ? getMenuLabels() : [],
+    windowHash: getWindowHash ? getWindowHash() : null,
     ...more,
   })
   const tick = () => {
@@ -127,6 +130,10 @@ function start({
     } else if (cmd === "hide-menu") {
       menuOpen = false
       writeStatus(snapshot())
+    } else if (cmd === "refresh" && refreshTray) {
+      Promise.resolve(refreshTray())
+        .then(() => writeStatus(snapshot()))
+        .catch((err) => writeStatus(snapshot({ error: err && err.message })))
     } else if (cmd === "popover" && showPopover) {
       showPopover()
     } else if (cmd === "hide-popover" && hidePopover) {

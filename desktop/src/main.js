@@ -294,6 +294,17 @@ app.whenReady().then(async () => {
         if (trayApi && typeof trayApi.showNativeMenu === "function") trayApi.showNativeMenu()
       },
       getMenuLabels: () => (trayApi && typeof trayApi.menuLabels === "function" ? trayApi.menuLabels() : []),
+      refreshTray: () => (trayApi && trayApi.refresh ? trayApi.refresh() : Promise.resolve()),
+      getWindowHash: () => {
+        if (!win || win.isDestroyed()) return null
+        try {
+          const u = win.webContents.getURL()
+          const i = u.indexOf("#")
+          return i >= 0 ? u.slice(i) : u
+        } catch {
+          return null
+        }
+      },
       restartToUpdate,
       getVersion: () => app.getVersion(),
       getUserData: userData,

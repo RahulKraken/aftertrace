@@ -116,7 +116,7 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
   process.env.AFTERTRACE_SMOKE_ALLOW = "1"
   process.env.AFTERTRACE_SMOKE_DIR = dir
   const events = new EventEmitter()
-  const seen = { close: 0, popover: 0, menu: 0 }
+  const seen = { close: 0, popover: 0, menu: 0, refresh: 0 }
   try {
     const smoke = loadSmoke()
     const updater = {
@@ -144,6 +144,10 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
       showMenu: () => {
         seen.menu += 1
       },
+      refreshTray: async () => {
+        seen.refresh += 1
+      },
+      getWindowHash: () => "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa",
       getMenuLabels: () => ["Idle", "Open Aftertrace"],
     })
     const status = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
@@ -176,6 +180,11 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
     await new Promise((r) => setTimeout(r, 400))
     const afterHide = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(afterHide.menuOpen, false)
+    fs.writeFileSync(path.join(dir, "cmd"), "refresh\n")
+    await new Promise((r) => setTimeout(r, 400))
+    assert.equal(seen.refresh, 1)
+    const afterRefresh = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterRefresh.windowHash, "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa")
   } finally {
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]
