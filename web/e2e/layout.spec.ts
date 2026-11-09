@@ -49,6 +49,7 @@ test.describe("shared app layout", () => {
     })
     await page.goto("/#/")
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
+    await expect(page.locator(".v4-skel")).toHaveCount(0)
     const edges = await page.evaluate(() => {
       const v4 = document.querySelector(".v4") as HTMLElement | null
       const h1 = document.querySelector(".v4-ph h1")
@@ -89,6 +90,7 @@ test.describe("shared app layout", () => {
 
     await page.goto("/#/sessions")
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+    await expect(page.locator(".v4-skel")).toHaveCount(0)
     const rowH = await page.locator(".v4-rr").first().evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
     expect(rowH).toBeLessThan(50)
   })
@@ -101,10 +103,12 @@ test.describe("shared app layout", () => {
     })
     await page.goto("/#/sessions")
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+    await expect(page.locator(".v4-skel")).toHaveCount(0)
     const rowH = await page.locator(".v4-rr").first().evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
     expect(rowH).toBeLessThan(50)
 
     await page.goto("/#/findings")
+    await expect(page.locator(".v4-skel")).toHaveCount(0)
     const track = page.locator(".v4-fr .trk").first()
     await expect(track).toBeVisible()
     const trackW = await track.evaluate((el) => (el as HTMLElement).getBoundingClientRect().width)
@@ -120,6 +124,7 @@ test.describe("shared app layout", () => {
     expect(stripH).toBeGreaterThanOrEqual(16)
 
     await page.goto("/#/")
+    await expect(page.locator(".v4-skel")).toHaveCount(0)
     const homeX = await page.locator(".v4-ph h1").evaluate((el) => el.getBoundingClientRect().x)
     await page.goto("/#/settings")
     const setX = await page.locator("h1").evaluate((el) => el.getBoundingClientRect().x)
@@ -135,5 +140,21 @@ test.describe("shared app layout", () => {
     await expect(page.locator(".recap-primary").filter({ hasText: "$12345.67" })).toBeVisible()
     const extra = await pageOverflow(page)
     expect(extra).toBeLessThanOrEqual(1)
+  })
+
+  test("findings uses skeleton or cache, never Loading…", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/#/findings?skeleton=1")
+    await expect(page.locator(".v4-skel")).toBeVisible()
+    await expect(page.locator(".v4-skel .v4-fr").first()).toBeVisible()
+    await expect(page.locator(".v4-skel .v4-strip i").first()).toBeVisible()
+    await expect(page.getByText("Loading…")).toHaveCount(0)
+
+    await page.goto("/#/findings")
+    await expect(page.locator(".v4-fr .nm").first()).toBeVisible()
+    const cached = await page.evaluate(() => sessionStorage.getItem("aftertrace.findings"))
+    expect(cached).toBeTruthy()
+    expect(JSON.parse(cached || "[]").length).toBeGreaterThan(0)
+    await expect(page.getByText("Loading…")).toHaveCount(0)
   })
 })

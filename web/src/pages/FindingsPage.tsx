@@ -7,6 +7,8 @@ import { Money } from "../components/Money"
 import { sayDur, usd } from "../lib/format"
 import { api } from "../lib/api"
 import { readCached, writeCached } from "../lib/poll"
+import { previewSkeleton } from "../lib/cache"
+import { FindingsSkeleton } from "../components/PageSkeleton"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import { moneyLabel, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { Finding, ModelSpend } from "../lib/types"
@@ -34,6 +36,7 @@ export function FindingsPage() {
     api.findings().then((rows) => {
       setFs(rows)
       writeCached("aftertrace.findings", rows)
+      setErr(null)
     }).catch((e: Error) => {
       if (!fs) setErr(e.message)
     })
@@ -91,7 +94,7 @@ export function FindingsPage() {
     return () => window.removeEventListener("keydown", on)
   }, [fs, focus, resolved, copyFix])
 
-  if (err) {
+  if (err && !fs) {
     return (
       <div className="page">
         {err}
@@ -99,7 +102,7 @@ export function FindingsPage() {
       </div>
     )
   }
-  if (!fs) return <div className="v4"><div className="v4-empty">Loading…</div></div>
+  if (previewSkeleton() || !fs) return <FindingsSkeleton />
 
   const open = fs.filter((f) => !resolved.has(findingKey(f)))
   const order = [...resolved]

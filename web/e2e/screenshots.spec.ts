@@ -249,6 +249,7 @@ test("findings", async ({ page }) => {
   await expect(page.locator(".v4-strip i").first()).toBeVisible()
   const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
   expect(stripH).toBeGreaterThanOrEqual(16)
+  await expect(page.getByText("Loading…")).toHaveCount(0)
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
 })

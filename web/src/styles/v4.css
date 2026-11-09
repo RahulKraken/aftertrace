@@ -710,6 +710,13 @@
   padding: 48px 20px;
   text-align: left;
 }
+.v4-skel {
+  pointer-events: none;
+}
+.v4-skel .v4-fr,
+.v4-skel .v4-rr {
+  cursor: default;
+}
 
 @media (max-width: 1100px) {
   .v4 .v4-fr.frow,
