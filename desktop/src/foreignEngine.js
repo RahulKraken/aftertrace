@@ -39,6 +39,7 @@ function migrateLegacyService({
   uid = typeof process.getuid === "function" ? process.getuid() : 0,
   spawnSyncFn = spawnSync,
   fsFn = fs,
+  loginHome,
 } = {}) {
   const notes = []
   if (platform === "darwin") {
@@ -51,6 +52,16 @@ function migrateLegacyService({
     })
     const homes = new Set([home, os.homedir()])
     if (process.env.HOME) homes.add(process.env.HOME)
+    // launchctl loads from the login home (getpwuid), not $HOME. Packaged
+    // smoke isolates HOME; the leftover plist still sits under /Users/runner.
+    if (loginHome === undefined) {
+      try {
+        loginHome = os.userInfo().homedir
+      } catch {
+        loginHome = ""
+      }
+    }
+    if (loginHome) homes.add(loginHome)
     for (const h of homes) {
       const plist = launchdPlistPath(h)
       if (!fsFn.existsSync(plist)) continue

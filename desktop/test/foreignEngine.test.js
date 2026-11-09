@@ -52,3 +52,26 @@ test("migrateLegacyService boots out launchd and removes the plist, not the DB",
     fs.rmSync(home, { recursive: true, force: true })
   }
 })
+
+test("migrateLegacyService removes the login-home plist when HOME is isolated", () => {
+  const login = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-login-"))
+  const iso = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-iso-"))
+  const agents = path.join(login, "Library", "LaunchAgents")
+  fs.mkdirSync(agents, { recursive: true })
+  const plist = launchdPlistPath(login)
+  fs.writeFileSync(plist, "<plist/>")
+  try {
+    const r = migrateLegacyService({
+      platform: "darwin",
+      home: iso,
+      loginHome: login,
+      uid: 501,
+      spawnSyncFn: () => ({ status: 0, stderr: "" }),
+    })
+    assert.equal(r.ok, true)
+    assert.equal(fs.existsSync(plist), false)
+  } finally {
+    fs.rmSync(login, { recursive: true, force: true })
+    fs.rmSync(iso, { recursive: true, force: true })
+  }
+})
