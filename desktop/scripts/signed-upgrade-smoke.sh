@@ -140,10 +140,16 @@ assert_no_app_pid() {
 }
 
 assert_no_runner_writes() {
+  # mode: isolated (default) | shipit-live | shipit-done
+  # Isolated 0.5.5 launches pass AFTERTRACE_HOME and --user-data-dir, so the
+  # login ~/.aftertrace must stay empty. ShipIt auto-relaunch cannot inherit
+  # either, so the sidecar correctly uses the login ~/.aftertrace — the same
+  # class as Chromium GPUCache under Application Support. Treating that as a
+  # FAIL races the relaunch (Desktop 42671068137: duckdb appeared between
+  # plist=0.5.6 and wait_new_app_pid).
+  mode=${1:-isolated}
   support="$runner_home/Library/Application Support/Aftertrace"
   if [ -e "$support" ]; then
-    # ShipIt relaunch cannot inherit --user-data-dir, so Chromium caches land
-    # in the login home. Fail only if our own files leaked there.
     ours=$(find "$support" \( -name 'desktop.json' -o -name '*.duckdb' -o -name '*.duckdb.wal' -o -name 'aftertrace.log' \) -print 2>/dev/null || true)
     if [ -n "$ours" ]; then
       log "FAIL: wrote $support"
@@ -157,9 +163,18 @@ assert_no_runner_writes() {
   if [ -e "$leak" ]; then
     files=$(find "$leak" -type f -print 2>/dev/null || true)
     if [ -n "$files" ]; then
-      log "FAIL: runner-home .aftertrace has files (engine data must stay under AFTERTRACE_HOME)"
+      if [ "$mode" = "isolated" ]; then
+        log "FAIL: runner-home .aftertrace has files (engine data must stay under AFTERTRACE_HOME)"
+        printf '%s\n' "$files" | tee -a "$report"
+        exit 1
+      fi
+      log "note: ShipIt relaunch wrote login-home .aftertrace (no AFTERTRACE_HOME)"
       printf '%s\n' "$files" | tee -a "$report"
-      exit 1
+      if [ "$mode" = "shipit-done" ]; then
+        log "removing login-home .aftertrace so later isolated launches stay clean"
+        rm -rf "$leak"
+      fi
+      return 0
     fi
     log "note: empty $leak exists; helpers/--db/userData are isolated (see status.json)"
   fi
@@ -476,7 +491,7 @@ log "replacement engine version: $eng_ver"
 [ "$eng_ver" = "aftertrace v0.5.6" ]
 [ -f "$engine_home/marker.txt" ]
 grep -q retain-054 "$engine_home/marker.txt"
-assert_no_runner_writes
+assert_no_runner_writes shipit-live
 
 rel_pid=$(wait_new_app_pid "$new_pid" || true)
 if [ -z "$rel_pid" ]; then
@@ -499,7 +514,7 @@ for extra in $(app_pids); do
   wait "$extra" 2>/dev/null || true
 done
 [ -f "$engine_home/marker.txt" ]
-assert_no_runner_writes
+assert_no_runner_writes shipit-done
 
 log "== GUI: Dock open/close/reopen + native NSMenu/glyph (not System Events process list alone) =="
 # Hardened runtime typically disables nodeCliInspect. Native: file-protocol

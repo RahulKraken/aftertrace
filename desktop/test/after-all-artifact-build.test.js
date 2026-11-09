@@ -460,6 +460,8 @@ describe("signed-upgrade-smoke.sh", () => {
     assert.match(sh, /legacy-keep/)
     assert.doesNotMatch(sh, /Relaunch the replacement ourselves/)
     assert.match(sh, /retain-054/)
+    assert.match(sh, /ShipIt relaunch wrote login-home \.aftertrace/)
+    assert.match(sh, /shipit-done/)
     assert.match(sh, /echo close/)
     assert.match(sh, /echo menu/)
     assert.match(sh, /echo hide-menu/)
