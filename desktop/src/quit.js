@@ -25,6 +25,12 @@ async function finishQuit({
   if (restartingForUpdate && typeof requestInstall === "function" && requestInstall({ relaunch: true })) {
     return "install"
   }
+  // Plain quit still has to call quitAndInstall so Squirrel.Mac finishes
+  // fetching the zip. A bare app.quit() races the native download and leaves
+  // the bundle at the old plist.
+  if (typeof requestInstall === "function" && requestInstall({ relaunch: false })) {
+    return "install"
+  }
   if (typeof quit === "function") quit()
   return "quit"
 }
