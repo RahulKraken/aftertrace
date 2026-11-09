@@ -139,11 +139,36 @@ func RetryEnd(db *sql.DB, traceID, spanID string) *int64 {
 }
 
 func Breakdown(db *sql.DB, traceID string, spans []Span) map[string]float64 {
+	sources := decisionSources(db, traceID)
+	retry := map[string]*int64{}
+	for i := range spans {
+		if spans[i].Name == "claude_code.llm_request" {
+			retry[spans[i].SpanID] = RetryEnd(db, traceID, spans[i].SpanID)
+		}
+	}
+	var hooks [][2]int64
+	rows, err := db.Query(`SELECT ts_ns, n(attrs,'total_duration_ms') FROM events WHERE trace_id=? AND name='hook_execution_complete'`, traceID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var ts int64
+			var d sql.NullFloat64
+			if err := rows.Scan(&ts, &d); err != nil || !d.Valid {
+				continue
+			}
+			hooks = append(hooks, [2]int64{ts - int64(d.Float64*1e6), ts})
+		}
+	}
+	return BreakdownOffline(spans, sources, retry, hooks)
+}
+
+// BreakdownOffline paints a turn from already-loaded rows. Ingest uses this
+// so a poll never runs per-trace DuckDB queries.
+func BreakdownOffline(spans []Span, sources map[string]string, retryEnds map[string]*int64, hooks [][2]int64) map[string]float64 {
 	root := interaction(spans)
 	if root == nil {
 		return nil
 	}
-	sources := decisionSources(db, traceID)
 	var ivs []interval
 	for i := range spans {
 		s := &spans[i]
@@ -163,7 +188,7 @@ func Breakdown(db *sql.DB, traceID string, spans []Span) map[string]float64 {
 		case "claude_code.hook":
 			ivs = append(ivs, interval{4, s.StartNS, s.EndNS})
 		case "claude_code.llm_request":
-			re := RetryEnd(db, traceID, s.SpanID)
+			re := retryEnds[s.SpanID]
 			if s.IsError {
 				ivs = append(ivs, interval{1, s.StartNS, s.EndNS})
 			} else if re != nil {
@@ -173,17 +198,8 @@ func Breakdown(db *sql.DB, traceID string, spans []Span) map[string]float64 {
 			}
 		}
 	}
-	rows, err := db.Query(`SELECT ts_ns, n(attrs,'total_duration_ms') FROM events WHERE trace_id=? AND name='hook_execution_complete'`, traceID)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var ts int64
-			var d sql.NullFloat64
-			if err := rows.Scan(&ts, &d); err != nil || !d.Valid {
-				continue
-			}
-			ivs = append(ivs, interval{4, ts - int64(d.Float64*1e6), ts})
-		}
+	for _, h := range hooks {
+		ivs = append(ivs, interval{4, h[0], h[1]})
 	}
 	return paint(ivs, root.StartNS, root.EndNS)
 }

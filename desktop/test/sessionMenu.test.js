@@ -29,6 +29,12 @@ function labels(view, handlers = mac) {
     .map((item) => [item.label, item.sublabel].filter(Boolean).join(" · "))
 }
 
+test("alive engine never shows Engine offline", () => {
+  assert.equal(labels({ ok: false, error: "offline", alive: false })[0], "Engine offline")
+  assert.equal(labels({ ok: false, error: "offline", alive: true })[0], "Starting…")
+  assert.equal(labels({ ok: false, error: "offline", alive: true, busy: true })[0], "Engine busy")
+})
+
 test("idle menu has no finding and keeps utilities", () => {
   const items = labels({ ok: true, sessions: [] })
   assert.deepEqual(items.slice(0, 1), ["Idle"])

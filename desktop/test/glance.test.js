@@ -18,11 +18,13 @@ test("formatGlance prefers spend, then findings, then Open", () => {
   assert.equal(formatGlance({ ok: true }), "Open Aftertrace")
 })
 
-test("readGlance uses /api/status and /api/overview", async () => {
+test("readGlance uses one cheap /api/glance after /api/health", async () => {
+  const hits = []
   const server = http.createServer((req, res) => {
+    hits.push(req.url)
     res.setHeader("content-type", "application/json")
-    if (req.url === "/api/status") res.end(JSON.stringify({ findings: 4 }))
-    else if (req.url === "/api/overview") res.end(JSON.stringify({ week: { cost_usd: 1.25 } }))
+    if (req.url === "/api/health") res.end(JSON.stringify({ ok: true }))
+    else if (req.url === "/api/glance") res.end(JSON.stringify({ findings: 4, week_cost: 1.25 }))
     else {
       res.statusCode = 404
       res.end("{}")
@@ -33,19 +35,23 @@ test("readGlance uses /api/status and /api/overview", async () => {
   try {
     const g = await readGlance(`http://127.0.0.1:${port}`)
     assert.equal(g.ok, true)
+    assert.equal(g.alive, true)
     assert.equal(g.findings, 4)
     assert.equal(g.weekCost, 1.25)
     assert.equal(formatGlance(g), "$1.25 this week · 4 findings")
+    assert.equal(hits.includes("/api/overview"), false)
+    assert.equal(hits.includes("/api/status"), false)
+    assert.equal(hits.includes("/api/sessions"), false)
   } finally {
     server.close()
   }
 })
 
-test("readGlance still works when overview is missing", async () => {
+test("readGlance stays ok when glance is missing but health is up", async () => {
   const server = http.createServer((req, res) => {
-    if (req.url === "/api/status") {
+    if (req.url === "/api/health") {
       res.setHeader("content-type", "application/json")
-      res.end(JSON.stringify({ findings: 7 }))
+      res.end(JSON.stringify({ ok: true, ready: false }))
       return
     }
     res.statusCode = 404
@@ -56,12 +62,22 @@ test("readGlance still works when overview is missing", async () => {
   try {
     const g = await readGlance(`http://127.0.0.1:${port}`)
     assert.equal(g.ok, true)
-    assert.equal(g.findings, 7)
-    assert.equal(g.weekCost, undefined)
-    assert.equal(formatGlance(g), "7 findings")
+    assert.equal(g.alive, true)
+    assert.equal(g.error, null)
   } finally {
     server.close()
   }
+})
+
+test("health down is Engine offline unless the sidecar process is alive", async () => {
+  const g = await readGlance("http://127.0.0.1:9")
+  assert.equal(g.ok, false)
+  assert.equal(g.alive, false)
+  assert.equal(g.error, "offline")
+  const busy = await readGlance("http://127.0.0.1:9", { processAlive: true })
+  assert.equal(busy.ok, true)
+  assert.equal(busy.alive, true)
+  assert.equal(busy.error, null)
 })
 
 test("formatTitle is the current activity, not spend", () => {
@@ -75,15 +91,16 @@ test("formatTitle is the current activity, not spend", () => {
 test("quiet is not treated as awaiting approval", async () => {
   const server = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json")
-    if (req.url === "/api/status") res.end(JSON.stringify({ findings: 0, running: 2 }))
-    else if (req.url === "/api/overview") {
+    if (req.url === "/api/health") res.end(JSON.stringify({ ok: true }))
+    else if (req.url === "/api/glance") {
       res.end(JSON.stringify({
-        week: { cost_usd: 1 },
-        live: [
-          { session_id: "a", title: "one", doing: "Running tests", quiet: true },
-          { session_id: "b", title: "two", doing: "Editing main.go", quiet: false },
-          { session_id: "c", title: "three", doing: "Reading", quiet: false },
-          { session_id: "d", title: "four", doing: "Searching", quiet: false },
+        week_cost: 1,
+        running: 2,
+        sessions: [
+          { session_id: "a", title: "one", doing: "Running tests", quiet: true, running: true },
+          { session_id: "b", title: "two", doing: "Editing main.go", quiet: false, running: true },
+          { session_id: "c", title: "three", doing: "Reading", quiet: false, running: true },
+          { session_id: "d", title: "four", doing: "Searching", quiet: false, running: true },
         ],
       }))
     } else {
@@ -159,19 +176,24 @@ test("joinLiveSessions uses /api/sessions for long-lived ids not in recent", () 
 test("readGlance joins /api/sessions and records history_only as estimated", async () => {
   const server = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json")
-    if (req.url === "/api/status") res.end(JSON.stringify({ findings: 1, running: 1 }))
-    else if (req.url === "/api/overview") {
+    if (req.url === "/api/health") res.end(JSON.stringify({ ok: true }))
+    else if (req.url === "/api/glance") {
       res.end(JSON.stringify({
-        week: { cost_usd: 3 },
-        history_only: true,
-        live: [{ session_id: "old-sid", doing: "Waiting for your approval", quiet: false, cost_usd: 1.2 }],
-        recent: [],
+        findings: 1,
+        running: 1,
+        week_cost: 3,
+        estimated: true,
+        sessions: [{
+          session_id: "old-sid",
+          doing: "Waiting for your approval",
+          quiet: false,
+          repo: "aftertrace",
+          tokens: 8000,
+          cost_usd: 1.2,
+          entrypoint: "cli",
+          running: true,
+        }],
       }))
-    } else if (req.url === "/api/sessions") {
-      res.end(JSON.stringify([
-        { session_id: "old-sid", repo: "aftertrace", tokens: 8000, cost_usd: 1.2, entrypoint: "cli" },
-        { session_id: "other", repo: "idle-one", tokens: 1, cost_usd: 0.01 },
-      ]))
     } else {
       res.statusCode = 404
       res.end("{}")

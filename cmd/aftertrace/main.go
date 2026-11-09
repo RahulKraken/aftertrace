@@ -189,6 +189,16 @@ func cmdServe(args []string) int {
 				log.Printf("history    no new sessions in %s", *f.historyDir)
 			}
 		}
+		if !*f.storeContent {
+			if n, err := st.CompactContent(); err != nil {
+				log.Printf("compact: %v", err)
+			} else if n > 0 {
+				log.Printf("compact    stripped stored prompt/response payloads")
+			}
+		}
+		if err := st.EnsureRollups(); err != nil {
+			log.Printf("rollups: %v", err)
+		}
 		if err := st.Reopen(); err != nil {
 			log.Printf("reopen db: %v", err)
 		}

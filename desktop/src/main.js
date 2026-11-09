@@ -273,6 +273,12 @@ app.whenReady().then(async () => {
   trayApi = createTray({
     isOpenAtLogin,
     getUpdate: () => updater.getState(),
+    engineAlive: () => {
+      const st = engine && engine.status()
+      if (!st) return false
+      return Boolean(st.startedByUs) || st.state === "healthy" || st.state === "starting" || st.state === "restarting" || st.state === "reused"
+    },
+    windowHidden: () => !win || win.isDestroyed() || (typeof win.isVisible === "function" && !win.isVisible()),
     onOpen: (hash) => openWindow(hash),
     onOpenSession: (id) => openWindow(`/session/${id}`),
     onToggleLogin: () => setOpenAtLogin(!isOpenAtLogin()),

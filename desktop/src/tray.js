@@ -17,6 +17,7 @@ const { UI_ORIGIN } = require("./allowlist")
 
 const OPEN_MS = 12_000
 const IDLE_MS = 45_000
+const HIDDEN_MS = 60_000
 
 function unpack(p) {
   return p.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)
@@ -103,6 +104,7 @@ function createTray(handlers) {
   let glanceData = { ok: false, sessions: [] }
   let timer = null
   let lastLabels = []
+  let inflight = null
 
   const applyIcon = () => {
     tray.setImage(trayImage())
@@ -137,19 +139,29 @@ function createTray(handlers) {
   }
 
   const refresh = async () => {
-    glanceData = await readGlance(UI_ORIGIN)
-    const view = payload()
-    applyTitle()
-    applyNativeMenu(view)
-    if (popover) popover.send("desktop:glance", view)
-    schedule()
-    return view
+    if (inflight) return inflight
+    inflight = (async () => {
+      glanceData = await readGlance(UI_ORIGIN, {
+        last: glanceData,
+        processAlive: Boolean(handlers.engineAlive && handlers.engineAlive()),
+      })
+      const view = payload()
+      applyTitle()
+      applyNativeMenu(view)
+      if (popover) popover.send("desktop:glance", view)
+      return view
+    })().finally(() => {
+      inflight = null
+      schedule()
+    })
+    return inflight
   }
 
   const schedule = () => {
-    if (timer) clearInterval(timer)
-    const ms = popover && popover.isOpen() ? OPEN_MS : IDLE_MS
-    timer = setInterval(() => {
+    if (timer) clearTimeout(timer)
+    const hidden = handlers.windowHidden && handlers.windowHidden()
+    const ms = hidden ? HIDDEN_MS : popover && popover.isOpen() ? OPEN_MS : IDLE_MS
+    timer = setTimeout(() => {
       refresh().catch(() => {})
     }, ms)
     timer.unref?.()

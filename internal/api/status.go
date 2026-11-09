@@ -41,7 +41,7 @@ func findingsFor(db *sql.DB) []rules.Finding {
 	c := cachedFindings
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.db == db && time.Since(c.at) < 10*time.Second {
+	if c.db == db && time.Since(c.at) < 30*time.Second {
 		return c.out
 	}
 	c.out, c.db, c.at = rules.RunAll(db), db, time.Now()
@@ -49,13 +49,25 @@ func findingsFor(db *sql.DB) []rules.Finding {
 }
 
 func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
-	c, _ := s.Store.Counts()
+	v, err := s.cache.get("status", s.buildStatus)
+	if err != nil {
+		s.err(w, err, 500)
+		return
+	}
+	s.json(w, v, 200)
+}
+
+func (s *Server) buildStatus() (any, error) {
+	c, ok := s.Store.CachedCounts()
+	if !ok {
+		c, _ = s.Store.Counts()
+	}
 	db := s.db()
 	now := time.Now().UnixNano()
 	var running, sessions int
-	_ = db.QueryRow(`SELECT count(*) FROM turn_roots WHERE in_progress AND end_ns > ?`, now-int64(5*time.Minute)).Scan(&running)
-	_ = db.QueryRow(`SELECT count(DISTINCT session_id) FROM turn_roots`).Scan(&sessions)
-	fs := findingsFor(db)
+	_ = db.QueryRow(`SELECT count(*) FROM trace_roots WHERE in_progress AND end_ns > ?`, now-int64(5*time.Minute)).Scan(&running)
+	_ = db.QueryRow(`SELECT count(*) FROM session_stats`).Scan(&sessions)
+	fs := s.cachedFindings()
 	open := 0
 	for _, f := range fs {
 		if f.Severity != "error" {
@@ -83,7 +95,7 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	monthAgo := time.Now().AddDate(0, -1, 0).UnixNano()
 	welcome := rules.PickMoneyFinding(fs, monthAgo, true)
-	s.json(w, map[string]any{
+	return map[string]any{
 		"now":             now,
 		"info":            s.Info,
 		"ask":             ask,
@@ -97,5 +109,29 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 		"live_otel":       history.LiveOTel(db),
 		"history":         history.Summarize(db, histDir),
 		"welcome_finding": welcome,
-	}, 200)
+	}, nil
+}
+
+func (s *Server) cachedFindings() []rules.Finding {
+	db := s.db()
+	c := cachedFindings
+	c.mu.Lock()
+	if c.db == db && time.Since(c.at) < 30*time.Second {
+		out := c.out
+		c.mu.Unlock()
+		return out
+	}
+	c.mu.Unlock()
+	out := rules.RunAll(db)
+	c.mu.Lock()
+	c.out, c.db, c.at = out, db, time.Now()
+	c.mu.Unlock()
+	counts := map[string]int{}
+	for _, f := range out {
+		for _, sid := range f.Sessions {
+			counts[sid]++
+		}
+	}
+	_ = s.Store.SetSessionFindings(counts)
+	return out
 }

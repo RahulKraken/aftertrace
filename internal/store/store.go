@@ -31,6 +31,8 @@ type Store struct {
 	DB   *sql.DB
 	Path string
 	wmu  sync.Mutex
+	cmu  sync.Mutex
+	chg  []func()
 }
 
 type Span struct {
@@ -160,15 +162,38 @@ func (s *Store) Reopen() error {
 	return s.recycleLocked()
 }
 
+func (s *Store) OnChange(fn func()) {
+	if s == nil || fn == nil {
+		return
+	}
+	s.cmu.Lock()
+	s.chg = append(s.chg, fn)
+	s.cmu.Unlock()
+}
+
+func (s *Store) fireChange() {
+	s.cmu.Lock()
+	fns := append([]func(){}, s.chg...)
+	s.cmu.Unlock()
+	for _, fn := range fns {
+		fn()
+	}
+}
+
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
 	s.wmu.Lock()
-	defer s.wmu.Unlock()
 	if live := liveSessionIDs(spans, evs, pts); len(live) > 0 {
 		if err := s.dropHistoryLocked(live); err != nil {
+			s.wmu.Unlock()
 			return err
 		}
 	}
-	return s.insertLocked(spans, sevs, evs, pts)
+	err := s.insertLocked(spans, sevs, evs, pts)
+	s.wmu.Unlock()
+	if err == nil {
+		s.fireChange()
+	}
+	return err
 }
 
 // ReplaceHistory deletes previously imported history rows for one session
@@ -176,11 +201,15 @@ func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []Metric
 // even for events and metric points, which have no primary key.
 func (s *Store) ReplaceHistory(sessionID string, spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
 	s.wmu.Lock()
-	defer s.wmu.Unlock()
-	if err := s.dropHistoryLocked([]string{sessionID}); err != nil {
-		return err
+	err := s.dropHistoryLocked([]string{sessionID})
+	if err == nil {
+		err = s.insertLocked(spans, sevs, evs, pts)
 	}
-	return s.insertLocked(spans, sevs, evs, pts)
+	s.wmu.Unlock()
+	if err == nil {
+		s.fireChange()
+	}
+	return err
 }
 
 func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
@@ -256,7 +285,10 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 		}
 		stmt.Close()
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return s.refreshAfterInsert(spans, sevs, evs, pts)
 }
 
 func (s *Store) Counts() (Counts, error) {
@@ -355,7 +387,7 @@ func (s *Store) dropHistoryLocked(ids []string) error {
 	if _, err := s.DB.Exec(`UPDATE history_files SET status = 'skipped_otel' WHERE session_id IN (`+ph+`) AND status = 'imported'`, args...); err != nil {
 		return fmt.Errorf("history_files: %w", err)
 	}
-	return nil
+	return s.dropRollupsLocked(ids)
 }
 
 // LiveSessions reports which of the given session ids already have OTel rows

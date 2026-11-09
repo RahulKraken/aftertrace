@@ -201,7 +201,14 @@ function menuTemplate(view = {}, handlers = {}) {
     handlers.headerSupported != null ? Boolean(handlers.headerSupported) : supportsHeader()
   const items = []
   if (!view.ok) {
-    items.push({ label: view.error ? "Engine offline" : "Starting…", enabled: false })
+    const label = view.alive
+      ? view.busy
+        ? "Engine busy"
+        : "Starting…"
+      : view.error
+        ? "Engine offline"
+        : "Starting…"
+    items.push({ label, enabled: false })
   } else {
     const sliced = sessionSlice(view.sessions)
     if (sliced.idle) {

@@ -2,79 +2,17 @@ package api
 
 import (
 	"database/sql"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"path"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/history"
 	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
 const day = int64(24 * time.Hour)
-
-// bdCache keeps each trace's painted time split. A trace is recomputed only
-// when its span count or last end time changes, so a running turn refreshes
-// and finished turns are computed once.
-type bdCache struct {
-	mu sync.Mutex
-	m  map[string]bdEntry
-}
-
-type bdEntry struct {
-	n   int
-	end int64
-	bd  map[string]float64
-}
-
-var breakdowns = &bdCache{m: map[string]bdEntry{}}
-
-type traceStat struct {
-	n   int
-	end int64
-}
-
-// traceStats returns span count and last end per trace, in one query.
-func traceStats(db *sql.DB) (map[string]traceStat, error) {
-	rows, err := db.Query(`SELECT trace_id, count(*), max(end_ns) FROM spans GROUP BY 1`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]traceStat{}
-	for rows.Next() {
-		var t string
-		var s traceStat
-		if err := rows.Scan(&t, &s.n, &s.end); err != nil {
-			return nil, err
-		}
-		out[t] = s
-	}
-	return out, rows.Err()
-}
-
-func (c *bdCache) get(db *sql.DB, tid string, st traceStat) map[string]float64 {
-	key := fmt.Sprintf("%p/%s", db, tid)
-	c.mu.Lock()
-	e, ok := c.m[key]
-	c.mu.Unlock()
-	if ok && e.n == st.n && e.end == st.end {
-		return e.bd
-	}
-	spans, err := analysis.SpanRows(db, tid)
-	if err != nil {
-		return nil
-	}
-	bd := analysis.Breakdown(db, tid, spans)
-	c.mu.Lock()
-	c.m[key] = bdEntry{n: st.n, end: st.end, bd: bd}
-	c.mu.Unlock()
-	return bd
-}
 
 type turnRow struct {
 	trace, session string
@@ -120,31 +58,51 @@ type window struct {
 	Errors     int                `json:"errors"`
 }
 
-func summarize(db *sql.DB, stats map[string]traceStat, lo, hi int64) (window, []turnRow, error) {
+func summarize(db *sql.DB, lo, hi int64) (window, []turnRow, error) {
 	w := window{Breakdown: map[string]float64{}}
 	turns, err := turnRows(db, lo, hi)
 	if err != nil {
 		return w, nil, err
 	}
-	sess := map[string]bool{}
-	for _, t := range turns {
-		w.Turns++
-		w.TurnMS += t.durMS
-		if t.session != "" {
-			sess[t.session] = true
-		}
-		for k, v := range breakdowns.get(db, t.trace, stats[t.trace]) {
-			w.Breakdown[k] += v
-		}
-	}
-	w.Sessions = len(sess)
-	var cost, tokens, hit sql.NullFloat64
-	if err := db.QueryRow(`SELECT sum(cost_usd), count(*), sum(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens),
-		sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0)
-		FROM llm WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&cost, &w.Requests, &tokens, &hit); err != nil {
+	rows, err := db.Query(`SELECT coalesce(session_id,''), duration_ms, coalesce(wait_ms,0), coalesce(cost_usd,0),
+		coalesce(tokens,0), coalesce(requests,0), coalesce(errors,0), coalesce(tool_calls,0), coalesce(approvals,0),
+		coalesce(breakdown::VARCHAR,'{}')
+		FROM trace_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi)
+	if err != nil {
 		return w, nil, err
 	}
-	w.CostUSD, w.Tokens = cost.Float64, tokens.Float64
+	defer rows.Close()
+	sess := map[string]bool{}
+	var hitNum, hitDen float64
+	for rows.Next() {
+		var sid, bjs string
+		var dur, wait, cost, tokens float64
+		var reqs, errors, tools, appr int
+		if err := rows.Scan(&sid, &dur, &wait, &cost, &tokens, &reqs, &errors, &tools, &appr, &bjs); err != nil {
+			return w, nil, err
+		}
+		w.Turns++
+		w.TurnMS += dur
+		w.CostUSD += cost
+		w.Tokens += tokens
+		w.Requests += reqs
+		w.Errors += errors
+		w.ToolCalls += tools
+		w.Approvals += appr
+		if sid != "" {
+			sess[sid] = true
+		}
+		var bd map[string]float64
+		_ = json.Unmarshal([]byte(bjs), &bd)
+		for k, v := range bd {
+			w.Breakdown[k] += v
+		}
+		_ = wait
+	}
+	w.Sessions = len(sess)
+	var hit sql.NullFloat64
+	_ = db.QueryRow(`SELECT sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0)
+		FROM llm_facts WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&hit)
 	if hit.Valid {
 		v := hit.Float64
 		w.CacheHit = &v
@@ -160,14 +118,9 @@ func summarize(db *sql.DB, stats map[string]traceStat, lo, hi int64) (window, []
 		return w, nil, err
 	}
 	w.LinesAdded, w.LinesRem, w.Commits, w.PRs, w.ActiveS = added.Float64, removed.Float64, commits.Float64, prs.Float64, active.Float64
-	if err := db.QueryRow(`SELECT count(*), count(*) FILTER (WHERE wait_ms IS NOT NULL AND decision_source IN ('user_temporary','user_permanent'))
-		FROM tools WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&w.ToolCalls, &w.Approvals); err != nil {
-		return w, nil, err
-	}
-	if err := db.QueryRow(`SELECT count(*) FROM spans WHERE is_error AND start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&w.Errors); err != nil {
-		return w, nil, err
-	}
-	return w, turns, nil
+	_ = hitNum
+	_ = hitDen
+	return w, turns, rows.Err()
 }
 
 type modelSpend struct {
@@ -205,43 +158,55 @@ type liveLane struct {
 // means nothing new for 90 seconds (the agent is thinking, running
 // something long, or waiting).
 func liveLanes(db *sql.DB, now int64) ([]liveLane, error) {
-	rows, err := db.Query(`SELECT trace_id, coalesce(session_id,''), start_ns, end_ns FROM turn_roots
-		WHERE in_progress AND end_ns > ? ORDER BY start_ns`, now-int64(5*time.Minute))
+	rows, err := db.Query(`SELECT t.trace_id, coalesce(t.session_id,''), t.start_ns, t.end_ns, coalesce(t.span_count,0),
+		coalesce(s.cost_usd, t.cost_usd, 0), s.title, coalesce(s.repo,'')
+		FROM trace_roots t LEFT JOIN session_stats s ON s.session_id = t.session_id
+		WHERE t.in_progress AND t.end_ns > ? ORDER BY t.start_ns`, now-int64(5*time.Minute))
 	if err != nil {
 		return nil, err
 	}
 	var lanes []liveLane
+	ids := []any{}
 	for rows.Next() {
 		var l liveLane
-		if err := rows.Scan(&l.TraceID, &l.SessionID, &l.StartNS, &l.LastNS); err != nil {
+		var title sql.NullString
+		var repo string
+		if err := rows.Scan(&l.TraceID, &l.SessionID, &l.StartNS, &l.LastNS, &l.Spans, &l.CostUSD, &title, &repo); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		lanes = append(lanes, l)
-	}
-	rows.Close()
-	for i := range lanes {
-		l := &lanes[i]
-		var cost sql.NullFloat64
-		_ = db.QueryRow(`SELECT count(*) FROM spans WHERE trace_id=?`, l.TraceID).Scan(&l.Spans)
-		if l.SessionID != "" {
-			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE session_id=?`, l.SessionID).Scan(&cost)
-		} else {
-			_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, l.TraceID).Scan(&cost)
-		}
-		l.CostUSD = cost.Float64
-		var name, attrs, res string
-		if err := db.QueryRow(`SELECT name, attrs::VARCHAR, coalesce(resource::VARCHAR,'{}') FROM spans WHERE trace_id=?
-			AND name IN (`+liveDoingSpanNames+`) ORDER BY end_ns DESC LIMIT 1`, l.TraceID).
-			Scan(&name, &attrs, &res); err == nil {
-			l.Doing = doing(name, parseObj(attrs))
-			l.Source = sourceName(parseObj(res))
-		}
-		if p, err := turnPrompt(db, l.TraceID); err == nil && p.Valid {
-			t := clipLabel(p.String)
+		if title.Valid && title.String != "" {
+			t := clipLabel(title.String)
 			l.Title = &t
 		}
 		l.Quiet = now-l.LastNS > int64(90*time.Second)
+		lanes = append(lanes, l)
+		ids = append(ids, l.TraceID)
+	}
+	rows.Close()
+	if len(ids) == 0 {
+		return lanes, rows.Err()
+	}
+	ph := strings.Repeat("?,", len(ids)-1) + "?"
+	dr, err := db.Query(`SELECT trace_id, name, attrs::VARCHAR, coalesce(resource::VARCHAR,'{}') FROM (
+		SELECT trace_id, name, attrs, resource, row_number() OVER (PARTITION BY trace_id ORDER BY end_ns DESC) AS rn
+		FROM spans WHERE trace_id IN (`+ph+`) AND name IN (`+liveDoingSpanNames+`)
+	) x WHERE rn=1`, ids...)
+	if err == nil {
+		by := map[string]liveLane{}
+		for dr.Next() {
+			var tid, name, attrs, res string
+			if dr.Scan(&tid, &name, &attrs, &res) == nil {
+				by[tid] = liveLane{Doing: doing(name, parseObj(attrs)), Source: sourceName(parseObj(res))}
+			}
+		}
+		dr.Close()
+		for i := range lanes {
+			if d, ok := by[lanes[i].TraceID]; ok {
+				lanes[i].Doing = d.Doing
+				lanes[i].Source = d.Source
+			}
+		}
 	}
 	return lanes, nil
 }
@@ -340,119 +305,80 @@ func sourceName(res map[string]any) string {
 }
 
 func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
-	db := s.db()
-	now := time.Now().UnixNano()
-
-	stats, err := traceStats(db)
+	v, err := s.cache.get("overview", s.buildOverview)
 	if err != nil {
 		s.err(w, err, 500)
 		return
 	}
-	// "This week" is the last 7 days. If nothing happened then, anchor on the
-	// newest data so an old import still tells a story.
+	s.json(w, v, 200)
+}
+
+func (s *Server) buildOverview() (any, error) {
+	db := s.db()
+	now := time.Now().UnixNano()
 	hi := now
 	var latest sql.NullInt64
-	_ = db.QueryRow(`SELECT max(end_ns) FROM turn_roots`).Scan(&latest)
+	_ = db.QueryRow(`SELECT max(end_ns) FROM trace_roots`).Scan(&latest)
 	anchored := false
 	if latest.Valid && latest.Int64 < now-7*day {
 		hi = latest.Int64 + 1
 		anchored = true
 	}
 	lo := hi - 7*day
-	cur, turns, err := summarize(db, stats, lo, hi)
+	cur, _, err := summarize(db, lo, hi)
 	if err != nil {
-		s.err(w, err, 500)
-		return
+		return nil, err
 	}
-	prev, _, err := summarize(db, stats, lo-7*day, lo)
+	prev, _, err := summarize(db, lo-7*day, lo)
 	if err != nil {
-		s.err(w, err, 500)
-		return
+		return nil, err
 	}
 
-	// Daily series: 90 days ending at hi, local midnight boundaries.
 	end := time.Unix(0, hi).Local()
 	start := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location()).AddDate(0, 0, -89)
 	days := make([]dayPoint, 90)
+	byStart := map[int64]int{}
 	for i := range days {
 		d := start.AddDate(0, 0, i)
-		days[i] = dayPoint{Day: d.Format("Mon 2 Jan"), StartNS: d.UnixNano()}
+		ns := d.UnixNano()
+		days[i] = dayPoint{Day: d.Format("Mon 2 Jan"), StartNS: ns}
+		byStart[ns] = i
 	}
-	idx := func(ns int64) int {
-		for i := len(days) - 1; i >= 0; i-- {
-			if ns >= days[i].StartNS {
-				return i
-			}
-		}
-		return -1
-	}
-	all, err := turnRows(db, days[0].StartNS, hi)
-	if err != nil {
-		s.err(w, err, 500)
-		return
-	}
-	for _, t := range all {
-		i := idx(t.start)
-		if i < 0 {
-			continue
-		}
-		days[i].Turns++
-		days[i].TurnMS += t.durMS
-		days[i].WaitMS += breakdowns.get(db, t.trace, stats[t.trace])["permission_wait"]
-	}
-	if cr, err := db.Query(`SELECT start_ns, coalesce(cost_usd,0), coalesce(model,''),
-		coalesce(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens,0)
-		FROM llm WHERE start_ns >= ? AND start_ns < ?`, days[0].StartNS, hi); err == nil {
-		type acc struct{ cost, tok float64 }
-		buckets := make([]map[string]*acc, len(days))
-		for cr.Next() {
-			var st int64
-			var c, tok float64
-			var model string
-			if cr.Scan(&st, &c, &model, &tok) == nil {
-				if i := idx(st); i >= 0 {
-					days[i].CostUSD += c
-					if buckets[i] == nil {
-						buckets[i] = map[string]*acc{}
-					}
-					if model == "" {
-						model = "(none)"
-					}
-					a := buckets[i][model]
-					if a == nil {
-						a = &acc{}
-						buckets[i][model] = a
-					}
-					a.cost += c
-					a.tok += tok
-				}
-			}
-		}
-		cr.Close()
-		for i, b := range buckets {
-			if b == nil {
+	if dr, err := db.Query(`SELECT day_start_ns, coalesce(turns,0), coalesce(turn_ms,0), coalesce(wait_ms,0), coalesce(cost_usd,0), coalesce(by_model::VARCHAR,'[]')
+		FROM day_stats WHERE day_start_ns >= ? AND day_start_ns < ?`, days[0].StartNS, hi); err == nil {
+		for dr.Next() {
+			var ns int64
+			var turns int
+			var turnMS, waitMS, cost float64
+			var mjs string
+			if dr.Scan(&ns, &turns, &turnMS, &waitMS, &cost, &mjs) != nil {
 				continue
 			}
-			for m, a := range b {
-				days[i].ByModel = append(days[i].ByModel, modelSpend{Model: m, CostUSD: a.cost, Tokens: a.tok})
+			i, ok := byStart[ns]
+			if !ok {
+				continue
 			}
-			sort.Slice(days[i].ByModel, func(a, b int) bool { return days[i].ByModel[a].CostUSD > days[i].ByModel[b].CostUSD })
+			days[i].Turns = turns
+			days[i].TurnMS = turnMS
+			days[i].WaitMS = waitMS
+			days[i].CostUSD = cost
+			var models []modelSpend
+			_ = json.Unmarshal([]byte(mjs), &models)
+			days[i].ByModel = models
 		}
+		dr.Close()
 	}
-	_ = turns
 
 	lanes, err := liveLanes(db, now)
 	if err != nil {
-		s.err(w, err, 500)
-		return
+		return nil, err
 	}
 	if lanes == nil {
 		lanes = []liveLane{}
 	}
 	srcs, err := sources(db, now)
 	if err != nil {
-		s.err(w, err, 500)
-		return
+		return nil, err
 	}
 
 	findings := findingsFor(db)
@@ -477,23 +403,9 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		top = savings.Shown[0]
 	}
 
-	recent, err := sessions(db)
+	recent, err := sessionRows(db, 6, lo, hi, historyOnly)
 	if err != nil {
-		s.err(w, err, 500)
-		return
-	}
-	if historyOnly {
-		kept := recent[:0]
-		for _, sess := range recent {
-			st, _ := sess["start_ns"].(int64)
-			if st >= lo && st < hi {
-				kept = append(kept, sess)
-			}
-		}
-		recent = kept
-	}
-	if len(recent) > 6 {
-		recent = recent[:6]
+		return nil, err
 	}
 
 	projects := []history.Project{}
@@ -504,7 +416,9 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.json(w, map[string]any{
+	var nRoots int
+	_ = db.QueryRow(`SELECT count(*) FROM trace_roots`).Scan(&nRoots)
+	return map[string]any{
 		"now":          now,
 		"lo":           lo,
 		"hi":           hi,
@@ -520,9 +434,9 @@ func (s *Server) getOverview(w http.ResponseWriter, r *http.Request) {
 		"recent":       recent,
 		"projects":     projects,
 		"history_only": historyOnly,
-		"has_data":     len(stats) > 0 || len(srcs) > 0,
+		"has_data":     nRoots > 0 || len(srcs) > 0,
 		"generated":    time.Now().UnixNano(),
-	}, 200)
+	}, nil
 }
 
 type source struct {
@@ -539,14 +453,7 @@ type source struct {
 // sources groups everything received by service.name. kind is claude-code for
 // any claude-code* service, else app.
 func sources(db *sql.DB, now int64) ([]source, error) {
-	rows, err := db.Query(`
-		WITH r AS (
-			SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown') AS svc, 'spans' AS k, start_ns AS t0, end_ns AS t1 FROM spans
-			UNION ALL SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'), 'events', ts_ns, ts_ns FROM events
-			UNION ALL SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'), 'metrics', ts_ns, ts_ns FROM metric_points
-		)
-		SELECT svc, count(*) FILTER (WHERE k='spans'), count(*) FILTER (WHERE k='events'), count(*) FILTER (WHERE k='metrics'), min(t0), max(t1)
-		FROM r GROUP BY svc ORDER BY max(t1) DESC`)
+	rows, err := db.Query(`SELECT name, kind, spans, events, metrics, first_ns, last_ns FROM source_stats ORDER BY last_ns DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -554,17 +461,12 @@ func sources(db *sql.DB, now int64) ([]source, error) {
 	out := []source{}
 	for rows.Next() {
 		var s source
-		if err := rows.Scan(&s.Name, &s.Spans, &s.Events, &s.Metrics, &s.FirstNS, &s.LastNS); err != nil {
+		if err := rows.Scan(&s.Name, &s.Kind, &s.Spans, &s.Events, &s.Metrics, &s.FirstNS, &s.LastNS); err != nil {
 			return nil, err
-		}
-		s.Kind = "app"
-		if strings.HasPrefix(s.Name, "claude-code") {
-			s.Kind = "claude-code"
 		}
 		s.Live = now-s.LastNS < int64(5*time.Minute)
 		out = append(out, s)
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].LastNS > out[j].LastNS })
 	return out, rows.Err()
 }
 
@@ -573,10 +475,10 @@ func sources(db *sql.DB, now int64) ([]source, error) {
 func observeSpend(db *sql.DB, lo, hi int64) (spend, days float64) {
 	var cost sql.NullFloat64
 	var first, last sql.NullInt64
-	_ = db.QueryRow(`SELECT sum(cost_usd), min(start_ns), max(start_ns) FROM llm WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&cost, &first, &last)
+	_ = db.QueryRow(`SELECT sum(cost_usd), min(start_ns), max(start_ns) FROM llm_facts WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&cost, &first, &last)
 	spend = cost.Float64
 	if !first.Valid {
-		_ = db.QueryRow(`SELECT min(start_ns), max(end_ns) FROM turn_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&first, &last)
+		_ = db.QueryRow(`SELECT min(start_ns), max(end_ns) FROM trace_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&first, &last)
 	}
 	if first.Valid && last.Valid && last.Int64 >= first.Int64 {
 		days = float64(last.Int64-first.Int64) / 1e9 / 86400

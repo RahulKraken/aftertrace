@@ -11,6 +11,7 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/query"
+	"github.com/RahulKraken/aftertrace/internal/rules"
 	"github.com/RahulKraken/aftertrace/internal/store"
 )
 
@@ -19,6 +20,7 @@ type Server struct {
 	Web   fs.FS
 	Ask   *ask.Agent
 	Info  Info
+	cache *snapshot
 }
 
 type Option func(*Server)
@@ -31,10 +33,16 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	for _, o := range opts {
 		o(s)
 	}
+	s.cache = newSnapshot(s)
+	if st != nil {
+		_ = st.EnsureRollups()
+		st.OnChange(s.cache.invalidate)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.getStatus)
 	mux.HandleFunc("GET /api/health", s.getHealth)
 	mux.HandleFunc("GET /api/version", s.getVersion)
+	mux.HandleFunc("GET /api/glance", s.getGlance)
 	mux.HandleFunc("GET /api/overview", s.getOverview)
 	mux.HandleFunc("GET /api/recap", s.getRecap)
 	mux.HandleFunc("GET /api/sources", s.getSources)
@@ -65,7 +73,11 @@ func withHeaders(next http.Handler) http.Handler {
 }
 
 func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
-	s.json(w, map[string]any{"ok": true}, 200)
+	ready, busy := true, false
+	if s.cache != nil {
+		ready, busy = s.cache.Ready(), s.cache.Busy()
+	}
+	s.json(w, map[string]any{"ok": true, "ready": ready, "busy": busy}, 200)
 }
 
 func (s *Server) getVersion(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +105,7 @@ func (s *Server) err(w http.ResponseWriter, err error, code int) {
 func (s *Server) db() *sql.DB { return s.Store.DB }
 
 func (s *Server) getSessions(w http.ResponseWriter, r *http.Request) {
-	out, err := sessions(s.db())
+	out, err := s.cache.get("sessions", func() (any, error) { return sessions(s.db()) })
 	if err != nil {
 		s.err(w, err, 400)
 		return
@@ -120,7 +132,18 @@ func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getFindings(w http.ResponseWriter, r *http.Request) {
-	s.json(w, findingsFor(s.db()), 200)
+	out, err := s.cache.get("findings", func() (any, error) {
+		fs := s.cachedFindings()
+		if fs == nil {
+			fs = []rules.Finding{}
+		}
+		return fs, nil
+	})
+	if err != nil {
+		s.err(w, err, 400)
+		return
+	}
+	s.json(w, out, 200)
 }
 
 func (s *Server) getFields(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +182,7 @@ func (s *Server) getCost(w http.ResponseWriter, r *http.Request) {
 	if dim == "" {
 		dim = "model"
 	}
-	out, err := cost(s.db(), dim)
+	out, err := s.cache.costDim(dim, func() (any, error) { return cost(s.db(), dim) })
 	if err != nil {
 		s.err(w, err, 400)
 		return
@@ -169,7 +192,7 @@ func (s *Server) getCost(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getRange(w http.ResponseWriter, r *http.Request) {
 	var lo, hi sql.NullInt64
-	if err := s.db().QueryRow("SELECT min(start_ns), max(end_ns) FROM spans").Scan(&lo, &hi); err != nil {
+	if err := s.db().QueryRow("SELECT min(start_ns), max(end_ns) FROM trace_roots").Scan(&lo, &hi); err != nil {
 		s.err(w, err, 400)
 		return
 	}

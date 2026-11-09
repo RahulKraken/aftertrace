@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { ModelName } from "../components/SpanIcon"
 import { Link, useLocation, useParams } from "wouter"
 import { api } from "../lib/api"
+import { startPoll } from "../lib/poll"
 import { dur, usd, when } from "../lib/format"
 import type { SessionDetail } from "../lib/types"
 import { MiniWaterfall } from "../components/MiniWaterfall"
@@ -22,8 +23,13 @@ export function SessionPage() {
   useEffect(() => {
     if (!running || !params.id) return
     const id = params.id
-    const t = window.setInterval(() => api.session(id).then(setD).catch(() => {}), 5000)
-    return () => window.clearInterval(t)
+    return startPoll(async () => {
+      try {
+        setD(await api.session(id))
+      } catch {
+        /* keep last */
+      }
+    }, { visibleMs: 5000, hiddenMs: 30000 })
   }, [running, params.id])
 
   if (err) {

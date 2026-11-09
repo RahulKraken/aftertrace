@@ -6,6 +6,7 @@ import { ModelChip } from "../components/ModelChip"
 import { Money } from "../components/Money"
 import { sayDur, usd } from "../lib/format"
 import { api } from "../lib/api"
+import { readCached, writeCached } from "../lib/poll"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import { moneyLabel, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { Finding, ModelSpend } from "../lib/types"
@@ -16,7 +17,7 @@ type PendingWin = { win: Win; finding: Finding }
 const AMBER = ["var(--amber)", "var(--a2)", "var(--a3)", "var(--a4)"]
 
 export function FindingsPage() {
-  const [fs, setFs] = useState<Finding[] | null>(null)
+  const [fs, setFs] = useState<Finding[] | null>(() => readCached<Finding[]>("aftertrace.findings"))
   const [err, setErr] = useState<string | null>(null)
   const [resolved, setResolved] = useState(() => resolvedKeys())
   const [focus, setFocus] = useState<number | null>(() => {
@@ -30,7 +31,12 @@ export function FindingsPage() {
   const [spend, setSpend] = useState(0)
 
   useEffect(() => {
-    api.findings().then(setFs).catch((e: Error) => setErr(e.message))
+    api.findings().then((rows) => {
+      setFs(rows)
+      writeCached("aftertrace.findings", rows)
+    }).catch((e: Error) => {
+      if (!fs) setErr(e.message)
+    })
     api.cost("model").then((c) => {
       const mi = c.columns.indexOf("model")
       const ci = c.columns.indexOf("cost_usd")

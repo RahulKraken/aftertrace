@@ -17,25 +17,20 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	}
 	db := s.db()
 	now := time.Now().UnixNano()
-	stats, err := traceStats(db)
-	if err != nil {
-		s.err(w, err, 500)
-		return
-	}
 	hi := now
 	var latest, earliest sql.NullInt64
-	_ = db.QueryRow(`SELECT max(end_ns), min(start_ns) FROM turn_roots`).Scan(&latest, &earliest)
+	_ = db.QueryRow(`SELECT max(end_ns), min(start_ns) FROM trace_roots`).Scan(&latest, &earliest)
 	if latest.Valid && latest.Int64 < now-7*day {
 		hi = latest.Int64 + 1
 	}
 	hi -= int64(back) * 7 * day
 	lo := hi - 7*day
-	cur, turns, err := summarize(db, stats, lo, hi)
+	cur, turns, err := summarize(db, lo, hi)
 	if err != nil {
 		s.err(w, err, 500)
 		return
 	}
-	prev, _, err := summarize(db, stats, lo-7*day, lo)
+	prev, _, err := summarize(db, lo-7*day, lo)
 	if err != nil {
 		s.err(w, err, 500)
 		return
@@ -51,8 +46,8 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	}
 	out["tools"] = topRows(db, `SELECT coalesce(tool_name, '?'), count(*), coalesce(sum(exec_ms), 0), coalesce(sum(wait_ms), 0)
 		FROM tools WHERE start_ns >= ? AND start_ns < ? GROUP BY 1 ORDER BY 2 DESC LIMIT 6`, lo, hi, "tool", "calls", "exec_ms", "wait_ms")
-	out["models"] = topRows(db, `SELECT coalesce(model, '?'), count(*), coalesce(sum(cost_usd), 0), coalesce(sum(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens), 0)
-		FROM llm WHERE start_ns >= ? AND start_ns < ? GROUP BY 1 ORDER BY 3 DESC LIMIT 5`, lo, hi, "model", "requests", "cost_usd", "tokens")
+	out["models"] = topRows(db, `SELECT coalesce(model, '?'), count(*), coalesce(sum(cost_usd), 0), coalesce(sum(coalesce(input_tokens,0)+coalesce(output_tokens,0)+coalesce(cache_read_tokens,0)+coalesce(cache_creation_tokens,0)), 0)
+		FROM llm_facts WHERE start_ns >= ? AND start_ns < ? GROUP BY 1 ORDER BY 3 DESC LIMIT 5`, lo, hi, "model", "requests", "cost_usd", "tokens")
 	out["apps"] = topRows(db, `SELECT service, count(*), coalesce(sum(cost_usd), 0), count(*) FILTER (WHERE is_error OR error_type IS NOT NULL)
 		FROM calls WHERE start_ns >= ? AND start_ns < ? GROUP BY 1 ORDER BY 3 DESC LIMIT 5`, lo, hi, "service", "calls", "cost_usd", "failed")
 
@@ -65,7 +60,7 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	var tc []turnCost
 	for _, t := range turns {
 		var c sql.NullFloat64
-		_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE trace_id=?`, t.trace).Scan(&c)
+		_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm_facts WHERE trace_id=?`, t.trace).Scan(&c)
 		tc = append(tc, turnCost{t.trace, t.session, t.start, t.durMS, c.Float64})
 	}
 	pick := func(less func(a, b turnCost) bool) any {

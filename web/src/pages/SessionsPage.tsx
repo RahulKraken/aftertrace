@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
+import { readCached, startPoll, writeCached } from "../lib/poll"
 import { clock, hm, sayTok, usd, when } from "../lib/format"
 import { modelFamily, primaryModel } from "../lib/model"
 import { shortTitle } from "../lib/welcome"
@@ -12,7 +13,7 @@ import { StateChip } from "../components/StateChip"
 import { TraceLine } from "../components/TraceLine"
 
 export function SessionsPage() {
-  const [rows, setRows] = useState<Session[] | null>(null)
+  const [rows, setRows] = useState<Session[] | null>(() => readCached<Session[]>("aftertrace.sessions"))
   const [err, setErr] = useState<string | null>(null)
   const [sel, setSel] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, SessionDetail>>({})
@@ -20,15 +21,24 @@ export function SessionsPage() {
   const [, nav] = useLocation()
 
   useEffect(() => {
-    api.sessions().then(setRows).catch((e: Error) => setErr(e.message))
     api.findings().then(setFindings).catch(() => undefined)
   }, [])
 
   const running = Boolean(rows?.some((r) => r.running))
   useEffect(() => {
-    if (!running) return
-    const t = window.setInterval(() => api.sessions().then(setRows).catch(() => {}), 5000)
-    return () => window.clearInterval(t)
+    return startPoll(
+      async () => {
+        try {
+          const next = await api.sessions()
+          setRows(next)
+          writeCached("aftertrace.sessions", next)
+          setErr(null)
+        } catch (e) {
+          if (!rows) setErr((e as Error).message)
+        }
+      },
+      { visibleMs: running ? 5000 : 30000, hiddenMs: 60000 },
+    )
   }, [running])
 
   useEffect(() => {

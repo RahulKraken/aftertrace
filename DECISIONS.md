@@ -2,6 +2,16 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 9 2026: ingest rollups; never poll raw spans; menu health ≠ overview.
+
+**Choice.** Materialize `trace_roots`, `session_stats`, `day_stats`, `llm_facts`, `source_stats` on Insert. `turn_roots` is a view over that table. `/api/overview`, `/api/sessions`, `/api/status`, `/api/findings`, `/api/glance` read the tables and a 2s single-flight memo. The tray pings `/api/health` (no DuckDB) then `/api/glance`. If health or the sidecar process is alive the menu says Starting/busy, never Engine offline. Renderer polls are single-flight and 60s when hidden. CI `AFTERTRACE_PERF=1` asserts 92k p95 &lt; 300 ms (target 100 ms), peak RSS &lt; 500 MB, steady &lt; 200 MB, idle CPU &lt; 5% (target 1%), 500k p95 &lt; 300 ms. Compact strips `--store-content` keys. No merge/tag/release.
+
+**Why.** Live v0.5.5 on Rahul’s 580 MB / 92k-span file sat at 1.75–1.86 GB RSS and 364–576% CPU with no ingest: six overlapping HTTP polls each ran `turn_roots` (UNION + NOT EXISTS over every span), per-trace Go breakdown, and `json_extract` over the whole file. `/api/sessions` 9.2s, `/api/overview` 27.8s, `/api/status` 2.8s, `/api/health` 404, so the 1.5s glance timeout showed Engine offline while the process was pegged.
+
+**How to reverse.** Restore the `turn_roots` UNION view and per-request `breakdowns.get` / `sources()` scans; point the tray at `/api/status`+`/api/overview` again.
+
+**Record.** Profiles in the CI `engine-perf-profiles` artifact. Do not touch Rahul’s machine.
+
 ## Nov 9 2026: never reuse a foreign engine; cap DuckDB; actually relaunch after Restart.
 
 **Choice.** One PR, still 0.5.5 identity, no tag/release. (1) Packaged desktop treats anything on 7311 that is not its child as foreign. It probes `GET /api/version` (then `/api/status`), unloads `gui/$uid/dev.aftertrace`, deletes `~/Library/LaunchAgents/dev.aftertrace.plist` (and `$HOME` if that differs from `os.homedir()`), and starts the bundled sidecar. The DuckDB file stays. Waiting UI shows lock/start errors and a one-click stop. Unpackaged CLI still reuses a healthy 7311. (2) DSN `memory_limit=256MB&threads=2&allocator_flush_threshold=16MB`. Listen, background `history.Import`, then `Store.Reopen()` — DuckDB’s allocator does not return insert/view dirty pages to the OS until the instance is destroyed; a 507 MB file is ~87 MB RSS on a fresh open and ~560 MB if you never reopen. Unix niceness 10, health ping `/api/health`. CI seeds ≥500 MB in a child process and asserts engine-start peak &lt; 600 MB, steady &lt; 300 MB (`AFTERTRACE_RSS_TEST=1`, no `-race`). (3) `requestInstall({relaunch})` sets `autoRunAppAfterInstall` because MacUpdater ignores `isForceRunAfter`. Smoke: Restart must spawn N+1 within 30s with no manual launch; Quit after download must not; a fake `dev.aftertrace` LaunchAgent on 7311 is replaced and the isolated DB marker kept. Go stamp is always `v` + package.json. Packaged `enginePath` never returns PATH `aftertrace`.
