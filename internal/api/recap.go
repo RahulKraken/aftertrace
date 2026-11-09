@@ -25,12 +25,17 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	}
 	hi -= int64(back) * 7 * day
 	lo := hi - 7*day
-	cur, turns, err := summarize(db, lo, hi)
+	cur, err := summarize(db, lo, hi)
 	if err != nil {
 		s.err(w, err, 500)
 		return
 	}
-	prev, _, err := summarize(db, lo-7*day, lo)
+	prev, err := summarize(db, lo-7*day, lo)
+	if err != nil {
+		s.err(w, err, 500)
+		return
+	}
+	turns, err := turnRows(db, lo, hi)
 	if err != nil {
 		s.err(w, err, 500)
 		return
@@ -59,9 +64,7 @@ func (s *Server) getRecap(w http.ResponseWriter, r *http.Request) {
 	}
 	var tc []turnCost
 	for _, t := range turns {
-		var c sql.NullFloat64
-		_ = db.QueryRow(`SELECT sum(cost_usd) FROM llm_facts WHERE trace_id=?`, t.trace).Scan(&c)
-		tc = append(tc, turnCost{t.trace, t.session, t.start, t.durMS, c.Float64})
+		tc = append(tc, turnCost{t.trace, t.session, t.start, t.durMS, t.cost})
 	}
 	pick := func(less func(a, b turnCost) bool) any {
 		if len(tc) == 0 {

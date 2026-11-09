@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"runtime/pprof"
 	"sort"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -35,7 +36,8 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := store.Open(filepath.Join(t.TempDir(), "perf.duckdb"))
+	dbPath := filepath.Join(t.TempDir(), "perf.duckdb")
+	st, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,6 +50,11 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 	t.Logf("seed 92k in %s", time.Since(t0).Truncate(time.Millisecond))
 	if err := st.Reopen(); err != nil {
 		t.Fatal(err)
+	}
+	dbBytes := duckdbSize(dbPath)
+	t.Logf("db file %d MB", dbBytes/(1024*1024))
+	if dbBytes > 150*1024*1024 {
+		t.Errorf("db file %d MB for 92k spans, want <150MB (580MB was leftover --store-content)", dbBytes/(1024*1024))
 	}
 	var n int
 	if err := st.DB.QueryRow(`SELECT count(*) FROM spans`).Scan(&n); err != nil {
@@ -93,13 +100,19 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 
 	endpoints := []string{"/api/health", "/api/glance", "/api/status", "/api/overview", "/api/sessions", "/api/findings"}
 	lat := map[string][]time.Duration{}
+	var latMu sync.Mutex
+	record := func(p string, d time.Duration) {
+		latMu.Lock()
+		lat[p] = append(lat[p], d)
+		latMu.Unlock()
+	}
 	for i := 0; i < 40; i++ {
 		for _, p := range endpoints {
 			d, err := hit(srv.URL + p)
 			if err != nil {
 				t.Fatalf("%s: %v", p, err)
 			}
-			lat[p] = append(lat[p], d)
+			record(p, d)
 		}
 	}
 
@@ -118,29 +131,35 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 			case <-stop:
 				return
 			case <-tck.C:
-				if _, err := hit(srv.URL + "/api/health"); err != nil {
+				d, err := hit(srv.URL + "/api/health")
+				if err != nil {
 					errCh <- err
 					return
 				}
+				record("/api/health", d)
 			}
 		}
 	}()
 	go func() {
 		tck := time.NewTicker(45 * time.Second)
 		defer tck.Stop()
-		if _, err := hit(srv.URL + "/api/glance"); err != nil {
+		d, err := hit(srv.URL + "/api/glance")
+		if err != nil {
 			errCh <- err
 			return
 		}
+		record("/api/glance", d)
 		for {
 			select {
 			case <-stop:
 				return
 			case <-tck.C:
-				if _, err := hit(srv.URL + "/api/glance"); err != nil {
+				d, err := hit(srv.URL + "/api/glance")
+				if err != nil {
 					errCh <- err
 					return
 				}
+				record("/api/glance", d)
 			}
 		}
 	}()
@@ -158,13 +177,20 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 					errCh <- err
 					return
 				}
-				lat[p] = append(lat[p], d)
+				record(p, d)
 			}
 			time.Sleep(4 * time.Second)
 		}
 	}()
 
 	peak := rssOrZero()
+	cpu0 := cpuTime()
+	wall0 := time.Now()
+	lastCPU, lastWall := cpu0, wall0
+	rssF, _ := os.Create(filepath.Join(outDir, "rss-cpu.csv"))
+	if rssF != nil {
+		fmt.Fprintln(rssF, "seconds,rss_mb,cpu_pct")
+	}
 	sample := time.NewTicker(200 * time.Millisecond)
 	endLoad := time.Now().Add(loadFor)
 	for time.Now().Before(endLoad) {
@@ -176,16 +202,30 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 			if v := rssOrZero(); v > peak {
 				peak = v
 			}
+			now := time.Now()
+			cpu := cpuTime()
+			dt := now.Sub(lastWall).Seconds()
+			var pct float64
+			if dt > 0 {
+				pct = (cpu - lastCPU) / dt * 100
+			}
+			if rssF != nil {
+				fmt.Fprintf(rssF, "%.2f,%.1f,%.2f\n", now.Sub(wall0).Seconds(), float64(rssOrZero())/(1024*1024), pct)
+			}
+			lastCPU, lastWall = cpu, now
 		}
 	}
 	sample.Stop()
+	if rssF != nil {
+		rssF.Close()
+	}
 	close(stop)
 	time.Sleep(200 * time.Millisecond)
+	loadCPU := (cpuTime() - cpu0) / time.Since(wall0).Seconds() * 100
 
 	r1 := cpuTime()
 	idleWall := 20 * time.Second
 	time.Sleep(idleWall)
-	// health still ticks in the background goroutines — they should have stopped.
 	r2 := cpuTime()
 	idlePct := (r2 - r1) / idleWall.Seconds() * 100
 
@@ -197,22 +237,29 @@ func TestBudgetsOnRealisticSeed(t *testing.T) {
 	report := map[string]any{
 		"seed_spans": n, "turns": turns, "sessions": sessions,
 		"cold_ms": coldMS, "peak_rss_mb": peak / (1024 * 1024), "steady_rss_mb": steady / (1024 * 1024),
-		"idle_cpu_pct": idlePct, "load_s": loadFor.Seconds(),
+		"idle_cpu_pct": idlePct, "open_window_cpu_pct": loadCPU, "load_s": loadFor.Seconds(),
+		"db_mb":      dbBytes / (1024 * 1024),
 		"latency_ms": map[string]any{},
 	}
-	t.Logf("RSS peak %d MB steady %d MB idle CPU %.2f%%", peak/(1024*1024), steady/(1024*1024), idlePct)
+	t.Logf("RSS peak %d MB steady %d MB idle CPU %.2f%% window-open CPU %.2f%% db %d MB",
+		peak/(1024*1024), steady/(1024*1024), idlePct, loadCPU, dbBytes/(1024*1024))
+	if loadCPU > 5 {
+		t.Errorf("window-open CPU %.2f%% of one core, want <5%%", loadCPU)
+	}
 	hard := 300 * time.Millisecond
 	want := 100 * time.Millisecond
+	latMu.Lock()
 	for _, p := range []string{"/api/overview", "/api/sessions", "/api/findings", "/api/status", "/api/glance", "/api/health"} {
 		p50, p95 := pct(lat[p], 50), pct(lat[p], 95)
 		t.Logf("%s n=%d p50=%s p95=%s", p, len(lat[p]), p50.Truncate(time.Microsecond), p95.Truncate(time.Microsecond))
-		report["latency_ms"].(map[string]any)[p] = map[string]any{"p50": p50.Milliseconds(), "p95": p95.Milliseconds(), "n": len(lat[p])}
+		report["latency_ms"].(map[string]any)[p] = map[string]any{"p50_ms": p50.Seconds() * 1000, "p95_ms": p95.Seconds() * 1000, "n": len(lat[p])}
 		if p95 > hard {
 			t.Errorf("%s p95 %s exceeds hard 300ms", p, p95)
 		} else if p95 > want {
 			t.Logf("WARN %s p95 %s exceeds 100ms target (under 300ms cap)", p, p95)
 		}
 	}
+	latMu.Unlock()
 	if peak > 500*1024*1024 {
 		t.Errorf("peak RSS %d MB exceeds 500 MB", peak/(1024*1024))
 	}
@@ -355,6 +402,17 @@ func splitLines(b []byte) [][]byte {
 	return out
 }
 
+func duckdbSize(path string) int64 {
+	var n int64
+	for _, p := range []string{path, path + ".wal"} {
+		fi, err := os.Stat(p)
+		if err == nil {
+			n += fi.Size()
+		}
+	}
+	return n
+}
+
 func writeProfiles(t *testing.T, dir string) {
 	t.Helper()
 	for _, name := range []string{"heap", "allocs", "goroutine"} {
@@ -380,8 +438,10 @@ func writeExplain(t *testing.T, st *store.Store, path string) {
 		`EXPLAIN ANALYZE SELECT * FROM session_stats ORDER BY start_ns DESC`,
 		`EXPLAIN ANALYZE SELECT * FROM trace_roots WHERE start_ns >= 0`,
 		`EXPLAIN ANALYZE SELECT * FROM day_stats`,
+		`EXPLAIN ANALYZE SELECT coalesce(sum(sessions),0), coalesce(sum(turns),0), coalesce(sum(turn_ms),0), coalesce(sum(cost_usd),0) FROM day_stats`,
 		`EXPLAIN ANALYZE SELECT * FROM source_stats`,
 		`EXPLAIN ANALYZE SELECT count(*) FROM trace_roots WHERE in_progress`,
+		`EXPLAIN ANALYZE SELECT session_id, coalesce(repo,''), start_ns, end_ns, history FROM session_stats`,
 	}
 	for _, q := range queries {
 		fmt.Fprintln(f, "==", q)

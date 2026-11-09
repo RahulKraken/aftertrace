@@ -5,16 +5,25 @@ import (
 	"time"
 )
 
+const snapshotTTL = 4 * time.Second
+
+type inflight struct {
+	wg  sync.WaitGroup
+	v   any
+	err error
+}
+
 // snapshot is a single-flight memo of the polled JSON payloads. Concurrent
 // window + tray + status checks share one build; ingest invalidates.
 type snapshot struct {
 	s *Server
 
-	mu      sync.Mutex
-	invalid bool
-	busy    bool
-	ready   bool
-	at      time.Time
+	mu       sync.Mutex
+	invalid  bool
+	busy     bool
+	ready    bool
+	at       time.Time
+	inflight map[string]*inflight
 
 	overview any
 	sessions any
@@ -25,7 +34,7 @@ type snapshot struct {
 }
 
 func newSnapshot(s *Server) *snapshot {
-	return &snapshot{s: s, invalid: true}
+	return &snapshot{s: s, invalid: true, inflight: map[string]*inflight{}}
 }
 
 func (c *snapshot) invalidate() {
@@ -46,72 +55,95 @@ func (c *snapshot) Busy() bool {
 	return c.busy
 }
 
-func (c *snapshot) get(key string, build func() (any, error)) (any, error) {
-	c.mu.Lock()
-	fresh := !c.invalid && time.Since(c.at) < 2*time.Second
-	var cached any
+func (c *snapshot) cached(key string) any {
 	switch key {
 	case "overview":
-		cached = c.overview
+		return c.overview
 	case "sessions":
-		cached = c.sessions
+		return c.sessions
 	case "status":
-		cached = c.status
+		return c.status
 	case "findings":
-		cached = c.findings
+		return c.findings
 	case "glance":
-		cached = c.glance
+		return c.glance
 	}
-	if fresh && cached != nil {
+	return nil
+}
+
+func (c *snapshot) get(key string, build func() (any, error)) (any, error) {
+	c.mu.Lock()
+	fresh := !c.invalid && time.Since(c.at) < snapshotTTL
+	if v := c.cached(key); fresh && v != nil {
 		c.mu.Unlock()
-		return cached, nil
+		return v, nil
 	}
+	if inf := c.inflight[key]; inf != nil {
+		c.mu.Unlock()
+		inf.wg.Wait()
+		return inf.v, inf.err
+	}
+	inf := &inflight{}
+	inf.wg.Add(1)
+	c.inflight[key] = inf
 	c.busy = true
 	c.mu.Unlock()
 
-	v, err := build()
+	inf.v, inf.err = build()
 
 	c.mu.Lock()
-	c.busy = false
-	if err == nil {
+	delete(c.inflight, key)
+	c.busy = len(c.inflight) > 0
+	if inf.err == nil {
 		c.invalid = false
 		c.ready = true
 		c.at = time.Now()
 		switch key {
 		case "overview":
-			c.overview = v
+			c.overview = inf.v
 		case "sessions":
-			c.sessions = v
+			c.sessions = inf.v
 		case "status":
-			c.status = v
+			c.status = inf.v
 		case "findings":
-			c.findings = v
+			c.findings = inf.v
 		case "glance":
-			c.glance = v
+			c.glance = inf.v
 		}
 	}
 	c.mu.Unlock()
-	return v, err
+	inf.wg.Done()
+	return inf.v, inf.err
 }
 
 func (c *snapshot) costDim(dim string, build func() (any, error)) (any, error) {
+	key := "cost:" + dim
 	c.mu.Lock()
-	if !c.invalid && time.Since(c.at) < 2*time.Second && c.cost != nil {
+	if !c.invalid && time.Since(c.at) < snapshotTTL && c.cost != nil {
 		if v, ok := c.cost[dim]; ok {
 			c.mu.Unlock()
 			return v, nil
 		}
 	}
-	c.mu.Unlock()
-	v, err := build()
-	if err != nil {
-		return nil, err
+	if inf := c.inflight[key]; inf != nil {
+		c.mu.Unlock()
+		inf.wg.Wait()
+		return inf.v, inf.err
 	}
+	inf := &inflight{}
+	inf.wg.Add(1)
+	c.inflight[key] = inf
+	c.mu.Unlock()
+	inf.v, inf.err = build()
 	c.mu.Lock()
-	if c.cost == nil {
-		c.cost = map[string]any{}
+	delete(c.inflight, key)
+	if inf.err == nil {
+		if c.cost == nil {
+			c.cost = map[string]any{}
+		}
+		c.cost[dim] = inf.v
 	}
-	c.cost[dim] = v
 	c.mu.Unlock()
-	return v, nil
+	inf.wg.Done()
+	return inf.v, inf.err
 }

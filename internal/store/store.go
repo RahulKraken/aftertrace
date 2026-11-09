@@ -114,6 +114,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
 	}
+	if err := migrateDayStats(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("schema: %w", err)
+	}
 	if err := pricing.Seed(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("prices: %w", err)
@@ -129,6 +133,30 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// migrateDayStats adds week-summary columns to stores created before they
+// existed. CREATE TABLE IF NOT EXISTS does not alter an old file.
+func migrateDayStats(db *sql.DB) error {
+	for _, q := range []string{
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS sessions INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS requests INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS errors INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS tool_calls INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS approvals INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS breakdown JSON`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS cache_hit DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS lines_added DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS lines_removed DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS commits DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS prs DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS active_s DOUBLE`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error {

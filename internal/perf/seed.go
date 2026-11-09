@@ -153,5 +153,9 @@ func Seed(st *store.Store, spec Spec) error {
 		FROM generate_series(1, %d) AS t(turn)`, now, spec.Sessions, spec.Turns)); err != nil {
 		return fmt.Errorf("seed events: %w", err)
 	}
-	return st.EnsureRollups()
+	if err := st.EnsureRollups(); err != nil {
+		return err
+	}
+	_, err := st.DB.Exec(`CHECKPOINT`)
+	return err
 }

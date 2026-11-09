@@ -431,8 +431,9 @@ func (s *Store) refreshDays(starts []int64) error {
 		return err
 	}
 	defer del.Close()
-	ins, err := s.DB.Prepare(`INSERT INTO day_stats (day_start_ns, turns, turn_ms, wait_ms, cost_usd, tokens, by_model)
-		VALUES (?,?,?,?,?,?,?::JSON)`)
+	ins, err := s.DB.Prepare(`INSERT INTO day_stats (day_start_ns, turns, turn_ms, wait_ms, cost_usd, tokens, by_model,
+		sessions, requests, errors, tool_calls, approvals, breakdown, cache_hit, lines_added, lines_removed, commits, prs, active_s)
+		VALUES (?,?,?,?,?,?,?::JSON,?,?,?,?,?,?::JSON,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -442,10 +443,12 @@ func (s *Store) refreshDays(starts []int64) error {
 		if _, err := del.Exec(lo); err != nil {
 			return err
 		}
-		var turns int
+		var turns, sessions, reqs, errs, tools, appr int
 		var turnMS, waitMS, cost, tokens sql.NullFloat64
-		if err := s.DB.QueryRow(`SELECT count(*), coalesce(sum(duration_ms),0), coalesce(sum(wait_ms),0), coalesce(sum(cost_usd),0), coalesce(sum(tokens),0)
-			FROM trace_roots WHERE start_ns>=? AND start_ns<?`, lo, hi).Scan(&turns, &turnMS, &waitMS, &cost, &tokens); err != nil {
+		if err := s.DB.QueryRow(`SELECT count(*), count(DISTINCT session_id), coalesce(sum(duration_ms),0), coalesce(sum(wait_ms),0),
+			coalesce(sum(cost_usd),0), coalesce(sum(tokens),0), coalesce(sum(requests),0), coalesce(sum(errors),0),
+			coalesce(sum(tool_calls),0), coalesce(sum(approvals),0)
+			FROM trace_roots WHERE start_ns>=? AND start_ns<?`, lo, hi).Scan(&turns, &sessions, &turnMS, &waitMS, &cost, &tokens, &reqs, &errs, &tools, &appr); err != nil {
 			return err
 		}
 		if turns == 0 {
@@ -465,7 +468,34 @@ func (s *Store) refreshDays(starts []int64) error {
 			}
 			mr.Close()
 		}
-		if _, err := ins.Exec(lo, turns, turnMS.Float64, waitMS.Float64, cost.Float64, tokens.Float64, asJSONSliceAny(byModel)); err != nil {
+		bd := map[string]float64{}
+		br, err := s.DB.Query(`SELECT coalesce(breakdown::VARCHAR,'{}') FROM trace_roots WHERE start_ns>=? AND start_ns<?`, lo, hi)
+		if err == nil {
+			for br.Next() {
+				var bjs string
+				if br.Scan(&bjs) == nil {
+					var part map[string]float64
+					_ = json.Unmarshal([]byte(bjs), &part)
+					for k, v := range part {
+						bd[k] += v
+					}
+				}
+			}
+			br.Close()
+		}
+		var hit sql.NullFloat64
+		_ = s.DB.QueryRow(`SELECT sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0)
+			FROM llm_facts WHERE start_ns>=? AND start_ns<?`, lo, hi).Scan(&hit)
+		var added, removed, commits, prs, active sql.NullFloat64
+		_ = s.DB.QueryRow(`SELECT
+			sum(value) FILTER (WHERE name='claude_code.lines_of_code.count' AND a(attrs,'type')='added'),
+			sum(value) FILTER (WHERE name='claude_code.lines_of_code.count' AND a(attrs,'type')='removed'),
+			sum(value) FILTER (WHERE name='claude_code.commit.count'),
+			sum(value) FILTER (WHERE name='claude_code.pull_request.count'),
+			sum(value) FILTER (WHERE name='claude_code.active_time.total')
+			FROM metric_points WHERE ts_ns>=? AND ts_ns<?`, lo, hi).Scan(&added, &removed, &commits, &prs, &active)
+		if _, err := ins.Exec(lo, turns, turnMS.Float64, waitMS.Float64, cost.Float64, tokens.Float64, asJSONSliceAny(byModel),
+			sessions, reqs, errs, tools, appr, asJSONMap(bd), hit.Float64, added.Float64, removed.Float64, commits.Float64, prs.Float64, active.Float64); err != nil {
 			return err
 		}
 	}

@@ -58,6 +58,13 @@ func TestInsertMaintainsSessionAndDayRollups(t *testing.T) {
 	if srcSpans != 2 {
 		t.Fatalf("source spans=%d", srcSpans)
 	}
+	var dayTurns, dayReqs int
+	if err := st.DB.QueryRow(`SELECT turns, requests FROM day_stats`).Scan(&dayTurns, &dayReqs); err != nil {
+		t.Fatal(err)
+	}
+	if dayTurns != 1 || dayReqs < 1 {
+		t.Fatalf("day_stats turns=%d requests=%d", dayTurns, dayReqs)
+	}
 }
 
 func TestCompactContentStripsPromptPayload(t *testing.T) {

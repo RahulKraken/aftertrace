@@ -8,6 +8,7 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/history"
 	"github.com/RahulKraken/aftertrace/internal/rules"
+	"github.com/RahulKraken/aftertrace/internal/store"
 )
 
 // Info is what the server knows about itself, shown in Settings and Connect.
@@ -26,13 +27,21 @@ type Info struct {
 
 func WithInfo(i Info) Option { return func(s *Server) { s.Info = i } }
 
-// findingsCache keeps rule results for a few seconds so the sidebar can poll
-// /api/status without re-running every rule each time.
-type findingsCache struct {
-	mu  sync.Mutex
-	at  time.Time
-	db  *sql.DB
+type findingsInflight struct {
+	wg  sync.WaitGroup
 	out []rules.Finding
+}
+
+// findingsCache keeps rule results so polled endpoints never wait on RunAll
+// after the first computation. A stale copy is served while a refresh runs.
+type findingsCache struct {
+	mu     sync.Mutex
+	at     time.Time
+	db     *sql.DB
+	out    []rules.Finding
+	loaded bool
+	inf    *findingsInflight
+	st     *store.Store
 }
 
 var cachedFindings = &findingsCache{}
@@ -40,12 +49,64 @@ var cachedFindings = &findingsCache{}
 func findingsFor(db *sql.DB) []rules.Finding {
 	c := cachedFindings
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.db == db && time.Since(c.at) < 30*time.Second {
-		return c.out
+	if c.db == db && c.loaded && time.Since(c.at) < 30*time.Second {
+		out := c.out
+		c.mu.Unlock()
+		return out
 	}
-	c.out, c.db, c.at = rules.RunAll(db), db, time.Now()
-	return c.out
+	if c.db == db && c.loaded {
+		out := c.out
+		if c.inf == nil {
+			c.inf = startFindingsRefresh(db)
+		}
+		c.mu.Unlock()
+		return out
+	}
+	if inf := c.inf; inf != nil {
+		c.mu.Unlock()
+		inf.wg.Wait()
+		return findingsFor(db)
+	}
+	inf := startFindingsRefresh(db)
+	c.inf = inf
+	c.mu.Unlock()
+	inf.wg.Wait()
+	return inf.out
+}
+
+func startFindingsRefresh(db *sql.DB) *findingsInflight {
+	inf := &findingsInflight{}
+	inf.wg.Add(1)
+	go func() {
+		out := rules.RunAll(db)
+		if out == nil {
+			out = []rules.Finding{}
+		}
+		applySessionFindingCounts(out)
+		inf.out = out
+		c := cachedFindings
+		c.mu.Lock()
+		c.out, c.db, c.at, c.loaded, c.inf = out, db, time.Now(), true, nil
+		c.mu.Unlock()
+		inf.wg.Done()
+	}()
+	return inf
+}
+
+func applySessionFindingCounts(fs []rules.Finding) {
+	cachedFindings.mu.Lock()
+	st := cachedFindings.st
+	cachedFindings.mu.Unlock()
+	if st == nil {
+		return
+	}
+	counts := map[string]int{}
+	for _, f := range fs {
+		for _, sid := range f.Sessions {
+			counts[sid]++
+		}
+	}
+	_ = st.SetSessionFindings(counts)
 }
 
 func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
@@ -113,25 +174,10 @@ func (s *Server) buildStatus() (any, error) {
 }
 
 func (s *Server) cachedFindings() []rules.Finding {
-	db := s.db()
-	c := cachedFindings
-	c.mu.Lock()
-	if c.db == db && time.Since(c.at) < 30*time.Second {
-		out := c.out
-		c.mu.Unlock()
-		return out
+	if s.Store != nil {
+		cachedFindings.mu.Lock()
+		cachedFindings.st = s.Store
+		cachedFindings.mu.Unlock()
 	}
-	c.mu.Unlock()
-	out := rules.RunAll(db)
-	c.mu.Lock()
-	c.out, c.db, c.at = out, db, time.Now()
-	c.mu.Unlock()
-	counts := map[string]int{}
-	for _, f := range out {
-		for _, sid := range f.Sessions {
-			counts[sid]++
-		}
-	}
-	_ = s.Store.SetSessionFindings(counts)
-	return out
+	return findingsFor(s.db())
 }

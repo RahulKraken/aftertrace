@@ -17,13 +17,13 @@ const day = int64(24 * time.Hour)
 type turnRow struct {
 	trace, session string
 	start, end     int64
-	durMS          float64
+	durMS, cost    float64
 	pending        bool
 }
 
 func turnRows(db *sql.DB, lo, hi int64) ([]turnRow, error) {
-	rows, err := db.Query(`SELECT trace_id, coalesce(session_id,''), start_ns, end_ns, duration_ms, in_progress
-		FROM turn_roots WHERE start_ns >= ? AND start_ns < ? ORDER BY start_ns`, lo, hi)
+	rows, err := db.Query(`SELECT trace_id, coalesce(session_id,''), start_ns, end_ns, duration_ms, coalesce(cost_usd,0), in_progress
+		FROM trace_roots WHERE start_ns >= ? AND start_ns < ? ORDER BY start_ns`, lo, hi)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func turnRows(db *sql.DB, lo, hi int64) ([]turnRow, error) {
 	var out []turnRow
 	for rows.Next() {
 		var r turnRow
-		if err := rows.Scan(&r.trace, &r.session, &r.start, &r.end, &r.durMS, &r.pending); err != nil {
+		if err := rows.Scan(&r.trace, &r.session, &r.start, &r.end, &r.durMS, &r.cost, &r.pending); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -58,69 +58,52 @@ type window struct {
 	Errors     int                `json:"errors"`
 }
 
-func summarize(db *sql.DB, lo, hi int64) (window, []turnRow, error) {
+func summarize(db *sql.DB, lo, hi int64) (window, error) {
 	w := window{Breakdown: map[string]float64{}}
-	turns, err := turnRows(db, lo, hi)
-	if err != nil {
-		return w, nil, err
+	var sessions, turns, reqs, errs, tools, appr sql.NullInt64
+	var turnMS, cost, tokens, hit, added, removed, commits, prs, active sql.NullFloat64
+	if err := db.QueryRow(`SELECT coalesce(sum(sessions),0), coalesce(sum(turns),0), coalesce(sum(turn_ms),0),
+		coalesce(sum(cost_usd),0), coalesce(sum(tokens),0), coalesce(sum(requests),0), coalesce(sum(errors),0),
+		coalesce(sum(tool_calls),0), coalesce(sum(approvals),0),
+		sum(cache_hit * turns)/nullif(sum(turns),0),
+		coalesce(sum(lines_added),0), coalesce(sum(lines_removed),0), coalesce(sum(commits),0),
+		coalesce(sum(prs),0), coalesce(sum(active_s),0)
+		FROM day_stats WHERE day_start_ns < ? AND day_start_ns + ? > ?`, hi, day, lo).Scan(
+		&sessions, &turns, &turnMS, &cost, &tokens, &reqs, &errs, &tools, &appr, &hit,
+		&added, &removed, &commits, &prs, &active); err != nil {
+		return w, err
 	}
-	rows, err := db.Query(`SELECT coalesce(session_id,''), duration_ms, coalesce(wait_ms,0), coalesce(cost_usd,0),
-		coalesce(tokens,0), coalesce(requests,0), coalesce(errors,0), coalesce(tool_calls,0), coalesce(approvals,0),
-		coalesce(breakdown::VARCHAR,'{}')
-		FROM trace_roots WHERE start_ns >= ? AND start_ns < ?`, lo, hi)
+	w.Sessions = int(sessions.Int64)
+	w.Turns = int(turns.Int64)
+	w.TurnMS = turnMS.Float64
+	w.CostUSD = cost.Float64
+	w.Tokens = tokens.Float64
+	w.Requests = int(reqs.Int64)
+	w.Errors = int(errs.Int64)
+	w.ToolCalls = int(tools.Int64)
+	w.Approvals = int(appr.Int64)
+	if hit.Valid {
+		v := hit.Float64
+		w.CacheHit = &v
+	}
+	w.LinesAdded, w.LinesRem, w.Commits, w.PRs, w.ActiveS = added.Float64, removed.Float64, commits.Float64, prs.Float64, active.Float64
+	rows, err := db.Query(`SELECT coalesce(breakdown::VARCHAR,'{}') FROM day_stats WHERE day_start_ns < ? AND day_start_ns + ? > ?`, hi, day, lo)
 	if err != nil {
-		return w, nil, err
+		return w, err
 	}
 	defer rows.Close()
-	sess := map[string]bool{}
-	var hitNum, hitDen float64
 	for rows.Next() {
-		var sid, bjs string
-		var dur, wait, cost, tokens float64
-		var reqs, errors, tools, appr int
-		if err := rows.Scan(&sid, &dur, &wait, &cost, &tokens, &reqs, &errors, &tools, &appr, &bjs); err != nil {
-			return w, nil, err
-		}
-		w.Turns++
-		w.TurnMS += dur
-		w.CostUSD += cost
-		w.Tokens += tokens
-		w.Requests += reqs
-		w.Errors += errors
-		w.ToolCalls += tools
-		w.Approvals += appr
-		if sid != "" {
-			sess[sid] = true
+		var bjs string
+		if rows.Scan(&bjs) != nil {
+			continue
 		}
 		var bd map[string]float64
 		_ = json.Unmarshal([]byte(bjs), &bd)
 		for k, v := range bd {
 			w.Breakdown[k] += v
 		}
-		_ = wait
 	}
-	w.Sessions = len(sess)
-	var hit sql.NullFloat64
-	_ = db.QueryRow(`SELECT sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0)
-		FROM llm_facts WHERE start_ns >= ? AND start_ns < ?`, lo, hi).Scan(&hit)
-	if hit.Valid {
-		v := hit.Float64
-		w.CacheHit = &v
-	}
-	var added, removed, commits, prs, active sql.NullFloat64
-	if err := db.QueryRow(`SELECT
-		sum(value) FILTER (WHERE name='claude_code.lines_of_code.count' AND a(attrs,'type')='added'),
-		sum(value) FILTER (WHERE name='claude_code.lines_of_code.count' AND a(attrs,'type')='removed'),
-		sum(value) FILTER (WHERE name='claude_code.commit.count'),
-		sum(value) FILTER (WHERE name='claude_code.pull_request.count'),
-		sum(value) FILTER (WHERE name='claude_code.active_time.total')
-		FROM metric_points WHERE ts_ns >= ? AND ts_ns < ?`, lo, hi).Scan(&added, &removed, &commits, &prs, &active); err != nil {
-		return w, nil, err
-	}
-	w.LinesAdded, w.LinesRem, w.Commits, w.PRs, w.ActiveS = added.Float64, removed.Float64, commits.Float64, prs.Float64, active.Float64
-	_ = hitNum
-	_ = hitDen
-	return w, turns, rows.Err()
+	return w, rows.Err()
 }
 
 type modelSpend struct {
@@ -325,11 +308,11 @@ func (s *Server) buildOverview() (any, error) {
 		anchored = true
 	}
 	lo := hi - 7*day
-	cur, _, err := summarize(db, lo, hi)
+	cur, err := summarize(db, lo, hi)
 	if err != nil {
 		return nil, err
 	}
-	prev, _, err := summarize(db, lo-7*day, lo)
+	prev, err := summarize(db, lo-7*day, lo)
 	if err != nil {
 		return nil, err
 	}

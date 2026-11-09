@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/ask"
 	"github.com/RahulKraken/aftertrace/internal/query"
@@ -35,8 +36,16 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	}
 	s.cache = newSnapshot(s)
 	if st != nil {
+		cachedFindings.mu.Lock()
+		cachedFindings.st = st
+		cachedFindings.mu.Unlock()
 		_ = st.EnsureRollups()
-		st.OnChange(s.cache.invalidate)
+		st.OnChange(func() {
+			s.cache.invalidate()
+			cachedFindings.mu.Lock()
+			cachedFindings.at = time.Time{}
+			cachedFindings.mu.Unlock()
+		})
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.getStatus)

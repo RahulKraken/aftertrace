@@ -135,7 +135,19 @@ CREATE TABLE IF NOT EXISTS day_stats (
   wait_ms DOUBLE,
   cost_usd DOUBLE,
   tokens DOUBLE,
-  by_model JSON
+  by_model JSON,
+  sessions INTEGER,
+  requests INTEGER,
+  errors INTEGER,
+  tool_calls INTEGER,
+  approvals INTEGER,
+  breakdown JSON,
+  cache_hit DOUBLE,
+  lines_added DOUBLE,
+  lines_removed DOUBLE,
+  commits DOUBLE,
+  prs DOUBLE,
+  active_s DOUBLE
 );
 
 CREATE TABLE IF NOT EXISTS source_stats (
