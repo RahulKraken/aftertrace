@@ -163,7 +163,7 @@ async function readGlance(origin, { now = Date.now(), last = null, processAlive 
       fetchedAt: now,
       sessions: (last && last.sessions) || [],
       estimated: false,
-      error: "offline",
+      error: last && last.ok ? "offline" : null,
     }
   }
   try {

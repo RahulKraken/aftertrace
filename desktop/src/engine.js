@@ -369,6 +369,10 @@ function createEngine(opts = {}) {
   function start() {
     if (runningLoop) return runningLoop
     stopping = false
+    if (state === "idle") {
+      state = "starting"
+      emit()
+    }
     runningLoop = supervise().catch((err) => {
       lastError = err.message
       state = "error"

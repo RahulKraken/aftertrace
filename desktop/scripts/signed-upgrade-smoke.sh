@@ -142,9 +142,16 @@ assert_no_app_pid() {
 assert_no_runner_writes() {
   support="$runner_home/Library/Application Support/Aftertrace"
   if [ -e "$support" ]; then
-    log "FAIL: wrote $support"
-    find "$support" -maxdepth 3 -print | tee -a "$report" || true
-    exit 1
+    # ShipIt relaunch cannot inherit --user-data-dir, so Chromium caches land
+    # in the login home. Fail only if our own files leaked there.
+    ours=$(find "$support" \( -name 'desktop.json' -o -name '*.duckdb' -o -name '*.duckdb.wal' -o -name 'aftertrace.log' \) -print 2>/dev/null || true)
+    if [ -n "$ours" ]; then
+      log "FAIL: wrote $support"
+      printf '%s\n' "$ours" | tee -a "$report"
+      find "$support" -maxdepth 3 -print | tee -a "$report" || true
+      exit 1
+    fi
+    log "note: $support has Chromium caches from ShipIt relaunch (no --user-data-dir)"
   fi
   leak="$runner_home/.aftertrace"
   if [ -e "$leak" ]; then

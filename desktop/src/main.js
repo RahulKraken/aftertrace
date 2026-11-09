@@ -276,7 +276,8 @@ app.whenReady().then(async () => {
     engineAlive: () => {
       const st = engine && engine.status()
       if (!st) return false
-      return Boolean(st.startedByUs) || st.state === "healthy" || st.state === "starting" || st.state === "restarting" || st.state === "reused"
+      if (st.state === "error" || st.state === "idle") return Boolean(st.startedByUs)
+      return true
     },
     windowHidden: () => !win || win.isDestroyed() || (typeof win.isVisible === "function" && !win.isVisible()),
     onOpen: (hash) => openWindow(hash),
