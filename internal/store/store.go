@@ -94,7 +94,10 @@ const HistorySource = "history"
 // No file, network, or extension access, and no SET to undo it. Nothing in Aftertrace reads
 // files through DuckDB; ingest goes through Go. A second read-only instance is not an
 // option: DuckDB refuses a different configuration on a file this process already holds.
-const dsnOptions = "?enable_external_access=false&lock_configuration=true"
+// memory_limit and threads are set here because lock_configuration forbids SET later.
+// A menu-bar sidecar on a large DB must not take every core or multiple GB of RSS
+// while views and findings warm up.
+const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=512MB&threads=2"
 
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

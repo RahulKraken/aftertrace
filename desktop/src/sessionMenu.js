@@ -249,7 +249,7 @@ function menuTemplate(view = {}, handlers = {}) {
   })
   if (update && update.status === "ready") {
     items.push({
-      label: update.version ? `Restart to update · ${update.version}` : "Restart to update",
+      label: update.version ? `Restart to update · v${String(update.version).replace(/^v/, "")}` : "Restart to update",
       click: onRestart,
     })
   } else {

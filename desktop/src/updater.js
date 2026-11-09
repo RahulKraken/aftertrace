@@ -69,6 +69,8 @@ function createUpdater(deps = {}) {
     wired = true
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
+    // Default off: quit after a download installs but does not reopen.
+    // Restart to update sets this true in requestInstall.
     autoUpdater.autoRunAppAfterInstall = false
     autoUpdater.allowDowngrade = false
     autoUpdater.allowPrerelease = false
@@ -253,6 +255,12 @@ function createUpdater(deps = {}) {
   function requestInstall({ relaunch = true } = {}) {
     wire()
     if (state.status !== READY) return false
+    // MacUpdater.quitAndInstall() ignores isForceRunAfter. It only relaunches
+    // when autoRunAppAfterInstall is true; otherwise it calls app.quit() and
+    // Squirrel.Mac replaces the bundle with no new process. Restart must flip
+    // the flag. Plain quit leaves it false so autoInstallOnAppQuit installs
+    // without opening the app again.
+    autoUpdater.autoRunAppAfterInstall = Boolean(relaunch)
     autoUpdater.quitAndInstall(false, Boolean(relaunch))
     return true
   }

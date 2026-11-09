@@ -23,9 +23,17 @@ fi
 
 ship=$desktop/package.json.shipping
 cp "$desktop/package.json" "$ship"
+eng=$desktop/resources/engine-arch/darwin-arm64/aftertrace
+eng_ship=$eng.shipping
+if [ -f "$eng" ]; then
+  cp "$eng" "$eng_ship"
+fi
 restore() {
   if [ -f "$ship" ]; then
     mv "$ship" "$desktop/package.json"
+  fi
+  if [ -f "$eng_ship" ]; then
+    mv "$eng_ship" "$eng"
   fi
 }
 trap restore EXIT
@@ -38,6 +46,14 @@ node -e '
   pkg.version = v
   fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n")
 ' "$desktop/package.json" "$version"
+
+stamp=$(sh "$desktop/scripts/engine-stamp.sh" "$version")
+mkdir -p "$desktop/resources/engine-arch/darwin-arm64"
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath \
+  -ldflags "-s -w -X main.version=${stamp}" \
+  -o "$desktop/resources/engine-arch/darwin-arm64/aftertrace" \
+  "$root/cmd/aftertrace"
+chmod +x "$desktop/resources/engine-arch/darwin-arm64/aftertrace"
 
 # shellcheck disable=SC1091
 . "$desktop/scripts/ci-signing-env.sh"

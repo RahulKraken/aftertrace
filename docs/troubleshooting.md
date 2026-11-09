@@ -38,6 +38,22 @@ open db: ... Could not set lock on file "./data/aftertrace.duckdb": Conflicting 
 
 Only one process opens a given DuckDB file. Stop the `serve` that holds it before `demo` or `import` on the same `--db`.
 
+The Mac menu-bar app will not silently use that other process. If a leftover login service holds the file or ports 7311/4317/4318, the waiting window names the version and PID and offers **Stop the old Aftertrace service**.
+
+## Old LaunchAgent still running (Settings shows v0.4.2)
+
+`aftertrace service install` writes `~/Library/LaunchAgents/dev.aftertrace.plist` (`KeepAlive`, often `~/.aftertrace/bin/aftertrace serve --store-content`). That process can hold 4317, 4318, 7311 and the DuckDB lock for weeks. The desktop app then fails to start its bundled engine and used to attach to the old one, so Settings showed the old version.
+
+This build unloads `gui/$UID/dev.aftertrace` and removes the plist on startup; it does not delete `~/.aftertrace/aftertrace.duckdb`. To do it by hand:
+
+```bash
+launchctl bootout "gui/$(id -u)/dev.aftertrace"
+rm -f ~/Library/LaunchAgents/dev.aftertrace.plist
+# do not delete ~/.aftertrace/aftertrace.duckdb
+```
+
+Then reopen the Mac app. `aftertrace service uninstall` does the same for the CLI.
+
 ## `aftertrace import` path
 
 A directory that does not exist exits 1:

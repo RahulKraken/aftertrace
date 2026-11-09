@@ -16,7 +16,7 @@ function updateFooter(u) {
   if (status === "ready") {
     return {
       restart: true,
-      label: u.version ? `Restart to update · ${u.version}` : "Restart to update",
+      label: u.version ? `Restart to update · v${String(u.version).replace(/^v/, "")}` : "Restart to update",
       disabled: false,
     }
   }

@@ -34,6 +34,17 @@ test("AFTERTRACE_HOME wins over os.homedir for engine data", () => {
   }
 })
 
+test("packaged app never falls through to aftertrace on PATH", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-paths-"))
+  try {
+    const p = enginePath({ isPackaged: true, resourcesPath: path.join(root, "missing"), appPath: root })
+    assert.equal(p, path.join(root, "missing", "engine", ENGINE_NAME))
+    assert.notEqual(p, ENGINE_NAME)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test("falls back to a repo-root go build", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-paths-"))
   const desktop = path.join(root, "desktop")

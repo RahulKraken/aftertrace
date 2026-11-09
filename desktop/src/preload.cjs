@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("aftertraceDesktop", {
   setOpenAtLogin: (enabled) => ipcRenderer.invoke("desktop:setOpenAtLogin", Boolean(enabled)),
   continueToApp: () => ipcRenderer.invoke("desktop:continue"),
   engineStatus: () => ipcRenderer.invoke("desktop:engineStatus"),
+  fixForeignEngine: () => ipcRenderer.invoke("desktop:fixForeignEngine"),
   onEngineStatus: (fn) => {
     const wrapped = (_e, status) => fn(status)
     ipcRenderer.on("desktop:engine-status", wrapped)

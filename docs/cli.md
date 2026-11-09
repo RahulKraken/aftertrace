@@ -171,6 +171,8 @@ Keep `aftertrace serve` running at login. The curl installer runs `service insta
 
 Windows exits 1: `aftertrace service supports macOS (launchd) and Linux (systemd), not windows`.
 
+The Mac menu-bar app starts its own bundled engine. If this LaunchAgent is still running, the app unloads it (plist removed, DuckDB kept) instead of showing the old service's version. `service uninstall` is the CLI equivalent. See [Troubleshooting](troubleshooting.md#old-launchagent-still-running-settings-shows-v042).
+
 ### `install`
 
 ```

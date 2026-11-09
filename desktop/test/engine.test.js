@@ -6,7 +6,7 @@ const fs = require("fs")
 const http = require("http")
 const os = require("os")
 const path = require("path")
-const { createEngine, backoffDelay } = require("../src/engine")
+const { createEngine, backoffDelay, lockError } = require("../src/engine")
 
 function listen(handler) {
   const server = http.createServer(handler)
@@ -32,7 +32,7 @@ function fakeServeScript() {
     const port = Number(process.env.FAKE_PORT)
     const crash = process.env.FAKE_CRASH === "1"
     const server = http.createServer((req, res) => {
-      if (req.url === "/api/status") {
+      if (req.url === "/api/status" || req.url === "/api/health") {
         res.writeHead(200, { "content-type": "application/json" })
         res.end(JSON.stringify({ ok: true }))
         if (crash) setTimeout(() => process.exit(2), 80)
@@ -44,6 +44,13 @@ function fakeServeScript() {
     process.on("SIGTERM", () => { server.close(() => process.exit(0)) })
   `
 }
+
+test("lockError names the conflicting PID", () => {
+  const msg = lockError("IO Error: Could not set lock on file \"/Users/rahul/.aftertrace/aftertrace.duckdb\": Conflicting lock is held in /Users/rahul/.aftertrace/bin/aftertrace (PID 1786)")
+  assert.match(msg, /PID 1786/)
+  assert.match(msg, /database/)
+  assert.equal(lockError("listen tcp already in use"), "")
+})
 
 test("backoff grows then caps", () => {
   assert.equal(backoffDelay(0), 1000)
@@ -88,6 +95,65 @@ test("reuses an engine that is already healthy", async () => {
   } finally {
     await engine.stop()
     await svc.close()
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test("packaged app displaces a v0.4.2 occupant instead of reusing it", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-engine-"))
+  const script = path.join(tmp, "fake-serve.js")
+  fs.writeFileSync(script, fakeServeScript())
+  const old = await listen((req, res) => {
+    if (req.url === "/api/version") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ version: "v0.4.2", service: "launchd", pid: 1786, bin: "/Users/rahul/.aftertrace/bin/aftertrace" }))
+      return
+    }
+    if (req.url === "/api/status") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ info: { version: "v0.4.2", service: "launchd" } }))
+      return
+    }
+    res.end("ok")
+  })
+  const port = new URL(old.origin).port
+  let displaced = 0
+  let spawned = 0
+  const engine = createEngine({
+    origin: old.origin,
+    bin: process.execPath,
+    args: [script],
+    logFile: path.join(tmp, "log.txt"),
+    readyTimeoutMs: 4000,
+    sleep: refSleep,
+    isPackaged: true,
+    expectedVersion: "v0.5.5",
+    displace: async () => {
+      displaced += 1
+      await old.close()
+      return { ok: true, migrated: "launchd" }
+    },
+    spawn: (bin, args, opts) => {
+      spawned += 1
+      return require("child_process").spawn(bin, args, {
+        ...opts,
+        env: { ...opts.env, FAKE_PORT: port },
+      })
+    },
+  })
+  try {
+    engine.start()
+    const ok = await engine.waitUntilHealthy(6000)
+    assert.equal(ok, true)
+    assert.ok(displaced >= 1, "legacy launchd occupant must be displaced")
+    assert.ok(spawned >= 1, "bundled sidecar must start after displace")
+    assert.equal(engine.status().state, "healthy")
+    assert.equal(engine.status().startedByUs, true)
+    await new Promise((r) => setTimeout(r, 1500))
+    assert.equal(engine.status().state, "healthy", "must not treat our own sidecar as a foreign occupant")
+  } finally {
+    await engine.stop()
+    await old.close().catch(() => {})
     fs.rmSync(tmp, { recursive: true, force: true })
   }
 })

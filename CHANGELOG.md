@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Desktop**
+- **Restart to update** sets `autoRunAppAfterInstall` before `quitAndInstall`. electron-updater's MacUpdater ignores `isForceRunAfter` and only relaunches when that flag is true; 0.5.4/0.5.5 left it false, so ShipIt replaced the app and did not open it. Quit after a downloaded update still installs without reopening. Signed macos-15 smoke now waits for a new process after Restart and checks that Quit does not spawn one. Installed GitHub v0.5.5 still has the old updater — this build fixes the *next* update after it ships.
+- The packaged app never silently reuses whatever is on 7311/4317/4318. A leftover `dev.aftertrace` LaunchAgent is booted out and its plist removed; `~/.aftertrace/aftertrace.duckdb` is kept. Engine start failures (DuckDB lock, missing sidecar) show in the waiting window, with a one-click stop for the old login service.
+- One version string from the release tag: Go `-X main.version=vX.Y.Z`, About panel, Restart label, Settings, `GET /api/version`, bundled `aftertrace version`. CI checks the packed engine equals the app version. Packaged builds do not fall through to `aftertrace` on PATH.
+
+**Engine**
+- DuckDB opens with `memory_limit=512MB` and `threads=2` in the DSN (`lock_configuration` forbids SET later). History import and `COUNT(*)` run after the ports are up, at lowered Unix niceness. The desktop health ping is `GET /api/health`, not `/api/status` (which ran findings). CI `TestPeakRSS` on 80k seeded spans: 40 MB before open, **203 MB peak and steady** (cap 1.5 GB). Rahul’s 580 MB DB was 3.5–4.3 GB RSS / 400–515% CPU for ~2 minutes unbounded, 1.35 GB steady on the old engine.
+
 ## v0.5.5
 
 **Desktop**

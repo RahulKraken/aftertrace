@@ -66,8 +66,38 @@ test("Restart to update is user-triggered", async () => {
   })
   const updater = createUpdater({ autoUpdater: auto, getVersion: () => "0.5.0", dialog: dialog() })
   await updater.check({ interactive: false })
+  assert.equal(auto.autoRunAppAfterInstall, false)
   assert.equal(updater.requestInstall({ relaunch: true }), true)
+  assert.equal(auto.autoRunAppAfterInstall, true)
   assert.deepEqual(auto.installs, [{ silent: false, relaunch: true }])
+})
+
+test("old Mac path: autoRunAppAfterInstall false means quitAndInstall will not relaunch", async () => {
+  const auto = mockAuto({
+    version: "0.5.5",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const updater = createUpdater({ autoUpdater: auto, getVersion: () => "0.5.4", dialog: dialog() })
+  await updater.check({ interactive: false })
+  // 0.5.4/0.5.5 called quitAndInstall(false, true) without flipping the flag.
+  // electron-updater's MacUpdater then calls app.quit() instead of
+  // nativeUpdater.quitAndInstall(), so ShipIt replaces the app and stops.
+  assert.equal(auto.autoRunAppAfterInstall, false)
+  auto.quitAndInstall(false, true)
+  assert.equal(auto.autoRunAppAfterInstall, false)
+  assert.deepEqual(auto.installs, [{ silent: false, relaunch: true }])
+})
+
+test("quit-to-install leaves autoRunAppAfterInstall false", async () => {
+  const auto = mockAuto({
+    version: "0.5.4",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const updater = createUpdater({ autoUpdater: auto, getVersion: () => "0.5.0", dialog: dialog() })
+  await updater.check({ interactive: false })
+  assert.equal(updater.requestInstall({ relaunch: false }), true)
+  assert.equal(auto.autoRunAppAfterInstall, false)
+  assert.deepEqual(auto.installs, [{ silent: false, relaunch: false }])
 })
 
 test("same version is current, not a download", async () => {

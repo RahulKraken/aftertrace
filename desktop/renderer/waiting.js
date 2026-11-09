@@ -4,9 +4,19 @@ const api = window.aftertraceDesktop
 const title = document.getElementById("title")
 const body = document.getElementById("body")
 const log = document.getElementById("log")
+const fixWrap = document.getElementById("fix-wrap")
+const fixBtn = document.getElementById("fix")
 
 function render(status) {
   if (!status) return
+  if (fixWrap) fixWrap.hidden = true
+  if (status.state === "replacing") {
+    title.textContent = "Updating the local engine"
+    body.textContent =
+      status.error ||
+      "An older Aftertrace login service was using this machine. Stopping it and starting the one in this app. Your database is kept."
+    return
+  }
   if (status.state === "reused") {
     title.textContent = "Connecting"
     body.textContent = "Aftertrace is already running on this machine. Opening it."
@@ -28,7 +38,19 @@ function render(status) {
       log.hidden = false
       log.textContent = "Log: " + status.logPath
     }
+    if (fixWrap && /old login service|holding the database|already serving/i.test(status.error || "")) {
+      fixWrap.hidden = false
+    }
   }
+}
+
+if (fixBtn && api && api.fixForeignEngine) {
+  fixBtn.addEventListener("click", () => {
+    fixBtn.disabled = true
+    api.fixForeignEngine().finally(() => {
+      fixBtn.disabled = false
+    })
+  })
 }
 
 if (api) {

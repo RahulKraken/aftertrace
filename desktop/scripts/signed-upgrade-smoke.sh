@@ -3,7 +3,8 @@
 # No production tag/release. No ad-hoc resign. No TCC database writes.
 #
 # Distinguishes shipped v0.5.3 (internal 0.5.0, Download then quitAndInstall)
-# from 0.5.4 (download, stay running, explicit Restart).
+# from 0.5.4/0.5.5 (download, stay running, Restart that did not relaunch)
+# from this tree (Restart must spawn N+1; quit-to-install must not).
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
@@ -46,6 +47,85 @@ esac
 
 plist_version() {
   /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist"
+}
+
+app_pids() {
+  pgrep -f "/Aftertrace.app/Contents/MacOS/Aftertrace" 2>/dev/null || true
+}
+
+dump_shipit() {
+  log "== ShipIt logs =="
+  find "$iso_home/Library" \( -iname '*ShipIt*' -o -iname '*shipit*' \) 2>/dev/null | tee -a "$report" || true
+  find "$iso_home/Library" \( -iname '*ShipIt*' -o -iname '*shipit*' \) -type f 2>/dev/null | while IFS= read -r f; do
+    log "--- $f ---"
+    tail -n 80 "$f" | tee -a "$report" || true
+  done
+}
+
+wait_pid_gone() {
+  pid=$1
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_plist() {
+  app=$1
+  want=$2
+  i=0
+  while [ "$i" -lt 60 ]; do
+    now=$(plist_version "$app" 2>/dev/null || true)
+    if [ "$now" = "$want" ]; then
+      echo "$now"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  plist_version "$app"
+  return 1
+}
+
+wait_new_app_pid() {
+  old=$1
+  i=0
+  while [ "$i" -lt 30 ]; do
+    for pid in $(app_pids); do
+      if [ "$pid" != "$old" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "$pid"
+        return 0
+      fi
+    done
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+assert_no_app_pid() {
+  i=0
+  while [ "$i" -lt 30 ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+  live=""
+  for pid in $(app_pids); do
+    if kill -0 "$pid" 2>/dev/null; then
+      live="$live $pid"
+    fi
+  done
+  if [ -n "$live" ]; then
+    log "FAIL: Aftertrace still running after quit-to-install:$live"
+    pgrep -lf Aftertrace | tee -a "$report" || true
+    return 1
+  fi
+  log "quit-to-install: no new Aftertrace process in 30s"
 }
 
 assert_no_runner_writes() {
@@ -143,16 +223,14 @@ python3 - "$new_asar" "$report" <<'PY'
 import sys
 data = open(sys.argv[1], "rb").read()
 lines = []
-lines.append("0.5.5 asar autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
+flag = b"autoRunAppAfterInstall = Boolean(relaunch)" in data
+lines.append("0.5.5 asar autoRunAppAfterInstall = Boolean(relaunch): %s" % flag)
+lines.append("0.5.5 asar default autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
 open(sys.argv[2], "a", encoding="utf8").write("\n".join(lines) + "\n")
 print("\n".join(lines))
+if not flag:
+    sys.exit(1)
 PY
-
-appdir=$iso/current
-mkdir -p "$appdir"
-ditto "$ship_app" "$appdir/Aftertrace.app"
-xattr -dr com.apple.quarantine "$appdir/Aftertrace.app" 2>/dev/null || true
-codesign -v "$appdir/Aftertrace.app"
 
 iso_home=$iso/home
 user_data="$iso_home/Library/Application Support/Aftertrace"
@@ -176,21 +254,86 @@ export AFTERTRACE_SMOKE=1
 export AFTERTRACE_SMOKE_DIR="$smoke_dir"
 export AFTERTRACE_UPDATE_FEED_URL="http://127.0.0.1:${port}/"
 
+wait_status() {
+  i=0
+  while [ "$i" -lt 40 ]; do
+    if [ -f "$smoke_dir/status.json" ]; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_ready() {
+  pid=$1
+  i=0
+  while [ "$i" -lt 90 ]; do
+    if [ -f "$smoke_dir/status.json" ] && grep -q '"status": "ready"' "$smoke_dir/status.json"; then
+      return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log "FAIL: process exited during download"
+      return 1
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+copy_app() {
+  dest=$1
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  ditto "$ship_app" "$dest/Aftertrace.app"
+  xattr -dr com.apple.quarantine "$dest/Aftertrace.app" 2>/dev/null || true
+  codesign -v "$dest/Aftertrace.app"
+}
+
+# --- quit-to-install: replace, do not reopen ---
+log "== quit-to-install (no relaunch) =="
+quitdir=$iso/quit-app
+copy_app "$quitdir"
+rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
+"$quitdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
+  --user-data-dir="$user_data" \
+  >"$iso/quit.stdout" 2>"$iso/quit.stderr" &
+quit_pid=$!
+log "launched 0.5.5 for quit-to-install pid=$quit_pid"
+wait_status
+tee -a "$report" <"$smoke_dir/status.json"
+echo check >"$smoke_dir/cmd"
+wait_ready "$quit_pid"
+log "download ready; sending quit (install on quit, no reopen)"
+echo quit >"$smoke_dir/cmd"
+if ! wait_pid_gone "$quit_pid"; then
+  log "FAIL: pid $quit_pid still running after quit"
+  exit 1
+fi
+now=$(wait_plist "$quitdir/Aftertrace.app" 0.5.6) || true
+log "quit-to-install plist=$now"
+[ "$now" = "0.5.6" ]
+dump_shipit
+if ! assert_no_app_pid; then
+  exit 1
+fi
+[ -f "$engine_home/marker.txt" ]
+grep -q retain-054 "$engine_home/marker.txt"
+assert_no_runner_writes
+
+# --- Restart to update: ShipIt must spawn N+1 ---
+log "== Restart to update (auto-relaunch) =="
+appdir=$iso/current
+copy_app "$appdir"
+rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
 "$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
   --user-data-dir="$user_data" \
   >"$iso/app.stdout" 2>"$iso/app.stderr" &
 new_pid=$!
-log "launched 0.5.5 pid=$new_pid"
-
-i=0
-while [ "$i" -lt 40 ]; do
-  if [ -f "$smoke_dir/status.json" ]; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-[ -f "$smoke_dir/status.json" ]
+log "launched 0.5.5 for Restart pid=$new_pid"
+wait_status
 log "status after boot:"
 tee -a "$report" <"$smoke_dir/status.json"
 grep -q "$engine_home" "$smoke_dir/status.json"
@@ -199,25 +342,8 @@ grep -q "$iso_home" "$smoke_dir/status.json"
 pgrep -lf Aftertrace | tee -a "$report" || true
 kill -0 "$new_pid"
 echo check >"$smoke_dir/cmd"
-
-ready=0
-i=0
-while [ "$i" -lt 90 ]; do
-  if [ -f "$smoke_dir/status.json" ] && grep -q '"status": "ready"' "$smoke_dir/status.json"; then
-    ready=1
-    break
-  fi
-  if ! kill -0 "$new_pid" 2>/dev/null; then
-    log "FAIL: process exited during download"
-    tail -n 80 "$iso/app.stderr" | tee -a "$report" || true
-    exit 1
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-[ "$ready" = 1 ]
+wait_ready "$new_pid"
 log "download ready; process still pid=$new_pid"
-kill -0 "$new_pid"
 tee -a "$report" <"$smoke_dir/status.json"
 assert_no_runner_writes
 [ -f "$engine_home/marker.txt" ]
@@ -225,58 +351,43 @@ grep -q retain-054 "$engine_home/marker.txt"
 
 echo restart >"$smoke_dir/cmd"
 log "sent explicit Restart"
-
-i=0
-while [ "$i" -lt 60 ]; do
-  if ! kill -0 "$new_pid" 2>/dev/null; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-if kill -0 "$new_pid" 2>/dev/null; then
+if ! wait_pid_gone "$new_pid"; then
   log "FAIL: pid $new_pid still running after Restart"
   exit 1
 fi
 log "old pid $new_pid gone"
-
-i=0
-while [ "$i" -lt 60 ]; do
-  now=$(plist_version "$appdir/Aftertrace.app")
-  if [ "$now" = "0.5.6" ]; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-now=$(plist_version "$appdir/Aftertrace.app")
+now=$(wait_plist "$appdir/Aftertrace.app" 0.5.6) || true
 log "replacement plist=$now"
 [ "$now" = "0.5.6" ]
 codesign -v "$appdir/Aftertrace.app"
 test -f "$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace"
+eng_ver=$("$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace" version || true)
+log "replacement engine version: $eng_ver"
+[ "$eng_ver" = "aftertrace v0.5.6" ]
 [ -f "$engine_home/marker.txt" ]
 grep -q retain-054 "$engine_home/marker.txt"
 assert_no_runner_writes
 
-# Relaunch the replacement ourselves if autoRunAppAfterInstall stayed false
-# (shipping 0.5.5). That is the new behavior: install does not force a start.
-unset AFTERTRACE_UPDATE_FEED_URL
-"$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
-  --user-data-dir="$user_data" \
-  >"$iso/relaunch.stdout" 2>"$iso/relaunch.stderr" &
-rel_pid=$!
-sleep 8
-if kill -0 "$rel_pid" 2>/dev/null; then
-  log "relaunch pid=$rel_pid version=0.5.6 still running"
-  if [ -f "$smoke_dir/status.json" ]; then
-    tee -a "$report" <"$smoke_dir/status.json"
-  fi
-  kill "$rel_pid" 2>/dev/null || true
-  wait "$rel_pid" 2>/dev/null || true
-else
-  log "relaunch exited; stderr:"
-  tail -n 40 "$iso/relaunch.stderr" | tee -a "$report" || true
+rel_pid=$(wait_new_app_pid "$new_pid" || true)
+if [ -z "$rel_pid" ]; then
+  log "FAIL: Restart did not spawn a new Aftertrace process within 30s"
+  dump_shipit
+  pgrep -lf Aftertrace | tee -a "$report" || true
+  tail -n 80 "$iso/app.stderr" | tee -a "$report" || true
+  exit 1
 fi
+log "auto-relaunch pid=$rel_pid (ShipIt, not this script)"
+dump_shipit
+if [ -f "$smoke_dir/status.json" ]; then
+  tee -a "$report" <"$smoke_dir/status.json"
+fi
+kill "$rel_pid" 2>/dev/null || true
+wait "$rel_pid" 2>/dev/null || true
+for extra in $(app_pids); do
+  log "stopping leftover pid=$extra"
+  kill "$extra" 2>/dev/null || true
+  wait "$extra" 2>/dev/null || true
+done
 [ -f "$engine_home/marker.txt" ]
 assert_no_runner_writes
 

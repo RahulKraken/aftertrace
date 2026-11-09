@@ -24,7 +24,7 @@ function enginePath({ isPackaged, resourcesPath, appPath } = {}) {
   if (resourcesPath) candidates.push(packagedEngine(resourcesPath))
   if (appPath) {
     candidates.push(extraResourcesEngine(appPath))
-    candidates.push(repoEngine(appPath))
+    if (!isPackaged) candidates.push(repoEngine(appPath))
   }
   for (const p of candidates) {
     try {
@@ -33,6 +33,9 @@ function enginePath({ isPackaged, resourcesPath, appPath } = {}) {
       // keep looking
     }
   }
+  // Packaged builds must not fall through to `aftertrace` on PATH (Homebrew
+  // / curl installs of an old CLI). Missing extraResources is a hard miss.
+  if (isPackaged) return packagedEngine(resourcesPath || "")
   return ENGINE_NAME
 }
 

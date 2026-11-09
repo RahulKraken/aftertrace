@@ -221,7 +221,7 @@ test("session row opens that session; overflow opens /sessions", () => {
 
 test("restart to update stays in the footer", () => {
   const items = labels({ ok: true, sessions: [], update: { status: "ready", version: "0.5.5" } })
-  assert.ok(items.includes("Restart to update · 0.5.5"))
+  assert.ok(items.includes("Restart to update · v0.5.5"))
   assert.equal(items.includes("Check for updates"), false)
 })
 

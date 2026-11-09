@@ -69,12 +69,12 @@ jobs:
         run: npm ci && npm test
       - name: Build Go engine
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
+          VERSION=$(sh desktop/scripts/engine-stamp.sh "${{ inputs.version }}")
           mkdir -p desktop/resources/engine
           go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine/aftertrace ./cmd/aftertrace
           chmod +x desktop/resources/engine/aftertrace
           file desktop/resources/engine/aftertrace
+          test "$(desktop/resources/engine/aftertrace version)" = "aftertrace ${VERSION}"
       - name: Package
         working-directory: desktop
         env:
@@ -215,13 +215,13 @@ jobs:
         run: npm ci && npm test
       - name: Build per-chip Go engines
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
+          VERSION=$(sh desktop/scripts/engine-stamp.sh "${{ inputs.version }}")
           mkdir -p desktop/resources/engine-arch/darwin-arm64
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine-arch/darwin-arm64/aftertrace ./cmd/aftertrace
           chmod +x desktop/resources/engine-arch/darwin-arm64/aftertrace
           file desktop/resources/engine-arch/darwin-arm64/aftertrace
           lipo -info desktop/resources/engine-arch/darwin-arm64/aftertrace
+          test "$(desktop/resources/engine-arch/darwin-arm64/aftertrace version)" = "aftertrace ${VERSION}"
       - name: Package
         working-directory: desktop
         env:
@@ -384,13 +384,13 @@ jobs:
       - name: Build Go engine
         shell: bash
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION=$(node -p "require('./desktop/package.json').version"); fi
+          VERSION=$(sh desktop/scripts/engine-stamp.sh "${{ inputs.version }}")
           mkdir -p desktop/resources/engine
           export PATH="/c/ProgramData/mingw64/mingw64/bin:/c/tools/mingw64/bin:$PATH"
           gcc --version
           go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o desktop/resources/engine/aftertrace.exe ./cmd/aftertrace
           file desktop/resources/engine/aftertrace.exe || ls -lah desktop/resources/engine
+          echo "engine stamp ${VERSION}"
       - name: Package
         working-directory: desktop
         shell: bash

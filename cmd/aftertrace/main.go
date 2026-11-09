@@ -137,17 +137,6 @@ func cmdServe(args []string) int {
 	}
 	defer st.Close()
 
-	if !*f.noHistory {
-		hr, err := history.Import(st, *f.historyDir)
-		if err != nil {
-			log.Printf("history: %v", err)
-		} else if hr.Sessions > 0 {
-			log.Printf("history    %d sessions, %d turns from %s", hr.Sessions, hr.Turns, hr.Dir)
-		} else if _, err := os.Stat(*f.historyDir); err == nil {
-			log.Printf("history    no new sessions in %s", *f.historyDir)
-		}
-	}
-
 	recv := otlp.NewReceiver(st, *f.storeContent)
 	grpcLn, httpLn, err := recv.Listen(*f.listen, *f.grpcPort, *f.httpPort)
 	if err != nil {
@@ -177,14 +166,32 @@ func cmdServe(args []string) int {
 		}
 	}()
 
-	c, _ := st.Counts()
 	log.Printf("Aftertrace")
-	log.Printf("  db          %s  (%d spans)", st.Path, c.Spans)
+	log.Printf("  db          %s", st.Path)
 	log.Printf("  OTLP gRPC   %s", grpcLn.Addr())
 	log.Printf("  OTLP HTTP   %s", httpLn.Addr())
 	log.Printf("  UI / API    http://%s", apiLn.Addr())
 	log.Printf("redact=on store_content=%v  (no telemetry)", *f.storeContent)
 	log.Printf("ask=%s", askState)
+	lowerPriority()
+
+	// History import and COUNT(*) walk the whole file. Do them after the
+	// ports are up so the menu-bar app can load, and so DuckDB stays at
+	// the DSN thread/memory cap instead of blocking first paint.
+	go func() {
+		if !*f.noHistory {
+			hr, err := history.Import(st, *f.historyDir)
+			if err != nil {
+				log.Printf("history: %v", err)
+			} else if hr.Sessions > 0 {
+				log.Printf("history    %d sessions, %d turns from %s", hr.Sessions, hr.Turns, hr.Dir)
+			} else if _, err := os.Stat(*f.historyDir); err == nil {
+				log.Printf("history    no new sessions in %s", *f.historyDir)
+			}
+		}
+		c, _ := st.Counts()
+		log.Printf("  db          %s  (%d spans)", st.Path, c.Spans)
+	}()
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

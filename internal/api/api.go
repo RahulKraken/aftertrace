@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/RahulKraken/aftertrace/internal/ask"
@@ -32,6 +33,8 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.getStatus)
+	mux.HandleFunc("GET /api/health", s.getHealth)
+	mux.HandleFunc("GET /api/version", s.getVersion)
 	mux.HandleFunc("GET /api/overview", s.getOverview)
 	mux.HandleFunc("GET /api/recap", s.getRecap)
 	mux.HandleFunc("GET /api/sources", s.getSources)
@@ -59,6 +62,20 @@ func withHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
+	s.json(w, map[string]any{"ok": true}, 200)
+}
+
+func (s *Server) getVersion(w http.ResponseWriter, r *http.Request) {
+	exe, _ := os.Executable()
+	s.json(w, map[string]any{
+		"version": s.Info.Version,
+		"pid":     os.Getpid(),
+		"bin":     exe,
+		"service": s.Info.Service,
+	}, 200)
 }
 
 func (s *Server) json(w http.ResponseWriter, v any, code int) {

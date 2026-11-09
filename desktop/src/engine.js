@@ -7,6 +7,8 @@ const path = require("path")
 const { spawn } = require("child_process")
 const { engineLogPath, aftertraceDir, ENGINE_NAME } = require("./paths")
 const { UI_ORIGIN } = require("./allowlist")
+const { displayVersion } = require("./releaseVersion")
+const { isForeignOccupant, occupantError, migrateLegacyService } = require("./foreignEngine")
 
 const BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000]
 const HEALTHY_RESET_MS = 60_000
@@ -22,12 +24,12 @@ function ping(origin, timeoutMs = 1500) {
   return new Promise((resolve) => {
     let url
     try {
-      url = new URL("/api/status", origin)
+      url = new URL("/api/health", origin)
     } catch {
       resolve(false)
       return
     }
-    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+    const req = http.get(url, { timeout: timeoutMs, agent: false }, (res) => {
       res.resume()
       resolve(res.statusCode === 200)
     })
@@ -37,6 +39,76 @@ function ping(origin, timeoutMs = 1500) {
       resolve(false)
     })
   })
+}
+
+function getJson(origin, pathname, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    let url
+    try {
+      url = new URL(pathname, origin)
+    } catch {
+      resolve(null)
+      return
+    }
+    const req = http.get(url, { timeout: timeoutMs, agent: false }, (res) => {
+      let buf = ""
+      res.on("data", (d) => {
+        buf += d
+        if (buf.length > 1_000_000) req.destroy()
+      })
+      res.on("end", () => {
+        if (res.statusCode !== 200) {
+          resolve(null)
+          return
+        }
+        try {
+          resolve(JSON.parse(buf))
+        } catch {
+          resolve(null)
+        }
+      })
+    })
+    req.on("error", () => resolve(null))
+    req.on("timeout", () => {
+      req.destroy()
+      resolve(null)
+    })
+  })
+}
+
+function lockError(text) {
+  const s = String(text || "")
+  if (!/Conflicting lock is held/i.test(s) && !/Could not set lock/i.test(s)) return ""
+  const pid = (s.match(/PID\s+(\d+)/i) || [])[1]
+  const held = (s.match(/held in ([^\s(]+)/i) || [])[1]
+  let msg = "Another Aftertrace is holding the database file."
+  if (held) msg += ` Lock: ${held}`
+  if (pid) msg += ` (PID ${pid})`
+  msg += " The old login service will be stopped. Your data stays."
+  return msg
+}
+
+async function probeOccupant(origin, getJsonFn = getJson, pingFn = ping) {
+  const ver = await getJsonFn(origin, "/api/version")
+  if (ver && (ver.version || ver.pid)) {
+    return {
+      version: ver.version || "unknown",
+      service: ver.service || "",
+      pid: ver.pid || null,
+      bin: ver.bin || "",
+    }
+  }
+  const st = await getJsonFn(origin, "/api/status")
+  if (st && st.info) {
+    return {
+      version: st.info.version || "unknown",
+      service: st.info.service || "",
+      pid: null,
+      bin: "",
+    }
+  }
+  if (await pingFn(origin)) return { version: "unknown", service: "", pid: null, bin: "" }
+  return null
 }
 
 function appendLog(file, chunk) {
@@ -59,6 +131,10 @@ function createEngine(opts = {}) {
   const origin = opts.origin || UI_ORIGIN
   const pingFn = opts.ping || ping
   const spawnFn = opts.spawn || spawn
+  const getJsonFn = opts.getJson || getJson
+  const isPackaged = Boolean(opts.isPackaged)
+  const expectedVersion = opts.expectedVersion || ""
+  const displace = opts.displace || migrateLegacyService
   let wakeSleep = null
   const sleepFn =
     opts.sleep ||
@@ -84,6 +160,8 @@ function createEngine(opts = {}) {
   let runningLoop = null
   let state = "idle"
   let lastError = ""
+  let occupant = null
+  let migrated = null
   const listeners = new Set()
 
   function emit() {
@@ -105,6 +183,9 @@ function createEngine(opts = {}) {
       logPath: logFile,
       origin,
       crashes,
+      occupant,
+      migrated,
+      expectedVersion: expectedVersion ? displayVersion(expectedVersion) : "",
     }
   }
 
@@ -117,6 +198,10 @@ function createEngine(opts = {}) {
     while (Date.now() - start < timeoutMs) {
       if (stopping) return false
       if (await healthy()) {
+        if (isPackaged && !(startedByUs && child)) {
+          await sleepFn(200)
+          continue
+        }
         lastError = ""
         state = startedByUs && child ? "healthy" : "reused"
         emit()
@@ -137,7 +222,18 @@ function createEngine(opts = {}) {
     startedByUs = true
     const stamp = () => `\n[${new Date().toISOString()}]\n`
     if (proc.stdout) proc.stdout.on("data", (d) => appendLog(logFile, d))
-    if (proc.stderr) proc.stderr.on("data", (d) => appendLog(logFile, d))
+    if (proc.stderr) {
+      proc.stderr.on("data", (d) => {
+        const text = String(d)
+        appendLog(logFile, d)
+        const lock = lockError(text)
+        if (lock) {
+          lastError = lock
+          state = "error"
+          emit()
+        }
+      })
+    }
     proc.on("error", (err) => {
       lastError = err.message
       appendLog(logFile, `${stamp()}spawn error: ${err.stack || err}\n`)
@@ -181,9 +277,55 @@ function createEngine(opts = {}) {
     return proc
   }
 
+  async function takeOverForeign() {
+    if (startedByUs && child) return false
+    const occ = await probeOccupant(origin, getJsonFn, pingFn)
+    if (!occ) return false
+    occupant = occ
+    const foreign = isPackaged || isForeignOccupant(occ, expectedVersion)
+    if (!foreign) return false
+    lastError = occupantError(occ)
+    state = "replacing"
+    emit()
+    try {
+      migrated = await displace(occ)
+    } catch (err) {
+      migrated = { ok: false, error: err.message }
+    }
+    const start = Date.now()
+    while (Date.now() - start < 8000) {
+      if (!(await pingFn(origin))) return true
+      await sleepFn(200)
+    }
+    if (await pingFn(origin)) {
+      lastError =
+        occupantError(occ) +
+        (migrated && migrated.error ? ` ${migrated.error}` : " Stop it from Settings, or run aftertrace service uninstall.")
+      state = "error"
+      emit()
+      return true
+    }
+    return true
+  }
+
   async function supervise() {
     while (!stopping) {
+      if (await takeOverForeign()) {
+        if (state === "error") {
+          await sleepFn(backoffDelay(crashes))
+          crashes += 1
+          continue
+        }
+      }
       if (await healthy()) {
+        if (isPackaged && !(startedByUs && child)) {
+          // Packaged app never silently attaches to a leftover CLI/launchd server.
+          lastError = occupantError(occupant || { version: "unknown" })
+          state = "error"
+          emit()
+          await sleepFn(1000)
+          continue
+        }
         lastError = ""
         state = startedByUs && child ? "healthy" : "reused"
         emit()
@@ -298,4 +440,12 @@ function createEngine(opts = {}) {
   }
 }
 
-module.exports = { createEngine, backoffDelay, ping, BACKOFF_MS }
+module.exports = {
+  createEngine,
+  backoffDelay,
+  ping,
+  getJson,
+  lockError,
+  probeOccupant,
+  BACKOFF_MS,
+}

@@ -11,6 +11,8 @@ const autostart = require("./autostart")
 const settings = require("./settings")
 const { getUpdater } = require("./updater")
 const { finishQuit } = require("./quit")
+const { displayVersion } = require("./releaseVersion")
+const { migrateLegacyService } = require("./foreignEngine")
 const { UI_ORIGIN } = require("./allowlist")
 const { allowSender, dashboardHash } = require("./ipc")
 const smoke = require("./smoke")
@@ -206,6 +208,10 @@ ipcMain.handle("desktop:engineStatus", (e) => {
   allowSender(e, ["waiting", "first-launch", "ui"])
   return engine ? engine.status() : { state: "idle" }
 })
+ipcMain.handle("desktop:fixForeignEngine", (e) => {
+  allowSender(e, ["waiting", "first-launch"])
+  return migrateLegacyService()
+})
 ipcMain.handle("desktop:getGlance", async (e) => {
   allowSender(e, ["popover"])
   if (trayApi && trayApi.refresh) return trayApi.refresh()
@@ -240,7 +246,7 @@ app.whenReady().then(async () => {
   installMenu()
   app.setAboutPanelOptions({
     applicationName: "Aftertrace",
-    applicationVersion: app.getVersion(),
+    applicationVersion: displayVersion(app.getVersion()),
     copyright: "Apache-2.0. Local only. No usage telemetry.",
   })
 
@@ -249,7 +255,11 @@ app.whenReady().then(async () => {
     resourcesPath: process.resourcesPath,
     appPath: app.getAppPath(),
   })
-  engine = createEngine({ bin })
+  engine = createEngine({
+    bin,
+    isPackaged: app.isPackaged,
+    expectedVersion: displayVersion(app.getVersion()),
+  })
   engine.onStatus((status) => {
     if (win && !win.isDestroyed()) win.webContents.send("desktop:engine-status", status)
   })

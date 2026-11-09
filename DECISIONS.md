@@ -2,6 +2,16 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 9 2026: never reuse a foreign engine; cap DuckDB; actually relaunch after Restart.
+
+**Choice.** One PR, still 0.5.5 identity, no tag/release. (1) Packaged desktop treats anything on 7311 that is not its child as foreign. It probes `GET /api/version` (then `/api/status`), unloads `gui/$uid/dev.aftertrace`, deletes `~/Library/LaunchAgents/dev.aftertrace.plist`, and starts the bundled sidecar. The DuckDB file stays. Waiting UI shows lock/start errors and a one-click stop. Unpackaged CLI still reuses a healthy 7311. (2) DSN `memory_limit=512MB&threads=2`, listen-then-background `history.Import`, Unix niceness 10, health ping `/api/health`. `go test -run TestPeakRSS` on Ubuntu without `-race`. (3) `requestInstall({relaunch})` sets `autoRunAppAfterInstall` because MacUpdater ignores `isForceRunAfter`. Smoke: Restart must spawn N+1 within 30s with no manual launch; Quit after download must not. Go stamp is always `v` + package.json. Packaged `enginePath` never returns PATH `aftertrace`.
+
+**Why.** Rahul's Mac still had a v0.4.2 LaunchAgent (`aftertrace service install`, Oct 22, PID 1786 since Nov 1) holding 4317/4318/7311 and the DuckDB lock. Bundled v0.5.5 died with `Conflicting lock is held … PID 1786`; the UI reused 7311 and Settings showed v0.4.2. Restart on 0.5.4/0.5.5 quit without ShipIt relaunch because `autoRunAppAfterInstall` stayed false; CI then launched N+1 itself. Fresh v0.5.5 on a 580 MB DB sat at 3.5–4.3 GB RSS / 400–515% CPU for ~2 minutes: unconstrained DuckDB (all cores, default memory), history import and COUNT before listen, and `/api/status` (findings + counts) as the health ping.
+
+**How to reverse.** Restore reuse-if-healthy; drop DSN memory/thread caps; put `autoRunAppAfterInstall = false` back as the only Restart path. Do not silently attach to an old login service.
+
+**Record.** Rahul already cleaned the LaunchAgent; do not touch his machine. No merge/tag/release.
+
 ## Nov 9 2026: ship 0.5.5.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.5` are 0.5.5. CI fixture is 0.5.6 so macos-15 still has a newer local feed. Tag `v0.5.5` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags.
