@@ -277,7 +277,7 @@
   overflow: visible;
   background: transparent;
 }
-.v4.split .v4-l { flex: 1; padding: 0 var(--page-x) 24px; min-width: 0; overflow: auto; background: transparent; }
+.v4.split .v4-l { flex: 1; padding: 0 var(--page-x) 24px; min-width: 0; overflow: visible; background: transparent; }
 .v4-pane {
   flex: none;
   border-left: 1px solid var(--line);
@@ -288,7 +288,10 @@
   width: 400px;
   max-width: 400px;
   min-width: 400px;
-  overflow: auto;
+  overflow: visible;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
 }
 .v4-pane .v4-ph { height: 72px; }
 .v4-pane h2 { font: 600 18px/24px var(--sans); letter-spacing: -0.01em; margin: 0; }
@@ -331,6 +334,13 @@
 }
 .v4-fr .trk { height: 4px; background: var(--bar-2); border-radius: 2px; overflow: hidden; }
 .v4-fr .trk i { display: block; height: 100%; border-radius: 2px; }
+.v4-fr .nm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 20px;
+}
 .v4-fr .v { text-align: right; font-weight: 500; }
 .v4-fr.sel { background: var(--sel); }
 .v4-fr.resolved { opacity: 0.55; }
@@ -358,16 +368,28 @@
   background: repeating-linear-gradient(-45deg, var(--amber) 0 1.5px, transparent 1.5px 5px);
   opacity: 0.8;
 }
-.v4-pane .v4-big { font-size: 40px; line-height: 44px; color: var(--amber-ink); margin-top: 18px; }
+.v4-pane .v4-big { font-size: 40px; line-height: 44px; color: var(--amber-ink); margin-top: 18px; display: flex; align-items: baseline; gap: 6px; }
 .v4-pane .v4-big.neutral { color: var(--t1); }
-.v4-pane .v4-big small { font: 400 14px/1 var(--sans); color: var(--t3); letter-spacing: 0; margin-left: 6px; }
-.v4-cmp { margin-top: 32px; display: flex; flex-direction: column; gap: 20px; }
-.v4-cmp .r .top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 9px; }
-.v4-cmp .b { height: 10px; border-radius: 3px; display: flex; gap: 2px; }
-.v4-cmp .b i { display: block; height: 100%; border-radius: 3px; }
+.v4-pane .v4-big small { font: 400 14px/1 var(--sans); color: var(--t3); letter-spacing: 0; margin-left: 0; }
+.v4-pane .v4-big .v4-cents { vertical-align: 0.28em; }
+.v4-cmp { margin-top: 28px; display: flex; flex-direction: column; gap: 20px; padding-top: 0; border: 0; }
+.v4-cmp .r { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.v4-cmp-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  position: static;
+  background: transparent;
+}
+.v4-cmp .b { height: 10px; border-radius: 3px; display: flex; background: var(--bar-2); overflow: hidden; }
+.v4-cmp .b i { display: block; height: 100%; border-radius: 3px; background: var(--amber); }
 .v4-cmp .x { font: 400 11.5px/1 var(--mono); color: var(--t3); margin-top: 8px; display: flex; justify-content: space-between; }
-.v4-strip { margin-top: 30px; display: flex; gap: 1px; height: 18px; align-items: center; }
-.v4-strip i { flex: 1; height: 100%; border-radius: 1px; background: var(--a3); opacity: 0.7; }
+.v4-strip { margin-top: 28px; display: flex; gap: 2px; height: 18px; align-items: stretch; }
+.v4-strip i { display: block; flex: 1 1 0; min-width: 3px; height: 18px; border-radius: 1px; background: var(--a3); opacity: 0.9; }
 .v4-sl { display: flex; justify-content: space-between; margin-top: 8px; font: 400 11.5px/1 var(--mono); color: var(--t3); }
 .v4-code {
   margin-top: 30px;
@@ -652,12 +674,22 @@
 .v4 .v4-fr.resolved,
 .v4 .v4-fr.frow.quiet.resolved { opacity: 0.55; color: inherit; background: transparent; }
 .v4-pane > .frow.hero {
-  display: block;
+  display: flex;
+  flex-direction: column;
   border: 0;
-  padding: 0;
+  padding: 0 0 8px;
   background: transparent;
   margin: 0;
   box-shadow: none;
+  min-width: 0;
+  overflow: visible;
+}
+.findings-page.v4.split { align-items: flex-start; }
+.findings-page .v4-pane pre,
+.findings-page .v4-pane .v4-code {
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
 }
 .v4-pane .evs {
   margin-top: 14px;

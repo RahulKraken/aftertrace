@@ -292,8 +292,8 @@ function FindingPane({
         <div className="v4-cmp">
           {money && spend > 0 && (
             <div className="r">
-              <div className="top"><span className="v4-lbl">This</span><span className="v4-money">{usd(monthly)}</span></div>
-              <div className="b"><i className="v4-hatch" style={{ width: `${Math.min(100, (monthly / Math.max(spend, monthly)) * 100)}%` }} /></div>
+              <div className="v4-cmp-hd"><span className="v4-lbl">This</span><span className="v4-money">{usd(monthly)}</span></div>
+              <div className="b"><i style={{ width: `${Math.min(100, (monthly / Math.max(spend, monthly)) * 100)}%` }} /></div>
             </div>
           )}
         </div>
