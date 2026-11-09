@@ -85,11 +85,14 @@ jobs:
         run: node desktop/scripts/release-identity.cjs desktop/dist
       - name: Idle memory
         continue-on-error: true
+        timeout-minutes: 5
         working-directory: desktop
         run: |
           set -eu
-          sudo apt-get update -y
-          sudo apt-get install -y xvfb
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y xvfb
+          fi
           bin=""
           for cand in dist/linux-unpacked/Aftertrace dist/linux-unpacked/aftertrace dist/linux-unpacked/aftertrace-desktop; do
             if [ -x "$cand" ]; then bin=$cand; break; fi
@@ -98,6 +101,12 @@ jobs:
           test -n "$bin"
           xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' "$bin" --hidden --no-sandbox &
           pid=$!
+          cleanup() {
+            kill "$pid" 2>/dev/null || true
+            pkill -P "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
           for i in $(seq 1 40); do
             if curl -sf http://127.0.0.1:7311/api/status >/dev/null; then break; fi
             sleep 1
@@ -159,8 +168,7 @@ jobs:
               f"linux unpackaged idle RSS (tray + engine): {total} kB ({total/1024:.1f} MiB)\n"
           )
           PY
-          kill "$pid" || true
-          wait || true
+          # cleanup trap waits only on $pid (bare `wait` hung 45m on leftover Xvfb)
       - uses: actions/upload-artifact@v7
         with:
           name: aftertrace-desktop-linux
