@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+## v0.5.5
+
 **Desktop**
-- Mac menu bar is a native NSMenu (Electron `Menu.buildFromTemplate`), icon-only extra, current glyph kept. Each live session is a stock `MenuItem`: identity as `label`, activity · session tokens · session `$` as `sublabel` (macOS ≥ 14.4; single-line fallback otherwise). Duplicate repos get a short disambiguator. Money is always `$x.xx`. Today is a quiet header. Historical permission findings are off the menu. Click a session to open it. More than five live sessions: first five plus `N more in Aftertrace…`. Linux shares the same template with the fallback line. Windows still uses the compact web popover.
-- Glance joins `GET /api/overview` live lanes with `GET /api/sessions` by `session_id` (not the six-row `recent` list). Unknown tokens/cost are omitted, never shown as zero. History-only dollars are labelled estimated. Quiet 90s is not waiting. Live approval-wait includes `claude_code.tool.blocked_on_user`.
-- macos-15 smoke captures the native menu (and a down-arrow keyboard frame) plus glyph bounds, and fails if the extra is wider than an icon. Smoke `menuOpen` stays true until `hide-menu` because Electron 45 `popUpContextMenu` returns immediately. Open NSMenu is not live-updated; labels rebuild on reopen. CI posts synthetic OTLP into the isolated engine of this job’s notarized 0.5.4 pack so concurrent session identity/tokens/`$` are in the Aqua PNG; `Engine offline` is a failure. CI fixture version stays 0.5.5 and is not tagged.
+- Native session-first Mac menu: stock NSMenu items with identity as the title and activity · session tokens · session `$` as the subtitle (macOS 14.4+; one-line fallback otherwise). Icon-only menu-bar extra; current glyph kept. Click a session to open it. Duplicate repos get a short disambiguator. Unknown amounts omitted, never shown as zero. Today is a quiet header. Linux shares the template. Windows still uses the compact web popover.
+- Glance joins `GET /api/overview` live lanes with `GET /api/sessions` by `session_id`. Quiet 90s is not waiting. Live approval-wait includes `claude_code.tool.blocked_on_user`. Historical permission findings stay off the menu.
 
 ## v0.5.4
 
