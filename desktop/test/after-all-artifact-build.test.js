@@ -429,9 +429,9 @@ describe("desktop.yml", () => {
 })
 
 describe("pack-ci-fixture.sh", () => {
-  it("signs a 0.5.5 fixture into dist-fixture without notarize or shipping dist", () => {
+  it("signs a 0.5.6 fixture into dist-fixture without notarize or shipping dist", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "pack-ci-fixture.sh"), "utf8")
-    assert.match(sh, /0\.5\.5/)
+    assert.match(sh, /0\.5\.6/)
     assert.match(sh, /dist-fixture/)
     assert.match(sh, /mac\.notarize=false/)
     assert.match(sh, /NOTARIZE_MAC_ARCHES=""/)

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 9 2026: ship 0.5.5.
+
+**Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.5` are 0.5.5. CI fixture is 0.5.6 so macos-15 still has a newer local feed. Tag `v0.5.5` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags.
+
+**Why.** Rahul approved merging PR 48 and shipping an update. Installed 0.5.4 needs a newer GitHub Releases `latest-mac.yml` to auto-detect.
+
+**How to reverse.** Revert the bump PR; do not delete earlier tags.
+
 ## Nov 9 2026: stock NSMenu label + sublabel; identity is the default title.
 
 **Choice.** Session rows are stock Electron `MenuItem`s only: `label`, `sublabel` (NSMenuItem.subtitle on macOS ≥ 14.4), separators, checkbox, `type: "header"` for Today on macOS 14+, and a real accelerator on Open Aftertrace. No custom NSMenuItem views, no BrowserWindow, no padded columns, no fake accelerators. Identity is the `label`; activity · tokens · cost is the `sublabel`. Duplicate repos get a short disambiguator (`CLI` / `VS Code`), not a repeated product name. Token counts drop the `tok` suffix. Money is always `$0.40`, never `40¢`. Unknown amounts are omitted. Today is a quiet header (`Today $4.13`). A second stock layout (`label` = activity, `sublabel` = identity · amounts) is behind the smoke/dev switch `AFTERTRACE_MENU_VARIANT` / smoke cmd `variant activity` so both can be captured; it is not a user-facing control. On Darwin < 14.4 or non-Mac, sublabel is omitted and the same facts join on one `label`. Linux uses that fallback. Windows popover is unchanged. Shipping version stays 0.5.4.
