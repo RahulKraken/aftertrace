@@ -5,7 +5,7 @@
 // A prior completed turn on the same session_id carries repo/entrypoint for
 // the /api/sessions join (long-lived id, not overview.recent).
 
-const { formatSessionLine, formatTodayLine } = require("./sessionMenu")
+const { formatSessionLine, formatTodayLine, sessionCopy } = require("./sessionMenu")
 
 const SESSION_A = "11111111-1111-1111-1111-aaaaaaaaaaaa"
 const SESSION_B = "22222222-2222-2222-2222-bbbbbbbbbbbb"
@@ -388,15 +388,16 @@ function expectedLabels() {
   const view = expectedView()
   return {
     lines: view.sessions.map((s) => formatSessionLine(s, view.sessions)),
+    items: view.sessions.map((s) => sessionCopy(s, view.sessions, "identity", true)),
     today: formatTodayLine(view),
     firstSessionId: SESSION_A,
-    fragments: ["40k tok", "$1.23", "8.0k tok", "acme-payments-platform-service", "Today · $4.13"],
-    forbidden: ["Engine offline", "$0", "0 tok", "permission"],
+    fragments: ["40k", "$1.23", "8.0k", "$0.40", "acme-payments-platform-service", "Today $4.13"],
+    forbidden: ["Engine offline", "$0.00", "0 tok", "40¢", "permission"],
   }
 }
 
 function expectedBumpFragments() {
-  return ["41k tok", "$1.73", "Today · $4.63"]
+  return ["41k", "$1.73", "Today $4.63"]
 }
 
 module.exports = {

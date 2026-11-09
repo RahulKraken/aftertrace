@@ -149,6 +149,14 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
       },
       getWindowHash: () => "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa",
       getMenuLabels: () => ["Idle", "Open Aftertrace"],
+      setMenuVariant: (v) => {
+        seen.variant = v
+      },
+      getMenuMeta: () => ({
+        menuVariant: seen.variant || "identity",
+        menuSublabelSupported: true,
+        osVersion: "15.1",
+      }),
     })
     const status = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(status.version, "0.5.4")
@@ -185,6 +193,12 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
     assert.equal(seen.refresh, 1)
     const afterRefresh = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(afterRefresh.windowHash, "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa")
+    fs.writeFileSync(path.join(dir, "cmd"), "variant activity\n")
+    await new Promise((r) => setTimeout(r, 400))
+    const afterVariant = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(seen.variant, "activity")
+    assert.equal(afterVariant.menuVariant, "activity")
+    assert.equal(afterVariant.menuSublabelSupported, true)
   } finally {
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]

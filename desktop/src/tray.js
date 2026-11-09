@@ -4,7 +4,14 @@ const fs = require("fs")
 const path = require("path")
 const { Tray, Menu, nativeImage, nativeTheme } = require("electron")
 const { formatGlance, formatTitle, readGlance, freshnessLabel, markStale, sayUsd } = require("./glance")
-const { menuTemplate, menuLabels } = require("./sessionMenu")
+const {
+  menuTemplate,
+  menuLabels,
+  setMenuVariant: applyMenuVariant,
+  getMenuVariant,
+  supportsSublabel,
+  osVersion,
+} = require("./sessionMenu")
 const { createPopover } = require("./popover")
 const { UI_ORIGIN } = require("./allowlist")
 
@@ -184,6 +191,17 @@ function createTray(handlers) {
     presentGlance,
     showNativeMenu,
     menuLabels: () => lastLabels,
+    setMenuVariant: (v) => {
+      applyMenuVariant(v)
+      const view = payload()
+      applyNativeMenu(view)
+      return getMenuVariant()
+    },
+    menuMeta: () => ({
+      menuVariant: getMenuVariant(),
+      menuSublabelSupported: supportsSublabel(),
+      osVersion: osVersion(),
+    }),
   }
 }
 

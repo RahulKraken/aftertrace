@@ -328,6 +328,8 @@ jobs:
             desktop/dist/signed-upgrade-menu.png
             desktop/dist/signed-upgrade-menu-keyboard.png
             desktop/dist/signed-upgrade-menu-dark.png
+            desktop/dist/signed-upgrade-menu-activity.png
+            desktop/dist/signed-upgrade-menu-activity-dark.png
             desktop/dist/signed-upgrade-menu-reopen.png
             desktop/dist/signed-upgrade-session-open.png
             desktop/dist/signed-upgrade-glyph.png

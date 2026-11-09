@@ -294,6 +294,8 @@ app.whenReady().then(async () => {
         if (trayApi && typeof trayApi.showNativeMenu === "function") trayApi.showNativeMenu()
       },
       getMenuLabels: () => (trayApi && typeof trayApi.menuLabels === "function" ? trayApi.menuLabels() : []),
+      setMenuVariant: (v) => (trayApi && typeof trayApi.setMenuVariant === "function" ? trayApi.setMenuVariant(v) : undefined),
+      getMenuMeta: () => (trayApi && typeof trayApi.menuMeta === "function" ? trayApi.menuMeta() : {}),
       refreshTray: () => (trayApi && trayApi.refresh ? trayApi.refresh() : Promise.resolve()),
       getWindowHash: () => {
         if (!win || win.isDestroyed()) return null

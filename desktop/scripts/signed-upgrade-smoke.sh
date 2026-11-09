@@ -546,7 +546,7 @@ labels_have() {
   python3 - "$smoke_dir/status.json" <<'PY'
 import json, sys
 labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
-need = ("40k tok", "$1.23", "acme-payments-platform-service")
+need = ("40k", "$1.23", "acme-payments-platform-service")
 sys.exit(0 if all(s in labs for s in need) else 1)
 PY
 }
@@ -575,15 +575,30 @@ fi
 if ! python3 - "$smoke_dir/status.json" <<'PY'
 import json, sys, re
 labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
-sys.exit(1 if re.search(r"\$0\b|0 tok", labs) else 0)
+sys.exit(1 if re.search(r"\$0\.00\b|\$0(?!\.)|0 tok", labs) else 0)
 PY
 then
   log "FAIL: unknown rendered as zero"
   tee -a "$report" <"$smoke_dir/status.json"
   exit 1
 fi
+log "sw_vers:"
+sw_vers | tee -a "$report" || true
+python3 - "$smoke_dir/status.json" <<'PY' | tee -a "$report"
+import json, sys, re
+st = json.load(open(sys.argv[1]))
+ver = str(st.get("osVersion") or "")
+print("status osVersion=%s menuVariant=%s menuSublabelSupported=%s" % (
+    ver, st.get("menuVariant"), st.get("menuSublabelSupported")))
+m = re.match(r"(\d+)\.(\d+)", ver)
+ok = False
+if m:
+    major, minor = int(m.group(1)), int(m.group(2))
+    ok = major > 14 or (major == 14 and minor >= 4)
+print("sublabel expected on this Darwin: %s (need >= 14.4)" % ("yes" if ok else "no, fallback single-line labels"))
+PY
 log "synthetic menuLabels:"
-python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["menuLabels"]))' "$smoke_dir/status.json" | tee -a "$report"
+python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1])).get("menuLabels") or []))' "$smoke_dir/status.json" | tee -a "$report"
 
 assert_icon_only() {
   tb=$(bounds_from_status trayBounds) || {
@@ -640,9 +655,29 @@ set_dark() {
   fi
 }
 
+set_variant() {
+  echo hide-menu >"$smoke_dir/cmd"
+  sleep 0.2
+  echo "variant $1" >"$smoke_dir/cmd"
+  v=0
+  while [ "$v" -lt 16 ]; do
+    if grep -q "\"menuVariant\": \"$1\"" "$smoke_dir/status.json" 2>/dev/null; then
+      log "menuVariant=$1"
+      return 0
+    fi
+    v=$((v + 1))
+    sleep 0.25
+    echo "variant $1" >"$smoke_dir/cmd"
+  done
+  log "FAIL: menu variant $1 did not apply"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+
 set_dark Light
+set_variant identity
 open_menu
-log "menu capture=fullscreen (NSMenu hangs left of extra)"
+log "menu capture=fullscreen variant=identity (stock NSMenu label+sublabel)"
 screencapture -x "$iso/native-menu.png"
 osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
 sleep 0.4
@@ -676,6 +711,20 @@ open_menu
 screencapture -x "$iso/native-menu-dark.png"
 osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
 echo hide-menu >"$smoke_dir/cmd"
+
+log "capture activity variant Light+Dark"
+set_dark Light
+set_variant activity
+open_menu
+screencapture -x "$iso/native-menu-activity.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+set_dark Dark
+open_menu
+screencapture -x "$iso/native-menu-activity-dark.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+set_variant identity
 set_dark Light || true
 
 log "bump synthetic session A tokens/cost and reopen"
@@ -687,7 +736,7 @@ while [ "$j" -lt 20 ]; do
   if python3 - "$smoke_dir/status.json" <<'PY'
 import json, sys
 labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
-sys.exit(0 if ("41k tok" in labs and "$1.73" in labs) else 1)
+sys.exit(0 if ("41k" in labs and "$1.73" in labs) else 1)
 PY
   then
     bump_ok=1
@@ -718,7 +767,7 @@ if [ "$gx" -lt 0 ]; then gx=0; fi
 if [ "$gy" -lt 0 ]; then gy=0; fi
 capture_rect "$iso/native-glyph.png" "$gx" "$gy" "$gw" "$gh"
 log "native glyph crop $gx,$gy ${gw}x${gh} trayWidth=$tw"
-for shot in native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
+for shot in native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-activity.png native-menu-activity-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
   [ -s "$iso/$shot" ] || {
     log "FAIL: $shot missing or empty"
     exit 1
@@ -730,7 +779,7 @@ kill "$menu_pid" 2>/dev/null || true
 wait "$menu_pid" 2>/dev/null || true
 
 cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || cp "$report" "$iso/../signed-upgrade-smoke.txt"
-for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
+for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-activity.png native-menu-activity-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
   if [ -f "$iso/$shot" ]; then
     dest=$shot
     if [ "$shot" = "native-desktop.png" ]; then dest=signed-upgrade-native.png

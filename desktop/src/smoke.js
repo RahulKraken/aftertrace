@@ -59,6 +59,8 @@ function start({
   hidePopover,
   showMenu,
   getMenuLabels,
+  setMenuVariant,
+  getMenuMeta,
   refreshTray,
   getWindowHash,
   restartToUpdate,
@@ -88,6 +90,7 @@ function start({
     menuOpen,
     menuLabels: getMenuLabels ? getMenuLabels() : [],
     windowHash: getWindowHash ? getWindowHash() : null,
+    ...(typeof getMenuMeta === "function" ? getMenuMeta() : {}),
     ...more,
   })
   const tick = () => {
@@ -104,7 +107,9 @@ function start({
     } catch {
       // consumed
     }
-    const cmd = raw.split(/\s+/)[0]
+    const parts = raw.split(/\s+/)
+    const cmd = parts[0]
+    const arg = parts[1] || ""
     if (cmd === "check" && updater) {
       updater.check({ interactive: false }).catch((err) => {
         writeStatus(snapshot({ error: err && err.message }))
@@ -134,6 +139,9 @@ function start({
       Promise.resolve(refreshTray())
         .then(() => writeStatus(snapshot()))
         .catch((err) => writeStatus(snapshot({ error: err && err.message })))
+    } else if (cmd === "variant" && typeof setMenuVariant === "function") {
+      setMenuVariant(arg)
+      writeStatus(snapshot())
     } else if (cmd === "popover" && showPopover) {
       showPopover()
     } else if (cmd === "hide-popover" && hidePopover) {

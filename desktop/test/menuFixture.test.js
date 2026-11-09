@@ -24,27 +24,22 @@ test("synthetic fixture is labelled and has no real-user fields", () => {
 })
 
 test("expected top-level lines carry identity, doing, tokens and session dollars", () => {
-  const { lines, today, fragments, forbidden, firstSessionId } = expectedLabels()
+  const { lines, items, today, fragments, forbidden, firstSessionId } = expectedLabels()
   assert.equal(firstSessionId, SESSION_A)
-  assert.match(lines[0], /aftertrace · Claude Code/)
-  assert.match(lines[0], /Thinking · Opus 5\.5/)
-  assert.match(lines[0], /40k tok/)
-  assert.match(lines[0], /\$1\.23/)
-  assert.match(lines[1], /aftertrace · VS Code/)
-  assert.match(lines[1], /8\.0k tok/)
-  assert.match(lines[2], /acme-payments-platform-service/)
-  assert.match(lines[2], /\$2\.50/)
-  assert.match(lines[3], /Reading README\.md/)
-  assert.doesNotMatch(lines[3], /\$0|0 tok/)
-  assert.equal(today, "Today · $4.13")
+  assert.equal(items[0].label, "aftertrace · CLI")
+  assert.equal(items[0].sublabel, "Thinking · 40k · $1.23")
+  assert.equal(items[1].label, "aftertrace · VS Code")
+  assert.equal(items[1].sublabel, "Editing checkout.ts · 8.0k · $0.40")
+  assert.equal(items[2].label, "acme-payments-platform-service")
+  assert.match(items[2].sublabel, /\$2\.50/)
+  assert.match(items[3].sublabel || items[3].label, /Reading README\.md/)
+  assert.doesNotMatch(JSON.stringify(items[3]), /\$0|0 tok|40¢/)
+  assert.equal(today, "Today $4.13")
   assert.notEqual(lines[0], today)
-  for (const f of fragments) assert.ok(lines.concat(today).join("\n").includes(f) || today.includes(f) || lines.some((l) => l.includes(f)))
+  const blob = items.map((i) => `${i.label} ${i.sublabel || ""}`).concat(today).join("\n")
+  for (const f of fragments) assert.ok(blob.includes(f), f)
   for (const bad of forbidden) {
-    assert.equal(
-      lines.concat(today).some((l) => l.includes(bad)),
-      false,
-      bad,
-    )
+    assert.equal(blob.includes(bad), false, bad)
   }
 })
 
@@ -62,5 +57,5 @@ test("bump stays on the same live session id", () => {
   const span = bump.traces.resourceSpans[0].scopeSpans[0].spans[0]
   const live = buildFixture().traces.resourceSpans[0].scopeSpans[0].spans.find((s) => s.name === "claude_code.llm_request")
   assert.equal(span.traceId, live.traceId)
-  for (const f of expectedBumpFragments()) assert.match(f, /41k tok|\$1\.73|Today/)
+  for (const f of expectedBumpFragments()) assert.match(f, /41k|\$1\.73|Today/)
 })
