@@ -14,10 +14,21 @@ base=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 iso=$base/aftertrace-signed-smoke-$$
 report=$iso/report.txt
 http_pid=""
+legacy_uid=""
+legacy_plist=""
 mkdir -p "$iso"
 : >"$report"
 log() { printf '%s\n' "$*" | tee -a "$report"; }
+cleanup_legacy() {
+  if [ -n "${legacy_uid:-}" ]; then
+    launchctl bootout "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${legacy_plist:-}" ]; then
+    rm -f "$legacy_plist"
+  fi
+}
 copy_report() {
+  cleanup_legacy
   cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || true
   if [ -n "$http_pid" ]; then
     kill "$http_pid" 2>/dev/null || true
@@ -292,6 +303,79 @@ copy_app() {
   codesign -v "$dest/Aftertrace.app"
 }
 
+wait_engine_version() {
+  want=$1
+  i=0
+  while [ "$i" -lt 40 ]; do
+    got=$(curl -sf http://127.0.0.1:7311/api/version 2>/dev/null || true)
+    if [ -n "$got" ]; then
+      log "GET /api/version: $got"
+    fi
+    if printf '%s' "$got" | grep -q "$want"; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+# --- leftover LaunchAgent (Rahul's v0.4.2 path): unload, keep DB ---
+log "== legacy dev.aftertrace LaunchAgent =="
+legacy_uid=$(id -u)
+legacy_plist="$runner_home/Library/LaunchAgents/dev.aftertrace.plist"
+mkdir -p "$runner_home/Library/LaunchAgents" "$iso_home/Library/LaunchAgents"
+cat >"$iso/fake-legacy-engine.py" <<'PY'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json, os
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/api/version"):
+            body = json.dumps({"version": "v0.4.2", "pid": os.getpid(), "bin": os.path.expanduser("~/.aftertrace/bin/aftertrace"), "service": "launchd"}).encode()
+        elif self.path.startswith("/api/status"):
+            body = json.dumps({"info": {"version": "v0.4.2", "service": "launchd"}}).encode()
+        else:
+            body = b'{"ok":true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *_args):
+        pass
+HTTPServer(("127.0.0.1", 7311), H).serve_forever()
+PY
+cat >"$legacy_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.aftertrace</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>$iso/fake-legacy-engine.py</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>$iso/legacy.stdout</string>
+  <key>StandardErrorPath</key>
+  <string>$iso/legacy.stderr</string>
+</dict>
+</plist>
+EOF
+cp "$legacy_plist" "$iso_home/Library/LaunchAgents/dev.aftertrace.plist"
+launchctl bootout "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1 || true
+launchctl bootstrap "gui/${legacy_uid}" "$legacy_plist"
+sleep 1
+wait_engine_version "v0.4.2"
+log "legacy LaunchAgent is serving v0.4.2 on 7311"
+echo "legacy-keep" >"$engine_home/legacy-keep.txt"
+[ -f "$engine_home/marker.txt" ]
+
 # --- quit-to-install: replace, do not reopen ---
 log "== quit-to-install (no relaunch) =="
 quitdir=$iso/quit-app
@@ -304,6 +388,25 @@ quit_pid=$!
 log "launched 0.5.5 for quit-to-install pid=$quit_pid"
 wait_status
 tee -a "$report" <"$smoke_dir/status.json"
+if ! wait_engine_version "v0.5.5"; then
+  log "FAIL: bundled engine did not replace v0.4.2 on 7311"
+  tail -n 40 "$iso/quit.stderr" | tee -a "$report" || true
+  tail -n 20 "$iso/legacy.stderr" | tee -a "$report" || true
+  exit 1
+fi
+if [ -f "$legacy_plist" ]; then
+  log "FAIL: $legacy_plist still present after packaged start"
+  exit 1
+fi
+if launchctl print "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1; then
+  log "FAIL: launchctl print gui/${legacy_uid}/dev.aftertrace still succeeds"
+  launchctl print "gui/${legacy_uid}/dev.aftertrace" | tee -a "$report" || true
+  exit 1
+fi
+[ -f "$engine_home/legacy-keep.txt" ]
+grep -q legacy-keep "$engine_home/legacy-keep.txt"
+[ -f "$engine_home/marker.txt" ]
+log "legacy LaunchAgent replaced; /api/version is v0.5.5; DB marker kept"
 echo check >"$smoke_dir/cmd"
 wait_ready "$quit_pid"
 log "download ready; sending quit (install on quit, no reopen)"

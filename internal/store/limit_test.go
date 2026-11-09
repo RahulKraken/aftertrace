@@ -20,10 +20,10 @@ func TestDSNLocksMemoryAndThreads(t *testing.T) {
 	if err := st.DB.QueryRow(`SELECT current_setting('threads')`).Scan(&threads); err != nil {
 		t.Fatal(err)
 	}
-	// DuckDB treats 512MB as 512e6 bytes (488.2 MiB) or 512 MiB depending on version.
+	// DuckDB treats 256MB as 256e6 bytes (244.1 MiB) or 256 MiB depending on version.
 	low := strings.ToLower(mem)
-	if !strings.Contains(low, "512") && !strings.Contains(low, "488") && !strings.Contains(mem, "536") {
-		t.Fatalf("memory_limit=%q, want ~512MB", mem)
+	if !strings.Contains(low, "256") && !strings.Contains(low, "244") {
+		t.Fatalf("memory_limit=%q, want ~256MB", mem)
 	}
 	if threads != "2" {
 		t.Fatalf("threads=%q, want 2", threads)

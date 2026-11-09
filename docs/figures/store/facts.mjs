@@ -44,7 +44,7 @@ const viewList = [...views.matchAll(/CREATE OR REPLACE VIEW (\w+) AS([\s\S]*?)(?
 
 const prices = [...pricing.matchAll(/^\s*\{"([^"]+)",/gm)].map((m) => m[1])
 const dsn = store.match(/dsnOptions = "\?([^"]+)"/)[1].split("&")
-for (const need of ["enable_external_access=false", "lock_configuration=true", "memory_limit=512MB", "threads=2"]) {
+for (const need of ["enable_external_access=false", "lock_configuration=true", "memory_limit=256MB", "threads=2", "allocator_flush_threshold=16MB"]) {
   if (!dsn.includes(need)) throw new Error(`facts: dsn missing ${need}`)
 }
 const defaultDir = main.match(/filepath\.Join\(h, "([^"]+)", "([^"]+)"\)/)

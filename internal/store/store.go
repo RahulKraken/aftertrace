@@ -97,7 +97,7 @@ const HistorySource = "history"
 // memory_limit and threads are set here because lock_configuration forbids SET later.
 // A menu-bar sidecar on a large DB must not take every core or multiple GB of RSS
 // while views and findings warm up.
-const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=512MB&threads=2"
+const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=256MB&threads=2&allocator_flush_threshold=16MB"
 
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -120,6 +120,12 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("views: %w", err)
 	}
+	// Schema/view install dirties jemalloc. memory_limit does not give those
+	// pages back; destroying the instance does. Recycle before we return so a
+	// 500 MB file starts at tens of MB RSS, not hundreds.
+	if err := s.recycleLocked(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -128,6 +134,30 @@ func (s *Store) Close() error {
 		return nil
 	}
 	return s.DB.Close()
+}
+
+func (s *Store) recycleLocked() error {
+	if s.DB != nil {
+		_ = s.DB.Close()
+		s.DB = nil
+	}
+	db, err := sql.Open("duckdb", s.Path+dsnOptions)
+	if err != nil {
+		return err
+	}
+	s.DB = db
+	return nil
+}
+
+// Reopen closes the DuckDB instance and opens the same file again. Insert
+// leaves jemalloc dirty pages that memory_limit does not return to the OS.
+func (s *Store) Reopen() error {
+	if s == nil {
+		return fmt.Errorf("store: nil")
+	}
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+	return s.recycleLocked()
 }
 
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {

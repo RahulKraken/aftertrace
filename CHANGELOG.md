@@ -8,7 +8,7 @@
 - One version string from the release tag: Go `-X main.version=vX.Y.Z`, About panel, Restart label, Settings, `GET /api/version`, bundled `aftertrace version`. CI checks the packed engine equals the app version. Packaged builds do not fall through to `aftertrace` on PATH.
 
 **Engine**
-- DuckDB opens with `memory_limit=512MB` and `threads=2` in the DSN (`lock_configuration` forbids SET later). History import and `COUNT(*)` run after the ports are up, at lowered Unix niceness. The desktop health ping is `GET /api/health`, not `/api/status` (which ran findings). CI `TestPeakRSS` on 80k seeded spans: 40 MB before open, **203 MB peak and steady** (cap 1.5 GB). Rahul’s 580 MB DB was 3.5–4.3 GB RSS / 400–515% CPU for ~2 minutes unbounded, 1.35 GB steady on the old engine.
+- DuckDB opens with `memory_limit=256MB`, `threads=2`, and `allocator_flush_threshold=16MB`. `memory_limit` does not bound process RSS (jemalloc dirty pages stay until the instance is destroyed). After schema/views and after history import the store reopens the file. Health ping is `GET /api/health`. CI seeds a **≥500 MB** DB in a child process and opens it in the parent: **517 MB file, 441 MB peak, 45 MB steady** (caps 600 / 300). Rahul’s 580 MB DB was 3.5–4.3 GB peak / ~1.06–1.35 GB idle unbounded.
 
 ## v0.5.5
 

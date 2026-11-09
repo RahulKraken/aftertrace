@@ -185,7 +185,7 @@ Response: `{sql, params, table: [{groups, value, n}], series: [{groups, points: 
 
 The query cannot touch anything outside the tables and views:
 
-- The DuckDB instance is opened with `enable_external_access=false`, `lock_configuration=true`, `memory_limit=512MB`, and `threads=2`. `read_text`, `read_csv`, `FROM 'file'`, `glob`, `COPY`, `ATTACH`, `INSTALL`, and `LOAD` fail, and no `SET` can turn access back on or raise those caps.
+- The DuckDB instance is opened with `enable_external_access=false`, `lock_configuration=true`, `memory_limit=256MB`, `threads=2`, and `allocator_flush_threshold=16MB`. `read_text`, `read_csv`, `FROM 'file'`, `glob`, `COPY`, `ATTACH`, `INSTALL`, and `LOAD` fail, and no `SET` can turn access back on or raise those caps. After history import, `serve` reopens the file so allocator dirty pages are not stuck in RSS.
 - A regex refuses anything that does not start with `SELECT` or `WITH`, or has a second statement.
 - DuckDB prepares the statement first; anything but a `SELECT` (for example `WITH ... DELETE`) is refused.
 - It runs in a transaction that is always rolled back.

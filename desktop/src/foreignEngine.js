@@ -49,8 +49,11 @@ function migrateLegacyService({
       status: boot.status,
       stderr: String((boot && boot.stderr) || "").slice(0, 400),
     })
-    const plist = launchdPlistPath(home)
-    if (fsFn.existsSync(plist)) {
+    const homes = new Set([home, os.homedir()])
+    if (process.env.HOME) homes.add(process.env.HOME)
+    for (const h of homes) {
+      const plist = launchdPlistPath(h)
+      if (!fsFn.existsSync(plist)) continue
       try {
         fsFn.unlinkSync(plist)
         notes.push({ removed: plist })

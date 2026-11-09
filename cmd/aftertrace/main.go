@@ -189,6 +189,9 @@ func cmdServe(args []string) int {
 				log.Printf("history    no new sessions in %s", *f.historyDir)
 			}
 		}
+		if err := st.Reopen(); err != nil {
+			log.Printf("reopen db: %v", err)
+		}
 		c, _ := st.Counts()
 		log.Printf("  db          %s  (%d spans)", st.Path, c.Spans)
 	}()
