@@ -28,6 +28,8 @@ test("quit/restart stay off the dashboard origin", () => {
 test("dashboardHash allows finding focus and rejects traversal", () => {
   assert.equal(dashboardHash("/findings?focus=4"), "/findings?focus=4")
   assert.equal(dashboardHash("#/settings"), "/settings")
+  assert.equal(dashboardHash("/session/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), "/session/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+  assert.equal(dashboardHash("/sessions"), "/sessions")
   assert.equal(dashboardHash("javascript:alert(1)"), "")
   assert.equal(dashboardHash("/../../etc/passwd"), "")
   assert.equal(dashboardHash("https://evil.example/"), "")

@@ -280,11 +280,12 @@ fi
 [ -f "$engine_home/marker.txt" ]
 assert_no_runner_writes
 
-log "== GUI: Dock open/close/reopen + native popover/glyph (not System Events process list alone) =="
+log "== GUI: Dock open/close/reopen + native NSMenu/glyph (not System Events process list alone) =="
 # Hardened runtime typically disables nodeCliInspect. Native: file-protocol
-# smoke cmds + Dock AX tiles + screencapture of the compact popover window.
+# smoke cmds + Dock AX tiles + screencapture of NSMenu via popUpContextMenu.
+# An open NSMenu is not live-updated; labels rebuild on the next open.
 pgrep -x WindowServer >/dev/null 2>&1 || {
-  log "FAIL: WindowServer not running; Aqua Dock/popover cannot be asserted"
+  log "FAIL: WindowServer not running; Aqua Dock/NSMenu cannot be asserted"
   exit 1
 }
 pgrep -x Dock >/dev/null 2>&1 || {
@@ -410,35 +411,8 @@ assert_engine_and_tray
 click_allow
 screencapture -x "$iso/native-dock-open.png"
 
-echo popover >"$smoke_dir/cmd"
-k=0
-popover_ok=0
-while [ "$k" -lt 16 ]; do
-  if [ -f "$smoke_dir/status.json" ] && grep -q '"popoverOpen": true' "$smoke_dir/status.json"; then
-    popover_ok=1
-    break
-  fi
-  k=$((k + 1))
-  sleep 1
-done
-[ "$popover_ok" = 1 ] || {
-  log "FAIL: native popover did not open (status.popoverOpen)"
-  tee -a "$report" <"$smoke_dir/status.json" || true
-  exit 1
-}
-click_allow
-screencapture -x "$iso/native-desktop.png"
-pb=$(bounds_from_status popoverBounds) || {
-  log "FAIL: popoverBounds missing from status.json"
-  tee -a "$report" <"$smoke_dir/status.json" || true
-  exit 1
-}
-px=$(printf '%s\n' "$pb" | awk '{print $1}')
-py=$(printf '%s\n' "$pb" | awk '{print $2}')
-pw=$(printf '%s\n' "$pb" | awk '{print $3}')
-ph=$(printf '%s\n' "$pb" | awk '{print $4}')
-capture_rect "$iso/native-popover.png" "$px" "$py" "$pw" "$ph"
-log "native popover crop $px,$py ${pw}x${ph}"
+appearance=$(defaults read -g AppleInterfaceStyle 2>/dev/null || echo Light)
+log "0.5.5 fixture AppleInterfaceStyle=$appearance (menu capture waits for notarized 0.5.4 head app)"
 tb=$(bounds_from_status trayBounds) || {
   log "FAIL: trayBounds missing from status.json"
   tee -a "$report" <"$smoke_dir/status.json" || true
@@ -452,15 +426,13 @@ if [ "$tw" -lt 8 ] || [ "$th" -lt 8 ]; then
   log "FAIL: trayBounds too small for a menu extra ($tb)"
   exit 1
 fi
-gx=$((tx - 8))
-gy=$((ty - 4))
-gw=$((tw + 16))
-gh=$((th + 8))
-if [ "$gx" -lt 0 ]; then gx=0; fi
-if [ "$gy" -lt 0 ]; then gy=0; fi
-capture_rect "$iso/native-glyph.png" "$gx" "$gy" "$gw" "$gh"
-log "native glyph crop $gx,$gy ${gw}x${gh}"
-log "native popover bytes=$(wc -c < "$iso/native-popover.png") glyph bytes=$(wc -c < "$iso/native-glyph.png")"
+if [ "$tw" -gt 64 ]; then
+  log "FAIL: tray extra is not icon-only (trayBounds width $tw > 64; setTitle text would shift neighbors)"
+  exit 1
+fi
+log "0.5.5 fixture icon-only trayWidth=$tw (NSMenu with live sessions is captured on the notarized 0.5.4 pack)"
+click_allow
+screencapture -x "$iso/native-desktop.png"
 
 echo close >"$smoke_dir/cmd"
 wait_dock out "dashboard closed"
@@ -476,9 +448,338 @@ log "reopen: Dock/app-switcher restored"
 
 kill "$gui_pid" 2>/dev/null || true
 wait "$gui_pid" 2>/dev/null || true
+# Drop the 0.5.5 fixture process so OTLP 4318 / UI 7311 are free for the notarized pack.
+pkill -f "$appdir/Aftertrace.app" 2>/dev/null || true
+pkill -f "$engine_home/aftertrace.duckdb" 2>/dev/null || true
+sleep 1
+
+log "== notarized PR-head 0.5.4 NSMenu with synthetic OTel (not Rahul usage) =="
+log "GITHUB_SHA=${GITHUB_SHA-} GITHUB_REF=${GITHUB_REF-}"
+notarized_app=""
+for cand in "$ship_dist"/mac-arm64/Aftertrace.app "$ship_dist"/mac/Aftertrace.app; do
+  if [ -d "$cand" ]; then
+    notarized_app=$cand
+    break
+  fi
+done
+[ -n "$notarized_app" ]
+nv=$(plist_version "$notarized_app")
+log "notarized-pack plist=$nv (this CI pack identity; not GitHub Release v0.5.4 unless SHA matches a tag)"
+[ "$nv" = "0.5.4" ]
+codesign -dv --verbose=4 "$notarized_app" 2>&1 | tee -a "$report" | grep -q "Developer ID Application" || {
+  log "FAIL: menu capture requires the Developer ID signed pack from this job"
+  exit 1
+}
+cdhash=$(codesign -dv --verbose=4 "$notarized_app" 2>&1 | awk -F= '/^CDHash=/{print $2; exit}')
+log "notarized-pack CDHash=$cdhash"
+if [ -f "$ship_dist/Aftertrace-mac-notarized.json" ]; then
+  log "notarized marker=$(tr -d '\n' < "$ship_dist/Aftertrace-mac-notarized.json")"
+else
+  log "FAIL: Aftertrace-mac-notarized.json missing; refusing unsigned/unnotarized menu evidence"
+  exit 1
+fi
+
+menu_home=$iso/menu-home
+menu_user="$menu_home/Library/Application Support/Aftertrace"
+menu_engine=$menu_home/.aftertrace
+menu_smoke=$iso/menu-smoke
+menu_appdir=$iso/notarized
+mkdir -p "$menu_home" "$menu_user" "$menu_engine" "$menu_smoke" "$menu_appdir"
+ditto "$notarized_app" "$menu_appdir/Aftertrace.app"
+xattr -dr com.apple.quarantine "$menu_appdir/Aftertrace.app" 2>/dev/null || true
+echo '{"firstLaunchDone":true,"openAtLogin":false}' >"$menu_user/desktop.json"
+export HOME="$menu_home"
+export TMPDIR="$iso/tmp"
+export AFTERTRACE_HOME="$menu_engine"
+export AFTERTRACE_USER_DATA_DIR="$menu_user"
+export AFTERTRACE_SMOKE=1
+export AFTERTRACE_SMOKE_DIR="$menu_smoke"
+unset AFTERTRACE_UPDATE_FEED_URL
+
+"$menu_appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
+  --user-data-dir="$menu_user" \
+  >"$iso/menu.stdout" 2>"$iso/menu.stderr" &
+menu_pid=$!
+log "notarized 0.5.4 pid=$menu_pid"
+smoke_dir=$menu_smoke
+gui_pid=$menu_pid
+wait_gui_ready
+
+wait_http() {
+  url=$1
+  label=$2
+  j=0
+  while [ "$j" -lt 40 ]; do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      log "ok $label $url"
+      return 0
+    fi
+    j=$((j + 1))
+    sleep 0.5
+  done
+  log "FAIL: $label not answering ($url)"
+  tail -n 80 "$iso/menu.stderr" | tee -a "$report" || true
+  exit 1
+}
+wait_http "http://127.0.0.1:7311/api/status" "engine /api/status"
+
+echo refresh >"$smoke_dir/cmd"
+sleep 1
+echo dashboard >"$smoke_dir/cmd"
+wait_dock in "notarized dashboard"
+click_allow
+
+log "injecting synthetic OTLP fixture (aftertrace.synthetic=true)"
+node "$root/desktop/scripts/otlp-menu-fixture.js" --otlp http://127.0.0.1:4318 | tee -a "$report"
+live_json=$(curl -fsS http://127.0.0.1:7311/api/overview)
+printf '%s\n' "$live_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); live=d.get("live") or [];
+assert len(live)>=2, "live lanes %s" % len(live)
+print("overview live=%d" % len(live))' | tee -a "$report"
+sess_json=$(curl -fsS http://127.0.0.1:7311/api/sessions)
+printf '%s\n' "$sess_json" | python3 -c 'import json,sys; rows=json.load(sys.stdin);
+assert any(r.get("tokens") for r in rows), rows
+assert any((r.get("cost_usd") or 0)>0 for r in rows), rows
+print("sessions=%d" % len(rows))' | tee -a "$report"
+
+echo refresh >"$smoke_dir/cmd"
+labels_have() {
+  python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+need = ("40k", "$1.23", "acme-payments-platform-service")
+sys.exit(0 if all(s in labs for s in need) else 1)
+PY
+}
+labels_ok=0
+j=0
+while [ "$j" -lt 24 ]; do
+  if [ -f "$smoke_dir/status.json" ] && labels_have; then
+    labels_ok=1
+    break
+  fi
+  j=$((j + 1))
+  sleep 0.5
+  echo refresh >"$smoke_dir/cmd"
+done
+[ "$labels_ok" = 1 ] || {
+  log "FAIL: tray labels never showed synthetic session tokens/cost (Engine offline is not success)"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  curl -fsS http://127.0.0.1:7311/api/overview | tee -a "$report" || true
+  exit 1
+}
+if grep -q 'Engine offline' "$smoke_dir/status.json"; then
+  log "FAIL: Engine offline after synthetic ingest"
+  tee -a "$report" <"$smoke_dir/status.json"
+  exit 1
+fi
+if ! python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys, re
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+sys.exit(1 if re.search(r"\$0\.00\b|\$0(?!\.)|0 tok", labs) else 0)
+PY
+then
+  log "FAIL: unknown rendered as zero"
+  tee -a "$report" <"$smoke_dir/status.json"
+  exit 1
+fi
+log "sw_vers:"
+sw_vers | tee -a "$report" || true
+python3 - "$smoke_dir/status.json" <<'PY' | tee -a "$report"
+import json, sys, re
+st = json.load(open(sys.argv[1]))
+ver = str(st.get("osVersion") or "")
+print("status osVersion=%s menuVariant=%s menuSublabelSupported=%s" % (
+    ver, st.get("menuVariant"), st.get("menuSublabelSupported")))
+m = re.match(r"(\d+)\.(\d+)", ver)
+ok = False
+if m:
+    major, minor = int(m.group(1)), int(m.group(2))
+    ok = major > 14 or (major == 14 and minor >= 4)
+print("sublabel expected on this Darwin: %s (need >= 14.4)" % ("yes" if ok else "no, fallback single-line labels"))
+PY
+log "synthetic menuLabels:"
+python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1])).get("menuLabels") or []))' "$smoke_dir/status.json" | tee -a "$report"
+
+assert_icon_only() {
+  tb=$(bounds_from_status trayBounds) || {
+    log "FAIL: trayBounds missing"
+    exit 1
+  }
+  tx=$(printf '%s\n' "$tb" | awk '{print $1}')
+  ty=$(printf '%s\n' "$tb" | awk '{print $2}')
+  tw=$(printf '%s\n' "$tb" | awk '{print $3}')
+  th=$(printf '%s\n' "$tb" | awk '{print $4}')
+  if [ "$tw" -gt 64 ]; then
+    log "FAIL: tray extra is not icon-only (trayBounds width $tw > 64)"
+    exit 1
+  fi
+  log "icon-only trayWidth=$tw ($1)"
+}
+assert_icon_only "after ingest"
+
+# Status-item NSMenu hangs left of the extra. Centering the crop on the extra
+# (mx=tx+tw/2-240 on 2b12cc7) clipped repo prefixes. Full-display capture keeps
+# identities, tokens, and $ in frame at Aqua size.
+
+open_menu() {
+  echo hide-menu >"$smoke_dir/cmd"
+  sleep 0.3
+  echo menu >"$smoke_dir/cmd"
+  k=0
+  while [ "$k" -lt 20 ]; do
+    if grep -q '"menuOpen": true' "$smoke_dir/status.json" 2>/dev/null; then
+      sleep 1
+      return 0
+    fi
+    k=$((k + 1))
+    sleep 0.25
+  done
+  log "FAIL: native NSMenu did not open"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+
+set_dark() {
+  want=$1
+  if [ "$want" = "Dark" ]; then
+    osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' >/dev/null 2>&1 || true
+  else
+    osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' >/dev/null 2>&1 || true
+  fi
+  sleep 1
+  now=$(defaults read -g AppleInterfaceStyle 2>/dev/null || echo Light)
+  log "AppleInterfaceStyle=$now (want $want)"
+  if [ "$want" = "Dark" ] && [ "$now" != "Dark" ]; then
+    log "FAIL: could not switch system appearance to Dark"
+    exit 1
+  fi
+}
+
+set_variant() {
+  echo hide-menu >"$smoke_dir/cmd"
+  sleep 0.2
+  echo "variant $1" >"$smoke_dir/cmd"
+  v=0
+  while [ "$v" -lt 16 ]; do
+    if grep -q "\"menuVariant\": \"$1\"" "$smoke_dir/status.json" 2>/dev/null; then
+      log "menuVariant=$1"
+      return 0
+    fi
+    v=$((v + 1))
+    sleep 0.25
+    echo "variant $1" >"$smoke_dir/cmd"
+  done
+  log "FAIL: menu variant $1 did not apply"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+
+set_dark Light
+set_variant identity
+open_menu
+log "menu capture=fullscreen variant=identity (stock NSMenu label+sublabel)"
+screencapture -x "$iso/native-menu.png"
+osascript -e 'tell application "System Events" to key code 125' >/dev/null 2>&1 || true
+sleep 0.4
+screencapture -x "$iso/native-menu-keyboard.png"
+osascript -e 'tell application "System Events" to key code 36' >/dev/null 2>&1 || true
+sleep 1.5
+echo hide-menu >"$smoke_dir/cmd"
+click_ok=0
+j=0
+while [ "$j" -lt 16 ]; do
+  if grep -q 'aaaaaaaaaaaa' "$smoke_dir/status.json" && grep -q 'session' "$smoke_dir/status.json"; then
+    click_ok=1
+    break
+  fi
+  j=$((j + 1))
+  sleep 0.25
+done
+[ "$click_ok" = 1 ] || {
+  log "FAIL: menu Enter did not open synthetic session A"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+log "windowHash after Enter:"
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("windowHash"))' "$smoke_dir/status.json" | tee -a "$report"
+screencapture -x "$iso/native-session-open.png"
+
+echo hide-menu >"$smoke_dir/cmd"
+sleep 0.3
+set_dark Dark
+open_menu
+screencapture -x "$iso/native-menu-dark.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+
+log "capture activity variant Light+Dark"
+set_dark Light
+set_variant activity
+open_menu
+screencapture -x "$iso/native-menu-activity.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+set_dark Dark
+open_menu
+screencapture -x "$iso/native-menu-activity-dark.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+set_variant identity
+set_dark Light || true
+
+log "bump synthetic session A tokens/cost and reopen"
+node "$root/desktop/scripts/otlp-menu-fixture.js" --otlp http://127.0.0.1:4318 --bump | tee -a "$report"
+echo refresh >"$smoke_dir/cmd"
+bump_ok=0
+j=0
+while [ "$j" -lt 20 ]; do
+  if python3 - "$smoke_dir/status.json" <<'PY'
+import json, sys
+labs = "\n".join(json.load(open(sys.argv[1])).get("menuLabels") or [])
+sys.exit(0 if ("41k" in labs and "$1.73" in labs) else 1)
+PY
+  then
+    bump_ok=1
+    break
+  fi
+  j=$((j + 1))
+  sleep 0.5
+  echo refresh >"$smoke_dir/cmd"
+done
+[ "$bump_ok" = 1 ] || {
+  log "FAIL: reopen did not refresh session totals after bump"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+}
+log "synthetic menuLabels after bump:"
+python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1])).get("menuLabels") or []))' "$smoke_dir/status.json" | tee -a "$report"
+open_menu
+screencapture -x "$iso/native-menu-reopen.png"
+osascript -e 'tell application "System Events" to key code 53' >/dev/null 2>&1 || true
+echo hide-menu >"$smoke_dir/cmd"
+
+assert_icon_only "after bump"
+gx=$((tx - 8))
+gy=$((ty - 4))
+gw=$((tw + 16))
+gh=$((th + 8))
+if [ "$gx" -lt 0 ]; then gx=0; fi
+if [ "$gy" -lt 0 ]; then gy=0; fi
+capture_rect "$iso/native-glyph.png" "$gx" "$gy" "$gw" "$gh"
+log "native glyph crop $gx,$gy ${gw}x${gh} trayWidth=$tw"
+for shot in native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-activity.png native-menu-activity-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
+  [ -s "$iso/$shot" ] || {
+    log "FAIL: $shot missing or empty"
+    exit 1
+  }
+  log "$shot bytes=$(wc -c < "$iso/$shot")"
+done
+
+kill "$menu_pid" 2>/dev/null || true
+wait "$menu_pid" 2>/dev/null || true
 
 cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || cp "$report" "$iso/../signed-upgrade-smoke.txt"
-for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-popover.png native-glyph.png; do
+for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-activity.png native-menu-activity-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
   if [ -f "$iso/$shot" ]; then
     dest=$shot
     if [ "$shot" = "native-desktop.png" ]; then dest=signed-upgrade-native.png

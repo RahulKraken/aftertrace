@@ -57,6 +57,12 @@ function start({
   closeWindow,
   showPopover,
   hidePopover,
+  showMenu,
+  getMenuLabels,
+  setMenuVariant,
+  getMenuMeta,
+  refreshTray,
+  getWindowHash,
   restartToUpdate,
   getVersion,
   getUserData,
@@ -73,6 +79,7 @@ function start({
   } catch {
     // first run
   }
+  let menuOpen = false
   const snapshot = (more = {}) => ({
     version: getVersion ? getVersion() : null,
     update: updater ? updater.getState() : null,
@@ -80,6 +87,10 @@ function start({
     trayBounds: getTrayBounds ? getTrayBounds() : null,
     popoverBounds: getPopoverBounds ? getPopoverBounds() : null,
     popoverOpen: Boolean(getPopoverBounds && getPopoverBounds()),
+    menuOpen,
+    menuLabels: getMenuLabels ? getMenuLabels() : [],
+    windowHash: getWindowHash ? getWindowHash() : null,
+    ...(typeof getMenuMeta === "function" ? getMenuMeta() : {}),
     ...more,
   })
   const tick = () => {
@@ -96,7 +107,9 @@ function start({
     } catch {
       // consumed
     }
-    const cmd = raw.split(/\s+/)[0]
+    const parts = raw.split(/\s+/)
+    const cmd = parts[0]
+    const arg = parts[1] || ""
     if (cmd === "check" && updater) {
       updater.check({ interactive: false }).catch((err) => {
         writeStatus(snapshot({ error: err && err.message }))
@@ -107,6 +120,28 @@ function start({
       openWindow()
     } else if (cmd === "close" && closeWindow) {
       closeWindow()
+    } else if (cmd === "menu" && showMenu) {
+      // popUpContextMenu often returns immediately on Darwin (Electron 45).
+      // Keep menuOpen until hide-menu so the runner can screenshot.
+      menuOpen = true
+      writeStatus(snapshot())
+      setImmediate(() => {
+        try {
+          showMenu()
+        } catch (err) {
+          writeStatus(snapshot({ error: err && err.message }))
+        }
+      })
+    } else if (cmd === "hide-menu") {
+      menuOpen = false
+      writeStatus(snapshot())
+    } else if (cmd === "refresh" && refreshTray) {
+      Promise.resolve(refreshTray())
+        .then(() => writeStatus(snapshot()))
+        .catch((err) => writeStatus(snapshot({ error: err && err.message })))
+    } else if (cmd === "variant" && typeof setMenuVariant === "function") {
+      setMenuVariant(arg)
+      writeStatus(snapshot())
     } else if (cmd === "popover" && showPopover) {
       showPopover()
     } else if (cmd === "hide-popover" && hidePopover) {

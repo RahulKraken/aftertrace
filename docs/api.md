@@ -213,7 +213,7 @@ The query cannot touch anything outside the tables and views:
 - `lo`, `hi`: the week, unix ns. The last 7 days, or the 7 days ending at the newest data when nothing arrived recently (`anchored: true`).
 - `week`, `prev`: this week and the one before. `sessions`, `turns`, `turn_ms`, `breakdown`, `cost_usd`, `requests`, `tokens`, `cache_hit`, `lines_added`, `lines_removed`, `commits`, `pull_requests`, `active_s` (from Claude Code metrics), `tool_calls`, `approvals` (prompts a person approved), `errors`.
 - `days`: 14 local days ending at `hi`, each `{day, start_ns, cost_usd, turn_ms, wait_ms, turns}`.
-- `live`: turns in progress that received spans in the last 5 minutes, each `{session_id, trace_id, title, source, start_ns, last_ns, spans, cost_usd, doing, quiet}`. `doing` is the latest tool or model call; `quiet` means nothing new for 90 seconds.
+- `live`: turns in progress that received spans in the last 5 minutes, each `{session_id, trace_id, title, source, start_ns, last_ns, spans, cost_usd, doing, quiet}`. `doing` is the latest tool, model, hook, or `blocked_on_user` span; `quiet` means nothing new for 90 seconds (not “needs you”).
 - `sources`: as `GET /api/sources`.
 - `top`, `open`: the highest-ranked finding and the number of findings. When `history_only` is true, `top` is the same pick as Connect (`PickMoneyFinding`: highest USD, ties by severity).
 - `recent`: the six newest sessions, shaped like `GET /api/sessions` rows. When `history_only` is true, only sessions that started in `lo`–`hi`.

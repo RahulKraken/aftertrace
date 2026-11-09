@@ -257,12 +257,14 @@ app.whenReady().then(async () => {
 
   updater.subscribe((st) => {
     if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", st)
+    if (trayApi && trayApi.refresh) trayApi.refresh().catch(() => {})
   })
 
   trayApi = createTray({
     isOpenAtLogin,
     getUpdate: () => updater.getState(),
-    onOpen: () => openWindow(),
+    onOpen: (hash) => openWindow(hash),
+    onOpenSession: (id) => openWindow(`/session/${id}`),
     onToggleLogin: () => setOpenAtLogin(!isOpenAtLogin()),
     onCheckUpdates: () => updater.check({ interactive: true }).then((st) => {
       if (st && st.restart) return restartToUpdate()
@@ -282,14 +284,28 @@ app.whenReady().then(async () => {
       closeWindow: destroyWindow,
       showPopover: () => {
         if (!trayApi || !trayApi.popover) return
-        // Dashboard focus would blur-hide the panel in ~400ms. Hold it
-        // open for native screencapture; production tray clicks stay at
-        // the default grace.
         trayApi.popover.markTrayInteraction(60_000)
         trayApi.popover.show()
       },
       hidePopover: () => {
         if (trayApi && trayApi.popover) trayApi.popover.hide()
+      },
+      showMenu: () => {
+        if (trayApi && typeof trayApi.showNativeMenu === "function") trayApi.showNativeMenu()
+      },
+      getMenuLabels: () => (trayApi && typeof trayApi.menuLabels === "function" ? trayApi.menuLabels() : []),
+      setMenuVariant: (v) => (trayApi && typeof trayApi.setMenuVariant === "function" ? trayApi.setMenuVariant(v) : undefined),
+      getMenuMeta: () => (trayApi && typeof trayApi.menuMeta === "function" ? trayApi.menuMeta() : {}),
+      refreshTray: () => (trayApi && trayApi.refresh ? trayApi.refresh() : Promise.resolve()),
+      getWindowHash: () => {
+        if (!win || win.isDestroyed()) return null
+        try {
+          const u = win.webContents.getURL()
+          const i = u.indexOf("#")
+          return i >= 0 ? u.slice(i) : u
+        } catch {
+          return null
+        }
       },
       restartToUpdate,
       getVersion: () => app.getVersion(),

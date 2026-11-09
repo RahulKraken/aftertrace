@@ -107,17 +107,44 @@ function pickFinding(overview) {
   return { text: clip(text, 88), id: top.id != null ? String(top.id) : null }
 }
 
-function lanesFromOverview(overview) {
+function numOrUndef(v) {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined
+}
+
+function sessionIndex(rows) {
+  const byId = new Map()
+  if (!Array.isArray(rows)) return byId
+  for (const row of rows) {
+    if (row && row.session_id) byId.set(row.session_id, row)
+  }
+  return byId
+}
+
+// Live lanes carry doing/quiet/source. /api/sessions (not overview.recent)
+// carries repo/tokens/cost for long-lived ids that fell out of the six newest.
+function joinLiveSessions(overview, sessionRows) {
   const live = overview && Array.isArray(overview.live) ? overview.live : []
-  return live.slice(0, 8).map((l) => ({
-    session_id: l.session_id,
-    trace_id: l.trace_id,
-    title: l.title || null,
-    doing: l.doing || "",
-    running: true,
-    // quiet means nothing new for 90s (thinking / long tool). Never "needs you".
-    quiet: Boolean(l.quiet),
-  }))
+  const byId = sessionIndex(sessionRows)
+  return live.map((l) => {
+    const row = (l.session_id && byId.get(l.session_id)) || {}
+    const cost = numOrUndef(row.cost_usd)
+    return {
+      session_id: l.session_id || "",
+      trace_id: l.trace_id || "",
+      title: l.title || row.title || null,
+      doing: l.doing || "",
+      running: true,
+      // quiet means nothing new for 90s (thinking / long tool). Never "needs you".
+      quiet: Boolean(l.quiet),
+      source: l.source || "",
+      last_ns: typeof l.last_ns === "number" ? l.last_ns : undefined,
+      repo: row.repo || "",
+      entrypoint: row.entrypoint || "",
+      tokens: numOrUndef(row.tokens),
+      cost_usd: cost != null ? cost : numOrUndef(l.cost_usd),
+      models: Array.isArray(row.models) ? row.models : [],
+    }
+  })
 }
 
 async function readGlance(origin, { now = Date.now() } = {}) {
@@ -128,13 +155,18 @@ async function readGlance(origin, { now = Date.now() } = {}) {
     let topFinding
     let topFindingId
     let sessions = []
+    let estimated = false
     try {
-      const overview = await getJson(origin, "/api/overview", 2500)
+      const [overview, sessionRows] = await Promise.all([
+        getJson(origin, "/api/overview", 2500),
+        getJson(origin, "/api/sessions", 2500).catch(() => []),
+      ])
       if (overview && overview.week && typeof overview.week.cost_usd === "number") {
         weekCost = overview.week.cost_usd
       }
       todayCost = todayCostFromDays(overview && overview.days, now)
-      sessions = lanesFromOverview(overview)
+      estimated = Boolean(overview && overview.history_only)
+      sessions = joinLiveSessions(overview, sessionRows)
       const finding = pickFinding(overview)
       topFinding = finding.text
       topFindingId = finding.id
@@ -149,6 +181,7 @@ async function readGlance(origin, { now = Date.now() } = {}) {
       findings: status.findings,
       weekCost,
       todayCost,
+      estimated,
       running,
       sessions,
       topFinding,
@@ -161,6 +194,7 @@ async function readGlance(origin, { now = Date.now() } = {}) {
       stale: true,
       fetchedAt: now,
       sessions: [],
+      estimated: false,
       error: err && err.message ? String(err.message) : "offline",
     }
   }
@@ -184,4 +218,5 @@ module.exports = {
   STALE_MS,
   todayCostFromDays,
   pickFinding,
+  joinLiveSessions,
 }

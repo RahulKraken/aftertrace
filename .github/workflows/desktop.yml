@@ -325,7 +325,13 @@ jobs:
             desktop/dist/signed-upgrade-dock-open.png
             desktop/dist/signed-upgrade-dock-closed.png
             desktop/dist/signed-upgrade-dock-reopen.png
-            desktop/dist/signed-upgrade-popover.png
+            desktop/dist/signed-upgrade-menu.png
+            desktop/dist/signed-upgrade-menu-keyboard.png
+            desktop/dist/signed-upgrade-menu-dark.png
+            desktop/dist/signed-upgrade-menu-activity.png
+            desktop/dist/signed-upgrade-menu-activity-dark.png
+            desktop/dist/signed-upgrade-menu-reopen.png
+            desktop/dist/signed-upgrade-session-open.png
             desktop/dist/signed-upgrade-glyph.png
             desktop/dist/session-screencapture.png
           if-no-files-found: warn

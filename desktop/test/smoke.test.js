@@ -105,7 +105,7 @@ test("start without AFTERTRACE_SMOKE_DIR does not write tmp", () => {
   )
 })
 
-test("file-protocol cmd check/restart/close/popover does not use Playwright", async () => {
+test("file-protocol cmd check/restart/close/menu does not use Playwright", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aftertrace-smoke-"))
   const prev = {
     AFTERTRACE_SMOKE: process.env.AFTERTRACE_SMOKE,
@@ -116,7 +116,7 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
   process.env.AFTERTRACE_SMOKE_ALLOW = "1"
   process.env.AFTERTRACE_SMOKE_DIR = dir
   const events = new EventEmitter()
-  const seen = { close: 0, popover: 0 }
+  const seen = { close: 0, popover: 0, menu: 0, refresh: 0 }
   try {
     const smoke = loadSmoke()
     const updater = {
@@ -141,6 +141,22 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
       showPopover: () => {
         seen.popover += 1
       },
+      showMenu: () => {
+        seen.menu += 1
+      },
+      refreshTray: async () => {
+        seen.refresh += 1
+      },
+      getWindowHash: () => "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa",
+      getMenuLabels: () => ["Idle", "Open Aftertrace"],
+      setMenuVariant: (v) => {
+        seen.variant = v
+      },
+      getMenuMeta: () => ({
+        menuVariant: seen.variant || "identity",
+        menuSublabelSupported: true,
+        osVersion: "15.1",
+      }),
     })
     const status = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(status.version, "0.5.4")
@@ -162,6 +178,27 @@ test("file-protocol cmd check/restart/close/popover does not use Playwright", as
     fs.writeFileSync(path.join(dir, "cmd"), "popover\n")
     await new Promise((r) => setTimeout(r, 400))
     assert.equal(seen.popover, 1)
+    fs.writeFileSync(path.join(dir, "cmd"), "menu\n")
+    await new Promise((r) => setTimeout(r, 400))
+    assert.equal(seen.menu, 1)
+    const afterMenu = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterMenu.menuOpen, true)
+    assert.deepEqual(afterMenu.menuLabels, ["Idle", "Open Aftertrace"])
+    fs.writeFileSync(path.join(dir, "cmd"), "hide-menu\n")
+    await new Promise((r) => setTimeout(r, 400))
+    const afterHide = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterHide.menuOpen, false)
+    fs.writeFileSync(path.join(dir, "cmd"), "refresh\n")
+    await new Promise((r) => setTimeout(r, 400))
+    assert.equal(seen.refresh, 1)
+    const afterRefresh = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(afterRefresh.windowHash, "#/session/11111111-1111-1111-1111-aaaaaaaaaaaa")
+    fs.writeFileSync(path.join(dir, "cmd"), "variant activity\n")
+    await new Promise((r) => setTimeout(r, 400))
+    const afterVariant = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
+    assert.equal(seen.variant, "activity")
+    assert.equal(afterVariant.menuVariant, "activity")
+    assert.equal(afterVariant.menuSublabelSupported, true)
   } finally {
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]
