@@ -668,8 +668,16 @@ func (s *Store) EnsureRollups() error {
 }
 
 func (s *Store) rebuildAllLocked() error {
-	if _, err := s.DB.Exec(`DELETE FROM llm_facts`); err != nil {
-		return err
+	for _, q := range []string{
+		`DELETE FROM llm_facts`,
+		`DELETE FROM trace_roots`,
+		`DELETE FROM session_stats`,
+		`DELETE FROM day_stats`,
+		`DELETE FROM model_stats`,
+	} {
+		if _, err := s.DB.Exec(q); err != nil {
+			return err
+		}
 	}
 	if _, err := s.DB.Exec(`INSERT INTO llm_facts
 		(trace_id, span_id, session_id, start_ns, model, request_id, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, is_error, attempt)

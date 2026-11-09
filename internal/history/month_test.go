@@ -110,6 +110,13 @@ func TestMonthImportAndRulesTiming(t *testing.T) {
 	t1 := time.Now()
 	fs := rules.RunAll(st.DB)
 	rulesMS := time.Since(t1).Milliseconds()
+	var rollups int
+	if err := st.DB.QueryRow(`SELECT count(*) FROM session_stats`).Scan(&rollups); err != nil {
+		t.Fatal(err)
+	}
+	if rollups != 60 {
+		t.Fatalf("session_stats=%d want 60 after import", rollups)
+	}
 	t.Logf("month fixture: import=%dms rules=%dms sessions=%d turns=%d requests=%d findings=%d",
 		importMS, rulesMS, res.Sessions, res.Turns, res.Requests, len(fs))
 	// Baseline 2026-10-29, before history-rule work, same fixture: import=2764ms

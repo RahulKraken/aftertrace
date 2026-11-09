@@ -33,6 +33,10 @@ type Store struct {
 	wmu  sync.Mutex
 	cmu  sync.Mutex
 	chg  []func()
+	// deferRollups > 0 skips per-batch refreshAfterInsert. History import
+	// writes many sessions; rebuilding rollups once at the end is the same
+	// result without repeating day/model scans on every file.
+	deferRollups int
 }
 
 type Span struct {
@@ -217,11 +221,36 @@ func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []Metric
 		}
 	}
 	err := s.insertLocked(spans, sevs, evs, pts)
+	notify := err == nil && s.deferRollups == 0
 	s.wmu.Unlock()
-	if err == nil {
+	if notify {
 		s.fireChange()
 	}
 	return err
+}
+
+// WithDeferredRollups runs fn with per-insert rollup refresh off, then rebuilds
+// session/day/model tables once. Nested calls rebuild only on the outermost exit.
+func (s *Store) WithDeferredRollups(fn func() error) error {
+	s.wmu.Lock()
+	s.deferRollups++
+	s.wmu.Unlock()
+	err := fn()
+	s.wmu.Lock()
+	s.deferRollups--
+	need := s.deferRollups == 0
+	var rerr error
+	if need {
+		rerr = s.rebuildAllLocked()
+	}
+	s.wmu.Unlock()
+	if need && rerr == nil {
+		s.fireChange()
+	}
+	if err != nil {
+		return err
+	}
+	return rerr
 }
 
 // ReplaceHistory deletes previously imported history rows for one session
@@ -233,8 +262,9 @@ func (s *Store) ReplaceHistory(sessionID string, spans []Span, sevs []SpanEvent,
 	if err == nil {
 		err = s.insertLocked(spans, sevs, evs, pts)
 	}
+	notify := err == nil && s.deferRollups == 0
 	s.wmu.Unlock()
-	if err == nil {
+	if notify {
 		s.fireChange()
 	}
 	return err
@@ -315,6 +345,9 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 	}
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+	if s.deferRollups > 0 {
+		return nil
 	}
 	return s.refreshAfterInsert(spans, sevs, evs, pts)
 }

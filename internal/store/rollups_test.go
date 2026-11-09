@@ -67,6 +67,46 @@ func TestInsertMaintainsSessionAndDayRollups(t *testing.T) {
 	}
 }
 
+func TestDeferredRollupsRebuildOnce(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "d.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := int64(1_700_000_000_000_000_000)
+	err = st.WithDeferredRollups(func() error {
+		for i := 0; i < 3; i++ {
+			tid := "t" + string(rune('1'+i))
+			sid := "s" + string(rune('1'+i))
+			if err := st.Insert([]Span{{
+				TraceID: tid, SpanID: "root", Name: "claude_code.interaction",
+				StartNS: now + int64(i)*1e9, EndNS: now + int64(i)*1e9 + 1e9, DurationMS: 1000,
+				SessionID: sid, Attrs: map[string]any{"session.title": sid},
+			}}, nil, nil, nil); err != nil {
+				return err
+			}
+		}
+		var n int
+		if err := st.DB.QueryRow(`SELECT count(*) FROM session_stats`).Scan(&n); err != nil {
+			return err
+		}
+		if n != 0 {
+			t.Fatalf("session_stats during defer=%d want 0", n)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := st.DB.QueryRow(`SELECT count(*) FROM session_stats`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("session_stats after defer=%d want 3", n)
+	}
+}
+
 func TestCompactContentStripsPromptPayload(t *testing.T) {
 	st, err := Open(filepath.Join(t.TempDir(), "c.duckdb"))
 	if err != nil {
