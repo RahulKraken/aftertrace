@@ -2,17 +2,25 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "wouter"
 import { useStatus } from "../lib/status"
 import { CopyButton } from "../components/CopyButton"
-import { int } from "../lib/format"
+import { ago, int } from "../lib/format"
+import { desktop, displayVersion, type UpdateState } from "../lib/desktop"
 import { PLANS, readPlan, writePlan, type Plan } from "../lib/plan"
 import { readBudget, writeBudget } from "../lib/budget"
 
 export function SettingsPage() {
   const status = useStatus()
+  const shell = desktop()
+  const [update, setUpdate] = useState<UpdateState | null>(null)
   const [plan, setPlan] = useState<Plan | null>(() => readPlan())
   const [budget, setBudget] = useState<string>(() => {
     const b = readBudget()
     return b ? String(b.weekly) : ""
   })
+  useEffect(() => {
+    if (!shell) return
+    shell.getUpdate().then(setUpdate).catch(() => {})
+    return shell.onUpdate(setUpdate)
+  }, [shell])
   useEffect(() => {
     const on = () => setPlan(readPlan())
     window.addEventListener("aftertrace-plan", on)
@@ -103,6 +111,28 @@ export function SettingsPage() {
           />
         </div>
       </section>
+
+      {shell ? (
+        <section className="set-sec" data-settings="updates">
+          <h2>Updates</h2>
+          <dl className="kv">
+            <dt>App</dt>
+            <dd className="mono">{displayVersion(update?.current) || "…"}</dd>
+            <dt>Last checked</dt>
+            <dd>{update?.checkedAt ? ago(update.checkedAt * 1e6) : "never"}</dd>
+          </dl>
+          <div className="set-actions">
+            <button type="button" className="v4-btn" onClick={() => shell.checkUpdates()}>
+              Check for updates
+            </button>
+            {update?.status === "ready" ? (
+              <button type="button" className="v4-btn" data-update="ready" onClick={() => shell.restartToUpdate()}>
+                Restart to update
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="set-sec">
         <h2>This server</h2>

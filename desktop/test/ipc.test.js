@@ -20,8 +20,10 @@ test("popover, first-launch, waiting, and dashboard UI are distinct senders", ()
   assert.equal(senderKind(eventFor("file:///tmp/desktop/src/main.js")), "file")
 })
 
-test("quit/restart stay off the dashboard origin", () => {
-  assert.throws(() => allowSender(eventFor("http://127.0.0.1:7311/"), ["popover"]), /ipc denied from ui/)
+test("quit stays off the dashboard origin; update actions are allowed", () => {
+  const ui = eventFor("http://127.0.0.1:7311/")
+  assert.throws(() => allowSender(ui, ["popover"]), /ipc denied from ui/)
+  assert.equal(allowSender(ui, ["popover", "ui"]), "ui")
   assert.equal(allowSender(eventFor("file:///app/renderer/popover.html"), ["popover"]), "popover")
 })
 

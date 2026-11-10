@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Desktop**
+- Updates check on launch, every hour, on wake, and when the network returns. They download silently; **Check for Updates…** never shows Download/Later. When a build is ready: **Restart to update** in the sidebar footer next to Receiving, the tray item, Settings, and one macOS notification per version (`Aftertrace vX is ready`). The Aftertrace menu (under About) and Settings both have Check for updates, with last-checked time.
+
 ## v0.5.6
 
 **Desktop**

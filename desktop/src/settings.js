@@ -6,6 +6,8 @@ const path = require("path")
 const DEFAULTS = {
   firstLaunchDone: false,
   openAtLogin: false,
+  notifiedUpdateVersion: "",
+  updateCheckedAt: 0,
 }
 
 function settingsPath(userData) {
@@ -19,6 +21,8 @@ function load(userData) {
     return {
       firstLaunchDone: Boolean(raw.firstLaunchDone),
       openAtLogin: Boolean(raw.openAtLogin),
+      notifiedUpdateVersion: raw.notifiedUpdateVersion ? String(raw.notifiedUpdateVersion) : "",
+      updateCheckedAt: Number(raw.updateCheckedAt) || 0,
     }
   } catch {
     return { ...DEFAULTS }

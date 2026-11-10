@@ -68,6 +68,7 @@ function start({
   getUserData,
   getTrayBounds,
   getPopoverBounds,
+  inAppReady,
 } = {}) {
   if (!enabled()) return { skipped: true }
   if (!process.env.AFTERTRACE_SMOKE_DIR) {
@@ -80,6 +81,7 @@ function start({
     // first run
   }
   let menuOpen = false
+  let lastInAppReady = false
   const snapshot = (more = {}) => ({
     version: getVersion ? getVersion() : null,
     update: updater ? updater.getState() : null,
@@ -90,11 +92,22 @@ function start({
     menuOpen,
     menuLabels: getMenuLabels ? getMenuLabels() : [],
     windowHash: getWindowHash ? getWindowHash() : null,
+    inAppReady: lastInAppReady,
     ...(typeof getMenuMeta === "function" ? getMenuMeta() : {}),
     ...more,
   })
+  const refreshInApp = () => {
+    if (typeof inAppReady !== "function") return
+    Promise.resolve(inAppReady())
+      .then((v) => {
+        lastInAppReady = Boolean(v)
+        writeStatus(snapshot())
+      })
+      .catch(() => {})
+  }
   const tick = () => {
     writeStatus(snapshot())
+    refreshInApp()
     let raw = ""
     try {
       raw = fs.readFileSync(cmdPath(), "utf8").trim()

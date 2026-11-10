@@ -6,6 +6,13 @@ declare global {
       renderGlance: (g: unknown) => void
       renderUpdate: (u: unknown) => void
     }
+    aftertraceDesktop?: {
+      platform: string
+      getUpdate: () => Promise<unknown>
+      checkUpdates: () => Promise<unknown>
+      restartToUpdate: () => Promise<boolean>
+      onUpdate: (fn: (state: unknown) => void) => () => void
+    }
   }
 }
 import { mkdirSync, readFileSync } from "node:fs"
@@ -18,6 +25,29 @@ mkdirSync(outDir, { recursive: true })
 mkdirSync(docsDir, { recursive: true })
 
 const HERO_TRACE = "509cb3acac23db7c6e9b7d180a474268"
+
+const READY_UPDATE = {
+  status: "ready",
+  version: "0.5.7",
+  current: "0.5.6",
+  error: null,
+  checkedAt: Date.now() - 90_000,
+}
+
+async function mockDesktop(page: Page, state = READY_UPDATE) {
+  await page.addInitScript((st) => {
+    window.aftertraceDesktop = {
+      platform: "darwin",
+      getUpdate: async () => st,
+      checkUpdates: async () => st,
+      restartToUpdate: async () => true,
+      onUpdate: (fn) => {
+        fn(st)
+        return () => {}
+      },
+    }
+  }, state)
+}
 
 async function waitFonts(page: Page) {
   const loaded = await page.evaluate(async () => {
@@ -583,4 +613,83 @@ test("recap: story, lanes, receipt, week switch", async ({ page }) => {
   await expect(page.locator(".recap-lead")).toContainText("128")
   await shot(page, "recap-long", "light")
   await shot(page, "recap-long", "dark")
+})
+
+test("in-app Restart to update sits in the sidebar footer", async ({ page }) => {
+  await mockDesktop(page)
+  await page.goto("/#/")
+  await waitFonts(page)
+  await expect(page.locator(".side-update")).toHaveText("Restart to update")
+  await expect(page.locator(".recv")).toContainText("Receiving")
+  await expect(page.locator("[data-update=ready]")).toHaveCount(1)
+  await shot(page, "update-ready", "light")
+  await shot(page, "update-ready", "dark")
+})
+
+test("Settings shows version, last checked, and Check for updates", async ({ page }) => {
+  await mockDesktop(page)
+  await page.goto("/#/settings")
+  await waitFonts(page)
+  const updates = page.locator("[data-settings=updates]")
+  await expect(updates).toBeVisible()
+  await expect(updates).toContainText("v0.5.6")
+  await expect(updates.getByRole("button", { name: "Check for updates" })).toBeVisible()
+  await expect(updates.getByRole("button", { name: "Restart to update" })).toBeVisible()
+  await expect(updates.locator("dd").nth(1)).toContainText("ago")
+  await shot(page, "settings-updates", "light")
+  await shot(page, "settings-updates", "dark")
+})
+
+test("app menu lists Check for Updates… under About", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 360 })
+  await page.setContent(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { display: grid; place-items: center; font-family: ui-sans-serif, system-ui, sans-serif; }
+  html[data-theme="light"] body { background: #d8d8d8; }
+  html[data-theme="dark"] body { background: #1c1c1e; }
+  .bar { position: absolute; top: 12px; left: 16px; font: 500 13px/1 ui-sans-serif, system-ui; }
+  html[data-theme="light"] .bar { color: #111; }
+  html[data-theme="dark"] .bar { color: #f2f2f2; }
+  .menu {
+    width: 240px; border-radius: 8px; padding: 6px 0;
+    box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  }
+  html[data-theme="light"] .menu { background: #f6f6f6; color: #111; }
+  html[data-theme="dark"] .menu { background: #2c2c2e; color: #f2f2f2; }
+  .item { padding: 5px 14px; font: 13px/1.3 ui-sans-serif, system-ui; display: flex; justify-content: space-between; }
+  .item.on { background: #0a84ff; color: #fff; }
+  hr { border: 0; height: 1px; margin: 5px 0; }
+  html[data-theme="light"] hr { background: #e2e2e2; }
+  html[data-theme="dark"] hr { background: #3a3a3c; }
+  kbd { font: 12px/1 ui-sans-serif, system-ui; opacity: .55; }
+</style>
+</head>
+<body>
+  <div class="bar">Aftertrace</div>
+  <div class="menu" role="menu" aria-label="Aftertrace">
+    <div class="item">About Aftertrace</div>
+    <hr/>
+    <div class="item on">Check for Updates…</div>
+    <hr/>
+    <div class="item">Hide Aftertrace <kbd>⌘H</kbd></div>
+    <div class="item">Hide Others <kbd>⌥⌘H</kbd></div>
+    <div class="item">Show All</div>
+    <hr/>
+    <div class="item">Quit Aftertrace <kbd>⌘Q</kbd></div>
+  </div>
+</body>
+</html>`)
+  await expect(page.getByRole("menu", { name: "Aftertrace" })).toContainText("Check for Updates…")
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light"
+  })
+  await page.screenshot({ path: resolve(outDir, "app-menu-light.png"), fullPage: false })
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "dark"
+  })
+  await page.screenshot({ path: resolve(outDir, "app-menu-dark.png"), fullPage: false })
 })

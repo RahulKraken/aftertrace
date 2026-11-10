@@ -3,7 +3,7 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const { EventEmitter } = require("node:events")
-const { createUpdater, feedCompatible } = require("../src/updater")
+const { createUpdater, feedCompatible, HOUR_MS, LAUNCH_DELAY_MS, ONLINE_POLL_MS } = require("../src/updater")
 
 function mockAuto(info) {
   const auto = new EventEmitter()
@@ -116,18 +116,21 @@ test("does not downgrade", async () => {
   assert.equal(auto.downloads, 0)
 })
 
-test("manual Download does not quitAndInstall", async () => {
+test("interactive Check downloads with no Download/Later prompt", async () => {
   const auto = mockAuto({
     version: "0.5.4",
     files: [{ url: "Aftertrace-mac-arm64.zip" }],
   })
   const d = dialog()
-  d.nextResponse = 0
   const updater = createUpdater({ autoUpdater: auto, getVersion: () => "0.5.0", dialog: d })
   const st = await updater.check({ interactive: true })
   assert.equal(st.status, "ready")
   assert.equal(auto.installs.length, 0)
-  assert.equal(d.boxes.length, 1)
+  assert.equal(auto.downloads, 1)
+  assert.equal(
+    d.boxes.filter((box) => /available/i.test(box.message) || (box.buttons || []).includes("Download")).length,
+    0,
+  )
 })
 
 test("offline check is an error, not a crash", async () => {
@@ -161,13 +164,12 @@ test("darwin x64 is not a consumer target", () => {
   assert.equal(r.ok, false)
 })
 
-test("Later on available does not download", async () => {
+test("background check never shows a dialog", async () => {
   const auto = mockAuto({
     version: "0.5.4",
     files: [{ url: "Aftertrace-mac-arm64.zip" }],
   })
   const d = dialog()
-  d.nextResponse = 1
   const updater = createUpdater({
     autoUpdater: auto,
     getVersion: () => "0.5.0",
@@ -175,10 +177,9 @@ test("Later on available does not download", async () => {
     platform: "darwin",
     arch: "arm64",
   })
-  const st = await updater.check({ interactive: true })
-  assert.equal(st.status, "available")
-  assert.equal(auto.downloads, 0)
-  assert.equal(auto.installs.length, 0)
+  const st = await updater.check({ interactive: false })
+  assert.equal(st.status, "ready")
+  assert.equal(d.boxes.length, 0)
 })
 
 test("failed download is a retryable error, app stays running", async () => {
@@ -252,27 +253,189 @@ test("interactive check during an in-flight download does not start a second one
   assert.ok(d.boxes.some((box) => /Downloading/i.test(box.message)))
 })
 
-test("Later then a background check downloads without a second feed inspect", async () => {
+test("notification click fires the hook", async () => {
   const auto = mockAuto({
-    version: "0.5.4",
+    version: "0.5.7",
     files: [{ url: "Aftertrace-mac-arm64.zip" }],
   })
-  const d = dialog()
-  d.nextResponse = 1
+  let clicks = 0
+  const notes = []
   const updater = createUpdater({
     autoUpdater: auto,
-    getVersion: () => "0.5.0",
-    dialog: d,
-    platform: "darwin",
-    arch: "arm64",
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    onNotifyClick: () => {
+      clicks += 1
+    },
+    notify: (opts) => {
+      notes.push(opts)
+      return { on() {} }
+    },
+    persist: { load: () => ({}), save: () => {} },
   })
-  const later = await updater.check({ interactive: true })
-  assert.equal(later.status, "available")
-  assert.equal(auto.downloads, 0)
+  await updater.check({ interactive: false })
+  notes[0].onClick()
+  assert.equal(clicks, 1)
+})
+
+test("records last-checked time", async () => {
+  const auto = mockAuto({ version: "0.5.6", files: [{ url: "Aftertrace-mac-arm64.zip" }] })
+  const saved = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    persist: {
+      load: () => ({}),
+      save: (next) => saved.push(next),
+    },
+    notify: () => {},
+  })
   const st = await updater.check({ interactive: false })
-  assert.equal(st.status, "ready")
-  assert.equal(auto.checks, 1)
+  assert.equal(st.status, "current")
+  assert.ok(st.checkedAt)
+  assert.ok(saved.some((row) => row.updateCheckedAt === st.checkedAt))
+})
+
+test("notifies once per version when ready", async () => {
+  const auto = mockAuto({
+    version: "0.5.7",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const notes = []
+  const saved = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    notify: (opts) => {
+      notes.push(opts)
+      return { on() {} }
+    },
+    persist: {
+      load: () => ({ notifiedUpdateVersion: "", updateCheckedAt: 0 }),
+      save: (next) => saved.push(next),
+    },
+  })
+  await updater.check({ interactive: false })
+  assert.equal(notes.length, 1)
+  assert.equal(notes[0].title, "Aftertrace v0.5.7 is ready")
+  await updater.check({ interactive: false })
+  assert.equal(notes.length, 1)
+  assert.ok(saved.some((row) => row.notifiedUpdateVersion === "0.5.7"))
+})
+
+test("does not notify again for a version already recorded", async () => {
+  const auto = mockAuto({
+    version: "0.5.7",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const notes = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    notify: (opts) => notes.push(opts),
+    persist: {
+      load: () => ({ notifiedUpdateVersion: "0.5.7", updateCheckedAt: 1 }),
+      save: () => {},
+    },
+  })
+  await updater.check({ interactive: false })
+  assert.equal(notes.length, 0)
+})
+
+test("background checks run on launch and hourly, once", async () => {
+  const auto = mockAuto({
+    version: "0.5.7",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const timeouts = []
+  const intervals = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    persist: { load: () => ({}), save: () => {} },
+    notify: () => {},
+    setTimeout: (fn, ms) => {
+      timeouts.push({ fn, ms })
+      return { unref() {} }
+    },
+    setInterval: (fn, ms) => {
+      intervals.push({ fn, ms })
+      return { unref() {} }
+    },
+  })
+  updater.startBackgroundChecks()
+  updater.startBackgroundChecks()
+  assert.equal(timeouts.length, 1)
+  assert.equal(timeouts[0].ms, LAUNCH_DELAY_MS)
+  assert.ok(intervals.some((row) => row.ms === HOUR_MS))
+  await timeouts[0].fn()
   assert.equal(auto.downloads, 1)
+  assert.equal(updater.getState().status, "ready")
+})
+
+test("resume after offline error inspects again", async () => {
+  const auto = mockAuto({ version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] })
+  let n = 0
+  auto.checkForUpdates = async () => {
+    auto.checks += 1
+    n += 1
+    if (n === 1) throw new Error("ENOTFOUND github.com")
+    return { updateInfo: { version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] } }
+  }
+  const pm = new EventEmitter()
+  const timeouts = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    persist: { load: () => ({}), save: () => {} },
+    notify: () => {},
+    setTimeout: (fn, ms) => {
+      timeouts.push({ fn, ms })
+      return { unref() {} }
+    },
+    setInterval: () => ({ unref() {} }),
+    powerMonitor: pm,
+  })
+  updater.startBackgroundChecks()
+  await timeouts[0].fn()
+  assert.equal(updater.getState().status, "error")
+  pm.emit("resume")
+  await new Promise((r) => setTimeout(r, 30))
+  assert.equal(updater.getState().status, "ready")
+  assert.equal(auto.checks, 2)
+})
+
+test("coming back online starts a check", async () => {
+  const auto = mockAuto({ version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] })
+  let online = false
+  const intervals = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    persist: { load: () => ({}), save: () => {} },
+    notify: () => {},
+    setTimeout: () => ({ unref() {} }),
+    setInterval: (fn, ms) => {
+      intervals.push({ fn, ms })
+      return { unref() {} }
+    },
+    net: { isOnline: () => online },
+  })
+  updater.startBackgroundChecks()
+  const poll = intervals.find((row) => row.ms === ONLINE_POLL_MS)
+  assert.ok(poll)
+  poll.fn()
+  assert.equal(auto.checks, 0)
+  online = true
+  await poll.fn()
+  assert.equal(auto.downloads, 1)
+  assert.equal(updater.getState().status, "ready")
 })
 
 test("retry after an offline error inspects again", async () => {
@@ -332,6 +495,24 @@ test("localhost 127.0.0.1 feed is the only generic override", () => {
   })
   blocked.wire()
   assert.equal(blockedAuto.feed, undefined)
+})
+
+test("a missing Notification API does not fail a silent download", async () => {
+  const auto = mockAuto({
+    version: "0.5.7",
+    files: [{ url: "Aftertrace-mac-arm64.zip" }],
+  })
+  const d = dialog()
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: d,
+    persist: { load: () => ({}), save: () => {} },
+  })
+  const st = await updater.check({ interactive: false })
+  assert.equal(st.status, "ready")
+  assert.equal(d.boxes.length, 0)
+  assert.equal(auto.downloads, 1)
 })
 
 test("requestInstall is a no-op until ready", async () => {

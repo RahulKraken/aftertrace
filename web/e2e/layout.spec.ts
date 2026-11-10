@@ -128,3 +128,31 @@ test.describe("shared app layout", () => {
     expect(extra).toBeLessThanOrEqual(1)
   })
 })
+
+test("sidebar shows one Restart to update when the desktop update is ready", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(() => {
+    const state = {
+      status: "ready",
+      version: "0.5.7",
+      current: "0.5.6",
+      error: null,
+      checkedAt: Date.now(),
+    }
+    window.aftertraceDesktop = {
+      platform: "darwin",
+      getUpdate: async () => state,
+      checkUpdates: async () => state,
+      restartToUpdate: async () => true,
+      onUpdate: (fn) => {
+        fn(state)
+        return () => {}
+      },
+    }
+  })
+  await page.goto("/#/")
+  await expect(page.locator(".side-update")).toHaveCount(1)
+  await expect(page.locator(".side-update")).toHaveText("Restart to update")
+  await expect(page.locator(".recv")).toBeVisible()
+  await expect(page.locator("[data-update=ready]")).toHaveCount(1)
+})

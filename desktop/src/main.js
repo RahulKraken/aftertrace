@@ -1,7 +1,7 @@
 "use strict"
 
 const path = require("path")
-const { app, ipcMain, Menu } = require("electron")
+const { app, ipcMain, Menu, powerMonitor, net } = require("electron")
 const { createEngine } = require("./engine")
 const { enginePath } = require("./paths")
 const { createWindow } = require("./window")
@@ -10,6 +10,7 @@ const { setDashboardVisible } = require("./dock")
 const autostart = require("./autostart")
 const settings = require("./settings")
 const { getUpdater } = require("./updater")
+const { appMenuTemplate } = require("./appMenu")
 const { finishQuit } = require("./quit")
 const { displayVersion } = require("./releaseVersion")
 const { migrateLegacyService } = require("./foreignEngine")
@@ -42,7 +43,12 @@ let trayApi = null
 let engine
 let quitting = false
 let restartingForUpdate = false
-const updater = getUpdater()
+const hooks = { onNotifyClick: () => {} }
+const updater = getUpdater({
+  powerMonitor,
+  net,
+  onNotifyClick: () => hooks.onNotifyClick(),
+})
 
 function userData() {
   return app.getPath("userData")
@@ -114,41 +120,22 @@ async function openWindow(hash) {
 }
 
 function installMenu() {
-  const isMac = process.platform === "darwin"
-  const template = [
-    ...(isMac
-      ? [
-          {
-            label: app.name,
-            submenu: [
-              { role: "about" },
-              { type: "separator" },
-              { role: "hide" },
-              { role: "hideOthers" },
-              { role: "unhide" },
-              { type: "separator" },
-              { role: "quit" },
-            ],
-          },
-        ]
-      : []),
-    ...(isMac ? [] : [{ label: "File", submenu: [{ role: "quit" }] }]),
-    { role: "editMenu" },
-    { role: "windowMenu" },
-    ...(!app.isPackaged
-      ? [
-          {
-            label: "Develop",
-            submenu: [{ role: "reload" }, { role: "toggleDevTools" }],
-          },
-        ]
-      : []),
-  ]
+  const template = appMenuTemplate({
+    isMac: process.platform === "darwin",
+    appName: app.name,
+    packaged: app.isPackaged,
+    onCheckUpdates: () =>
+      updater.check({ interactive: true }).then((st) => {
+        if (st && st.restart) return restartToUpdate()
+        pushUpdate(updater.getState())
+      }),
+  })
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
 function pushUpdate(state) {
   if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", state)
+  if (win && !win.isDestroyed()) win.webContents.send("desktop:update", state)
   trayApi && trayApi.refresh && trayApi.refresh().catch(() => {})
 }
 
@@ -218,7 +205,7 @@ ipcMain.handle("desktop:getGlance", async (e) => {
   return presentGlance({ ok: false, sessions: [] }, updater.getState())
 })
 ipcMain.handle("desktop:getUpdate", (e) => {
-  allowSender(e, ["popover"])
+  allowSender(e, ["popover", "ui"])
   return updater.getState()
 })
 ipcMain.handle("desktop:openDashboard", (e, hash) => {
@@ -226,14 +213,14 @@ ipcMain.handle("desktop:openDashboard", (e, hash) => {
   return openWindow(dashboardHash(hash))
 })
 ipcMain.handle("desktop:checkUpdates", async (e) => {
-  allowSender(e, ["popover"])
+  allowSender(e, ["popover", "ui"])
   const st = await updater.check({ interactive: true })
   if (st && st.restart) return restartToUpdate()
   pushUpdate(updater.getState())
   return updater.getState()
 })
 ipcMain.handle("desktop:restartToUpdate", (e) => {
-  allowSender(e, ["popover"])
+  allowSender(e, ["popover", "ui"])
   return restartToUpdate()
 })
 ipcMain.handle("desktop:quit", (e) => {
@@ -265,11 +252,6 @@ app.whenReady().then(async () => {
   })
   engine.start()
 
-  updater.subscribe((st) => {
-    if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", st)
-    if (trayApi && trayApi.refresh) trayApi.refresh().catch(() => {})
-  })
-
   trayApi = createTray({
     isOpenAtLogin,
     getUpdate: () => updater.getState(),
@@ -290,6 +272,16 @@ app.whenReady().then(async () => {
     onRestart: () => restartToUpdate(),
     onQuit: () => app.quit(),
   })
+
+  updater.subscribe((st) => {
+    pushUpdate(st)
+  })
+
+  hooks.onNotifyClick = () => {
+    const st = updater.getState()
+    if (st.status === "ready") restartToUpdate()
+    else openWindow()
+  }
 
   updater.startBackgroundChecks()
 
@@ -346,6 +338,16 @@ app.whenReady().then(async () => {
           return null
         }
         return null
+      },
+      inAppReady: async () => {
+        if (!win || win.isDestroyed()) return false
+        try {
+          return Boolean(
+            await win.webContents.executeJavaScript(`Boolean(document.querySelector('[data-update="ready"]'))`),
+          )
+        } catch {
+          return false
+        }
       },
     })
   }

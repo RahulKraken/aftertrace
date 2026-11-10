@@ -157,10 +157,13 @@ test("file-protocol cmd check/restart/close/menu does not use Playwright", async
         menuSublabelSupported: true,
         osVersion: "15.1",
       }),
+      inAppReady: async () => true,
     })
+    await new Promise((r) => setTimeout(r, 400))
     const status = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"))
     assert.equal(status.version, "0.5.4")
     assert.equal(status.update.status, "ready")
+    assert.equal(status.inAppReady, true)
     assert.equal(status.pid, process.pid)
     fs.writeFileSync(path.join(dir, "cmd"), "check\n")
     await new Promise((r) => setTimeout(r, 400))
