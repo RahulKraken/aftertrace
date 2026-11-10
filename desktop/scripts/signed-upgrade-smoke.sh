@@ -1,5 +1,5 @@
 #!/bin/sh
-# Signed 0.5.6 app + local 0.5.7 fixture feed on a disposable GitHub Mac VM.
+# Signed 0.5.7 app + local 0.5.8 fixture feed on a disposable GitHub Mac VM.
 # No production tag/release. No ad-hoc resign. No TCC database writes.
 #
 # Distinguishes shipped v0.5.3 (internal 0.5.0, Download then quitAndInstall)
@@ -141,12 +141,12 @@ assert_no_app_pid() {
 
 assert_no_runner_writes() {
   # mode: isolated (default) | shipit-live | shipit-done
-  # Isolated 0.5.6 launches pass AFTERTRACE_HOME and --user-data-dir, so the
+  # Isolated 0.5.7 launches pass AFTERTRACE_HOME and --user-data-dir, so the
   # login ~/.aftertrace must stay empty. ShipIt auto-relaunch cannot inherit
   # either, so the sidecar correctly uses the login ~/.aftertrace — the same
   # class as Chromium GPUCache under Application Support. Treating that as a
   # FAIL races the relaunch (Desktop 42671068137: duckdb appeared between
-  # plist=0.5.6 and wait_new_app_pid).
+  # plist=0.5.7 and wait_new_app_pid).
   mode=${1:-isolated}
   support="$runner_home/Library/Application Support/Aftertrace"
   if [ -e "$support" ]; then
@@ -223,11 +223,11 @@ fi
 # /Users/runner/.aftertrace and keep the dir busy after the main pid dies
 # (Desktop 42362486448 launched it: stayed running, then leaked; 42363302397
 # could not rm the leak). asar + codesign above is the old-behavior evidence.
-# 0.5.6 is the live upgrade under explicit paths.
+# 0.5.7 is the live upgrade under explicit paths.
 log "v0.5.3 not launched (Cocoa home leak on 0.5.0); asar/codesign recorded"
 
-# --- 0.5.6 → CI fixture 0.5.7 ---
-log "== 0.5.6 plus local 0.5.7 fixture feed =="
+# --- 0.5.7 → CI fixture 0.5.8 ---
+log "== 0.5.7 plus local 0.5.8 fixture feed =="
 ship_app=""
 for cand in "$ship_dist"/mac-arm64/Aftertrace.app "$ship_dist"/mac/Aftertrace.app; do
   if [ -d "$cand" ]; then
@@ -238,7 +238,7 @@ done
 [ -n "$ship_app" ]
 ship_ver=$(plist_version "$ship_app")
 log "shipping plist=$ship_ver"
-[ "$ship_ver" = "0.5.6" ]
+[ "$ship_ver" = "0.5.7" ]
 codesign -v "$ship_app"
 if ! codesign -dv --verbose=4 "$ship_app" 2>&1 | tee -a "$report" | grep -q "Developer ID Application"; then
   log "skip: shipping app is not Developer ID signed"
@@ -250,15 +250,15 @@ if [ ! -f "$fixture_dist/Aftertrace-mac-arm64.zip" ] || [ ! -f "$fixture_dist/la
   cp "$report" "$ship_dist/signed-upgrade-smoke.txt"
   exit 0
 fi
-grep -q "version: 0.5.7" "$fixture_dist/latest-mac.yml"
+grep -q "version: 0.5.8" "$fixture_dist/latest-mac.yml"
 new_asar=$ship_app/Contents/Resources/app.asar
 python3 - "$new_asar" "$report" <<'PY'
 import sys
 data = open(sys.argv[1], "rb").read()
 lines = []
 flag = b"autoRunAppAfterInstall = Boolean(relaunch)" in data
-lines.append("0.5.6 asar autoRunAppAfterInstall = Boolean(relaunch): %s" % flag)
-lines.append("0.5.6 asar default autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
+lines.append("0.5.7 asar autoRunAppAfterInstall = Boolean(relaunch): %s" % flag)
+lines.append("0.5.7 asar default autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
 open(sys.argv[2], "a", encoding="utf8").write("\n".join(lines) + "\n")
 print("\n".join(lines))
 if not flag:
@@ -419,10 +419,10 @@ rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
   --user-data-dir="$user_data" \
   >"$iso/quit.stdout" 2>"$iso/quit.stderr" &
 quit_pid=$!
-log "launched 0.5.6 for quit-to-install pid=$quit_pid"
+log "launched 0.5.7 for quit-to-install pid=$quit_pid"
 wait_status
 tee -a "$report" <"$smoke_dir/status.json"
-if ! wait_engine_version "v0.5.6"; then
+if ! wait_engine_version "v0.5.7"; then
   log "FAIL: bundled engine did not replace v0.4.2 on 7311"
   tail -n 40 "$iso/quit.stderr" | tee -a "$report" || true
   tail -n 20 "$iso/legacy.stderr" | tee -a "$report" || true
@@ -440,7 +440,7 @@ fi
 [ -f "$engine_home/legacy-keep.txt" ]
 grep -q legacy-keep "$engine_home/legacy-keep.txt"
 [ -f "$engine_home/marker.txt" ]
-log "legacy LaunchAgent replaced; /api/version is v0.5.6; DB marker kept"
+log "legacy LaunchAgent replaced; /api/version is v0.5.7; DB marker kept"
 log "waiting for silent launch check to download (no Check command, no prompt)"
 if ! wait_ready "$quit_pid"; then
   log "FAIL: silent launch check did not reach ready"
@@ -453,9 +453,9 @@ if ! wait_pid_gone "$quit_pid"; then
   log "FAIL: pid $quit_pid still running after quit"
   exit 1
 fi
-now=$(wait_plist "$quitdir/Aftertrace.app" 0.5.7) || true
+now=$(wait_plist "$quitdir/Aftertrace.app" 0.5.8) || true
 log "quit-to-install plist=$now"
-[ "$now" = "0.5.7" ]
+[ "$now" = "0.5.8" ]
 dump_shipit
 if ! assert_no_app_pid; then
   exit 1
@@ -473,7 +473,7 @@ rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
   --user-data-dir="$user_data" \
   >"$iso/app.stdout" 2>"$iso/app.stderr" &
 new_pid=$!
-log "launched 0.5.6 for Restart pid=$new_pid"
+log "launched 0.5.7 for Restart pid=$new_pid"
 wait_status
 log "status after boot:"
 tee -a "$report" <"$smoke_dir/status.json"
@@ -508,14 +508,14 @@ if ! wait_pid_gone "$new_pid"; then
   exit 1
 fi
 log "old pid $new_pid gone"
-now=$(wait_plist "$appdir/Aftertrace.app" 0.5.7) || true
+now=$(wait_plist "$appdir/Aftertrace.app" 0.5.8) || true
 log "replacement plist=$now"
-[ "$now" = "0.5.7" ]
+[ "$now" = "0.5.8" ]
 codesign -v "$appdir/Aftertrace.app"
 test -f "$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace"
 eng_ver=$("$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace" version || true)
 log "replacement engine version: $eng_ver"
-[ "$eng_ver" = "aftertrace v0.5.7" ]
+[ "$eng_ver" = "aftertrace v0.5.8" ]
 [ -f "$engine_home/marker.txt" ]
 grep -q retain-054 "$engine_home/marker.txt"
 assert_no_runner_writes shipit-live
@@ -675,7 +675,7 @@ click_allow
 screencapture -x "$iso/native-dock-open.png"
 
 appearance=$(defaults read -g AppleInterfaceStyle 2>/dev/null || echo Light)
-log "0.5.7 fixture AppleInterfaceStyle=$appearance (menu capture waits for notarized 0.5.6 head app)"
+log "0.5.8 fixture AppleInterfaceStyle=$appearance (menu capture waits for notarized 0.5.7 head app)"
 tb=$(bounds_from_status trayBounds) || {
   log "FAIL: trayBounds missing from status.json"
   tee -a "$report" <"$smoke_dir/status.json" || true
@@ -693,7 +693,7 @@ if [ "$tw" -gt 64 ]; then
   log "FAIL: tray extra is not icon-only (trayBounds width $tw > 64; setTitle text would shift neighbors)"
   exit 1
 fi
-log "0.5.7 fixture icon-only trayWidth=$tw (NSMenu with live sessions is captured on the notarized 0.5.6 pack)"
+log "0.5.8 fixture icon-only trayWidth=$tw (NSMenu with live sessions is captured on the notarized 0.5.7 pack)"
 click_allow
 screencapture -x "$iso/native-desktop.png"
 
@@ -711,12 +711,12 @@ log "reopen: Dock/app-switcher restored"
 
 kill "$gui_pid" 2>/dev/null || true
 wait "$gui_pid" 2>/dev/null || true
-# Drop the 0.5.7 fixture process so OTLP 4318 / UI 7311 are free for the notarized pack.
+# Drop the 0.5.8 fixture process so OTLP 4318 / UI 7311 are free for the notarized pack.
 pkill -f "$appdir/Aftertrace.app" 2>/dev/null || true
 pkill -f "$engine_home/aftertrace.duckdb" 2>/dev/null || true
 sleep 1
 
-log "== notarized PR-head 0.5.6 NSMenu with synthetic OTel (not Rahul usage) =="
+log "== notarized PR-head 0.5.7 NSMenu with synthetic OTel (not Rahul usage) =="
 log "GITHUB_SHA=${GITHUB_SHA-} GITHUB_REF=${GITHUB_REF-}"
 notarized_app=""
 for cand in "$ship_dist"/mac-arm64/Aftertrace.app "$ship_dist"/mac/Aftertrace.app; do
@@ -727,8 +727,8 @@ for cand in "$ship_dist"/mac-arm64/Aftertrace.app "$ship_dist"/mac/Aftertrace.ap
 done
 [ -n "$notarized_app" ]
 nv=$(plist_version "$notarized_app")
-log "notarized-pack plist=$nv (this CI pack identity; not GitHub Release v0.5.6 unless SHA matches a tag)"
-[ "$nv" = "0.5.6" ]
+log "notarized-pack plist=$nv (this CI pack identity; not GitHub Release v0.5.7 unless SHA matches a tag)"
+[ "$nv" = "0.5.7" ]
 codesign -dv --verbose=4 "$notarized_app" 2>&1 | tee -a "$report" | grep -q "Developer ID Application" || {
   log "FAIL: menu capture requires the Developer ID signed pack from this job"
   exit 1
@@ -763,7 +763,7 @@ unset AFTERTRACE_UPDATE_FEED_URL
   --user-data-dir="$menu_user" \
   >"$iso/menu.stdout" 2>"$iso/menu.stderr" &
 menu_pid=$!
-log "notarized 0.5.6 pid=$menu_pid"
+log "notarized 0.5.7 pid=$menu_pid"
 smoke_dir=$menu_smoke
 gui_pid=$menu_pid
 wait_gui_ready
