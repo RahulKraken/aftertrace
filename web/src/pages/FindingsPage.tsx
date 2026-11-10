@@ -280,7 +280,7 @@ function FindingPane({
             <kbd>⌘C</kbd>
           </button>
         ) : (
-          <button type="button" className="v4-btn" onClick={onDone}>
+          <button type="button" className="v4-btn done-btn" title="Mark resolved" onClick={onDone}>
             <Check size={13} /> Done
           </button>
         )}
@@ -315,11 +315,6 @@ function FindingPane({
             </Link>
           ))}
         </div>
-        {!fx ? (
-          <button type="button" className="v4-btn pri" style={{ marginTop: 18, alignSelf: "flex-start" }} onClick={onDone}>
-            <Check size={13} /> Done
-          </button>
-        ) : null}
       </div>
     </aside>
   )

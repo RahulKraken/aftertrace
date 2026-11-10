@@ -123,6 +123,11 @@ test.describe("shared app layout", () => {
     const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
     expect(stripH).toBeGreaterThanOrEqual(16)
 
+    await page.locator(".v4-fr").filter({ hasText: "PDF report" }).click()
+    await expect(page.locator(".v4-pane").getByRole("button", { name: "Done" })).toHaveCount(1)
+    await expect(page.locator(".v4-pane .done-btn")).toBeVisible()
+    await expect(page.locator(".v4-pane .frow.hero").getByRole("button", { name: "Done" })).toHaveCount(0)
+
     await page.goto("/#/")
     await expect(page.locator(".v4-skel")).toHaveCount(0)
     const homeX = await page.locator(".v4-ph h1").evaluate((el) => el.getBoundingClientRect().x)

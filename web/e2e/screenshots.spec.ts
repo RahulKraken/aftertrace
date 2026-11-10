@@ -246,12 +246,23 @@ test("findings", async ({ page }) => {
   await page.locator(".v4-fr").filter({ hasText: "PDF report" }).click()
   await expect(page.locator(".v4-pane .v4-lbl")).toHaveText("This")
   await expect(page.locator(".v4-pane .v4-big")).toContainText("/mo")
+  await expect(page.locator(".v4-pane").getByRole("button", { name: "Done" })).toHaveCount(1)
+  await expect(page.locator(".v4-pane .done-btn")).toBeVisible()
   await expect(page.locator(".v4-strip i").first()).toBeVisible()
   const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
   expect(stripH).toBeGreaterThanOrEqual(16)
   await expect(page.getByText("Loading…")).toHaveCount(0)
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
+})
+
+test("findings skeleton", async ({ page }) => {
+  await page.goto("/#/findings?skeleton=1")
+  await waitFonts(page)
+  await expect(page.locator(".v4-skel")).toBeVisible()
+  await expect(page.getByText("Loading…")).toHaveCount(0)
+  await shot(page, "findings-skeleton", "light")
+  await shot(page, "findings-skeleton", "dark")
 })
 
 async function openPermissionWin(page: Page) {
