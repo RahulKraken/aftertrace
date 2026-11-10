@@ -147,56 +147,61 @@ function joinLiveSessions(overview, sessionRows) {
   })
 }
 
-async function readGlance(origin, { now = Date.now() } = {}) {
+async function readGlance(origin, { now = Date.now(), last = null, processAlive = false } = {}) {
+  let health = null
   try {
-    const status = await getJson(origin, "/api/status")
-    let weekCost
-    let todayCost
-    let topFinding
-    let topFindingId
-    let sessions = []
-    let estimated = false
-    try {
-      const [overview, sessionRows] = await Promise.all([
-        getJson(origin, "/api/overview", 2500),
-        getJson(origin, "/api/sessions", 2500).catch(() => []),
-      ])
-      if (overview && overview.week && typeof overview.week.cost_usd === "number") {
-        weekCost = overview.week.cost_usd
-      }
-      todayCost = todayCostFromDays(overview && overview.days, now)
-      estimated = Boolean(overview && overview.history_only)
-      sessions = joinLiveSessions(overview, sessionRows)
-      const finding = pickFinding(overview)
-      topFinding = finding.text
-      topFindingId = finding.id
-    } catch {
-      // Overview is heavier; findings from /api/status are enough for a glance.
-    }
-    const running = Boolean(status.running || sessions.length)
-    return {
-      ok: true,
-      stale: false,
-      fetchedAt: now,
-      findings: status.findings,
-      weekCost,
-      todayCost,
-      estimated,
-      running,
-      sessions,
-      topFinding,
-      topFindingId,
-      error: null,
-    }
-  } catch (err) {
+    health = await getJson(origin, "/api/health", 800)
+  } catch {
+    health = null
+  }
+  const alive = Boolean((health && health.ok) || processAlive)
+  if (!alive) {
     return {
       ok: false,
+      alive: false,
       stale: true,
       fetchedAt: now,
-      sessions: [],
+      sessions: (last && last.sessions) || [],
       estimated: false,
-      error: err && err.message ? String(err.message) : "offline",
+      error: last && last.ok ? "offline" : null,
     }
+  }
+  try {
+    const g = await getJson(origin, "/api/glance", 1500)
+    if (g && typeof g === "object") {
+      const sessions = Array.isArray(g.sessions) ? g.sessions : []
+      return {
+        ok: true,
+        alive: true,
+        stale: false,
+        busy: Boolean(g.busy || (health && health.busy)),
+        fetchedAt: now,
+        findings: g.findings,
+        weekCost: numOrUndef(g.week_cost),
+        todayCost: numOrUndef(g.today_cost),
+        estimated: Boolean(g.estimated),
+        running: Boolean(g.running || sessions.length),
+        sessions,
+        topFinding: g.top_finding || undefined,
+        topFindingId: g.top_finding_id != null ? String(g.top_finding_id) : null,
+        error: null,
+      }
+    }
+  } catch {
+    // Engine is up; glance may still be building. Keep the last good row.
+  }
+  if (last && last.ok) {
+    return { ...last, ok: true, alive: true, stale: true, busy: true, error: null }
+  }
+  return {
+    ok: true,
+    alive: true,
+    stale: false,
+    busy: Boolean(health && (health.busy || health.ready === false)),
+    fetchedAt: now,
+    sessions: [],
+    estimated: false,
+    error: null,
   }
 }
 

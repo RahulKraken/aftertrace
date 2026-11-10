@@ -31,6 +31,12 @@ type Store struct {
 	DB   *sql.DB
 	Path string
 	wmu  sync.Mutex
+	cmu  sync.Mutex
+	chg  []func()
+	// deferRollups > 0 skips per-batch refreshAfterInsert. History import
+	// writes many sessions; rebuilding rollups once at the end is the same
+	// result without repeating day/model scans on every file.
+	deferRollups int
 }
 
 type Span struct {
@@ -94,7 +100,10 @@ const HistorySource = "history"
 // No file, network, or extension access, and no SET to undo it. Nothing in Aftertrace reads
 // files through DuckDB; ingest goes through Go. A second read-only instance is not an
 // option: DuckDB refuses a different configuration on a file this process already holds.
-const dsnOptions = "?enable_external_access=false&lock_configuration=true"
+// memory_limit and threads are set here because lock_configuration forbids SET later.
+// A menu-bar sidecar on a large DB must not take every core or multiple GB of RSS
+// while views and findings warm up.
+const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=256MB&threads=2&allocator_flush_threshold=16MB"
 
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -109,6 +118,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
 	}
+	if err := migrateDayStats(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("schema: %w", err)
+	}
 	if err := pricing.Seed(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("prices: %w", err)
@@ -117,7 +130,37 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("views: %w", err)
 	}
+	// Schema/view install dirties jemalloc. memory_limit does not give those
+	// pages back; destroying the instance does. Recycle before we return so a
+	// 500 MB file starts at tens of MB RSS, not hundreds.
+	if err := s.recycleLocked(); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// migrateDayStats adds week-summary columns to stores created before they
+// existed. CREATE TABLE IF NOT EXISTS does not alter an old file.
+func migrateDayStats(db *sql.DB) error {
+	for _, q := range []string{
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS sessions INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS requests INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS errors INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS tool_calls INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS approvals INTEGER`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS breakdown JSON`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS cache_hit DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS lines_added DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS lines_removed DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS commits DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS prs DOUBLE`,
+		`ALTER TABLE day_stats ADD COLUMN IF NOT EXISTS active_s DOUBLE`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error {
@@ -127,15 +170,87 @@ func (s *Store) Close() error {
 	return s.DB.Close()
 }
 
-func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+func (s *Store) recycleLocked() error {
+	if s.DB != nil {
+		_ = s.DB.Close()
+		s.DB = nil
+	}
+	db, err := sql.Open("duckdb", s.Path+dsnOptions)
+	if err != nil {
+		return err
+	}
+	s.DB = db
+	return nil
+}
+
+// Reopen closes the DuckDB instance and opens the same file again. Insert
+// leaves jemalloc dirty pages that memory_limit does not return to the OS.
+func (s *Store) Reopen() error {
+	if s == nil {
+		return fmt.Errorf("store: nil")
+	}
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
+	return s.recycleLocked()
+}
+
+func (s *Store) OnChange(fn func()) {
+	if s == nil || fn == nil {
+		return
+	}
+	s.cmu.Lock()
+	s.chg = append(s.chg, fn)
+	s.cmu.Unlock()
+}
+
+func (s *Store) fireChange() {
+	s.cmu.Lock()
+	fns := append([]func(){}, s.chg...)
+	s.cmu.Unlock()
+	for _, fn := range fns {
+		fn()
+	}
+}
+
+func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	s.wmu.Lock()
 	if live := liveSessionIDs(spans, evs, pts); len(live) > 0 {
 		if err := s.dropHistoryLocked(live); err != nil {
+			s.wmu.Unlock()
 			return err
 		}
 	}
-	return s.insertLocked(spans, sevs, evs, pts)
+	err := s.insertLocked(spans, sevs, evs, pts)
+	notify := err == nil && s.deferRollups == 0
+	s.wmu.Unlock()
+	if notify {
+		s.fireChange()
+	}
+	return err
+}
+
+// WithDeferredRollups runs fn with per-insert rollup refresh off, then rebuilds
+// session/day/model tables once. Nested calls rebuild only on the outermost exit.
+func (s *Store) WithDeferredRollups(fn func() error) error {
+	s.wmu.Lock()
+	s.deferRollups++
+	s.wmu.Unlock()
+	err := fn()
+	s.wmu.Lock()
+	s.deferRollups--
+	need := s.deferRollups == 0
+	var rerr error
+	if need {
+		rerr = s.rebuildAllLocked()
+	}
+	s.wmu.Unlock()
+	if need && rerr == nil {
+		s.fireChange()
+	}
+	if err != nil {
+		return err
+	}
+	return rerr
 }
 
 // ReplaceHistory deletes previously imported history rows for one session
@@ -143,11 +258,16 @@ func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []Metric
 // even for events and metric points, which have no primary key.
 func (s *Store) ReplaceHistory(sessionID string, spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
 	s.wmu.Lock()
-	defer s.wmu.Unlock()
-	if err := s.dropHistoryLocked([]string{sessionID}); err != nil {
-		return err
+	err := s.dropHistoryLocked([]string{sessionID})
+	if err == nil {
+		err = s.insertLocked(spans, sevs, evs, pts)
 	}
-	return s.insertLocked(spans, sevs, evs, pts)
+	notify := err == nil && s.deferRollups == 0
+	s.wmu.Unlock()
+	if notify {
+		s.fireChange()
+	}
+	return err
 }
 
 func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
@@ -223,7 +343,13 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 		}
 		stmt.Close()
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if s.deferRollups > 0 {
+		return nil
+	}
+	return s.refreshAfterInsert(spans, sevs, evs, pts)
 }
 
 func (s *Store) Counts() (Counts, error) {
@@ -322,7 +448,7 @@ func (s *Store) dropHistoryLocked(ids []string) error {
 	if _, err := s.DB.Exec(`UPDATE history_files SET status = 'skipped_otel' WHERE session_id IN (`+ph+`) AND status = 'imported'`, args...); err != nil {
 		return fmt.Errorf("history_files: %w", err)
 	}
-	return nil
+	return s.dropRollupsLocked(ids)
 }
 
 // LiveSessions reports which of the given session ids already have OTel rows

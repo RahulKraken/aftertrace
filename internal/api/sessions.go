@@ -8,20 +8,29 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/analysis"
 	"github.com/RahulKraken/aftertrace/internal/history"
-	"github.com/RahulKraken/aftertrace/internal/rules"
 )
 
 func sessions(db *sql.DB) ([]map[string]any, error) {
-	findings := rules.RunAll(db)
-	stats, err := traceStats(db)
-	if err != nil {
-		return nil, err
+	return sessionRows(db, 0, 0, 0, false)
+}
+
+func sessionRows(db *sql.DB, limit int, lo, hi int64, historyWindow bool) ([]map[string]any, error) {
+	q := `SELECT session_id, start_ns, end_ns, turns, turn_ms, coalesce(repo,''), coalesce(entrypoint,''),
+		cost_usd, tokens, cache_hit, coalesce(models::VARCHAR,'[]'), coalesce(errors,0), coalesce(retried,0),
+		coalesce(agents::VARCHAR,'[]'), coalesce(breakdown::VARCHAR,'{}'), coalesce(findings,0), title,
+		in_progress AND end_ns > ?
+		FROM session_stats`
+	args := []any{runningSince()}
+	if historyWindow && lo > 0 {
+		q += ` WHERE start_ns >= ? AND start_ns < ?`
+		args = append(args, lo, hi)
 	}
-	rows, err := db.Query(`
-		SELECT r.session_id, min(r.start_ns), max(r.end_ns), count(*), sum(r.duration_ms),
-			any_value(a(r.attrs,'vcs.repository.name')), any_value(a(r.attrs,'app.entrypoint')),
-			list(r.trace_id), bool_or(r.in_progress AND r.end_ns > ?)
-		FROM turn_roots r WHERE r.session_id IS NOT NULL GROUP BY r.session_id ORDER BY min(r.start_ns) DESC`, runningSince())
+	q += ` ORDER BY start_ns DESC`
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -32,80 +41,33 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 		var st, en int64
 		var turns int
 		var turnMS float64
-		var repo, entry sql.NullString
-		var tidsRaw any
-		var running bool
-		if err := rows.Scan(&sid, &st, &en, &turns, &turnMS, &repo, &entry, &tidsRaw, &running); err != nil {
-			return nil, err
-		}
-		tids := asStringSlice(tidsRaw)
-		var cost, tokens, cacheHit sql.NullFloat64
-		var modelsRaw any
-		var errors, retried sql.NullInt64
-		err := db.QueryRow(`SELECT sum(cost_usd), sum(input_tokens+output_tokens+cache_read_tokens+cache_creation_tokens),
-			sum(cache_read_tokens)/nullif(sum(cache_read_tokens+cache_creation_tokens+input_tokens),0),
-			list(DISTINCT model), count(*) FILTER (WHERE is_error), count(*) FILTER (WHERE attempt>1)
-			FROM llm WHERE session_id=?`, sid).Scan(&cost, &tokens, &cacheHit, &modelsRaw, &errors, &retried)
-		if err != nil {
-			return nil, err
-		}
-		agents := []string{}
-		ar, err := db.Query(`SELECT DISTINCT a(attrs,'agent_type') FROM events WHERE name='subagent_completed' AND session_id=? AND a(attrs,'agent_type') IS NOT NULL`, sid)
-		if err != nil {
-			return nil, err
-		}
-		for ar.Next() {
-			var a string
-			if err := ar.Scan(&a); err == nil && a != "" {
-				agents = append(agents, a)
-			}
-		}
-		ar.Close()
-		bd := map[string]float64{}
-		for _, t := range tids {
-			for k, v := range breakdowns.get(db, t, stats[t]) {
-				bd[k] += v
-			}
-		}
+		var repo, entry, mjs, ajs, bjs string
+		var cost, tokens, hit sql.NullFloat64
+		var errors, retried, findings int64
 		var title sql.NullString
-		// Prompt text when content is captured; otherwise the local-history
-		// session title (ai-title), which is a label, not the prompt.
-		if err := db.QueryRow(`SELECT coalesce(
-			(SELECT substr(a(attrs,'prompt'), 1, 8000) FROM events
-				WHERE name='user_prompt' AND session_id=? AND `+notRedacted("a(attrs,'prompt')")+`
-				ORDER BY ts_ns LIMIT 1),
-			(SELECT a(attrs,'session.title') FROM spans
-				WHERE name='claude_code.interaction' AND session_id=? AND a(attrs,'session.title') IS NOT NULL
-				ORDER BY start_ns LIMIT 1)
-		)`, sid, sid).Scan(&title); err != nil && err != sql.ErrNoRows {
+		var running bool
+		if err := rows.Scan(&sid, &st, &en, &turns, &turnMS, &repo, &entry, &cost, &tokens, &hit, &mjs, &errors, &retried, &ajs, &bjs, &findings, &title, &running); err != nil {
 			return nil, err
 		}
-		nf := 0
-		for _, f := range findings {
-			for _, sess := range f.Sessions {
-				if sess == sid {
-					nf++
-					break
-				}
-			}
-		}
+		bd := map[string]float64{}
+		_ = json.Unmarshal([]byte(bjs), &bd)
 		out = append(out, map[string]any{
 			"session_id": sid,
 			"start_ns":   st,
 			"end_ns":     en,
 			"turns":      turns,
 			"turn_ms":    turnMS,
-			"repo":       repo.String,
-			"entrypoint": entry.String,
+			"repo":       repo,
+			"entrypoint": entry,
 			"cost_usd":   nullNum(cost),
 			"tokens":     nullNum(tokens),
-			"cache_hit":  nullNum(cacheHit),
-			"models":     asStringSlice(modelsRaw),
-			"errors":     errors.Int64,
-			"retried":    retried.Int64,
-			"agents":     agents,
+			"cache_hit":  nullNum(hit),
+			"models":     asStringSlice(mjs),
+			"errors":     errors,
+			"retried":    retried,
+			"agents":     asStringSlice(ajs),
 			"breakdown":  bd,
-			"findings":   nf,
+			"findings":   findings,
 			"title":      cleanTitle(title),
 			"running":    running,
 		})
@@ -117,63 +79,50 @@ func sessions(db *sql.DB) ([]map[string]any, error) {
 }
 
 func sessionDetail(db *sql.DB, sid string) (map[string]any, error) {
-	ss, err := sessions(db)
+	one, err := sessionRows(db, 0, 0, 0, false)
 	if err != nil {
 		return nil, err
 	}
 	var sess any
-	for _, s := range ss {
+	for _, s := range one {
 		if s["session_id"] == sid {
 			sess = s
 			break
 		}
 	}
-	rows, err := db.Query(`SELECT trace_id, span_id, start_ns, duration_ms, n(attrs,'interaction.sequence'), in_progress, in_progress AND end_ns > ?
-		FROM turn_roots WHERE session_id=? ORDER BY start_ns`, runningSince(), sid)
+	rows, err := db.Query(`SELECT trace_id, span_id, start_ns, duration_ms, n(attrs,'interaction.sequence'), in_progress, in_progress AND end_ns > ?,
+		coalesce(cost_usd,0), coalesce(requests,0), coalesce(models::VARCHAR,'[]'), coalesce(tool_calls,0), coalesce(breakdown::VARCHAR,'{}'), prompt
+		FROM trace_roots WHERE session_id=? ORDER BY start_ns`, runningSince(), sid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var turns []map[string]any
 	for rows.Next() {
-		var tid, sp string
+		var tid, sp, mjs, bjs string
 		var st int64
 		var d float64
 		var seq sql.NullFloat64
 		var pending, running bool
-		if err := rows.Scan(&tid, &sp, &st, &d, &seq, &pending, &running); err != nil {
+		var cost float64
+		var reqs, tools int
+		var prompt sql.NullString
+		if err := rows.Scan(&tid, &sp, &st, &d, &seq, &pending, &running, &cost, &reqs, &mjs, &tools, &bjs, &prompt); err != nil {
 			return nil, err
 		}
-		var cost sql.NullFloat64
-		var reqs int
-		var modelsRaw any
-		if err := db.QueryRow(`SELECT sum(cost_usd), count(*), list(DISTINCT model) FROM llm WHERE trace_id=?`, tid).
-			Scan(&cost, &reqs, &modelsRaw); err != nil {
-			return nil, err
-		}
-		var tools int
-		if err := db.QueryRow(`SELECT count(*) FROM tools WHERE trace_id=?`, tid).Scan(&tools); err != nil {
-			return nil, err
-		}
-		spans, err := analysis.SpanRows(db, tid)
-		if err != nil {
-			return nil, err
-		}
-		prompt, err := turnPrompt(db, tid)
-		if err != nil {
-			return nil, err
-		}
+		bd := map[string]float64{}
+		_ = json.Unmarshal([]byte(bjs), &bd)
 		turns = append(turns, map[string]any{
 			"trace_id":    tid,
 			"span_id":     sp,
 			"start_ns":    st,
 			"duration_ms": d,
 			"seq":         seq.Float64,
-			"cost_usd":    nullNum(cost),
+			"cost_usd":    cost,
 			"requests":    reqs,
-			"models":      asStringSlice(modelsRaw),
+			"models":      asStringSlice(mjs),
 			"tools":       tools,
-			"breakdown":   analysis.Breakdown(db, tid, spans),
+			"breakdown":   bd,
 			"prompt":      cleanTitle(prompt),
 			"in_progress": pending,
 			"running":     running,
@@ -212,7 +161,7 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 		return nil, err
 	}
 	crit := analysis.CriticalPath(spans)
-	findings := rules.RunAll(db)
+	findings := findingsFor(db)
 	spanFindings := map[string][]int{}
 	for _, f := range findings {
 		for _, e := range f.Evidence {
@@ -407,6 +356,44 @@ func traceDetail(db *sql.DB, tid string) (map[string]any, error) {
 }
 
 func cost(db *sql.DB, dim string) (map[string]any, error) {
+	if dim == "model" {
+		rows, err := db.Query(`SELECT model, cost_usd, requests, tokens FROM model_stats ORDER BY cost_usd DESC`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var total float64
+		var out [][]any
+		type row struct {
+			name      string
+			cost, tok float64
+			reqs      int64
+		}
+		var tmp []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.name, &r.cost, &r.reqs, &r.tok); err != nil {
+				return nil, err
+			}
+			total += r.cost
+			tmp = append(tmp, r)
+		}
+		den := total
+		if den == 0 {
+			den = 1
+		}
+		for _, r := range tmp {
+			out = append(out, []any{r.name, r.cost, r.cost / den, r.reqs, nil, nil, nil, nil, nil})
+		}
+		if out == nil {
+			out = [][]any{}
+		}
+		note, estimated := spendInsight(db)
+		return map[string]any{
+			"dim": dim, "columns": []string{dim, "cost_usd", "share", "requests", "input", "output", "cache_read", "cache_write", "cache_hit"},
+			"rows": out, "note": note, "estimated": estimated,
+		}, nil
+	}
 	if dim == "tool" {
 		rows, err := db.Query(`SELECT coalesce(tool_name,'?'), count(*), sum(result_tokens), sum(exec_ms)/1000, sum(wait_ms)/1000 FROM tools
 			GROUP BY 1 ORDER BY 3 DESC`)
@@ -502,7 +489,7 @@ func cost(db *sql.DB, dim string) (map[string]any, error) {
 func spendInsight(db *sql.DB) (string, bool) {
 	estimated := history.Only(db)
 	var total sql.NullFloat64
-	if err := db.QueryRow(`SELECT sum(cost_usd) FROM llm WHERE NOT is_error`).Scan(&total); err != nil || !total.Valid || total.Float64 <= 0 {
+	if err := db.QueryRow(`SELECT sum(cost_usd) FROM model_stats`).Scan(&total); err != nil || !total.Valid || total.Float64 <= 0 {
 		if estimated {
 			return "No spend this period, estimated from session files.", estimated
 		}
@@ -512,10 +499,10 @@ func spendInsight(db *sql.DB) (string, bool) {
 
 	var model string
 	var mCost sql.NullFloat64
-	_ = db.QueryRow(`SELECT coalesce(model,'(none)'), sum(cost_usd) FROM llm WHERE NOT is_error GROUP BY 1 ORDER BY 2 DESC LIMIT 1`).Scan(&model, &mCost)
+	_ = db.QueryRow(`SELECT model, cost_usd FROM model_stats ORDER BY cost_usd DESC LIMIT 1`).Scan(&model, &mCost)
 	var repo string
 	var rCost sql.NullFloat64
-	_ = db.QueryRow(`SELECT coalesce(repo,'(none)'), sum(cost_usd) FROM llm WHERE NOT is_error GROUP BY 1 ORDER BY 2 DESC LIMIT 1`).Scan(&repo, &rCost)
+	_ = db.QueryRow(`SELECT coalesce(nullif(repo,''),'(none)'), sum(cost_usd) FROM session_stats GROUP BY 1 ORDER BY 2 DESC LIMIT 1`).Scan(&repo, &rCost)
 
 	mShare, rShare := 0.0, 0.0
 	if mCost.Valid {

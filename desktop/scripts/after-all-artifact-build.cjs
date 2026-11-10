@@ -122,13 +122,27 @@ function spawnCapture(cmd, args, spawnFn) {
 
 function spawnInherit(cmd, args, spawnFn) {
   return new Promise((resolve, reject) => {
-    const child = spawnFn(cmd, args, { stdio: "inherit" })
+    const child = spawnFn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] })
+    let out = ""
+    let err = ""
+    if (child.stdout && typeof child.stdout.on === "function") {
+      child.stdout.on("data", (d) => {
+        out += d
+        process.stdout.write(d)
+      })
+    }
+    if (child.stderr && typeof child.stderr.on === "function") {
+      child.stderr.on("data", (d) => {
+        err += d
+        process.stderr.write(d)
+      })
+    }
     child.on("error", reject)
     child.on("close", (status, signal) => {
       if (status === 0) resolve()
       else {
         const why = signal ? `signal ${signal}` : `exit ${status}`
-        reject(new Error(`${cmd} ${args[0] || ""} ${why}`))
+        reject(new Error(`${cmd} ${args[0] || ""} ${why}: ${err || out}`))
       }
     })
   })
@@ -175,10 +189,22 @@ async function notarizeFiles(files, spawnFn) {
       throw new Error(`notarytool submit failed for ${path.basename(file)}: ${err.message}`)
     }
     process.stdout.write(`notarytool wait ${id} (${path.basename(file)})\n`)
-    try {
-      await spawnInherit("xcrun", notarytoolWaitArgs(id), spawnFn)
-    } catch (err) {
-      throw new Error(`notarytool wait failed for ${path.basename(file)} (${id}): ${err.message}`)
+    let lastErr
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        await spawnInherit("xcrun", notarytoolWaitArgs(id), spawnFn)
+        lastErr = null
+        break
+      } catch (err) {
+        lastErr = err
+        if (!isNotaryWaitTimeout(err) || attempt === 4) break
+        process.stdout.write(
+          `notarytool wait retry ${attempt}/3 after Apple timeout (${path.basename(file)})\n`,
+        )
+      }
+    }
+    if (lastErr) {
+      throw new Error(`notarytool wait failed for ${path.basename(file)} (${id}): ${lastErr.message}`)
     }
   }
 }
@@ -201,7 +227,15 @@ function defaultIo() {
 
 function isNotaryWaitTimeout(err) {
   const msg = err && err.message ? String(err.message) : String(err)
-  return /exit 124/.test(msg) || /Timeout of \d+ second/.test(msg)
+  return (
+    /exit 124/.test(msg) ||
+    /Timeout of \d+ second/.test(msg) ||
+    /gatewayTimeout/i.test(msg) ||
+    /Gateway Timeout/i.test(msg) ||
+    /statusCode: Optional\(504\)/.test(msg) ||
+    /NSURLErrorDomain Code=-1005/.test(msg) ||
+    /The network connection was lost/i.test(msg)
+  )
 }
 
 function requireMacNotarize() {

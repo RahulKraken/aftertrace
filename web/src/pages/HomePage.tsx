@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
+import { readCached, startPoll, writeCached } from "../lib/poll"
 import { clock, hm, remain, runCost, sayTok, usd } from "../lib/format"
 import { mondayReset, readBudget } from "../lib/budget"
 import { barSlot, labelDays, niceAxis } from "../lib/chart"
@@ -19,7 +20,7 @@ type Tab = "spend" | "tokens" | "savable"
 const AMBER = ["var(--amber)", "var(--a2)", "var(--a3)", "var(--a4)"]
 
 export function HomePage() {
-  const [ov, setOv] = useState<Overview | null>(null)
+  const [ov, setOv] = useState<Overview | null>(() => readCached<Overview>("aftertrace.overview"))
   const [err, setErr] = useState<string | null>(null)
   const [range, setRange] = useState<Range>(30)
   const [tab, setTab] = useState<Tab>("spend")
@@ -41,6 +42,7 @@ export function HomePage() {
         .then(([o, ss, cost]) => {
           if (!alive) return
           setOv(o)
+          writeCached("aftertrace.overview", o)
           setSessions(ss)
           setErr(null)
           const mi = cost.columns.indexOf("model")
@@ -51,12 +53,13 @@ export function HomePage() {
           }))
           setCostModels(rows)
         })
-        .catch((e: Error) => alive && setErr(e.message))
-    load()
-    const t = window.setInterval(load, live ? 4000 : 30000)
+        .catch((e: Error) => {
+          if (alive && !ov) setErr(e.message)
+        })
+    const stop = startPoll(load, { visibleMs: live ? 4000 : 30000, hiddenMs: 60000 })
     return () => {
       alive = false
-      window.clearInterval(t)
+      stop()
     }
   }, [live])
 

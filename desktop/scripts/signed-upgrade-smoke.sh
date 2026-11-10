@@ -3,7 +3,8 @@
 # No production tag/release. No ad-hoc resign. No TCC database writes.
 #
 # Distinguishes shipped v0.5.3 (internal 0.5.0, Download then quitAndInstall)
-# from 0.5.4 (download, stay running, explicit Restart).
+# from 0.5.4/0.5.5 (download, stay running, Restart that did not relaunch)
+# from this tree (Restart must spawn N+1; quit-to-install must not).
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
@@ -13,10 +14,21 @@ base=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 iso=$base/aftertrace-signed-smoke-$$
 report=$iso/report.txt
 http_pid=""
+legacy_uid=""
+legacy_plist=""
 mkdir -p "$iso"
 : >"$report"
 log() { printf '%s\n' "$*" | tee -a "$report"; }
+cleanup_legacy() {
+  if [ -n "${legacy_uid:-}" ]; then
+    launchctl bootout "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${legacy_plist:-}" ]; then
+    rm -f "$legacy_plist"
+  fi
+}
 copy_report() {
+  cleanup_legacy
   cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || true
   if [ -n "$http_pid" ]; then
     kill "$http_pid" 2>/dev/null || true
@@ -48,20 +60,121 @@ plist_version() {
   /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist"
 }
 
+app_pids() {
+  pgrep -f "/Aftertrace.app/Contents/MacOS/Aftertrace" 2>/dev/null || true
+}
+
+dump_shipit() {
+  log "== ShipIt logs =="
+  find "$iso_home/Library" \( -iname '*ShipIt*' -o -iname '*shipit*' \) 2>/dev/null | tee -a "$report" || true
+  find "$iso_home/Library" \( -iname '*ShipIt*' -o -iname '*shipit*' \) -type f 2>/dev/null | while IFS= read -r f; do
+    log "--- $f ---"
+    tail -n 80 "$f" | tee -a "$report" || true
+  done
+}
+
+wait_pid_gone() {
+  pid=$1
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_plist() {
+  app=$1
+  want=$2
+  i=0
+  while [ "$i" -lt 60 ]; do
+    now=$(plist_version "$app" 2>/dev/null || true)
+    if [ "$now" = "$want" ]; then
+      echo "$now"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  plist_version "$app"
+  return 1
+}
+
+wait_new_app_pid() {
+  old=$1
+  i=0
+  while [ "$i" -lt 30 ]; do
+    for pid in $(app_pids); do
+      if [ "$pid" != "$old" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "$pid"
+        return 0
+      fi
+    done
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+assert_no_app_pid() {
+  i=0
+  while [ "$i" -lt 30 ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+  live=""
+  for pid in $(app_pids); do
+    if kill -0 "$pid" 2>/dev/null; then
+      live="$live $pid"
+    fi
+  done
+  if [ -n "$live" ]; then
+    log "FAIL: Aftertrace still running after quit-to-install:$live"
+    pgrep -lf Aftertrace | tee -a "$report" || true
+    return 1
+  fi
+  log "quit-to-install: no new Aftertrace process in 30s"
+}
+
 assert_no_runner_writes() {
+  # mode: isolated (default) | shipit-live | shipit-done
+  # Isolated 0.5.5 launches pass AFTERTRACE_HOME and --user-data-dir, so the
+  # login ~/.aftertrace must stay empty. ShipIt auto-relaunch cannot inherit
+  # either, so the sidecar correctly uses the login ~/.aftertrace — the same
+  # class as Chromium GPUCache under Application Support. Treating that as a
+  # FAIL races the relaunch (Desktop 42671068137: duckdb appeared between
+  # plist=0.5.6 and wait_new_app_pid).
+  mode=${1:-isolated}
   support="$runner_home/Library/Application Support/Aftertrace"
   if [ -e "$support" ]; then
-    log "FAIL: wrote $support"
-    find "$support" -maxdepth 3 -print | tee -a "$report" || true
-    exit 1
+    ours=$(find "$support" \( -name 'desktop.json' -o -name '*.duckdb' -o -name '*.duckdb.wal' -o -name 'aftertrace.log' \) -print 2>/dev/null || true)
+    if [ -n "$ours" ]; then
+      log "FAIL: wrote $support"
+      printf '%s\n' "$ours" | tee -a "$report"
+      find "$support" -maxdepth 3 -print | tee -a "$report" || true
+      exit 1
+    fi
+    log "note: $support has Chromium caches from ShipIt relaunch (no --user-data-dir)"
   fi
   leak="$runner_home/.aftertrace"
   if [ -e "$leak" ]; then
     files=$(find "$leak" -type f -print 2>/dev/null || true)
     if [ -n "$files" ]; then
-      log "FAIL: runner-home .aftertrace has files (engine data must stay under AFTERTRACE_HOME)"
+      if [ "$mode" = "isolated" ]; then
+        log "FAIL: runner-home .aftertrace has files (engine data must stay under AFTERTRACE_HOME)"
+        printf '%s\n' "$files" | tee -a "$report"
+        exit 1
+      fi
+      log "note: ShipIt relaunch wrote login-home .aftertrace (no AFTERTRACE_HOME)"
       printf '%s\n' "$files" | tee -a "$report"
-      exit 1
+      if [ "$mode" = "shipit-done" ]; then
+        log "removing login-home .aftertrace so later isolated launches stay clean"
+        rm -rf "$leak"
+      fi
+      return 0
     fi
     log "note: empty $leak exists; helpers/--db/userData are isolated (see status.json)"
   fi
@@ -143,16 +256,14 @@ python3 - "$new_asar" "$report" <<'PY'
 import sys
 data = open(sys.argv[1], "rb").read()
 lines = []
-lines.append("0.5.5 asar autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
+flag = b"autoRunAppAfterInstall = Boolean(relaunch)" in data
+lines.append("0.5.5 asar autoRunAppAfterInstall = Boolean(relaunch): %s" % flag)
+lines.append("0.5.5 asar default autoRunAppAfterInstall false: %s" % (b"autoRunAppAfterInstall = false" in data or b"autoRunAppAfterInstall=false" in data))
 open(sys.argv[2], "a", encoding="utf8").write("\n".join(lines) + "\n")
 print("\n".join(lines))
+if not flag:
+    sys.exit(1)
 PY
-
-appdir=$iso/current
-mkdir -p "$appdir"
-ditto "$ship_app" "$appdir/Aftertrace.app"
-xattr -dr com.apple.quarantine "$appdir/Aftertrace.app" 2>/dev/null || true
-codesign -v "$appdir/Aftertrace.app"
 
 iso_home=$iso/home
 user_data="$iso_home/Library/Application Support/Aftertrace"
@@ -176,21 +287,178 @@ export AFTERTRACE_SMOKE=1
 export AFTERTRACE_SMOKE_DIR="$smoke_dir"
 export AFTERTRACE_UPDATE_FEED_URL="http://127.0.0.1:${port}/"
 
+wait_status() {
+  i=0
+  while [ "$i" -lt 40 ]; do
+    if [ -f "$smoke_dir/status.json" ]; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_ready() {
+  pid=$1
+  i=0
+  while [ "$i" -lt 90 ]; do
+    if [ -f "$smoke_dir/status.json" ] && grep -q '"status": "ready"' "$smoke_dir/status.json"; then
+      return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log "FAIL: process exited during download"
+      return 1
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+copy_app() {
+  dest=$1
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  ditto "$ship_app" "$dest/Aftertrace.app"
+  xattr -dr com.apple.quarantine "$dest/Aftertrace.app" 2>/dev/null || true
+  codesign -v "$dest/Aftertrace.app"
+}
+
+wait_engine_version() {
+  want=$1
+  i=0
+  while [ "$i" -lt 40 ]; do
+    got=$(curl -sf http://127.0.0.1:7311/api/version 2>/dev/null || true)
+    if [ -n "$got" ]; then
+      log "GET /api/version: $got"
+    fi
+    if printf '%s' "$got" | grep -q "$want"; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+# --- leftover LaunchAgent (Rahul's v0.4.2 path): unload, keep DB ---
+log "== legacy dev.aftertrace LaunchAgent =="
+legacy_uid=$(id -u)
+legacy_plist="$runner_home/Library/LaunchAgents/dev.aftertrace.plist"
+mkdir -p "$runner_home/Library/LaunchAgents" "$iso_home/Library/LaunchAgents"
+cat >"$iso/fake-legacy-engine.py" <<'PY'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json, os
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/api/version"):
+            body = json.dumps({"version": "v0.4.2", "pid": os.getpid(), "bin": os.path.expanduser("~/.aftertrace/bin/aftertrace"), "service": "launchd"}).encode()
+        elif self.path.startswith("/api/status"):
+            body = json.dumps({"info": {"version": "v0.4.2", "service": "launchd"}}).encode()
+        else:
+            body = b'{"ok":true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *_args):
+        pass
+HTTPServer(("127.0.0.1", 7311), H).serve_forever()
+PY
+cat >"$legacy_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.aftertrace</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>$iso/fake-legacy-engine.py</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>$iso/legacy.stdout</string>
+  <key>StandardErrorPath</key>
+  <string>$iso/legacy.stderr</string>
+</dict>
+</plist>
+EOF
+cp "$legacy_plist" "$iso_home/Library/LaunchAgents/dev.aftertrace.plist"
+launchctl bootout "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1 || true
+launchctl bootstrap "gui/${legacy_uid}" "$legacy_plist"
+sleep 1
+wait_engine_version "v0.4.2"
+log "legacy LaunchAgent is serving v0.4.2 on 7311"
+echo "legacy-keep" >"$engine_home/legacy-keep.txt"
+[ -f "$engine_home/marker.txt" ]
+
+# --- quit-to-install: replace, do not reopen ---
+log "== quit-to-install (no relaunch) =="
+quitdir=$iso/quit-app
+copy_app "$quitdir"
+rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
+"$quitdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
+  --user-data-dir="$user_data" \
+  >"$iso/quit.stdout" 2>"$iso/quit.stderr" &
+quit_pid=$!
+log "launched 0.5.5 for quit-to-install pid=$quit_pid"
+wait_status
+tee -a "$report" <"$smoke_dir/status.json"
+if ! wait_engine_version "v0.5.5"; then
+  log "FAIL: bundled engine did not replace v0.4.2 on 7311"
+  tail -n 40 "$iso/quit.stderr" | tee -a "$report" || true
+  tail -n 20 "$iso/legacy.stderr" | tee -a "$report" || true
+  exit 1
+fi
+if [ -f "$legacy_plist" ]; then
+  log "FAIL: $legacy_plist still present after packaged start"
+  exit 1
+fi
+if launchctl print "gui/${legacy_uid}/dev.aftertrace" >/dev/null 2>&1; then
+  log "FAIL: launchctl print gui/${legacy_uid}/dev.aftertrace still succeeds"
+  launchctl print "gui/${legacy_uid}/dev.aftertrace" | tee -a "$report" || true
+  exit 1
+fi
+[ -f "$engine_home/legacy-keep.txt" ]
+grep -q legacy-keep "$engine_home/legacy-keep.txt"
+[ -f "$engine_home/marker.txt" ]
+log "legacy LaunchAgent replaced; /api/version is v0.5.5; DB marker kept"
+echo check >"$smoke_dir/cmd"
+wait_ready "$quit_pid"
+log "download ready; sending quit (install on quit, no reopen)"
+echo quit >"$smoke_dir/cmd"
+if ! wait_pid_gone "$quit_pid"; then
+  log "FAIL: pid $quit_pid still running after quit"
+  exit 1
+fi
+now=$(wait_plist "$quitdir/Aftertrace.app" 0.5.6) || true
+log "quit-to-install plist=$now"
+[ "$now" = "0.5.6" ]
+dump_shipit
+if ! assert_no_app_pid; then
+  exit 1
+fi
+[ -f "$engine_home/marker.txt" ]
+grep -q retain-054 "$engine_home/marker.txt"
+assert_no_runner_writes
+
+# --- Restart to update: ShipIt must spawn N+1 ---
+log "== Restart to update (auto-relaunch) =="
+appdir=$iso/current
+copy_app "$appdir"
+rm -f "$smoke_dir/status.json" "$smoke_dir/cmd"
 "$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
   --user-data-dir="$user_data" \
   >"$iso/app.stdout" 2>"$iso/app.stderr" &
 new_pid=$!
-log "launched 0.5.5 pid=$new_pid"
-
-i=0
-while [ "$i" -lt 40 ]; do
-  if [ -f "$smoke_dir/status.json" ]; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-[ -f "$smoke_dir/status.json" ]
+log "launched 0.5.5 for Restart pid=$new_pid"
+wait_status
 log "status after boot:"
 tee -a "$report" <"$smoke_dir/status.json"
 grep -q "$engine_home" "$smoke_dir/status.json"
@@ -199,25 +467,8 @@ grep -q "$iso_home" "$smoke_dir/status.json"
 pgrep -lf Aftertrace | tee -a "$report" || true
 kill -0 "$new_pid"
 echo check >"$smoke_dir/cmd"
-
-ready=0
-i=0
-while [ "$i" -lt 90 ]; do
-  if [ -f "$smoke_dir/status.json" ] && grep -q '"status": "ready"' "$smoke_dir/status.json"; then
-    ready=1
-    break
-  fi
-  if ! kill -0 "$new_pid" 2>/dev/null; then
-    log "FAIL: process exited during download"
-    tail -n 80 "$iso/app.stderr" | tee -a "$report" || true
-    exit 1
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-[ "$ready" = 1 ]
+wait_ready "$new_pid"
 log "download ready; process still pid=$new_pid"
-kill -0 "$new_pid"
 tee -a "$report" <"$smoke_dir/status.json"
 assert_no_runner_writes
 [ -f "$engine_home/marker.txt" ]
@@ -225,60 +476,45 @@ grep -q retain-054 "$engine_home/marker.txt"
 
 echo restart >"$smoke_dir/cmd"
 log "sent explicit Restart"
-
-i=0
-while [ "$i" -lt 60 ]; do
-  if ! kill -0 "$new_pid" 2>/dev/null; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-if kill -0 "$new_pid" 2>/dev/null; then
+if ! wait_pid_gone "$new_pid"; then
   log "FAIL: pid $new_pid still running after Restart"
   exit 1
 fi
 log "old pid $new_pid gone"
-
-i=0
-while [ "$i" -lt 60 ]; do
-  now=$(plist_version "$appdir/Aftertrace.app")
-  if [ "$now" = "0.5.6" ]; then
-    break
-  fi
-  i=$((i + 1))
-  sleep 1
-done
-now=$(plist_version "$appdir/Aftertrace.app")
+now=$(wait_plist "$appdir/Aftertrace.app" 0.5.6) || true
 log "replacement plist=$now"
 [ "$now" = "0.5.6" ]
 codesign -v "$appdir/Aftertrace.app"
 test -f "$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace"
+eng_ver=$("$appdir/Aftertrace.app/Contents/Resources/engine/aftertrace" version || true)
+log "replacement engine version: $eng_ver"
+[ "$eng_ver" = "aftertrace v0.5.6" ]
 [ -f "$engine_home/marker.txt" ]
 grep -q retain-054 "$engine_home/marker.txt"
-assert_no_runner_writes
+assert_no_runner_writes shipit-live
 
-# Relaunch the replacement ourselves if autoRunAppAfterInstall stayed false
-# (shipping 0.5.5). That is the new behavior: install does not force a start.
-unset AFTERTRACE_UPDATE_FEED_URL
-"$appdir/Aftertrace.app/Contents/MacOS/Aftertrace" --hidden \
-  --user-data-dir="$user_data" \
-  >"$iso/relaunch.stdout" 2>"$iso/relaunch.stderr" &
-rel_pid=$!
-sleep 8
-if kill -0 "$rel_pid" 2>/dev/null; then
-  log "relaunch pid=$rel_pid version=0.5.6 still running"
-  if [ -f "$smoke_dir/status.json" ]; then
-    tee -a "$report" <"$smoke_dir/status.json"
-  fi
-  kill "$rel_pid" 2>/dev/null || true
-  wait "$rel_pid" 2>/dev/null || true
-else
-  log "relaunch exited; stderr:"
-  tail -n 40 "$iso/relaunch.stderr" | tee -a "$report" || true
+rel_pid=$(wait_new_app_pid "$new_pid" || true)
+if [ -z "$rel_pid" ]; then
+  log "FAIL: Restart did not spawn a new Aftertrace process within 30s"
+  dump_shipit
+  pgrep -lf Aftertrace | tee -a "$report" || true
+  tail -n 80 "$iso/app.stderr" | tee -a "$report" || true
+  exit 1
 fi
+log "auto-relaunch pid=$rel_pid (ShipIt, not this script)"
+dump_shipit
+if [ -f "$smoke_dir/status.json" ]; then
+  tee -a "$report" <"$smoke_dir/status.json"
+fi
+kill "$rel_pid" 2>/dev/null || true
+wait "$rel_pid" 2>/dev/null || true
+for extra in $(app_pids); do
+  log "stopping leftover pid=$extra"
+  kill "$extra" 2>/dev/null || true
+  wait "$extra" 2>/dev/null || true
+done
 [ -f "$engine_home/marker.txt" ]
-assert_no_runner_writes
+assert_no_runner_writes shipit-done
 
 log "== GUI: Dock open/close/reopen + native NSMenu/glyph (not System Events process list alone) =="
 # Hardened runtime typically disables nodeCliInspect. Native: file-protocol

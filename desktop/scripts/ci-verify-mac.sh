@@ -86,6 +86,14 @@ echo "arm64 app: $arm_app" | tee -a "$report"
 check_engine "$arm_app" arm64
 
 pkg=$(node -p "require('./package.json').version")
+eng="$arm_app/Contents/Resources/engine/aftertrace"
+eng_ver=$("$eng" version)
+want="aftertrace v${pkg}"
+echo "engine version: $eng_ver (want $want)" | tee -a "$report"
+if [ "$eng_ver" != "$want" ]; then
+  echo "bundled engine version $eng_ver does not match app $want" >&2
+  exit 1
+fi
 if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
   for app in $arm_app $x64_app; do
     [ -n "$app" ] || continue

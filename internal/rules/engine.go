@@ -175,10 +175,10 @@ func enrich(db *sql.DB, fs []Finding) {
 	var b strings.Builder
 	args := make([]any, 0, len(ids))
 	b.WriteString(`SELECT session_id,
-		coalesce(any_value(a(attrs, 'vcs.repository.name')), ''),
-		min(start_ns), max(end_ns),
-		bool_and(coalesce(json_extract_string(resource, '$."aftertrace.source"'), '') = 'history')
-		FROM spans WHERE session_id IN (`)
+		coalesce(repo, ''),
+		start_ns, end_ns,
+		history
+		FROM session_stats WHERE session_id IN (`)
 	i := 0
 	for id := range ids {
 		if i > 0 {
@@ -188,7 +188,7 @@ func enrich(db *sql.DB, fs []Finding) {
 		args = append(args, id)
 		i++
 	}
-	b.WriteString(`) GROUP BY session_id`)
+	b.WriteString(`)`)
 	rows, err := db.Query(b.String(), args...)
 	if err != nil {
 		return

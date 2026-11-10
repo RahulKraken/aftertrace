@@ -59,6 +59,6 @@ test("idle and stale are honest kinds", () => {
 
 test("update footer does not force a restart", () => {
   assert.equal(updateFooter({ status: "downloading" }).restart, false)
-  assert.equal(updateFooter({ status: "ready", version: "0.5.4" }).label, "Restart to update · 0.5.4")
+  assert.equal(updateFooter({ status: "ready", version: "0.5.4" }).label, "Restart to update · v0.5.4")
   assert.equal(updateFooter({ status: "error" }).label, "Retry update")
 })

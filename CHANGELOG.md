@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**Desktop**
+- **Restart to update** sets `autoRunAppAfterInstall` before `quitAndInstall`. electron-updater's MacUpdater ignores `isForceRunAfter` and only relaunches when that flag is true; 0.5.4/0.5.5 left it false, so ShipIt replaced the app and did not open it. Quit after a downloaded update still installs without reopening. Signed macos-15 smoke now waits for a new process after Restart and checks that Quit does not spawn one. Installed GitHub v0.5.5 still has the old updater — this build fixes the *next* update after it ships.
+- The packaged app never silently reuses whatever is on 7311/4317/4318. A leftover `dev.aftertrace` LaunchAgent is booted out and its plist removed; `~/.aftertrace/aftertrace.duckdb` is kept. Engine start failures (DuckDB lock, missing sidecar) show in the waiting window, with a one-click stop for the old login service.
+- One version string from the release tag: Go `-X main.version=vX.Y.Z`, About panel, Restart label, Settings, `GET /api/version`, bundled `aftertrace version`. CI checks the packed engine equals the app version. Packaged builds do not fall through to `aftertrace` on PATH.
+- The menu reads `GET /api/health` then `GET /api/glance`. It never says Engine offline while the sidecar process is alive (Starting… / Engine busy). Tray refresh is single-flight; hidden window is 60s. Dashboard polls are single-flight and keep the last snapshot instead of a blank Loading….
+
+**Engine**
+- DuckDB opens with `memory_limit=256MB`, `threads=2`, and `allocator_flush_threshold=16MB`. `memory_limit` does not bound process RSS (jemalloc dirty pages stay until the instance is destroyed). After schema/views and after history import the store reopens the file. Health ping is `GET /api/health`. CI seeds a **≥500 MB** DB in a child process and opens it in the parent: **517 MB file, 441 MB peak, 45 MB steady** (caps 600 / 300). Rahul’s 580 MB DB was 3.5–4.3 GB peak / ~1.06–1.35 GB idle unbounded.
+- Polled endpoints read ingest-time rollups (`session_stats`, `day_stats`, `trace_roots`, `llm_facts`), not raw `spans`. `turn_roots` is that table, not a UNION+NOT EXISTS over every span. The tray hits `GET /api/health` then `GET /api/glance` only. Window polls are single-flight and slower when hidden. CI `AFTERTRACE_PERF=1` seeds 92k spans / 100 sessions / 501 turns and a 5× file; fail at p95 300 ms, peak RSS 500 MB, idle CPU 5%. On this VM after the fix: 92k cold glance 329 ms, overview p95 17 ms, sessions 1.2 ms, status/findings/health &lt; 1 ms, peak RSS 137 MB, steady 88 MB, idle CPU ~0%; 500k p95 3.8 ms, peak 194 MB. 580 MB for 92k spans is leftover `--store-content` (~6.5 KB/span); serve strips those keys and checkpoints.
+
 ## v0.5.5
 
 **Desktop**

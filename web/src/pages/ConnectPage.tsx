@@ -9,6 +9,7 @@ import { useStatus } from "../lib/status"
 import { useNow } from "../hooks/useNow"
 import { CopyButton } from "../components/CopyButton"
 import { api } from "../lib/api"
+import { startPoll } from "../lib/poll"
 import { ago, int, sayTok, sayUsd } from "../lib/format"
 import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { Finding, Source, Status } from "../lib/types"
@@ -549,11 +550,10 @@ function Verify({ src }: { src: SourceDef }) {
         .sources()
         .then((r) => alive && setSources(r.sources))
         .catch(() => undefined)
-    load()
-    const t = window.setInterval(load, 2000)
+    const stop = startPoll(async () => { if (alive) await load() }, { visibleMs: 4000, hiddenMs: 15000 })
     return () => {
       alive = false
-      window.clearInterval(t)
+      stop()
     }
   }, [])
   const match = (sources || []).filter(src.matches)

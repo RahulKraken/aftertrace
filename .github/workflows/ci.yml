@@ -34,6 +34,26 @@ jobs:
       - run: go vet ./...
       # Read handlers run concurrently with ingest; -race keeps them honest.
       - run: go test -race ./...
+      # -race inflates RSS. Bound DuckDB without it: 256MB memory_limit, 2 threads.
+      - name: DuckDB RSS bound
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          AFTERTRACE_RSS_TEST: "1"
+        run: go test -count=1 -timeout 15m ./internal/store -run TestPeakRSSOnSeededDB -v
+      - name: Realistic seed latency and RSS
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          AFTERTRACE_PERF: "1"
+          AFTERTRACE_PERF_OUT: ${{ runner.temp }}/perf
+        run: go test -count=1 -timeout 25m ./internal/perf -run TestBudgetsOnRealisticSeed -v
+      - name: Upload perf profiles
+        if: matrix.os == 'ubuntu-latest' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-perf-profiles
+          path: ${{ runner.temp }}/perf
+          if-no-files-found: ignore
+          retention-days: 14
       # Builds against the committed stub web/dist/index.html (no Node).
       - run: go build -o aftertrace ./cmd/aftertrace
       # Install the login service for real (LaunchAgent on macOS, systemd

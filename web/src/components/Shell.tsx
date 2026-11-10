@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
+import { startPoll } from "../lib/poll"
 import { ago } from "../lib/format"
 import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
@@ -69,16 +70,17 @@ export function Shell({
 
   useEffect(() => {
     let alive = true
-    const load = () =>
-      api
-        .status()
-        .then((s) => alive && setStatus(s))
-        .catch(() => undefined)
-    load()
-    const t = window.setInterval(load, 5000)
+    const stop = startPoll(async () => {
+      try {
+        const s = await api.status()
+        if (alive) setStatus(s)
+      } catch {
+        /* keep last */
+      }
+    }, { visibleMs: 15000, hiddenMs: 60000 })
     return () => {
       alive = false
-      window.clearInterval(t)
+      stop()
     }
   }, [])
 

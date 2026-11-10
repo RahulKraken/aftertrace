@@ -4,6 +4,7 @@ import { ModelName } from "../components/SpanIcon"
 import { Num } from "../components/Num"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
+import { startPoll } from "../lib/poll"
 import { ago, dur, int, pct, usd } from "../lib/format"
 import type { AppSummary } from "../lib/types"
 import { Sparkline } from "../components/Sparkline"
@@ -22,11 +23,10 @@ export function AppsPage() {
         .apps()
         .then((a) => alive && setApps(a))
         .catch((e: Error) => alive && setErr(e.message))
-    load()
-    const t = window.setInterval(load, 15000)
+    const stop = startPoll(async () => { if (alive) await load() }, { visibleMs: 15000, hiddenMs: 60000 })
     return () => {
       alive = false
-      window.clearInterval(t)
+      stop()
     }
   }, [])
 

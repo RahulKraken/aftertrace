@@ -376,6 +376,50 @@ describe("afterAllArtifactBuild", () => {
     }
   })
 
+  it("Apple 504 on wait keeps signed DMGs on a PR", async () => {
+    const prev = process.env.NOTARIZE_MAC_ARCHES
+    const prevReq = process.env.REQUIRE_MAC_NOTARIZE
+    process.env.NOTARIZE_MAC_ARCHES = "arm64"
+    delete process.env.REQUIRE_MAC_NOTARIZE
+    const written = []
+    try {
+      const extra = await afterAllArtifactBuild(
+        { artifactPaths, outDir: "/out" },
+        {
+          platform: "darwin",
+          canNotarize: () => true,
+          spawn: (_cmd, args) => {
+            if (args[1] === "submit") {
+              return childWithStdout(JSON.stringify({ id: "id-arm" }))
+            }
+            const child = new EventEmitter()
+            child.stdout = new EventEmitter()
+            child.stderr = new EventEmitter()
+            queueMicrotask(() => {
+              child.stderr.emit(
+                "data",
+                'Error: gatewayTimeout(statusCode: Optional(504), strData: Optional("Gateway Timeout"))\n',
+              )
+              child.emit("close", 1)
+            })
+            return child
+          },
+          spawnSync: () => {
+            throw new Error("stapler should not run after a wait timeout")
+          },
+          writeFileSync: (p, body) => written.push({ p, body }),
+        },
+      )
+      assert.deepEqual(extra, [])
+      assert.deepEqual(written, [])
+    } finally {
+      if (prev === undefined) delete process.env.NOTARIZE_MAC_ARCHES
+      else process.env.NOTARIZE_MAC_ARCHES = prev
+      if (prevReq === undefined) delete process.env.REQUIRE_MAC_NOTARIZE
+      else process.env.REQUIRE_MAC_NOTARIZE = prevReq
+    }
+  })
+
   it("PR arm64-only skips the x64 DMG", async () => {
     const prev = process.env.NOTARIZE_MAC_ARCHES
     process.env.NOTARIZE_MAC_ARCHES = "arm64"
@@ -435,6 +479,7 @@ describe("pack-ci-fixture.sh", () => {
     assert.match(sh, /dist-fixture/)
     assert.match(sh, /mac\.notarize=false/)
     assert.match(sh, /NOTARIZE_MAC_ARCHES=""/)
+    assert.match(sh, /engine-stamp/)
     assert.doesNotMatch(sh, /codesign --force/)
     assert.doesNotMatch(sh, /git tag/)
   })
@@ -449,7 +494,18 @@ describe("signed-upgrade-smoke.sh", () => {
     assert.match(sh, /AFTERTRACE_UPDATE_FEED_URL="http:\/\/127\.0\.0\.1:\$\{port\}\/"/)
     assert.match(sh, /ditto/)
     assert.match(sh, /echo restart/)
+    assert.match(sh, /echo quit/)
+    assert.match(sh, /wait_new_app_pid/)
+    assert.match(sh, /quit-to-install/)
+    assert.match(sh, /auto-relaunch/)
+    assert.match(sh, /dev.aftertrace/)
+    assert.match(sh, /launchctl bootstrap/)
+    assert.match(sh, /wait_engine_version/)
+    assert.match(sh, /legacy-keep/)
+    assert.doesNotMatch(sh, /Relaunch the replacement ourselves/)
     assert.match(sh, /retain-054/)
+    assert.match(sh, /ShipIt relaunch wrote login-home \.aftertrace/)
+    assert.match(sh, /shipit-done/)
     assert.match(sh, /echo close/)
     assert.match(sh, /echo menu/)
     assert.match(sh, /echo hide-menu/)
@@ -498,6 +554,17 @@ describe("isNotaryWaitTimeout", () => {
   it("matches notarytool exit 124", () => {
     assert.equal(isNotaryWaitTimeout(new Error("notarytool wait failed: xcrun notarytool exit 124")), true)
     assert.equal(isNotaryWaitTimeout(new Error("Invalid")), false)
+  })
+
+  it("matches Apple gatewayTimeout 504 on wait", () => {
+    assert.equal(
+      isNotaryWaitTimeout(
+        new Error("notarytool wait failed: xcrun notarytool exit 1: Error: gatewayTimeout(statusCode: Optional(504)"),
+      ),
+      true,
+    )
+    assert.equal(isNotaryWaitTimeout(new Error("Gateway Timeout")), true)
+    assert.equal(isNotaryWaitTimeout(new Error("xcrun notarytool exit 1")), false)
   })
 })
 
@@ -562,5 +629,7 @@ describe("ci-verify-mac.sh", () => {
     assert.match(sh, /recopy/)
     assert.match(sh, /Error 68/)
     assert.match(sh, /Aftertrace-mac\.dmg recopy/)
+    assert.match(sh, /bundled engine version/)
+    assert.match(sh, /"\$eng" version/)
   })
 })

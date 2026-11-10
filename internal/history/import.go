@@ -73,6 +73,13 @@ func Import(st *store.Store, dir string) (Result, error) {
 	}
 
 	now := time.Now().UnixNano()
+	err = st.WithDeferredRollups(func() error {
+		return importSessions(st, bySession, live, known, now, &res)
+	})
+	return res, err
+}
+
+func importSessions(st *store.Store, bySession map[string][]File, live map[string]bool, known map[string]fileRow, now int64, res *Result) error {
 	for sid, group := range bySession {
 		if live[sid] {
 			res.SkippedOTel += len(group)
@@ -124,13 +131,13 @@ func Import(st *store.Store, dir string) (Result, error) {
 			continue
 		}
 		if err := st.ReplaceHistory(out.SessionID, out.Spans, nil, out.Events, nil); err != nil {
-			return res, err
+			return err
 		}
 		res.Sessions++
 		res.Turns += out.Turns
 		res.Requests += out.Requests
 	}
-	return res, nil
+	return nil
 }
 
 func unchanged(group []File, known map[string]fileRow) bool {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "wouter"
 import { api } from "../lib/api"
+import { startPoll } from "../lib/poll"
 import { hashFlag } from "../lib/replay"
 import type { Finding, Trace } from "../lib/types"
 import { Waterfall } from "../components/waterfall/Waterfall"
@@ -56,10 +57,13 @@ export function TracePage() {
   useEffect(() => {
     if (!running || !params.id) return
     const id = params.id
-    const t = window.setInterval(() => {
-      api.trace(id).then(setTrace).catch(() => {})
-    }, 3000)
-    return () => window.clearInterval(t)
+    return startPoll(async () => {
+      try {
+        setTrace(await api.trace(id))
+      } catch {
+        /* keep last */
+      }
+    }, { visibleMs: 5000, hiddenMs: 30000 })
   }, [running, params.id])
 
   if (err) {
