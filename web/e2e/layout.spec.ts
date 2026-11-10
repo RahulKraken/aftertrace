@@ -115,6 +115,12 @@ test.describe("shared app layout", () => {
     await page.goto("/#/settings")
     const setX = await page.locator("h1").evaluate((el) => el.getBoundingClientRect().x)
     expect(Math.abs(homeX - setX)).toBeLessThan(2)
+    const budget = page.locator(".budget-field")
+    await expect(budget).toBeVisible()
+    const budgetH = await budget.evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
+    expect(budgetH).toBeLessThanOrEqual(34)
+    const suffixLines = await budget.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
+    expect(suffixLines).toBe(1)
   })
 
   test("recap long numerals wrap instead of overflowing the page", async ({ page }) => {
@@ -152,7 +158,7 @@ test("sidebar shows one Restart to update when the desktop update is ready", asy
   })
   await page.goto("/#/")
   await expect(page.locator(".side-update")).toHaveCount(1)
-  await expect(page.locator(".side-update")).toHaveText("Restart to update")
+  await expect(page.locator(".side-update")).toHaveText("Restart to update · v0.5.7")
   await expect(page.locator(".recv")).toBeVisible()
   await expect(page.locator("[data-update=ready]")).toHaveCount(1)
 })

@@ -45,7 +45,7 @@ export function SettingsPage() {
       <section className="set-sec">
         <h2>Weekly budget</h2>
         <p className="mute">A cap you set. Home and the tray show spend against it only after you type a number. Leave blank for none.</p>
-        <label className="list-search">
+        <label className="list-search budget-field">
           <span className="mute">$</span>
           <input
             type="number"
@@ -59,7 +59,7 @@ export function SettingsPage() {
               writeBudget(v === "" ? null : Number(v))
             }}
           />
-          <span className="mute">/ week</span>
+          <span className="mute budget-suffix">/ week</span>
         </label>
       </section>
 

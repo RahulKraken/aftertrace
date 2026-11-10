@@ -22,7 +22,7 @@ import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
 import type { Status } from "../lib/types"
 import { useNow } from "../hooks/useNow"
-import { desktop, type UpdateState } from "../lib/desktop"
+import { desktop, displayVersion, type UpdateState } from "../lib/desktop"
 import { CommandPalette } from "./CommandPalette"
 import { Logo } from "./Logo"
 
@@ -176,7 +176,7 @@ export function Shell({
                     data-update="ready"
                     onClick={() => desktop()?.restartToUpdate()}
                   >
-                    Restart to update
+                    Restart to update{displayVersion(update.version) ? ` · ${displayVersion(update.version)}` : ""}
                   </button>
                 ) : null}
               </div>
