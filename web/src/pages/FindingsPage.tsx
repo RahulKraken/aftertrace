@@ -7,6 +7,8 @@ import { Money } from "../components/Money"
 import { sayDur, usd } from "../lib/format"
 import { api } from "../lib/api"
 import { readCached, writeCached } from "../lib/poll"
+import { previewSkeleton } from "../lib/cache"
+import { FindingsSkeleton } from "../components/PageSkeleton"
 import { fixFor, rankHero, type Win } from "../lib/fixes"
 import { moneyLabel, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { Finding, ModelSpend } from "../lib/types"
@@ -34,6 +36,7 @@ export function FindingsPage() {
     api.findings().then((rows) => {
       setFs(rows)
       writeCached("aftertrace.findings", rows)
+      setErr(null)
     }).catch((e: Error) => {
       if (!fs) setErr(e.message)
     })
@@ -91,7 +94,7 @@ export function FindingsPage() {
     return () => window.removeEventListener("keydown", on)
   }, [fs, focus, resolved, copyFix])
 
-  if (err) {
+  if (err && !fs) {
     return (
       <div className="page">
         {err}
@@ -99,7 +102,7 @@ export function FindingsPage() {
       </div>
     )
   }
-  if (!fs) return <div className="v4"><div className="v4-empty">Loading…</div></div>
+  if (previewSkeleton() || !fs) return <FindingsSkeleton />
 
   const open = fs.filter((f) => !resolved.has(findingKey(f)))
   const order = [...resolved]
@@ -277,7 +280,7 @@ function FindingPane({
             <kbd>⌘C</kbd>
           </button>
         ) : (
-          <button type="button" className="v4-btn" onClick={onDone}>
+          <button type="button" className="v4-btn done-btn" title="Mark resolved" onClick={onDone}>
             <Check size={13} /> Done
           </button>
         )}
@@ -292,8 +295,8 @@ function FindingPane({
         <div className="v4-cmp">
           {money && spend > 0 && (
             <div className="r">
-              <div className="top"><span className="v4-lbl">This</span><span className="v4-money">{usd(monthly)}</span></div>
-              <div className="b"><i className="v4-hatch" style={{ width: `${Math.min(100, (monthly / Math.max(spend, monthly)) * 100)}%` }} /></div>
+              <div className="v4-cmp-hd"><span className="v4-lbl">This</span><span className="v4-money">{usd(monthly)}</span></div>
+              <div className="b"><i style={{ width: `${Math.min(100, (monthly / Math.max(spend, monthly)) * 100)}%` }} /></div>
             </div>
           )}
         </div>
@@ -312,11 +315,6 @@ function FindingPane({
             </Link>
           ))}
         </div>
-        {!fx ? (
-          <button type="button" className="v4-btn pri" style={{ marginTop: 18, alignSelf: "flex-start" }} onClick={onDone}>
-            <Check size={13} /> Done
-          </button>
-        ) : null}
       </div>
     </aside>
   )
