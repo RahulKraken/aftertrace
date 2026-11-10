@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react"
 import { Link } from "wouter"
 import { api } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
+import { previewSkeleton } from "../lib/cache"
+import { HomeSkeleton } from "../components/PageSkeleton"
 import { clock, hm, remain, runCost, sayTok, usd } from "../lib/format"
 import { mondayReset, readBudget } from "../lib/budget"
 import { barSlot, labelDays, niceAxis } from "../lib/chart"
@@ -71,7 +73,7 @@ export function HomePage() {
       </div>
     )
   }
-  if (!ov) return <div className="v4"><div className="v4-empty">Loading…</div></div>
+  if (previewSkeleton() || !ov) return <HomeSkeleton />
   if (!ov.has_data) return <DesignedEmpty title="Overview" line="No sessions yet." />
 
   return (

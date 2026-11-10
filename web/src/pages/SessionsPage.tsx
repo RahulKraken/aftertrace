@@ -3,6 +3,8 @@ import { ChevronRight } from "lucide-react"
 import { Link, useLocation } from "wouter"
 import { api } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
+import { previewSkeleton } from "../lib/cache"
+import { SessionsSkeleton } from "../components/PageSkeleton"
 import { clock, hm, sayTok, usd, when } from "../lib/format"
 import { modelFamily, primaryModel } from "../lib/model"
 import { shortTitle } from "../lib/welcome"
@@ -77,7 +79,7 @@ export function SessionsPage() {
     return out
   }, [rows])
 
-  if (err) {
+  if (err && !rows) {
     return (
       <div className="page">
         {err}
@@ -85,7 +87,7 @@ export function SessionsPage() {
       </div>
     )
   }
-  if (!rows) return <div className="v4"><div className="v4-empty">Loading…</div></div>
+  if (previewSkeleton() || !rows) return <SessionsSkeleton />
 
   const stats = {
     sessions: rows.length,

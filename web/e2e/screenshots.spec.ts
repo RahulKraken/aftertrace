@@ -83,14 +83,21 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
 }
 
 // The timeline opens on closed steps; open them all to reach individual calls.
+// Expanding a step inserts nested is-step rows (subagents), so nth(i) after a
+// click points at a different row and can collapse one that was just opened.
 async function openSteps(page: Page) {
   await expect(page.locator(".row.is-step").first()).toBeVisible()
-  const n = await page.locator(".row.is-step").count()
-  for (let i = 0; i < n; i++) {
-    const caret = page.locator(".row.is-step").nth(i).locator(".caret")
-    if ((await caret.getAttribute("aria-expanded")) === "false") await page.locator(".row.is-step").nth(i).dispatchEvent("click")
-    await expect(caret).toHaveAttribute("aria-expanded", "true")
+  for (let guard = 0; guard < 40; guard++) {
+    const closed = page.locator(".row.is-step").filter({ has: page.locator(".caret[aria-expanded='false']") })
+    if ((await closed.count()) === 0) return
+    const row = closed.first()
+    const id = await row.getAttribute("data-span")
+    await row.dispatchEvent("click")
+    if (id) {
+      await expect(page.locator(`.row[data-span="${id}"] .caret`)).toHaveAttribute("aria-expanded", "true")
+    }
   }
+  throw new Error("openSteps: steps still closed")
 }
 
 test.beforeEach(async ({ page }) => {
@@ -219,12 +226,17 @@ test("waterfall selected: pane takes the budget", async ({ page }) => {
   await openSteps(page)
   const bash = page.locator(".row").filter({ has: page.locator(".glyph.g-bash") }).first()
   // A tool's wait and run phases are in its bar; opening it lists them as rows.
+  // Bottleneck evidence on this fixture already expands the wait's parent bash.
+  // Toggling that caret collapses it; the wait row exits AnimatePresence and
+  // the next click waits forever. Only expand when it is still closed.
   await expect(bash.locator(".n-pill")).toHaveCount(0)
-  await bash.locator(".caret").dispatchEvent("click")
-  const waitRow = page.locator(".row").filter({ hasText: "waiting on you" }).first()
+  const waitRow = page.locator(".row").filter({ has: page.locator(".name", { hasText: "waiting on you" }) }).first()
+  for (let i = 0; i < 8 && (await waitRow.count()) === 0; i++) {
+    const closedBash = page.locator(".row").filter({ has: page.locator(".glyph.g-bash") }).filter({ has: page.locator("button.caret[aria-expanded='false']") }).first()
+    if ((await closedBash.count()) === 0) break
+    await closedBash.locator("button.caret").dispatchEvent("click")
+  }
   await expect(waitRow).toBeVisible()
-  // Rows spring into place after each expand; click once they settle.
-  await page.waitForTimeout(500)
   await waitRow.dispatchEvent("click")
   // A click opens the card; its link opens the full inspector.
   await expect(page.locator(".span-card")).toBeVisible()
@@ -273,8 +285,26 @@ test("findings", async ({ page }) => {
   for (const t of titles) counts.set(t, (counts.get(t) || 0) + 1)
   const dupes = [...counts.entries()].filter(([, n]) => n > 1).map(([t]) => t)
   expect(dupes, `duplicate finding titles: ${dupes.join(", ")}`).toEqual([])
+  await page.locator(".v4-fr").filter({ hasText: "PDF report" }).click()
+  await expect(page.locator(".v4-pane .v4-lbl")).toHaveText("This")
+  await expect(page.locator(".v4-pane .v4-big")).toContainText("/mo")
+  await expect(page.locator(".v4-pane").getByRole("button", { name: "Done" })).toHaveCount(1)
+  await expect(page.locator(".v4-pane .done-btn")).toBeVisible()
+  await expect(page.locator(".v4-strip i").first()).toBeVisible()
+  const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
+  expect(stripH).toBeGreaterThanOrEqual(16)
+  await expect(page.getByText("Loading…")).toHaveCount(0)
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
+})
+
+test("findings skeleton", async ({ page }) => {
+  await page.goto("/#/findings?skeleton=1")
+  await waitFonts(page)
+  await expect(page.locator(".v4-skel")).toBeVisible()
+  await expect(page.getByText("Loading…")).toHaveCount(0)
+  await shot(page, "findings-skeleton", "light")
+  await shot(page, "findings-skeleton", "dark")
 })
 
 async function openPermissionWin(page: Page) {
