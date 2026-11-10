@@ -270,7 +270,7 @@ jobs:
         run: sh desktop/scripts/artifact-feed-smoke.sh desktop/dist
       - name: macos-15 session probe
         run: sh desktop/scripts/macos-session-probe.sh desktop/dist/macos-session-probe.txt
-      - name: Pack CI-only signed 0.5.6 fixture
+      - name: Pack CI-only signed 0.5.7 fixture
         working-directory: desktop
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -281,7 +281,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: sh scripts/pack-ci-fixture.sh 0.5.6 dist-fixture
+        run: sh scripts/pack-ci-fixture.sh 0.5.7 dist-fixture
       - name: Signed upgrade smoke
         env:
           GH_TOKEN: ${{ github.token }}

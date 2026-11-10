@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.6
+
 **Desktop**
 - **Restart to update** sets `autoRunAppAfterInstall` before `quitAndInstall`. electron-updater's MacUpdater ignores `isForceRunAfter` and only relaunches when that flag is true; 0.5.4/0.5.5 left it false, so ShipIt replaced the app and did not open it. Quit after a downloaded update still installs without reopening. Signed macos-15 smoke now waits for a new process after Restart and checks that Quit does not spawn one. Installed GitHub v0.5.5 still has the old updater — this build fixes the *next* update after it ships.
 - The packaged app never silently reuses whatever is on 7311/4317/4318. A leftover `dev.aftertrace` LaunchAgent is booted out and its plist removed; `~/.aftertrace/aftertrace.duckdb` is kept. Engine start failures (DuckDB lock, missing sidecar) show in the waiting window, with a one-click stop for the old login service.
