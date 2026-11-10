@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 10 2026: ship 0.5.7.
+
+**Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.7` are 0.5.7. CI fixture is 0.5.8 so macos-15 still has a newer local feed. Tag `v0.5.7` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags.
+
+**Why.** Rahul approved merging #51 and #53 and shipping signed v0.5.7. Installed 0.5.6 needs a newer GitHub Releases `latest-mac.yml` to auto-detect.
+
+**How to reverse.** Revert the bump PR; do not delete earlier tags.
+
 ## Nov 10 2026: ship 0.5.6.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.6` are 0.5.6. CI fixture is 0.5.7 so macos-15 still has a newer local feed. Tag `v0.5.6` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. PR #51 (Findings pane) stays open and is not in this release.

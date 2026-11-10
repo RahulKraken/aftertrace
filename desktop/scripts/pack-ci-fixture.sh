@@ -6,7 +6,7 @@ set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 desktop=$root/desktop
-version=${1:-0.5.7}
+version=${1:-0.5.8}
 out=${2:-$desktop/dist-fixture}
 mkdir -p "$out"
 out=$(CDPATH='' cd -- "$out" && pwd)

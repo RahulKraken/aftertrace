@@ -473,9 +473,9 @@ describe("desktop.yml", () => {
 })
 
 describe("pack-ci-fixture.sh", () => {
-  it("signs a 0.5.7 fixture into dist-fixture without notarize or shipping dist", () => {
+  it("signs a 0.5.8 fixture into dist-fixture without notarize or shipping dist", () => {
     const sh = fs.readFileSync(path.join(__dirname, "..", "scripts", "pack-ci-fixture.sh"), "utf8")
-    assert.match(sh, /0\.5\.7/)
+    assert.match(sh, /0\.5\.8/)
     assert.match(sh, /dist-fixture/)
     assert.match(sh, /mac\.notarize=false/)
     assert.match(sh, /NOTARIZE_MAC_ARCHES=""/)
@@ -503,6 +503,9 @@ describe("signed-upgrade-smoke.sh", () => {
     assert.match(sh, /wait_engine_version/)
     assert.match(sh, /legacy-keep/)
     assert.doesNotMatch(sh, /Relaunch the replacement ourselves/)
+    assert.match(sh, /\breap\(\)/)
+    assert.match(sh, /kill -9/)
+    assert.match(sh, /--max-time/)
     assert.match(sh, /retain-054/)
     assert.match(sh, /ShipIt relaunch wrote login-home \.aftertrace/)
     assert.match(sh, /shipit-done/)
