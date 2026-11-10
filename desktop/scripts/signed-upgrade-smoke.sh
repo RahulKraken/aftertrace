@@ -119,6 +119,24 @@ wait_new_app_pid() {
   return 1
 }
 
+# SIGTERM can miss a hardened ShipIt child; never unbounded `wait`.
+reap() {
+  pid=$1
+  [ -n "$pid" ] || return 0
+  kill "$pid" 2>/dev/null || true
+  i=0
+  while [ "$i" -lt 15 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  kill -9 "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
 assert_no_app_pid() {
   i=0
   while [ "$i" -lt 30 ]; do
@@ -277,7 +295,7 @@ port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); pr
 python3 -m http.server "$port" --bind 127.0.0.1 --directory "$fixture_dist" >/tmp/aftertrace-feed-http.log 2>&1 &
 http_pid=$!
 sleep 1
-curl -fsS "http://127.0.0.1:$port/latest-mac.yml" | head -n 5 | tee -a "$report"
+curl -fsS --max-time 8 "http://127.0.0.1:$port/latest-mac.yml" | head -n 5 | tee -a "$report"
 
 export HOME="$iso_home"
 export TMPDIR="$iso/tmp"
@@ -341,7 +359,7 @@ wait_engine_version() {
   want=$1
   i=0
   while [ "$i" -lt 40 ]; do
-    got=$(curl -sf http://127.0.0.1:7311/api/version 2>/dev/null || true)
+    got=$(curl -sf --max-time 8 http://127.0.0.1:7311/api/version 2>/dev/null || true)
     if [ -n "$got" ]; then
       log "GET /api/version: $got"
     fi
@@ -533,12 +551,10 @@ dump_shipit
 if [ -f "$smoke_dir/status.json" ]; then
   tee -a "$report" <"$smoke_dir/status.json"
 fi
-kill "$rel_pid" 2>/dev/null || true
-wait "$rel_pid" 2>/dev/null || true
+reap "$rel_pid"
 for extra in $(app_pids); do
   log "stopping leftover pid=$extra"
-  kill "$extra" 2>/dev/null || true
-  wait "$extra" 2>/dev/null || true
+  reap "$extra"
 done
 [ -f "$engine_home/marker.txt" ]
 assert_no_runner_writes shipit-done
@@ -709,8 +725,7 @@ assert_engine_and_tray
 screencapture -x "$iso/native-dock-reopen.png"
 log "reopen: Dock/app-switcher restored"
 
-kill "$gui_pid" 2>/dev/null || true
-wait "$gui_pid" 2>/dev/null || true
+reap "$gui_pid"
 # Drop the 0.5.8 fixture process so OTLP 4318 / UI 7311 are free for the notarized pack.
 pkill -f "$appdir/Aftertrace.app" 2>/dev/null || true
 pkill -f "$engine_home/aftertrace.duckdb" 2>/dev/null || true
@@ -773,7 +788,7 @@ wait_http() {
   label=$2
   j=0
   while [ "$j" -lt 40 ]; do
-    if curl -fsS "$url" >/dev/null 2>&1; then
+    if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then
       log "ok $label $url"
       return 0
     fi
@@ -794,11 +809,11 @@ click_allow
 
 log "injecting synthetic OTLP fixture (aftertrace.synthetic=true)"
 node "$root/desktop/scripts/otlp-menu-fixture.js" --otlp http://127.0.0.1:4318 | tee -a "$report"
-live_json=$(curl -fsS http://127.0.0.1:7311/api/overview)
+live_json=$(curl -fsS --max-time 20 http://127.0.0.1:7311/api/overview)
 printf '%s\n' "$live_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); live=d.get("live") or [];
 assert len(live)>=2, "live lanes %s" % len(live)
 print("overview live=%d" % len(live))' | tee -a "$report"
-sess_json=$(curl -fsS http://127.0.0.1:7311/api/sessions)
+sess_json=$(curl -fsS --max-time 20 http://127.0.0.1:7311/api/sessions)
 printf '%s\n' "$sess_json" | python3 -c 'import json,sys; rows=json.load(sys.stdin);
 assert any(r.get("tokens") for r in rows), rows
 assert any((r.get("cost_usd") or 0)>0 for r in rows), rows
@@ -827,7 +842,7 @@ done
 [ "$labels_ok" = 1 ] || {
   log "FAIL: tray labels never showed synthetic session tokens/cost (Engine offline is not success)"
   tee -a "$report" <"$smoke_dir/status.json" || true
-  curl -fsS http://127.0.0.1:7311/api/overview | tee -a "$report" || true
+  curl -fsS --max-time 8 http://127.0.0.1:7311/api/overview | tee -a "$report" || true
   exit 1
 }
 if grep -q 'Engine offline' "$smoke_dir/status.json"; then
@@ -1038,8 +1053,7 @@ for shot in native-menu.png native-menu-keyboard.png native-menu-dark.png native
   log "$shot bytes=$(wc -c < "$iso/$shot")"
 done
 
-kill "$menu_pid" 2>/dev/null || true
-wait "$menu_pid" 2>/dev/null || true
+reap "$menu_pid"
 
 cp "$report" "$ship_dist/signed-upgrade-smoke.txt" 2>/dev/null || cp "$report" "$iso/../signed-upgrade-smoke.txt"
 for shot in native-desktop.png native-dock-open.png native-dock-closed.png native-dock-reopen.png native-menu.png native-menu-keyboard.png native-menu-dark.png native-menu-activity.png native-menu-activity-dark.png native-menu-reopen.png native-session-open.png native-glyph.png; do
