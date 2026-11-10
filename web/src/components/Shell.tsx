@@ -22,6 +22,7 @@ import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
 import type { Status } from "../lib/types"
 import { useNow } from "../hooks/useNow"
+import { desktop, displayVersion, type UpdateState } from "../lib/desktop"
 import { CommandPalette } from "./CommandPalette"
 import { Logo } from "./Logo"
 
@@ -65,6 +66,7 @@ export function Shell({
 }) {
   const [cmd, setCmd] = useState(false)
   const [status, setStatus] = useState<Status | null>(null)
+  const [update, setUpdate] = useState<UpdateState | null>(null)
   const [loc, nav] = useLocation()
   const pendingG = useRef(0)
 
@@ -82,6 +84,15 @@ export function Shell({
       alive = false
       stop()
     }
+  }, [])
+
+  useEffect(() => {
+    const api = desktop()
+    if (!api) return
+    let off = () => {}
+    api.getUpdate().then(setUpdate).catch(() => {})
+    off = api.onUpdate(setUpdate)
+    return () => off()
   }, [])
 
   useEffect(() => {
@@ -156,7 +167,19 @@ export function Shell({
           <div className="side-foot">
             <NavItem item={HIDDEN.find((i) => i.href === "/settings")!} badge={null} />
             <div className="side-status">
-              <ReceivingLine status={status} />
+              <div className="side-status-lines">
+                <ReceivingLine status={status} />
+                {update?.status === "ready" ? (
+                  <button
+                    type="button"
+                    className="side-update"
+                    data-update="ready"
+                    onClick={() => desktop()?.restartToUpdate()}
+                  >
+                    Restart to update{displayVersion(update.version) ? ` · ${displayVersion(update.version)}` : ""}
+                  </button>
+                ) : null}
+              </div>
               <button
                 type="button"
                 className="icon-btn"

@@ -12,6 +12,10 @@ const READY = "ready"
 const ERROR = "error"
 const CURRENT = "current"
 
+const LAUNCH_DELAY_MS = 0
+const HOUR_MS = 60 * 60 * 1000
+const ONLINE_POLL_MS = 15_000
+
 function getAutoUpdater() {
   const mod = require("electron-updater")
   return mod.autoUpdater
@@ -36,15 +40,65 @@ function sanitizeLog(x) {
     .replace(/github_pat_[A-Za-z0-9_]+/g, "github_pat_***")
 }
 
+function numeric(raw) {
+  return String(raw || "")
+    .trim()
+    .replace(/^v/i, "")
+}
+
+function defaultPersist() {
+  return {
+    load() {
+      try {
+        const settings = require("./settings")
+        return settings.load(app.getPath("userData"))
+      } catch {
+        return {}
+      }
+    },
+    save(next) {
+      try {
+        const settings = require("./settings")
+        return settings.save(app.getPath("userData"), next)
+      } catch {
+        return next
+      }
+    },
+  }
+}
+
+function defaultNotify({ title, onClick }) {
+  try {
+    const { Notification } = require("electron")
+    if (typeof Notification !== "function") return null
+    if (typeof Notification.isSupported === "function" && !Notification.isSupported()) return null
+    const n = new Notification({ title, silent: false })
+    if (onClick) n.on("click", onClick)
+    n.show()
+    return n
+  } catch {
+    return null
+  }
+}
+
 function createUpdater(deps = {}) {
   const autoUpdater = deps.autoUpdater || getAutoUpdater()
   const getVersion = deps.getVersion || (() => app.getVersion())
   const showDialog = deps.dialog || dialog
   const platform = deps.platform || process.platform
   const arch = deps.arch || process.arch
+  const store = deps.persist || defaultPersist()
+  const notify = deps.notify || defaultNotify
+  const scheduleTimeout = deps.setTimeout || setTimeout
+  const scheduleInterval = deps.setInterval || setInterval
   const listeners = new Set()
 
-  let state = { status: IDLE, version: null, current: getVersion(), error: null }
+  const loaded = store.load() || {}
+  let lastNotified = numeric(loaded.notifiedUpdateVersion)
+  let checkedAt = Number(loaded.updateCheckedAt) || null
+  let backgroundStarted = false
+
+  let state = { status: IDLE, version: null, current: getVersion(), error: null, checkedAt }
   let wired = false
   let checking = null
   let downloadLock = null
@@ -60,8 +114,45 @@ function createUpdater(deps = {}) {
   }
 
   const setState = (next) => {
-    state = { ...state, current: getVersion(), ...next }
+    state = { ...state, current: getVersion(), checkedAt, ...next }
     emit()
+  }
+
+  const markChecked = () => {
+    checkedAt = Date.now()
+    try {
+      store.save({ updateCheckedAt: checkedAt })
+    } catch {
+      // last-checked is display-only
+    }
+    setState({ checkedAt })
+  }
+
+  const readyTitle = (version) => {
+    const v = numeric(version)
+    return v ? `Aftertrace v${v} is ready` : "Aftertrace is ready"
+  }
+
+  const notifyReady = (version) => {
+    const v = numeric(version)
+    if (!v || lastNotified === v) return false
+    lastNotified = v
+    try {
+      store.save({ notifiedUpdateVersion: v })
+    } catch {
+      // persist is best-effort; the in-app control still shows
+    }
+    try {
+      notify({
+        title: readyTitle(v),
+        onClick: () => {
+          if (typeof deps.onNotifyClick === "function") deps.onNotifyClick()
+        },
+      })
+    } catch {
+      // a missing Notification API must not turn a finished download into an error
+    }
+    return true
   }
 
   const wire = () => {
@@ -97,13 +188,18 @@ function createUpdater(deps = {}) {
       }
     })
     autoUpdater.on("update-downloaded", (info) => {
-      const version = (info && info.version) || state.version
-      setState({ status: READY, version, error: null })
+      try {
+        const version = (info && info.version) || state.version
+        setState({ status: READY, version, error: null })
+        notifyReady(version)
+      } catch {
+        // electron-updater must not see a throw from our listener
+      }
     })
   }
 
   function getState() {
-    return { ...state }
+    return { ...state, checkedAt }
   }
 
   function subscribe(fn) {
@@ -121,6 +217,7 @@ function createUpdater(deps = {}) {
       try {
         await autoUpdater.downloadUpdate()
         setState({ status: READY, version: latest, error: null })
+        notifyReady(latest)
         return getState()
       } catch (err) {
         const message = err && err.message ? String(err.message) : "download failed"
@@ -133,18 +230,6 @@ function createUpdater(deps = {}) {
     return downloadLock
   }
 
-  async function promptAvailable(latest) {
-    const { response } = await showDialog.showMessageBox({
-      type: "info",
-      message: `Aftertrace ${latest} is available`,
-      detail: `You have ${getVersion()}. Aftertrace can download it in the background. You choose when to restart.`,
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    })
-    return response === 0
-  }
-
   async function inspect({ interactive = false } = {}) {
     setState({ status: CHECKING, error: null })
     try {
@@ -152,6 +237,7 @@ function createUpdater(deps = {}) {
       const info = result && result.updateInfo
       const latest = info && info.version
       const current = getVersion()
+      markChecked()
       if (!parse(latest) || !gt(latest, current)) {
         setState({ status: CURRENT, version: latest || current, error: null })
         if (interactive) {
@@ -176,9 +262,9 @@ function createUpdater(deps = {}) {
         return getState()
       }
       setState({ status: AVAILABLE, version: latest, error: null })
-      if (interactive && !(await promptAvailable(latest))) return getState()
       return download(latest)
     } catch (err) {
+      markChecked()
       const message = err && err.message ? String(err.message) : "update check failed"
       setState({ status: ERROR, error: message })
       if (interactive) {
@@ -208,7 +294,7 @@ function createUpdater(deps = {}) {
       if (interactive) {
         const { response } = await showDialog.showMessageBox({
           type: "info",
-          message: `Aftertrace ${state.version} is ready`,
+          message: readyTitle(state.version),
           detail: `You have ${getVersion()}. Restart when you want the new build. Work is not interrupted until then.`,
           buttons: ["Restart to update", "Later"],
           defaultId: 0,
@@ -219,7 +305,6 @@ function createUpdater(deps = {}) {
       return getState()
     }
     if (state.status === AVAILABLE && state.version) {
-      if (interactive && !(await promptAvailable(state.version))) return getState()
       return download(state.version)
     }
     return inspect({ interactive })
@@ -245,11 +330,25 @@ function createUpdater(deps = {}) {
 
   function startBackgroundChecks() {
     wire()
-    const run = () => {
-      checkSerialized({ interactive: false }).catch(() => {})
+    if (backgroundStarted) return
+    backgroundStarted = true
+    const run = () => checkSerialized({ interactive: false }).catch(() => {})
+    const launch = scheduleTimeout(run, LAUNCH_DELAY_MS)
+    if (launch && typeof launch.unref === "function") launch.unref()
+    const hourly = scheduleInterval(run, HOUR_MS)
+    if (hourly && typeof hourly.unref === "function") hourly.unref()
+    const pm = deps.powerMonitor
+    if (pm && typeof pm.on === "function") pm.on("resume", run)
+    const netApi = deps.net
+    if (netApi && typeof netApi.isOnline === "function") {
+      let online = Boolean(netApi.isOnline())
+      const poll = scheduleInterval(() => {
+        const now = Boolean(netApi.isOnline())
+        if (now && !online) run()
+        online = now
+      }, ONLINE_POLL_MS)
+      if (poll && typeof poll.unref === "function") poll.unref()
     }
-    setTimeout(run, 20_000).unref?.()
-    setInterval(run, 4 * 60 * 60 * 1000).unref?.()
   }
 
   function requestInstall({ relaunch = true } = {}) {
@@ -286,8 +385,8 @@ function createUpdater(deps = {}) {
 
 let singleton = null
 
-function getUpdater() {
-  if (!singleton) singleton = createUpdater()
+function getUpdater(deps) {
+  if (!singleton) singleton = createUpdater(deps || {})
   return singleton
 }
 
@@ -307,6 +406,9 @@ module.exports = {
   getAutoUpdater,
   feedCompatible,
   localGenericFeedUrl,
+  LAUNCH_DELAY_MS,
+  HOUR_MS,
+  ONLINE_POLL_MS,
   IDLE,
   CHECKING,
   AVAILABLE,

@@ -4,7 +4,7 @@
 #
 # Distinguishes shipped v0.5.3 (internal 0.5.0, Download then quitAndInstall)
 # from 0.5.4/0.5.5 (download, stay running, Restart that did not relaunch)
-# from this tree (Restart must spawn N+1; quit-to-install must not).
+# from this tree (silent launch download, in-app Restart, N+1 relaunch).
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
@@ -316,6 +316,18 @@ wait_ready() {
   return 1
 }
 
+wait_in_app_ready() {
+  i=0
+  while [ "$i" -lt 40 ]; do
+    if [ -f "$smoke_dir/status.json" ] && grep -q '"inAppReady": true' "$smoke_dir/status.json"; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
 copy_app() {
   dest=$1
   rm -rf "$dest"
@@ -429,8 +441,12 @@ fi
 grep -q legacy-keep "$engine_home/legacy-keep.txt"
 [ -f "$engine_home/marker.txt" ]
 log "legacy LaunchAgent replaced; /api/version is v0.5.6; DB marker kept"
-echo check >"$smoke_dir/cmd"
-wait_ready "$quit_pid"
+log "waiting for silent launch check to download (no Check command, no prompt)"
+if ! wait_ready "$quit_pid"; then
+  log "FAIL: silent launch check did not reach ready"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+fi
 log "download ready; sending quit (install on quit, no reopen)"
 echo quit >"$smoke_dir/cmd"
 if ! wait_pid_gone "$quit_pid"; then
@@ -466,10 +482,21 @@ grep -q "$user_data" "$smoke_dir/status.json"
 grep -q "$iso_home" "$smoke_dir/status.json"
 pgrep -lf Aftertrace | tee -a "$report" || true
 kill -0 "$new_pid"
-echo check >"$smoke_dir/cmd"
-wait_ready "$new_pid"
+log "waiting for silent launch check to download (no Check command, no prompt)"
+if ! wait_ready "$new_pid"; then
+  log "FAIL: silent launch check did not reach ready"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+fi
 log "download ready; process still pid=$new_pid"
 tee -a "$report" <"$smoke_dir/status.json"
+echo dashboard >"$smoke_dir/cmd"
+if ! wait_in_app_ready; then
+  log "FAIL: in-app Restart to update control did not appear"
+  tee -a "$report" <"$smoke_dir/status.json" || true
+  exit 1
+fi
+log "in-app Restart to update is visible"
 assert_no_runner_writes
 [ -f "$engine_home/marker.txt" ]
 grep -q retain-054 "$engine_home/marker.txt"

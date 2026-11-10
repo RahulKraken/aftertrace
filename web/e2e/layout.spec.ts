@@ -134,6 +134,12 @@ test.describe("shared app layout", () => {
     await page.goto("/#/settings")
     const setX = await page.locator("h1").evaluate((el) => el.getBoundingClientRect().x)
     expect(Math.abs(homeX - setX)).toBeLessThan(2)
+    const budget = page.locator(".budget-field")
+    await expect(budget).toBeVisible()
+    const budgetH = await budget.evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
+    expect(budgetH).toBeLessThanOrEqual(34)
+    const suffixLines = await budget.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
+    expect(suffixLines).toBe(1)
   })
 
   test("recap long numerals wrap instead of overflowing the page", async ({ page }) => {
@@ -162,4 +168,32 @@ test.describe("shared app layout", () => {
     expect(JSON.parse(cached || "[]").length).toBeGreaterThan(0)
     await expect(page.getByText("Loading…")).toHaveCount(0)
   })
+})
+
+test("sidebar shows one Restart to update when the desktop update is ready", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(() => {
+    const state = {
+      status: "ready",
+      version: "0.5.7",
+      current: "0.5.6",
+      error: null,
+      checkedAt: Date.now(),
+    }
+    window.aftertraceDesktop = {
+      platform: "darwin",
+      getUpdate: async () => state,
+      checkUpdates: async () => state,
+      restartToUpdate: async () => true,
+      onUpdate: (fn) => {
+        fn(state)
+        return () => {}
+      },
+    }
+  })
+  await page.goto("/#/")
+  await expect(page.locator(".side-update")).toHaveCount(1)
+  await expect(page.locator(".side-update")).toHaveText("Restart to update · v0.5.7")
+  await expect(page.locator(".recv")).toBeVisible()
+  await expect(page.locator("[data-update=ready]")).toHaveCount(1)
 })
