@@ -4,37 +4,41 @@
 // lights, sidebar vibrancy). Serve the mock UI on :7311 in the same CI step.
 const fs = require("fs")
 const path = require("path")
-const { app, BrowserWindow, nativeTheme } = require("electron")
+const { app, BrowserWindow, ipcMain, nativeTheme, systemPreferences } = require("electron")
 const { dashboardWindowOptions, attachGuards } = require("../src/window")
 
 const OUT = process.env.SHOT_OUT || path.join(__dirname, "../dist/ui-shots")
 const ORIGIN = process.env.SHOT_ORIGIN || "http://127.0.0.1:7311"
+const IDLE = { status: "idle", version: null, current: "0.5.7", error: null }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function load(win, url) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`load timeout ${url}`)), 20000)
-    const ok = () => {
-      clearTimeout(t)
-      win.webContents.removeListener("did-fail-load", fail)
-      resolve()
+function stubIpc() {
+  ipcMain.handle("desktop:getUpdate", () => IDLE)
+  ipcMain.handle("desktop:checkUpdates", () => IDLE)
+  ipcMain.handle("desktop:engineStatus", () => ({ state: "idle" }))
+  ipcMain.handle("desktop:getOpenAtLogin", () => false)
+  ipcMain.handle("desktop:setOpenAtLogin", () => false)
+  ipcMain.handle("desktop:openSettings", () => true)
+  ipcMain.handle("desktop:openDashboard", () => true)
+  ipcMain.handle("desktop:getAccentColor", () => {
+    try {
+      return systemPreferences.getAccentColor()
+    } catch {
+      return "007aff"
     }
-    const fail = (_e, code, desc, failedUrl, isMain) => {
-      if (!isMain) return
-      clearTimeout(t)
-      win.webContents.removeListener("did-finish-load", ok)
-      reject(new Error(`did-fail-load ${code} ${desc} ${failedUrl}`))
-    }
-    win.webContents.once("did-finish-load", ok)
-    win.webContents.once("did-fail-load", fail)
-    win.loadURL(url).catch((err) => {
-      clearTimeout(t)
-      reject(err)
-    })
   })
+}
+
+async function exec(win, js, ms = 2500) {
+  return Promise.race([
+    win.webContents.executeJavaScript(js),
+    sleep(ms).then(() => {
+      throw new Error(`exec timeout: ${js}`)
+    }),
+  ])
 }
 
 async function waitFor(win, js, timeout = 20000) {
@@ -42,29 +46,38 @@ async function waitFor(win, js, timeout = 20000) {
   let last = ""
   while (Date.now() - start < timeout) {
     try {
-      last = String(await win.webContents.executeJavaScript(js))
+      last = String(await exec(win, js))
       if (last && last !== "false" && last !== "0" && last !== "null") return
     } catch (err) {
       last = err instanceof Error ? err.message : String(err)
     }
     await sleep(250)
   }
-  throw new Error(`timeout waiting for ${js} (last=${last})`)
+  throw new Error(`timeout waiting for ${js} (last=${last} url=${win.webContents.getURL()})`)
 }
 
 async function shot(win, hash, theme, name) {
   nativeTheme.themeSource = theme
-  console.log(`loading ${ORIGIN}/#${hash} theme=${theme}`)
-  await load(win, `${ORIGIN}/#${hash}`)
-  await waitFor(win, "!!document.querySelector('.nav') && !document.querySelector('.skel-page')")
-  await win.webContents.executeJavaScript(`
-    localStorage.setItem("aftertrace-theme", ${JSON.stringify(theme)});
-    localStorage.removeItem("aftertrace-resolved");
-    document.documentElement.dataset.theme = ${JSON.stringify(theme)};
-  `)
-  await load(win, `${ORIGIN}/#${hash}`)
-  await waitFor(win, `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && !!document.querySelector('.nav')`)
-  await sleep(400)
+  const url = `${ORIGIN}/index.html`
+  console.log(`navigate ${url} hash=${hash} theme=${theme}`)
+  win.loadURL(url).then(
+    () => console.log("loadURL resolved", url),
+    (err) => console.warn("loadURL rejected", url, err),
+  )
+  await waitFor(win, "!!document.querySelector('#root')")
+  await exec(
+    win,
+    `localStorage.setItem("aftertrace-theme", ${JSON.stringify(theme)});
+     localStorage.removeItem("aftertrace-resolved");
+     document.documentElement.dataset.theme = ${JSON.stringify(theme)};
+     if (location.hash !== ${JSON.stringify("#" + hash)}) location.hash = ${JSON.stringify("#" + hash)};
+     true`,
+  )
+  await waitFor(
+    win,
+    `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && !!document.querySelector('.nav') && !document.querySelector('.skel-page')`,
+  )
+  await sleep(500)
   const img = await win.capturePage()
   const dest = path.join(OUT, `${name}-${theme}.png`)
   fs.writeFileSync(dest, img.toPNG())
@@ -72,8 +85,6 @@ async function shot(win, hash, theme, name) {
 }
 
 app.commandLine.appendSwitch("disable-http-cache")
-app.commandLine.appendSwitch("disable-gpu")
-app.commandLine.appendSwitch("disable-software-rasterizer")
 setTimeout(() => {
   console.error("ci-window-shots: global timeout")
   app.exit(1)
@@ -83,15 +94,22 @@ app
   .whenReady()
   .then(async () => {
     console.log("electron ready, origin", ORIGIN)
+    stubIpc()
     fs.mkdirSync(OUT, { recursive: true })
     const opts = dashboardWindowOptions()
     const win = new BrowserWindow({
       ...opts,
-      show: false,
+      show: true,
       paintWhenInitiallyHidden: true,
     })
+    win.setPosition(40, 40)
     attachGuards(win, { fallbackWaiting: false })
     win.webContents.on("console-message", (_e, _l, msg) => console.log("renderer:", msg))
+    win.webContents.on("did-finish-load", () => console.log("did-finish-load", win.webContents.getURL()))
+    win.webContents.on("dom-ready", () => console.log("dom-ready", win.webContents.getURL()))
+    win.webContents.on("did-fail-load", (_e, code, desc, failedUrl, isMain) => {
+      console.warn("did-fail-load", { code, desc, failedUrl, isMain })
+    })
     for (const theme of ["light", "dark"]) {
       await shot(win, "/", theme, "today-electron")
       await shot(win, "/sessions", theme, "sessions-electron")

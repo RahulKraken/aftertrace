@@ -40,7 +40,7 @@ test("every page renders against the real server", async ({ page, request }) => 
   await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
   await page.goto("/#/findings")
-  await expect(page.locator(".fdet .big, .fr.sel")).toBeVisible()
+  await expect(page.locator(".fdet .big").or(page.locator(".fr.sel")).first()).toBeVisible()
 
   await page.goto("/#/apps")
   await expect(page.locator(".app-card")).toHaveCount(3)
