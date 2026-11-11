@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: Today week stats never wrap; window min 960.
+
+**Choice.** Dashboard `minWidth` is 960. Today hero values, captions and the sessions/tokens/cache-hit column are `white-space: nowrap`. The Worth changing pane (`--inspector`) narrows first (320 → 260 → 200) and hides below 1000px so the stat row fits. Running-now cost stays on the right; tokens move to the secondary line so the title can use the row.
+
+**Why.** The 1024 Electron Today shot wrapped "49m 8s", "waiting on you", and the facts column, and truncated the live title at "git l…".
+
+**How to reverse.** Restore `minWidth: 880` and the four-column hero grid.
+
 ## Nov 11 2026: polish pass on the native-instrument PR.
 
 **Choice.** Open findings count is one number: sidebar, Today "Worth changing", and Findings "N open" all use `openFindings()` (API list minus client resolved marks). Seen-in rows name the session and date, cost on the right. Session inspector turns show a prompt snippet plus time and cost. Today running row is a quiet row + ribbon (no playhead ticks, no 2px min-width stubs). Keyboard hint uses `desktop.platform` so macOS reads ⌘K. macOS CI captures Today/Sessions from a real Electron window (`desktop/scripts/ci-window-shots.js`) so traffic lights and sidebar vibrancy show up.

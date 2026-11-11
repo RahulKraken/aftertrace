@@ -20,7 +20,7 @@ const { dashboardWindowOptions, settingsWindowOptions } = require("../src/window
 test("dashboard window keeps traffic lights in the sidebar on Mac", () => {
   const opts = dashboardWindowOptions()
   assert.equal(opts.width, 1280)
-  assert.equal(opts.minWidth, 880)
+  assert.equal(opts.minWidth, 960)
   if (process.platform === "darwin") {
     assert.equal(opts.titleBarStyle, "hiddenInset")
     assert.deepEqual(opts.trafficLightPosition, { x: 20, y: 18 })

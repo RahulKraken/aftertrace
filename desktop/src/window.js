@@ -24,7 +24,7 @@ function dashboardWindowOptions() {
   return {
     width: 1280,
     height: 840,
-    minWidth: 880,
+    minWidth: 960,
     minHeight: 560,
     show: false,
     title: "Aftertrace",

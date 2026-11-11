@@ -274,7 +274,6 @@ function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) 
       <div className="lane-top">
         <span className="dot live" />
         <span className="lt">{lane.title || session?.title || "Running"}</span>
-        <span className="n l2">{tok(session?.tokens)} tokens</span>
         <span className="n lane-cost">{usd(session?.cost_usd ?? lane.cost_usd)}</span>
       </div>
       <div className="lane-doing">
@@ -282,7 +281,9 @@ function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) 
         <span className="mono">{doing || "working"}</span>
         <span className="l3">·</span>
         <span className="l2">
-          {[session?.repo, modelName(session?.models?.[0]), dur(elapsed)].filter(Boolean).join(" · ")}
+          {[session?.repo, modelName(session?.models?.[0]), dur(elapsed), session?.tokens != null ? `${tok(session.tokens)} tokens` : null]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </div>
       <Ribbon parts={parts} live tall />

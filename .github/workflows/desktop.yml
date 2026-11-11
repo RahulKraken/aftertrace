@@ -458,10 +458,12 @@ jobs:
           mkdir -p "$SHOT_OUT"
           (cd desktop && npx electron scripts/ci-window-shots.js)
           ls -lah "$SHOT_OUT"
-          test -s "$SHOT_OUT/today-electron-light.png"
-          test -s "$SHOT_OUT/today-electron-dark.png"
-          test -s "$SHOT_OUT/sessions-electron-light.png"
-          test -s "$SHOT_OUT/sessions-electron-dark.png"
+          test -s "$SHOT_OUT/today-electron-1024-light.png"
+          test -s "$SHOT_OUT/today-electron-1440-light.png"
+          test -s "$SHOT_OUT/sessions-electron-1024-light.png"
+          test -s "$SHOT_OUT/sessions-electron-1440-light.png"
+          test -s "$SHOT_OUT/findings-electron-1024-light.png"
+          test -s "$SHOT_OUT/findings-electron-1440-light.png"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

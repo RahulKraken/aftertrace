@@ -180,7 +180,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .body { flex: 1; min-height: 0; display: grid; overflow: hidden; }
-.pad { padding: 20px 24px; overflow: auto; }
+.pad { padding: 20px 24px; overflow: auto; min-width: 0; }
 .sec-h { display: flex; align-items: baseline; gap: 8px; font: var(--t-headline); margin: 0 0 10px; }
 .sec-h .m { font: var(--t-callout); color: var(--l2); font-weight: 400; }
 .sec-h .r { margin-left: auto; font: var(--t-callout); color: var(--l2); font-weight: 400; }
@@ -236,8 +236,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 .sw.money { background: var(--amber); border-radius: 50%; }
 
-.today { grid-template-columns: 1fr var(--inspector); }
-.today .col { overflow: auto; }
+.today { grid-template-columns: minmax(0, 1fr) minmax(0, var(--inspector)); }
+.today .col { overflow: auto; min-width: 0; }
+.today .insp { width: var(--inspector); max-width: 100%; min-width: 0; }
 .lane { padding: 4px 0 18px; margin-bottom: 8px; }
 .lane-top { display: flex; align-items: center; gap: 10px; }
 .lane-top .lt { font: var(--t-headline); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -248,15 +249,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .lane-doing .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lane-rib { position: relative; margin-left: 17px; }
 .week-h { margin-top: 4px; }
-.hero { display: grid; grid-template-columns: auto auto auto 1fr; gap: 36px; align-items: end; margin: 4px 0 16px; }
-.hero .big { font: var(--t-display); letter-spacing: -0.025em; }
-.hero .cap { font: var(--t-callout); color: var(--l2); margin-top: 2px; }
-.hero .facts { justify-self: end; text-align: right; font: var(--t-callout); color: var(--l2); line-height: 18px; }
+.hero {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 28px;
+  margin: 4px 0 16px;
+  min-width: 0;
+}
+.hero > div { flex: none; }
+.hero .big { font: var(--t-display); letter-spacing: -0.025em; white-space: nowrap; }
+.hero .cap { font: var(--t-callout); color: var(--l2); margin-top: 2px; white-space: nowrap; }
+.hero .facts {
+  margin-left: auto;
+  text-align: right;
+  font: var(--t-callout);
+  color: var(--l2);
+  line-height: 18px;
+  flex: none;
+}
+.hero .facts div { white-space: nowrap; }
 .hero .facts b { color: var(--l1); font-weight: 500; }
 .days { margin-top: 18px; border-top: 1px solid var(--sep); }
 .dayrow { display: grid; grid-template-columns: 56px 1fr 64px 56px; align-items: center; gap: 12px; height: 30px; border-bottom: 1px solid var(--sep); }
 .dayrow .d { font: var(--t-callout); color: var(--l2); }
-.dayrow .n { font: var(--t-callout); text-align: right; font-variant-numeric: tabular-nums; }
+.dayrow .n { font: var(--t-callout); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dayrow .c { color: var(--l1); font-weight: 500; }
 .col-r { padding-top: 20px; overflow: auto; }
 .top-f { padding: 2px 0 16px; }
@@ -272,7 +289,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .repos b { font: var(--t-num); letter-spacing: -0.01em; }
 .repos span { font: var(--t-callout); }
 
-.split { grid-template-columns: 1fr var(--inspector); }
+.split { grid-template-columns: minmax(0, 1fr) minmax(0, var(--inspector)); }
+.split .insp { width: var(--inspector); max-width: 100%; min-width: 0; }
+
+@media (max-width: 1279px) {
+  :root { --inspector: 260px; }
+}
+@media (max-width: 1099px) {
+  :root { --inspector: 200px; }
+}
+@media (max-width: 999px) {
+  .today { grid-template-columns: minmax(0, 1fr); }
+  .today > .insp { display: none; }
+}
 .s300 { grid-template-columns: 1fr 300px; }
 .tblwrap { padding-top: 6px; overflow: auto; }
 .sess { table-layout: fixed; }
@@ -286,7 +315,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sess .meta { font: var(--t-callout); color: var(--l2); margin-top: 1px; white-space: nowrap; overflow: visible; text-overflow: clip; }
 .insp .rib.tall { margin-top: 2px; }
 
-.fsplit { grid-template-columns: 440px 1fr; }
+.fsplit { grid-template-columns: minmax(240px, 440px) minmax(0, 1fr); }
 .fcol { border-right: 1px solid var(--sep); padding: 8px 12px 12px; overflow: auto; }
 .fg-h { display: flex; justify-content: space-between; font: var(--t-caption); color: var(--l2); padding: 12px 8px 4px; }
 .fg-h:first-child { padding-top: 6px; }

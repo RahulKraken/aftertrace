@@ -2,7 +2,9 @@ import { expect, test, type Page } from "@playwright/test"
 
 const VIEWPORTS = [
   { name: "1440", width: 1440, height: 900 },
-  { name: "1024", width: 1024, height: 620 },
+  { name: "1280", width: 1280, height: 800 },
+  { name: "1024", width: 1024, height: 720 },
+  { name: "960", width: 960, height: 700 },
   { name: "768", width: 768, height: 900 },
   { name: "390", width: 390, height: 844 },
 ]
@@ -40,6 +42,42 @@ test.describe("shared app layout", () => {
       }
     })
   }
+
+  test("Today week stats stay on one line from 960 to 1440", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("aftertrace-theme", "light")
+      if (document.documentElement) document.documentElement.dataset.theme = "light"
+    })
+    for (const width of [960, 1024, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto("/#/")
+      await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+      await expect(page.locator(".skel-page")).toHaveCount(0)
+      const valueLines = await page.locator(".hero .big").evaluateAll((els) => els.map((el) => el.getClientRects().length))
+      expect(valueLines, `hero values wrap at ${width}`).toEqual(valueLines.map(() => 1))
+      const capLines = await page.locator(".hero .cap").evaluateAll((els) => els.map((el) => el.getClientRects().length))
+      expect(capLines, `hero captions wrap at ${width}`).toEqual(capLines.map(() => 1))
+      const factLines = await page.locator(".hero .facts div").evaluateAll((els) => els.map((el) => el.getClientRects().length))
+      expect(factLines, `hero facts wrap at ${width}`).toEqual(factLines.map(() => 1))
+      const extra = await pageOverflow(page)
+      expect(extra, `Today overflow at ${width}`).toBeLessThanOrEqual(1)
+      if (width >= 1024) {
+        await expect(page.locator(".today > .insp"), `Worth changing hidden at ${width}`).toBeVisible()
+        const titleWidth = await page.locator(".lane .lt").first().evaluate((el) => el.clientWidth)
+        expect(titleWidth, `running title cramped at ${width}`).toBeGreaterThan(280)
+      } else {
+        await expect(page.locator(".today > .insp")).toBeHidden()
+      }
+
+      await page.goto("/#/sessions")
+      await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+      expect(await pageOverflow(page), `Sessions overflow at ${width}`).toBeLessThanOrEqual(1)
+
+      await page.goto("/#/findings")
+      await expect(page.locator("button.fr").first()).toBeVisible()
+      expect(await pageOverflow(page), `Findings overflow at ${width}`).toBeLessThanOrEqual(1)
+    }
+  })
 
   test("Today, Sessions and Findings keep the native instrument grid at 1440", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })

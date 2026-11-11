@@ -86,9 +86,15 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
     "home",
     "home-history",
     "today",
+    "today-1024",
+    "today-1440",
     "findings",
+    "findings-1024",
+    "findings-1440",
     "findings-resolved",
     "sessions",
+    "sessions-1024",
+    "sessions-1440",
     "spend",
     "settings",
     "settings-updates",
@@ -462,6 +468,29 @@ test("home: story, stats, live lane, next finding", async ({ page }) => {
   await shot(page, "home", "dark")
   await shot(page, "today", "light")
   await shot(page, "today", "dark")
+})
+
+test("Today, Sessions and Findings at 1024 and 1440", async ({ page }) => {
+  for (const width of [1024, 1440] as const) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 720 })
+    await page.goto("/#/")
+    await waitFonts(page)
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+    await expect(page.locator(".hero .big").nth(1)).toBeVisible()
+    const valueLines = await page.locator(".hero .big").evaluateAll((els) => els.map((el) => el.getClientRects().length))
+    expect(valueLines.every((n) => n === 1), `Today values wrap at ${width}`).toBe(true)
+    await shot(page, `today-${width}`, "light")
+
+    await page.goto("/#/sessions")
+    await waitFonts(page)
+    await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
+    await shot(page, `sessions-${width}`, "light")
+
+    await page.goto("/#/findings")
+    await waitFonts(page)
+    await expect(page.locator(".fr.sel")).toBeVisible()
+    await shot(page, `findings-${width}`, "light")
+  }
 })
 
 test("home: history-only", async ({ page }) => {
