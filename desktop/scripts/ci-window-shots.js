@@ -19,7 +19,7 @@ const SIZES = [
 ]
 const PAGES = [
   { hash: "/", name: "today-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.hero .big')" },
-  { hash: "/sessions", name: "sessions-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.tbl.sess')" },
+  { hash: "/sessions", name: "sessions-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.tbl.sess') && document.querySelectorAll('.sess td.c-title .title').length > 1 && [...document.querySelectorAll('.sess td.c-title .title')].every((el) => el.clientHeight > 8 && (el.textContent || '').trim().length > 8)" },
   { hash: "/findings", name: "findings-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.fr')" },
   { hash: "/spend", name: "spend-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.insight')" },
   { hash: "/trace/509cb3acac23db7c6e9b7d180a474268?long=1", name: "turn-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.st-steps')" },
@@ -103,41 +103,38 @@ async function savePng(win, dest) {
 }
 
 function stitchGif(frames, dest) {
-  const ffmpeg = spawnSync(
+  const pattern = path.join(OUT, "rec-%d.png")
+  const mp4 = dest.replace(/\.gif$/, ".mp4")
+  const ffGif = spawnSync(
     "ffmpeg",
-    ["-y", "-start_number", "1", "-framerate", "1", "-i", path.join(OUT, "rec-%d.png"), "-vf", "scale=720:-1", dest],
+    ["-y", "-start_number", "1", "-framerate", "1", "-i", pattern, "-vf", "fps=1,scale=720:-1:flags=lanczos", "-loop", "0", dest],
     { encoding: "utf8" },
   )
-  if (ffmpeg.status === 0 && fs.existsSync(dest)) {
-    console.log("wrote", dest, "via ffmpeg")
-    return
-  }
-  const py = spawnSync(
-    "python3",
-    ["-"],
-    {
+  const ffMp4 = spawnSync(
+    "ffmpeg",
+    ["-y", "-start_number", "1", "-framerate", "1", "-i", pattern, "-vf", "scale=720:-2", "-pix_fmt", "yuv420p", mp4],
+    { encoding: "utf8" },
+  )
+  if (ffGif.status === 0) console.log("ffmpeg gif", dest, ffGif.stderr.slice(-200))
+  if (ffMp4.status === 0) console.log("ffmpeg mp4", mp4)
+  if (!fs.existsSync(dest) || fs.statSync(dest).size < 10_000) {
+    const py = spawnSync("python3", ["-"], {
       input: `
-import pathlib, struct, zlib, sys
-frames = ${JSON.stringify(frames)}
-out = pathlib.Path(${JSON.stringify(dest)})
-# Fallback: copy first frame as gif-named png is worse; write a 3-frame GIF89a if files exist.
-# Use a 1-bit GIF of the filenames so the artifact exists even without ffmpeg.
-w, h = 2, 2
-header = b"GIF89a" + struct.pack("<HH", w, h) + bytes([0x80, 0, 0, 0,0,0, 255,255,255])
-# Netscape loop
-ext = b"\\x21\\xff\\x0bNETSCAPE2.0\\x03\\x01\\x00\\x00\\x00"
-data = header + ext
-for _ in frames:
-    data += b"\\x21\\xf9\\x04\\x00\\x64\\x00\\x00\\x00"  # delay 1s
-    data += b"\\x2c" + struct.pack("<HHHH", 0,0,w,h) + b"\\x00\\x02\\x02\\x44\\x01\\x00"
-data += b"\\x3b"
-out.write_bytes(data)
-print("wrote fallback gif", out)
+from pathlib import Path
+from PIL import Image
+frames = [Image.open(p).convert("P", palette=Image.ADAPTIVE, colors=64) for p in ${JSON.stringify(frames)}]
+out = Path(${JSON.stringify(dest)})
+frames[0].save(out, save_all=True, append_images=frames[1:], duration=1000, loop=0, optimize=True)
+print("pillow gif", out.stat().st_size)
 `,
       encoding: "utf8",
-    },
-  )
-  console.log("ffmpeg missing; python gif", py.status, py.stdout, py.stderr)
+    })
+    console.log("pillow gif", py.status, py.stdout, py.stderr)
+  }
+  if (!fs.existsSync(dest) || fs.statSync(dest).size < 10_000) {
+    throw new Error(`failed to write ${dest} (need a real gif, not a stub)`)
+  }
+  console.log("wrote", dest, fs.statSync(dest).size)
 }
 
 app.commandLine.appendSwitch("disable-http-cache")

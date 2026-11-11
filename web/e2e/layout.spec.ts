@@ -76,6 +76,15 @@ test.describe("shared app layout", () => {
         await expect(page.locator(".sess thead th.c-shape")).toBeHidden()
         const titleW = await page.locator(".sess td.c-title").first().evaluate((el) => el.clientWidth)
         expect(titleW, `session title col at ${width}`).toBeGreaterThanOrEqual(200)
+        const titles = page.locator(".sess td.c-title .title")
+        const n = await titles.count()
+        expect(n, `session title count at ${width}`).toBeGreaterThan(1)
+        for (let i = 0; i < n; i++) {
+          const text = (await titles.nth(i).innerText()).trim()
+          const box = await titles.nth(i).boundingBox()
+          expect(text.length, `session title ${i} at ${width}`).toBeGreaterThan(8)
+          expect(box?.height || 0, `session title height ${i} at ${width}`).toBeGreaterThan(10)
+        }
       }
 
       await page.goto("/#/findings")

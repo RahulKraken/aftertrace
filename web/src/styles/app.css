@@ -102,6 +102,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   flex: none;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 12px;
   padding: 0 16px 0 20px;
   border-bottom: 1px solid var(--sep);
@@ -116,6 +117,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .crumb svg { width: 12px; height: 12px; color: var(--l3); }
 .search {
   width: 200px;
+  max-width: 200px;
+  min-width: 88px;
+  flex: 0 1 160px;
   height: 28px;
   border-radius: var(--r-control);
   background: var(--sel-quiet);
@@ -128,7 +132,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .search svg { width: 14px; height: 14px; }
 .search kbd { margin-left: auto; font: var(--t-caption); color: var(--l3); }
-.seg { display: inline-flex; background: var(--sel-quiet); border-radius: var(--r-control); padding: 2px; gap: 2px; }
+.tb .btn, .tb .select { flex: none; white-space: nowrap; }
+.seg { display: inline-flex; flex: none; flex-wrap: nowrap; background: var(--sel-quiet); border-radius: var(--r-control); padding: 2px; gap: 2px; }
 .seg button, .seg span, .seg a {
   font: 500 12px/16px var(--font);
   padding: 4px 10px;
@@ -230,10 +235,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .kv .v { font: var(--t-num); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .kv .k { font: var(--t-callout); color: var(--l2); margin-top: 2px; }
 .list { border-top: 1px solid var(--sep); }
-.li { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 0; border-bottom: 1px solid var(--sep); }
-.li .t { flex: 1; min-width: 0; }
+.li { display: flex; align-items: flex-start; gap: 10px; min-height: 36px; padding: 6px 0; border-bottom: 1px solid var(--sep); overflow: visible; }
+.li .t { flex: 1; min-width: 0; overflow: hidden; }
 .li .t div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.li .v { font-variant-numeric: tabular-nums; font-weight: 500; }
+.li .v { font-variant-numeric: tabular-nums; font-weight: 500; flex: none; }
 .chev { width: 12px; height: 12px; color: var(--l3); flex: none; }
 .label { font: var(--t-caption); color: var(--l2); margin: 0 0 8px; }
 .code { background: var(--group); border: 1px solid var(--sep); border-radius: var(--r-group); padding: 10px 12px; font: var(--t-mono); white-space: pre; color: var(--l1); overflow: auto; }
@@ -310,12 +315,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .s300 { --inspector: 280px; grid-template-columns: minmax(0, 1fr) minmax(240px, var(--inspector)); }
 .tblwrap { padding-top: 6px; overflow: auto; }
 .sess { table-layout: fixed; }
-.sess td.c-title { font-weight: 500; white-space: normal; }
-.sess td.c-title .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess td.c-title { font-weight: 500; white-space: normal; overflow: visible; vertical-align: top; }
+.sess td.c-title .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
 .sess td.c-dot { padding: 0 0 0 8px; }
 .sess td.c-shape { padding-right: 16px; }
 .sess tr.sel .rib i { opacity: 1; box-shadow: 0 0 0 0.5px rgba(255,255,255,.6); }
-.sess td { height: auto; min-height: var(--row); padding-top: 8px; padding-bottom: 8px; }
+.sess td { height: auto; min-height: var(--row); padding-top: 8px; padding-bottom: 8px; overflow: visible; vertical-align: top; }
 .sess td.c-time { white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.25; }
 .sess td.c-time > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sess .doing { font: var(--t-callout); color: var(--l2); margin-top: 2px; overflow: visible; }
@@ -540,16 +545,21 @@ tbody.stagger > tr,
 .sess td.c-title .title { overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1179px) {
   .s300 { --inspector: 240px; }
-  .sess col.c-shape-col { width: 0; visibility: collapse; }
+  /* Keep the column in the table so later cells do not remap, but do not
+     use visibility:collapse — Chromium/Electron treats that as collapsing
+     the row and clips the session title. */
+  .sess col.c-shape-col { width: 0; }
   .sess .c-shape, .sess thead th.c-shape, .sess td.c-shape {
-    visibility: collapse;
+    visibility: hidden;
     padding: 0;
     border: 0;
     overflow: hidden;
     width: 0;
+    max-width: 0;
   }
+  .sess td.c-shape > * { display: none; }
   .sess col.c-time-col { width: 136px; }
-  .waits { display: none; }
+  .wait-block { display: none; }
 }
 
 .waits { min-width: 0; }

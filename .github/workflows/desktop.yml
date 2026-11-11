@@ -446,6 +446,7 @@ jobs:
           SHOT_ORIGIN: http://127.0.0.1:7311
           ELECTRON_ENABLE_LOGGING: "1"
         run: |
+          python3 -m pip install --user pillow
           python3 -m http.server 7311 --bind 127.0.0.1 --directory web/dist >/tmp/mock-ui.log 2>&1 &
           echo $! > /tmp/mock-ui.pid
           cleanup() { kill "$(cat /tmp/mock-ui.pid)" 2>/dev/null || true; }
@@ -471,6 +472,7 @@ jobs:
           test -s "$SHOT_OUT/selection-inactive.png"
           test -s "$SHOT_OUT/copied-confirm.png"
           test -s "$SHOT_OUT/selection-focus-copied.gif"
+          test "$(wc -c < "$SHOT_OUT/selection-focus-copied.gif")" -gt 10000
       - uses: actions/upload-artifact@v7
         if: always()
         with:

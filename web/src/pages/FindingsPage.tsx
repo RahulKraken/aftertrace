@@ -254,7 +254,7 @@ function FindingDetail({
         <span className="l2">{money ? "a month if this keeps up" : impactCaption(f)}</span>
       </div>
       {waits.length > 0 && (
-        <>
+        <div className="wait-block">
           <div className="label">Each wait</div>
           <div className="waits">
             {waits.map((w) => (
@@ -271,7 +271,7 @@ function FindingDetail({
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
       {fx ? (
         <>
