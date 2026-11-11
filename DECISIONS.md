@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: polish pass on the native-instrument PR.
+
+**Choice.** Open findings count is one number: sidebar, Today "Worth changing", and Findings "N open" all use `openFindings()` (API list minus client resolved marks). Seen-in rows name the session and date, cost on the right. Session inspector turns show a prompt snippet plus time and cost. Today running row is a quiet row + ribbon (no playhead ticks, no 2px min-width stubs). Keyboard hint uses `desktop.platform` so macOS reads ⌘K. macOS CI captures Today/Sessions from a real Electron window (`desktop/scripts/ci-window-shots.js`) so traffic lights and sidebar vibrancy show up.
+
+**Why.** Review of PR screenshots: dollar-only Seen in, 15 vs 14 counts, Turn 1/2/3, ribbon ticks, Ctrl K on a Mac product, Playwright chrome without native window chrome.
+
+**How to reverse.** Revert the follow-up commit. Drop the `macOS UI shots` job if Electron capture is too flaky on macos-15.
+
 ## Nov 11 2026: native-instrument redesign, with design-review overrides.
 
 **Choice.** One PR against main, no merge/tag/release. The desktop UI follows SPEC.md (native Mac instrument: Today / Sessions / Findings / Spend, Settings window, Phosphor, SF Pro, one time ribbon) with these review wins over SPEC: a single `usd()` money rule (2 decimals, `<$0.01` for tiny, no cents at $100+, never 3-decimal values); Sessions puts repo under the title instead of a truncating column; Today keeps per-day bars and a legend, not a duplicate week stacked bar; Findings keep the amber hero, native inactive-grey selection, and Copy fix → Copied micro-animation (no WinStage); motion is only selection / sheet / list-reorder, under 200ms, with `prefers-reduced-motion`; Spend, the Settings window, resolved findings and 20+ step turns share the same language and show up in PR screenshots. Silent updater and sidebar `Restart to update` from v0.5.7 stay. Engine and version stay 0.5.7.

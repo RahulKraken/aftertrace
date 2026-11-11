@@ -12,10 +12,11 @@ import { api, emptyMode } from "../lib/api"
 import { startPoll } from "../lib/poll"
 import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
-import type { AppSummary, Status } from "../lib/types"
+import type { AppSummary, Finding, Status } from "../lib/types"
 import { desktop, displayVersion, windowKind, type UpdateState } from "../lib/desktop"
 import { hashParam } from "../lib/hash"
 import { CommandPalette } from "./CommandPalette"
+import { onWins, openFindings, resolvedKeys } from "../lib/wins"
 
 type Item = {
   href: string
@@ -42,9 +43,9 @@ function fromApps(): boolean {
   return /[?&]app=1/.test(window.location.hash) || /[?&]app=1/.test(window.location.search)
 }
 
-type ShellApi = { openCommand: () => void; mock: boolean }
+type ShellApi = { openCommand: () => void; mock: boolean; openFindings: number }
 
-const ShellCtx = createContext<ShellApi>({ openCommand: () => {}, mock: false })
+const ShellCtx = createContext<ShellApi>({ openCommand: () => {}, mock: false, openFindings: 0 })
 export function useShell() {
   return useContext(ShellCtx)
 }
@@ -64,6 +65,8 @@ export function Shell({
   const [status, setStatus] = useState<Status | null>(null)
   const [update, setUpdate] = useState<UpdateState | null>(null)
   const [apps, setApps] = useState<AppSummary[]>([])
+  const [findings, setFindings] = useState<Finding[]>([])
+  const [resolved, setResolved] = useState(() => resolvedKeys())
   const [loc, nav] = useLocation()
   const pendingG = useRef(0)
   const prefs = windowKind() === "settings"
@@ -79,11 +82,14 @@ export function Shell({
       }
     }, { visibleMs: 15000, hiddenMs: 60000 })
     api.apps().then((a) => alive && setApps(a)).catch(() => undefined)
+    api.findings().then((rows) => alive && setFindings(rows)).catch(() => undefined)
     return () => {
       alive = false
       stop()
     }
   }, [])
+
+  useEffect(() => onWins(() => setResolved(resolvedKeys())), [])
 
   useEffect(() => {
     const api = desktop()
@@ -144,7 +150,8 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey)
   }, [nav])
 
-  const shell = useMemo(() => ({ openCommand: () => setCmd(true), mock }), [mock])
+  const openCount = findings.length ? openFindings(findings, resolved).length : status?.findings || 0
+  const shell = useMemo(() => ({ openCommand: () => setCmd(true), mock, openFindings: openCount }), [mock, openCount])
   const running = (status?.running || 0) > 0 && !emptyMode() && hashParam("welcome") == null
   const appSources = apps.filter((a) => a.service)
 
@@ -163,8 +170,8 @@ export function Shell({
                     badge={
                       it.href === "/sessions" && running ? (
                         <span className="live" title={`${status?.running} running`} />
-                      ) : it.href === "/findings" && status && status.findings > 0 ? (
-                        <span className="ct">{status.findings}</span>
+                      ) :                       it.href === "/findings" && openCount > 0 ? (
+                        <span className="ct">{openCount}</span>
                       ) : null
                     }
                   />

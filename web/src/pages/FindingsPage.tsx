@@ -13,7 +13,7 @@ import { hashParam } from "../lib/hash"
 import { fixFor, rankHero } from "../lib/fixes"
 import { shortTitle } from "../lib/welcome"
 import { monthlyUSD } from "../lib/welcome"
-import type { Finding, Session } from "../lib/types"
+import type { Finding, Session, SessionDetail } from "../lib/types"
 import { findingKey, onWins, resolveFinding, resolvedKeys } from "../lib/wins"
 
 type Tab = "open" | "resolved"
@@ -22,6 +22,7 @@ export function FindingsPage() {
   const { openCommand } = useShell()
   const [fs, setFs] = useState<Finding[] | null>(() => readCached<Finding[]>("aftertrace.findings"))
   const [sessions, setSessions] = useState<Session[]>([])
+  const [details, setDetails] = useState<Record<string, SessionDetail>>({})
   const [err, setErr] = useState<string | null>(null)
   const [resolved, setResolved] = useState(() => resolvedKeys())
   const [tab, setTab] = useState<Tab>("open")
@@ -40,7 +41,16 @@ export function FindingsPage() {
     }).catch((e: Error) => {
       if (!fs) setErr(e.message)
     })
-    api.sessions().then(setSessions).catch(() => undefined)
+    api.sessions().then((rows) => {
+      setSessions(rows)
+      Promise.all(rows.map((s) => api.session(s.session_id).catch(() => null))).then((ds) => {
+        const next: Record<string, SessionDetail> = {}
+        for (const d of ds) {
+          if (d?.session?.session_id) next[d.session.session_id] = d
+        }
+        setDetails(next)
+      }).catch(() => undefined)
+    }).catch(() => undefined)
   }, [])
 
   useEffect(() => onWins(() => setResolved(resolvedKeys())), [])
@@ -133,7 +143,7 @@ export function FindingsPage() {
           )}
         </div>
         <div className="pad">
-          <FindingDetail f={hero} sessions={sessions} copied={copied} onCopy={() => hero && copyFix(hero)} />
+          <FindingDetail f={hero} sessions={sessions} details={details} copied={copied} onCopy={() => hero && copyFix(hero)} />
         </div>
       </div>
     </>
@@ -187,11 +197,13 @@ function Group({
 function FindingDetail({
   f,
   sessions,
+  details,
   copied,
   onCopy,
 }: {
   f?: Finding | null
   sessions: Session[]
+  details: Record<string, SessionDetail>
   copied: boolean
   onCopy: () => void
 }) {
@@ -201,9 +213,7 @@ function FindingDetail({
   const fx = fixFor(f)
   const money = f.impact_unit.startsWith("USD")
   const waits = waitBars(f)
-  const seen = f.sessions
-    .map((id) => sessions.find((s) => s.session_id === id))
-    .filter(Boolean) as Session[]
+  const seen = seenRows(f, sessions, details)
   return (
     <div className="fdet">
       <h2>
@@ -265,26 +275,14 @@ function FindingDetail({
         Seen in
       </div>
       <div className="list">
-        {(seen.length
-          ? seen.map((s) => ({
-              key: s.session_id,
-              href: `/session/${s.session_id}`,
-              title: s.title || s.session_id,
-              when: s.start_ns ? shortDate(s.start_ns) : "",
-            }))
-          : f.evidence.slice(0, 4).map((e, i) => ({
-              key: `${e.trace_id}:${e.span_id || i}`,
-              href: `/trace/${e.trace_id}`,
-              title: evidenceTitle(e.label),
-              when: "",
-            }))
-        ).map((s) => (
+        {seen.map((s) => (
           <Link key={s.key} href={s.href} className="li">
             <span className="dot idle" />
             <div className="t">
               <div>{s.title}</div>
+              <div className="l2 small">{s.when}</div>
             </div>
-            <span className="l2 small n">{s.when}</span>
+            <span className="v n">{s.cost}</span>
             <CaretRight className="chev" />
           </Link>
         ))}
@@ -361,8 +359,27 @@ function shortDate(ns: number) {
   return new Date(ns / 1e6).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
 }
 
-function evidenceTitle(label: string) {
-  const m = label.match(/\$([0-9.]+)/)
-  if (m) return usd(Number(m[1]))
-  return label
+function seenRows(f: Finding, sessions: Session[], details: Record<string, SessionDetail>) {
+  const byId = new Map(sessions.map((s) => [s.session_id, s]))
+  const byTrace = new Map<string, Session>()
+  for (const d of Object.values(details)) {
+    const listed = byId.get(d.session.session_id) || d.session
+    for (const t of d.turns) byTrace.set(t.trace_id, listed)
+  }
+  const out: Session[] = []
+  const seen = new Set<string>()
+  const add = (s?: Session) => {
+    if (!s || seen.has(s.session_id)) return
+    seen.add(s.session_id)
+    out.push(s)
+  }
+  for (const id of f.sessions) add(byId.get(id))
+  for (const e of f.evidence) add(byTrace.get(e.trace_id))
+  return out.map((s) => ({
+    key: s.session_id,
+    href: `/session/${s.session_id}`,
+    title: s.title || s.repo || "Untitled session",
+    when: [s.repo && s.title ? s.repo : null, s.start_ns ? shortDate(s.start_ns) : null].filter(Boolean).join(" · "),
+    cost: usd(s.cost_usd),
+  }))
 }

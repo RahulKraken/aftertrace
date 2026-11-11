@@ -270,9 +270,10 @@ function SessionPane({
             {detail.turns.slice(0, 8).map((turn) => (
               <Link key={turn.trace_id} href={`/trace/${turn.trace_id}`} className="li">
                 <div className="t">
-                  <div>{turn.prompt || `Turn ${turn.seq}`}</div>
+                  <div>{oneLine(turn.prompt) || oneLine(session.title) || "Untitled turn"}</div>
+                  <div className="l2 small">{dur(turn.duration_ms)}</div>
                 </div>
-                <span className="v l2 n">{usd(turn.cost_usd)}</span>
+                <span className="v n">{usd(turn.cost_usd)}</span>
               </Link>
             ))}
           </div>
@@ -327,4 +328,9 @@ function groupSessions(rows: Session[]) {
 
 function dayLabel(ns: number) {
   return new Date(ns / 1e6).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
+}
+
+function oneLine(s?: string | null) {
+  if (!s) return ""
+  return s.replace(/\s+/g, " ").trim()
 }

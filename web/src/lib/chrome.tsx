@@ -1,13 +1,14 @@
 import { MagnifyingGlass } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
 import { Link } from "wouter"
+import { searchShortcut } from "./desktop"
 
 export function SearchField({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="search" onClick={onClick} aria-label="Search">
       <MagnifyingGlass size={14} weight="regular" />
       Search
-      <kbd>{navigator.platform?.includes("Mac") ? "⌘K" : "Ctrl K"}</kbd>
+      <kbd>{searchShortcut()}</kbd>
     </button>
   )
 }

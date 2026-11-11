@@ -66,6 +66,8 @@ test.describe("shared app layout", () => {
     const repos = await page.locator(".sess .meta").allTextContents()
     expect(repos.some((t) => t.includes("…") || t.includes("acme-..."))).toBe(false)
     expect(repos.some((t) => /acme|aftertrace|dotfiles/i.test(t))).toBe(true)
+    await expect(page.getByText("Turns", { exact: true })).toBeVisible()
+    await expect(page.locator(".insp .list").first().locator(".li .t div").first()).not.toHaveText(/^Turn \d+$/)
 
     await page.goto("/#/findings")
     await expect(page.locator("button.fr").first()).toBeVisible()
@@ -74,6 +76,11 @@ test.describe("shared app layout", () => {
     await expect(page.locator("button.fr", { hasText: /PDF report/i })).toHaveCount(1)
     await expect(page.locator(".fdet .big")).toBeVisible()
     await expect(page.getByRole("button", { name: "Copy fix" })).toBeVisible()
+    await expect(page.locator(".nav", { hasText: "Findings" }).locator(".ct")).toHaveText(/^\d+$/)
+    const badge = (await page.locator(".nav", { hasText: "Findings" }).locator(".ct").textContent())?.trim()
+    await expect(page.locator(".tb .sub")).toHaveText(`${badge} open`)
+    await expect(page.locator(".fdet .list .li").first()).toBeVisible()
+    await expect(page.locator(".fdet .list .li .t div").first()).not.toHaveText(/^\$\d/)
   })
 
   test("session rows wrap repo under the title and settings keep the page gutter", async ({ page }) => {
@@ -130,6 +137,21 @@ test.describe("shared app layout", () => {
     expect(JSON.parse(cached || "[]").length).toBeGreaterThan(0)
     await expect(page.getByText("Loading…")).toHaveCount(0)
   })
+})
+
+test("search hint is the Mac glyph when the desktop shell is darwin", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(() => {
+    window.aftertraceDesktop = {
+      platform: "darwin",
+      getUpdate: async () => ({ status: "idle", version: null, current: "0.5.7", error: null }),
+      checkUpdates: async () => ({ status: "idle" }),
+      restartToUpdate: async () => true,
+      onUpdate: () => () => {},
+    }
+  })
+  await page.goto("/#/")
+  await expect(page.locator(".search kbd")).toHaveText("⌘K")
 })
 
 test("sidebar shows one Restart to update when the desktop update is ready", async ({ page }) => {

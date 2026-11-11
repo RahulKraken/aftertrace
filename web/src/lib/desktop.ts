@@ -36,6 +36,17 @@ export function windowKind(): "dashboard" | "settings" {
   return desktop()?.windowKind || "dashboard"
 }
 
+export function isApplePlatform(): boolean {
+  const p = desktop()?.platform
+  if (p) return p === "darwin"
+  if (typeof navigator === "undefined") return false
+  return /Mac|iPhone|iPad/i.test(navigator.platform || "") || /Mac OS X/i.test(navigator.userAgent || "")
+}
+
+export function searchShortcut(): string {
+  return isApplePlatform() ? "⌘K" : "Ctrl+K"
+}
+
 export function displayVersion(raw: string | null | undefined): string {
   const n = String(raw || "").trim().replace(/^v/i, "")
   return n ? `v${n}` : ""

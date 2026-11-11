@@ -15,18 +15,19 @@ export function Ribbon({
   className?: string
 }) {
   const total = partsTotal(parts)
-  const items = partsList(parts)
+  const min = total > 0 ? Math.max(40, total * 0.02) : 0
+  const items = partsList(parts, min)
+  const shown = items.reduce((a, x) => a + x.ms, 0)
   const width = length != null ? `${Math.max(2.8, Math.min(100, length * 100))}%` : undefined
   return (
     <div className={`lane-rib${live ? " is-live" : ""}`} style={width ? { width } : undefined}>
       <div className={`rib${tall ? " tall" : ""} ${className}`.trim()} role="img" aria-label="Where time went">
         {items.length ? (
-          items.map((x) => <i key={x.key} className={x.cls} style={{ flex: `${total ? x.ms / total : 0} 0 0` }} />)
+          items.map((x) => <i key={x.key} className={x.cls} style={{ flex: `${shown ? x.ms / shown : 0} 0 0` }} />)
         ) : (
           <i className="t-other" style={{ flex: "1 0 0" }} />
         )}
       </div>
-      {live ? <span className="head" /> : null}
     </div>
   )
 }

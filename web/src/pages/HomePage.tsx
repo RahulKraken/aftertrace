@@ -17,7 +17,7 @@ import { actionSentence, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { Finding, HistoryProject, LiveLane, Overview, Session, Status } from "../lib/types"
 
 export function HomePage() {
-  const { openCommand } = useShell()
+  const { openCommand, openFindings } = useShell()
   const [ov, setOv] = useState<Overview | null>(() => readCached<Overview>("aftertrace.overview"))
   const [err, setErr] = useState<string | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
@@ -94,10 +94,10 @@ export function HomePage() {
     )
   }
 
-  return <Today ov={ov} sessions={sessions} />
+  return <Today ov={ov} sessions={sessions} openCount={openFindings} />
 }
 
-function Today({ ov, sessions }: { ov: Overview; sessions: Session[] }) {
+function Today({ ov, sessions, openCount }: { ov: Overview; sessions: Session[]; openCount: number }) {
   const { openCommand } = useShell()
   const live = ov.live
   const weekSessions = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.hi)
@@ -221,7 +221,7 @@ function Today({ ov, sessions }: { ov: Overview; sessions: Session[] }) {
         <aside className="insp col-r">
           <div className="sec-h">
             Worth changing
-            <span className="m">{ov.open || findings.length}</span>
+            <span className="m">{openCount || ov.open || findings.length}</span>
           </div>
           {hero ? (
             <div className="top-f">
@@ -256,7 +256,7 @@ function Today({ ov, sessions }: { ov: Overview; sessions: Session[] }) {
           </div>
           <div className="all">
             <Link href="/findings" className="link">
-              All {ov.open || findings.length} findings
+              All {openCount || ov.open || findings.length} findings
             </Link>
           </div>
         </aside>
@@ -270,7 +270,7 @@ function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) 
   const elapsed = Date.now() - lane.start_ns / 1e6
   const parts = fromBreakdown(session?.breakdown)
   return (
-    <Link href={`/session/${lane.session_id}`} className="group lane">
+    <Link href={`/session/${lane.session_id}`} className="lane">
       <div className="lane-top">
         <span className="dot live" />
         <span className="lt">{lane.title || session?.title || "Running"}</span>

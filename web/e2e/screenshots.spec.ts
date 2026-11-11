@@ -8,6 +8,7 @@ declare global {
     }
     aftertraceDesktop?: {
       platform: string
+      windowKind?: "dashboard" | "settings"
       getUpdate: () => Promise<unknown>
       checkUpdates: () => Promise<unknown>
       restartToUpdate: () => Promise<boolean>
@@ -34,7 +35,15 @@ const READY_UPDATE = {
   checkedAt: Date.now() - 90_000,
 }
 
-async function mockDesktop(page: Page, state = READY_UPDATE, kind: "dashboard" | "settings" = "dashboard") {
+const IDLE_UPDATE = {
+  status: "idle",
+  version: null as string | null,
+  current: "0.5.7",
+  error: null as string | null,
+  checkedAt: Date.now() - 90_000,
+}
+
+async function mockDesktop(page: Page, state = IDLE_UPDATE, kind: "dashboard" | "settings" = "dashboard") {
   await page.addInitScript(({ st, kind: windowKind }) => {
     window.aftertraceDesktop = {
       platform: "darwin",
@@ -118,11 +127,10 @@ async function openSteps(page: Page) {
 test.beforeEach(async ({ page }) => {
   // Screenshots show the settled page: counts finished, bars grown.
   await page.emulateMedia({ reducedMotion: "reduce" })
+  await mockDesktop(page)
   await page.addInitScript(() => {
     localStorage.setItem("aftertrace-theme", "light")
-    if (!localStorage.getItem("aftertrace-resolved")) {
-      localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"]))
-    }
+    localStorage.removeItem("aftertrace-resolved")
     // documentElement can be null this early; theme.ts applies the stored theme anyway.
     if (document.documentElement) document.documentElement.dataset.theme = "light"
   })
@@ -140,6 +148,9 @@ test("sessions list", async ({ page }) => {
   await expect(page.locator(".sess .meta").first()).not.toHaveText(/acme-\.\.\./)
   await rows.nth(1).click()
   await expect(page.locator(".insp h2")).not.toHaveText("")
+  await expect(page.getByText("Turns", { exact: true })).toBeVisible()
+  await expect(page.locator(".insp .list").first().locator(".li .t div").first()).not.toHaveText(/^Turn \d+$/)
+  await expect(page.locator(".search kbd")).toHaveText("⌘K")
   await shot(page, "sessions", "light")
   await shot(page, "sessions", "dark")
 })
@@ -297,9 +308,8 @@ test("findings", async ({ page }) => {
   await expect(page.locator(".fr.sel")).toBeVisible()
   await expect(page.locator(".fr.sel")).toContainText(/prompt/i)
   await expect(page.getByRole("button", { name: "Copy fix" })).toBeVisible()
-  await page.getByRole("tab", { name: "Resolved" }).click()
-  await expect(page.locator(".fr.resolved")).toContainText("git commit")
-  await page.getByRole("tab", { name: "Open" }).click()
+  await expect(page.locator(".tb .sub")).toHaveText(/15 open/)
+  await expect(page.locator(".nav .ct")).toHaveText("15")
   const titles = (await page.locator("button.fr .t").allTextContents()).map((t) => t.trim())
   expect(titles.some((t) => t.length <= 10)).toBe(false)
   expect(titles.some((t) => /pdf-report/i.test(t))).toBe(false)
@@ -313,6 +323,8 @@ test("findings", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Copy fix" })).toHaveCount(1)
   await expect(page.getByRole("button", { name: "Done" })).toHaveCount(0)
   await expect(page.getByText("Loading…")).toHaveCount(0)
+  await expect(page.locator(".fdet .list .li .t div").first()).not.toHaveText(/^\$/)
+  await expect(page.locator(".search kbd")).toHaveText("⌘K")
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
 })
@@ -435,6 +447,8 @@ test("home: story, stats, live lane, next finding", async ({ page }) => {
   await expect(page.locator(".lane").first()).toBeVisible()
   await expect(page.locator(".top-f")).toBeVisible()
   await expect(page.locator(".dayrow").first()).toBeVisible()
+  await expect(page.locator(".search kbd")).toHaveText("⌘K")
+  await expect(page.locator(".lane-rib .head")).toHaveCount(0)
   const homeCost = (await page.locator(".lane-cost").first().textContent())?.trim()
   expect(homeCost).toMatch(/^\$\d/)
   expect(homeCost).not.toMatch(/^\$\d+\.\d{3}$/)
@@ -637,7 +651,7 @@ test("spend merged recap", async ({ page }) => {
 })
 
 test("in-app Restart to update sits in the sidebar footer", async ({ page }) => {
-  await mockDesktop(page)
+  await mockDesktop(page, READY_UPDATE)
   await page.goto("/#/")
   await waitFonts(page)
   await expect(page.locator(".side-update")).toHaveText("Restart to update · v0.5.7")

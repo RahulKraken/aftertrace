@@ -31,6 +31,10 @@ export function resolvedKeys(): Set<string> {
   return new Set(read())
 }
 
+export function openFindings<T extends Pick<Finding, "rule_id" | "headline">>(fs: T[], keys = resolvedKeys()): T[] {
+  return fs.filter((f) => !keys.has(findingKey(f)))
+}
+
 export function resolveFinding(f: Pick<Finding, "rule_id" | "headline">) {
   const next = [...new Set([...read(), findingKey(f)])]
   window.localStorage.setItem(KEY, JSON.stringify(next))

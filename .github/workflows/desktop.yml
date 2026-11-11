@@ -420,3 +420,54 @@ jobs:
             desktop/dist/latest.yml
           if-no-files-found: error
           retention-days: 14
+
+  mac-ui-shots:
+    name: macOS UI shots
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+      - name: Build mock UI
+        working-directory: web
+        run: npm ci && npx vite build
+      - name: Serve mock UI on :7311
+        run: |
+          python3 -m http.server 7311 --bind 127.0.0.1 --directory web/dist &
+          echo $! > /tmp/mock-ui.pid
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:7311/ >/dev/null && exit 0
+            sleep 1
+          done
+          echo "mock UI did not start"
+          exit 1
+      - name: Desktop npm ci
+        working-directory: desktop
+        run: npm ci
+      - name: Capture Today and Sessions from Electron
+        working-directory: desktop
+        env:
+          SHOT_OUT: ${{ github.workspace }}/desktop/dist/ui-shots
+          SHOT_ORIGIN: http://127.0.0.1:7311
+          ELECTRON_ENABLE_LOGGING: "1"
+        run: |
+          mkdir -p "$SHOT_OUT"
+          npx electron scripts/ci-window-shots.js
+          ls -lah "$SHOT_OUT"
+          test -s "$SHOT_OUT/today-electron-light.png"
+          test -s "$SHOT_OUT/today-electron-dark.png"
+          test -s "$SHOT_OUT/sessions-electron-light.png"
+          test -s "$SHOT_OUT/sessions-electron-dark.png"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: aftertrace-macos-ui-shots
+          path: desktop/dist/ui-shots/*.png
+          if-no-files-found: warn
+          retention-days: 14
