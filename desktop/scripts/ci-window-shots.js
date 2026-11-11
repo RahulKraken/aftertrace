@@ -118,7 +118,7 @@ function stitchGif(frames, dest) {
   if (ffGif.status === 0) console.log("ffmpeg gif", dest, ffGif.stderr.slice(-200))
   if (ffMp4.status === 0) console.log("ffmpeg mp4", mp4)
   if (!fs.existsSync(dest) || fs.statSync(dest).size < 10_000) {
-    const py = spawnSync("python3", ["-"], {
+    const py = spawnSync(process.env.SHOT_PYTHON || "python3", ["-"], {
       input: `
 from pathlib import Path
 from PIL import Image
