@@ -14,9 +14,35 @@ import { PaneColumn } from "../waterfall/PaneColumn"
 import { Markdown, MarkdownInline } from "./Markdown"
 import { TraceViewSwitch } from "./TraceViewSwitch"
 import type { TraceView } from "../../lib/traceView"
+import { hashParam } from "../../lib/hash"
 
 // Short waits still show on the step; longer ones become a Pause card.
 const SHOW_WAIT_MS = 5_000
+
+type Gap = { kind: "gap"; id: string; label: string }
+type ShownStep = StoryItem | Gap
+
+function padSteps(items: StoryItem[]): StoryItem[] {
+  if (!items.length) return items
+  const out = [...items]
+  let i = 0
+  while (out.length < 24) {
+    const src = items[i % items.length]
+    out.push({ ...src, id: `${src.id}-pad-${out.length}` })
+    i++
+  }
+  return out
+}
+
+function visibleSteps(items: StoryItem[], expand: boolean): ShownStep[] {
+  const force = hashParam("long") === "1"
+  const padded = force && items.length < 20 ? padSteps(items) : items
+  if (expand || padded.length <= 20) return padded
+  const head = padded.slice(0, 8)
+  const tail = padded.slice(-4)
+  const hidden = padded.length - head.length - tail.length
+  return [...head, { kind: "gap", id: "long-gap", label: `${hidden} more steps` }, ...tail]
+}
 
 export function TurnStory({
   trace,
@@ -35,6 +61,7 @@ export function TurnStory({
   const [open, setOpen] = useState<Set<string>>(() => new Set())
   const [sel, setSel] = useState<string | null>(null)
   const [promptOpen, setPromptOpen] = useState(false)
+  const [expandLong, setExpandLong] = useState(false)
   const listRef = useRef<HTMLOListElement>(null)
   const running = Boolean(trace.in_progress)
   const prompt = content.prompt ? cleanPrompt(content.prompt.text) : ""
@@ -159,16 +186,22 @@ export function TurnStory({
               ) : null}
             </div>
 
-            <ol className="st-steps stagger" ref={listRef}>
-              {story.items.map((it, i) =>
-                it.kind === "pause" ? (
+            <ol className="st-steps" ref={listRef}>
+              {visibleSteps(story.items, expandLong).map((it, i, arr) =>
+                it.kind === "gap" ? (
+                  <li key={it.id} className="step-group">
+                    <button type="button" className="link" onClick={() => setExpandLong(true)}>
+                      {it.label}
+                    </button>
+                  </li>
+                ) : it.kind === "pause" ? (
                   <PauseCard key={it.id} p={it} t0={root.start_ns} onOpen={setSel} selected={sel} />
                 ) : (
                   <ChapterRow
                     key={it.id}
                     c={it}
                     t0={root.start_ns}
-                    wallMs={chapterWall(it, story.items[i + 1])}
+                    wallMs={chapterWall(it, arr[i + 1]?.kind === "chapter" || arr[i + 1]?.kind === "pause" ? (arr[i + 1] as StoryItem) : undefined)}
                     open={open.has(it.id)}
                     onToggle={() => toggle(it.id)}
                     onOpen={setSel}
@@ -302,7 +335,7 @@ function ChapterRow({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ type: "spring", bounce: 0, visualDuration: 0.28 }}
+              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
             >
               {c.actions.map((a) => (
                 <ActionRow key={a.span.span_id} a={a} onOpen={onOpen} selected={selected} depth={0} />

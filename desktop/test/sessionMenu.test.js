@@ -112,6 +112,9 @@ test("sublabel fallback joins on one stock label", () => {
 test("currency is always dollar; tok suffix is omitted", () => {
   assert.equal(sayMenuUsd(0.4), "$0.40")
   assert.equal(sayMenuUsd(1.23), "$1.23")
+  assert.equal(sayMenuUsd(0.004), "<$0.01")
+  assert.equal(sayMenuUsd(100), "$100")
+  assert.equal(sayMenuUsd(0.968), "$0.97")
   assert.equal(sayCompactTok(40123), "40k")
   assert.equal(sayCompactTok(8000), "8.0k")
   assert.equal(sayCompactTok(1500), "1.5k")

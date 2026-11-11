@@ -18,7 +18,7 @@ export function PaneColumn({ children }: { children: ReactNode }) {
       style={{ width: w }}
       ref={ref}
       initial={{ opacity: 0, transform: "translateX(16px)" }}
-      animate={{ opacity: 1, transform: "translateX(0px)", transition: { duration: 0.32, ease: [0.32, 0.72, 0, 1] } }}
+      animate={{ opacity: 1, transform: "translateX(0px)", transition: { duration: 0.18, ease: [0.25, 1, 0.5, 1] } }}
       exit={{ opacity: 0, transform: "translateX(12px)", transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } }}
     >
       <div

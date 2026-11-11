@@ -1,6 +1,6 @@
 "use strict"
 
-const { clip } = require("./glance")
+const { clip, sayUsd } = require("./glance")
 
 const MAX_LIVE = 5
 const DEFAULT_VARIANT = "identity"
@@ -19,10 +19,9 @@ function joinParts(parts) {
   return (parts || []).map((p) => String(p || "").trim()).filter(Boolean).join(" · ")
 }
 
-// Menu money is always $x.xx. Glance/Windows may still say 40¢.
 function sayMenuUsd(v) {
   if (!knownAmount(v)) return ""
-  return `$${Math.abs(v).toFixed(2)}`
+  return sayUsd(v)
 }
 
 // Compact token count without a "tok" suffix — the sublabel is amounts.

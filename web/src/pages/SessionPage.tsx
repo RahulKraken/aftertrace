@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react"
-import { ModelName } from "../components/SpanIcon"
+import { CaretRight } from "@phosphor-icons/react"
 import { Link, useLocation, useParams } from "wouter"
 import { api } from "../lib/api"
 import { startPoll } from "../lib/poll"
-import { dur, usd, when } from "../lib/format"
+import { dur, modelName, usd, when } from "../lib/format"
 import type { SessionDetail } from "../lib/types"
-import { MiniWaterfall } from "../components/MiniWaterfall"
+import { Ribbon } from "../components/Ribbon"
+import { fromBreakdown } from "../lib/ribbon"
+import { Toolbar } from "../lib/chrome"
 import { sessionStory } from "../lib/story"
 
 export function SessionPage() {
@@ -34,68 +36,88 @@ export function SessionPage() {
 
   if (err) {
     return (
-      <div className="page">
-        {err}
-        <div className="err-next">Go back to Sessions and pick another id, or check that the mock fixtures loaded.</div>
-      </div>
+      <>
+        <Toolbar title="Session" />
+        <div className="page">
+          {err}
+          <div className="err-next">Go back to Sessions and pick another id, or check that the mock fixtures loaded.</div>
+        </div>
+      </>
     )
   }
-  if (!d) return <div className="page mute">Loading session…</div>
+  if (!d) {
+    return (
+      <>
+        <Toolbar title="Session" />
+        <div className="page mute">Loading session…</div>
+      </>
+    )
+  }
   const s = d.session
+  const maxMs = Math.max(...d.turns.map((t) => t.duration_ms || 0), 1)
 
   return (
-    <div className="page">
-      <div className="crumbs">
-        <Link href="/sessions">Sessions</Link> › <span className="mono">{s.session_id.slice(0, 8)}</span>
-      </div>
-      {/* Lead with what you asked; the numbers explain it underneath. */}
-      <h1 className="session-title">{s.title || `Session ${s.session_id.slice(0, 8)}`}</h1>
-      <p className="session-story">{sessionStory(s)}</p>
-      <div className="session-meta">
-        {s.repo ? <span className="chip">{s.repo}</span> : null}
-        {s.models.map((m) => (
-          <span key={m} className="chip">
-            <ModelName model={m} size={12} />
-          </span>
-        ))}
-        <span className="num mute">
-          {s.turns} {s.turns === 1 ? "turn" : "turns"} · {dur(s.turn_ms)} · {usd(s.cost_usd)}
-        </span>
-      </div>
-      <table className="grid">
-        <thead>
-          <tr>
-            <th>Turn</th>
-            <th>Prompt</th>
-            <th>Started</th>
-            <th className="r">Duration</th>
-            <th className="r">Cost</th>
-          </tr>
-        </thead>
-        <tbody className="stagger">
-          {d.turns.map((t, i) => {
-            const w = when(t.start_ns)
-            return (
-              <tr key={t.trace_id} onClick={() => nav(`/trace/${t.trace_id}`)}>
-                <td className="num">
-                  <span className="repo-shape">
-                    <MiniWaterfall bd={t.breakdown} turns={1} />
-                    {t.seq || i + 1}
-                    {t.running ? <span className="run-pill">running</span> : t.in_progress ? <span className="run-pill is-stale">incomplete</span> : null}
-                  </span>
-                </td>
-                <td className="prompt-cell">{t.prompt ? <span title={t.prompt}>{t.prompt}</span> : <span className="mute">—</span>}</td>
-                <td className="num">
-                  <span className="date">{w.date}</span>
-                  {w.time}
-                </td>
-                <td className="num r">{dur(t.duration_ms)}</td>
-                <td className="num r">{usd(t.cost_usd)}</td>
+    <>
+      <Toolbar>
+        <div className="crumb">
+          <Link href="/sessions">Sessions</Link>
+          <CaretRight />
+          <b>{s.title || "Untitled session"}</b>
+        </div>
+      </Toolbar>
+      <div className="body">
+        <div className="pad">
+          <h1 className="session-title tl">{s.title || "Untitled session"}</h1>
+          <p className="session-story l2">{sessionStory(s)}</p>
+          <div className="tstats">
+            {s.repo ? <span>{s.repo}</span> : null}
+            {s.models[0] ? <span>{modelName(s.models[0])}</span> : null}
+            <span>
+              {s.turns} {s.turns === 1 ? "turn" : "turns"}
+            </span>
+            <span>
+              <b className="n">{dur(s.turn_ms)}</b>
+            </span>
+            <span>
+              <b className="n">{usd(s.cost_usd)}</b>
+            </span>
+          </div>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Turn</th>
+                <th>Prompt</th>
+                <th>Where time went</th>
+                <th className="r">Started</th>
+                <th className="r">Duration</th>
+                <th className="r">Cost</th>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+            </thead>
+            <tbody>
+              {d.turns.map((t, i) => {
+                const w = when(t.start_ns)
+                return (
+                  <tr key={t.trace_id} onClick={() => nav(`/trace/${t.trace_id}`)}>
+                    <td className="n">{t.seq || i + 1}</td>
+                    <td className="c-title">
+                      <div className="title">{t.prompt || "—"}</div>
+                      {t.running ? <div className="doing">running</div> : t.in_progress ? <div className="doing">incomplete</div> : null}
+                    </td>
+                    <td>
+                      <Ribbon parts={fromBreakdown(t.breakdown)} length={(t.duration_ms || 0) / maxMs} />
+                    </td>
+                    <td className="r l2 n">
+                      {w.date} {w.time}
+                    </td>
+                    <td className="r n">{dur(t.duration_ms)}</td>
+                    <td className="r n">{usd(t.cost_usd)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   )
 }

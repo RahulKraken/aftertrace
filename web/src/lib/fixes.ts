@@ -110,5 +110,59 @@ Deps: npm ci && pip install -e .[dev]`,
       },
     }
   }
+  if (f.rule_id === "skill.cost") {
+    const slug = (f.headline.match(/Skill\s+(\S+)/i) || [])[1] || "this-skill"
+    return {
+      label: "Copy model note",
+      snippet: `## ${slug}
+Use Sonnet at medium effort unless the output has to be camera-ready.
+Opus on this skill is usually not worth it.`,
+      win: {
+        figure: Math.max(1, Math.round(f.impact_value)),
+        label: "on this skill this month",
+      },
+    }
+  }
+  if (f.rule_id === "mcp.large_results") {
+    const server = (f.headline.match(/mcp__([a-z0-9]+)/i) || [])[1] || "the server"
+    return {
+      label: "Copy MCP note",
+      snippet: `Ask ${server} for a field mask, a limit, or run the call in a subagent so only a summary reaches the main thread.`,
+      win: {
+        figure: Math.max(1, Math.round(f.impact_value)),
+        label: "kept out of the main context",
+      },
+    }
+  }
+  if (f.rule_id === "cache.drop_after_compaction") {
+    return {
+      label: "Copy session note",
+      snippet: `Start a new session between unrelated tasks so compaction does not drop a warm cache.`,
+      win: {
+        figure: Math.max(1, Math.round(f.impact_value)),
+        label: "on cache rebuilds",
+      },
+    }
+  }
+  if (f.rule_id === "model.switch_cache_rebuild") {
+    return {
+      label: "Copy model note",
+      snippet: `Stay on one model for the whole session. Switching mid-session rebuilds the prompt cache.`,
+      win: {
+        figure: Math.max(1, Math.round(f.impact_value)),
+        label: "on cache rebuilds",
+      },
+    }
+  }
+  if (f.rule_id === "model.opus_downgrade") {
+    return {
+      label: "Copy model note",
+      snippet: `Use Sonnet for quick replies and turns that never reach for a tool. Keep Opus for work that needs it.`,
+      win: {
+        figure: Math.max(1, Math.round(f.impact_value)),
+        label: "a month on tiny Opus turns",
+      },
+    }
+  }
   return null
 }

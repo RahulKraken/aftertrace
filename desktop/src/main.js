@@ -1,10 +1,10 @@
 "use strict"
 
 const path = require("path")
-const { app, ipcMain, Menu, powerMonitor, net } = require("electron")
+const { app, ipcMain, Menu, powerMonitor, net, systemPreferences } = require("electron")
 const { createEngine } = require("./engine")
 const { enginePath } = require("./paths")
-const { createWindow } = require("./window")
+const { createWindow, createSettingsWindow } = require("./window")
 const { createTray, presentGlance } = require("./tray")
 const { setDashboardVisible } = require("./dock")
 const autostart = require("./autostart")
@@ -39,6 +39,7 @@ if (!gotLock) {
 const hiddenLaunch = process.argv.includes("--hidden") || Boolean(app.getLoginItemSettings && app.getLoginItemSettings().wasOpenedAtLogin)
 
 let win = null
+let prefs = null
 let trayApi = null
 let engine
 let quitting = false
@@ -66,6 +67,11 @@ function setOpenAtLogin(enabled) {
 }
 
 function destroyWindow() {
+  if (prefs && !prefs.isDestroyed()) {
+    const p = prefs
+    prefs = null
+    p.destroy()
+  }
   if (!win) return
   const w = win
   win = null
@@ -86,9 +92,26 @@ async function loadUi(target, hash) {
   if (!w || w.isDestroyed()) return
   await w.loadFile(path.join(__dirname, "../renderer/waiting.html"))
   const ok = await engine.waitUntilHealthy(120_000)
-  if (!win || win.isDestroyed() || win !== w) return
+  if (!w || w.isDestroyed()) return
   if (!ok) return
   await w.loadURL(uiUrl(hash))
+}
+
+async function openSettings(hash) {
+  const h = dashboardHash(hash) || "/settings"
+  if (prefs && !prefs.isDestroyed()) {
+    if (prefs.isMinimized()) prefs.restore()
+    prefs.show()
+    prefs.focus()
+    await loadUi(prefs, h)
+    return prefs
+  }
+  prefs = createSettingsWindow()
+  prefs.on("closed", () => {
+    prefs = null
+  })
+  await loadUi(prefs, h)
+  return prefs
 }
 
 async function openWindow(hash) {
@@ -124,6 +147,7 @@ function installMenu() {
     isMac: process.platform === "darwin",
     appName: app.name,
     packaged: app.isPackaged,
+    onSettings: () => openSettings(),
     onCheckUpdates: () =>
       updater.check({ interactive: true }).then((st) => {
         if (st && st.restart) return restartToUpdate()
@@ -133,9 +157,32 @@ function installMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function eachUi(fn) {
+  if (win && !win.isDestroyed()) fn(win)
+  if (prefs && !prefs.isDestroyed()) fn(prefs)
+}
+
+function accentHex() {
+  if (process.platform !== "darwin" || !systemPreferences || typeof systemPreferences.getAccentColor !== "function") {
+    return "#0a74ff"
+  }
+  try {
+    const raw = String(systemPreferences.getAccentColor() || "")
+    const hex = raw.replace(/^#/, "").slice(0, 6)
+    return hex.length === 6 ? `#${hex}` : "#0a74ff"
+  } catch {
+    return "#0a74ff"
+  }
+}
+
+function pushAccent(hex) {
+  const color = hex || accentHex()
+  eachUi((w) => w.webContents.send("desktop:accent", color))
+}
+
 function pushUpdate(state) {
   if (trayApi && trayApi.popover) trayApi.popover.send("desktop:update", state)
-  if (win && !win.isDestroyed()) win.webContents.send("desktop:update", state)
+  eachUi((w) => w.webContents.send("desktop:update", state))
   trayApi && trayApi.refresh && trayApi.refresh().catch(() => {})
 }
 
@@ -178,11 +225,11 @@ app.on("activate", () => {
 })
 
 ipcMain.handle("desktop:getOpenAtLogin", (e) => {
-  allowSender(e, ["popover", "first-launch"])
+  allowSender(e, ["popover", "first-launch", "ui"])
   return isOpenAtLogin()
 })
 ipcMain.handle("desktop:setOpenAtLogin", (e, enabled) => {
-  allowSender(e, ["popover", "first-launch"])
+  allowSender(e, ["popover", "first-launch", "ui"])
   return setOpenAtLogin(enabled)
 })
 ipcMain.handle("desktop:continue", async (e) => {
@@ -211,6 +258,14 @@ ipcMain.handle("desktop:getUpdate", (e) => {
 ipcMain.handle("desktop:openDashboard", (e, hash) => {
   allowSender(e, ["popover"])
   return openWindow(dashboardHash(hash))
+})
+ipcMain.handle("desktop:openSettings", (e, hash) => {
+  allowSender(e, ["ui", "popover"])
+  return openSettings(hash)
+})
+ipcMain.handle("desktop:getAccentColor", (e) => {
+  allowSender(e, ["ui", "popover"])
+  return accentHex()
 })
 ipcMain.handle("desktop:checkUpdates", async (e) => {
   allowSender(e, ["popover", "ui"])
@@ -248,8 +303,14 @@ app.whenReady().then(async () => {
     expectedVersion: displayVersion(app.getVersion()),
   })
   engine.onStatus((status) => {
-    if (win && !win.isDestroyed()) win.webContents.send("desktop:engine-status", status)
+    eachUi((w) => w.webContents.send("desktop:engine-status", status))
   })
+  if (process.platform === "darwin" && systemPreferences && typeof systemPreferences.on === "function") {
+    systemPreferences.on("accent-color-changed", (_e, hex) => {
+      const raw = String(hex || "").replace(/^#/, "").slice(0, 6)
+      pushAccent(raw.length === 6 ? `#${raw}` : accentHex())
+    })
+  }
   engine.start()
 
   trayApi = createTray({

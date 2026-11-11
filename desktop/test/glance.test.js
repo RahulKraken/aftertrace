@@ -6,8 +6,10 @@ const http = require("http")
 const { formatGlance, formatTitle, readGlance, sayUsd, freshnessLabel, markStale, todayCostFromDays, pickFinding, joinLiveSessions } = require("../src/glance")
 
 test("sayUsd matches spoken copy", () => {
-  assert.equal(sayUsd(0.41), "41¢")
+  assert.equal(sayUsd(0.41), "$0.41")
   assert.equal(sayUsd(3.4), "$3.40")
+  assert.equal(sayUsd(0.004), "<$0.01")
+  assert.equal(sayUsd(100), "$100")
 })
 
 test("formatGlance prefers spend, then findings, then Open", () => {

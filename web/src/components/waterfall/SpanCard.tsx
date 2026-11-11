@@ -59,7 +59,7 @@ export function SpanCard({
         aria-label={`${name} details`}
         // Grows from the bar it belongs to (top left), never from nowhere.
         initial={{ opacity: 0, transform: "translateY(-4px) scale(0.96)" }}
-        animate={{ opacity: 1, transform: "translateY(0px) scale(1)", transition: { duration: 0.22, ease: [0.23, 1, 0.32, 1] } }}
+        animate={{ opacity: 1, transform: "translateY(0px) scale(1)", transition: { duration: 0.18, ease: [0.25, 1, 0.5, 1] } }}
         exit={{ opacity: 0, transform: "translateY(-2px) scale(0.98)", transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] } }}
         style={{ top, left }}
       >

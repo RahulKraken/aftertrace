@@ -645,7 +645,7 @@ export function Waterfall({
             <motion.div
               className="rows-inner"
               animate={{ height: rows.length * ROW }}
-              transition={{ type: "spring", bounce: 0.14, visualDuration: 0.34 }}
+              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
               style={{ position: "relative" }}
             >
               <div className="trk-grid" style={{ left: labW || undefined }}>
@@ -871,10 +871,10 @@ function Row({
     <motion.div
       className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered || menuOpen ? "hov" : ""}`}
       data-span={span.span_id}
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0, top: index * ROW }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ type: "spring", bounce: 0.16, visualDuration: 0.32 }}
+      initial={false}
+      animate={{ top: index * ROW }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
       style={{ position: "absolute", left: 0, right: 0, height: ROW, ["--i" as string]: Math.min(index, 24) }}
       onClick={() => (isStep ? onToggle() : onSelect(span.span_id))}
       onMouseEnter={() => onHover(isStep ? null : span.span_id)}
@@ -926,10 +926,10 @@ function Row({
             <motion.span
               className="n-pill"
               key="n"
-              initial={{ opacity: 0, scale: 0.84 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.84 }}
-              transition={{ type: "spring", bounce: 0.22, visualDuration: 0.28 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
             >
               {pill}
             </motion.span>

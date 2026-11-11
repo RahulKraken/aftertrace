@@ -2,8 +2,14 @@
 
 const { contextBridge, ipcRenderer } = require("electron")
 
+function windowKind() {
+  const arg = (process.argv || []).find((a) => String(a).startsWith("--aftertrace-window="))
+  return arg === "--aftertrace-window=settings" ? "settings" : "dashboard"
+}
+
 contextBridge.exposeInMainWorld("aftertraceDesktop", {
   platform: process.platform,
+  windowKind: windowKind(),
   getOpenAtLogin: () => ipcRenderer.invoke("desktop:getOpenAtLogin"),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke("desktop:setOpenAtLogin", Boolean(enabled)),
   continueToApp: () => ipcRenderer.invoke("desktop:continue"),
@@ -17,6 +23,13 @@ contextBridge.exposeInMainWorld("aftertraceDesktop", {
   getGlance: () => ipcRenderer.invoke("desktop:getGlance"),
   getUpdate: () => ipcRenderer.invoke("desktop:getUpdate"),
   openDashboard: (hash) => ipcRenderer.invoke("desktop:openDashboard", hash),
+  openSettings: (hash) => ipcRenderer.invoke("desktop:openSettings", hash),
+  getAccentColor: () => ipcRenderer.invoke("desktop:getAccentColor"),
+  onAccentColor: (fn) => {
+    const wrapped = (_e, hex) => fn(hex)
+    ipcRenderer.on("desktop:accent", wrapped)
+    return () => ipcRenderer.removeListener("desktop:accent", wrapped)
+  },
   checkUpdates: () => ipcRenderer.invoke("desktop:checkUpdates"),
   restartToUpdate: () => ipcRenderer.invoke("desktop:restartToUpdate"),
   quitApp: () => ipcRenderer.invoke("desktop:quit"),

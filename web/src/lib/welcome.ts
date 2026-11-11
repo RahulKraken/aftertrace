@@ -158,7 +158,7 @@ export function shortTitle(f: Finding): string {
     case "skill.cost":
       return skillTitle(f)
     case "hook.overhead":
-      return "Slow hook"
+      return "Slow PreToolUse hook"
     case "permission.allow_rule_candidate":
       return f.headline.replace(/,.+$/, "") || "Permission prompts"
     default:

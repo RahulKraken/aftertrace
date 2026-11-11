@@ -4,6 +4,10 @@ Aftertrace is a local profiler. It should feel like a calm instrument, not a das
 
 Every change in `web/` should be traceable to a line below.
 
+**Money.** One formatter (`usd()` in `web/src/lib/format.ts`): two decimals, `<$0.01` under a cent, no cents at $100 and above. Never three-decimal values, never raised cents, never `41¢` in the UI.
+
+**Motion.** Selection, sheets and list reorder only, all under 200ms. No entrance animations, no count-ups. `prefers-reduced-motion` is a hard stop.
+
 ## 0. The attention budget (governs everything)
 
 A rider has about ten units of grip, split between braking, turning and accelerating. Spend more than ten and the bike is gone. Every Aftertrace screen has the same ten units of user attention. Every element on screen spends some. Sometimes all ten go to one thing. Sometimes they are split on purpose. **Never ask for more than ten.**
@@ -57,7 +61,7 @@ If two things both look important, the budget is already blown. Cut one.
 
 | Element | Units | Why |
 |---|---:|---|
-| The number from the finding | 10 | Prompts removed, minutes saved — a bottom-right toast over the still-visible list, then that finding marked resolved. |
+| Copy fix → Copied | 10 | The only primary action. A brief confirmation, then the row moves to Resolved. |
 
 ### Query
 
@@ -105,7 +109,7 @@ Quiet is not “needs you”. Historical findings stay in the dashboard. Stale e
 | Recent sessions | 1 | A way into a session. |
 | Live-tracing invite | 0 | One quiet line. |
 
-### Cost
+### Spend
 
 | Element | Units | Why |
 |---|---:|---|

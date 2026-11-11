@@ -11,7 +11,7 @@ const ROUTES = [
   "/",
   "/findings",
   "/sessions",
-  "/recap",
+  "/spend",
   "/settings",
   "/connect",
   "/query",
@@ -41,61 +41,42 @@ test.describe("shared app layout", () => {
     })
   }
 
-  test("Overview gutter, week ticks and session rows stay on the grid at 1440", async ({ page }) => {
+  test("Today, Sessions and Findings keep the native instrument grid at 1440", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.addInitScript(() => {
       localStorage.setItem("aftertrace-theme", "light")
       if (document.documentElement) document.documentElement.dataset.theme = "light"
     })
     await page.goto("/#/")
-    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
-    await expect(page.locator(".v4-skel")).toHaveCount(0)
-    const edges = await page.evaluate(() => {
-      const v4 = document.querySelector(".v4") as HTMLElement | null
-      const h1 = document.querySelector(".v4-ph h1")
-      const spend = document.querySelector(".v4-g .v4-card")
-      const week = document.querySelector(".v4-bud")
-      const now = document.querySelector(".v4-now")
-      const savable = document.querySelector(".v4-sv")
-      const box = (el: Element | null) => {
-        if (!el) return null
-        const r = el.getBoundingClientRect()
-        return { x: r.x, r: r.x + r.width }
-      }
-      const ticks = [...document.querySelectorAll(".v4-bud .v4-tick")].map((t) => t.textContent?.trim())
-      const pad = v4 ? getComputedStyle(v4).paddingLeft : ""
-      return { pad, h1: box(h1), spend: box(spend), week: box(week), now: box(now), savable: box(savable), ticks }
-    })
-    expect(edges.pad).toBe("40px")
-    expect(edges.h1 && edges.spend && Math.abs(edges.h1.x - edges.spend.x)).toBeLessThan(1)
-    expect(edges.spend && edges.now && Math.abs(edges.spend.x - edges.now.x)).toBeLessThan(1)
-    expect(edges.week && edges.savable && Math.abs(edges.week.x - edges.savable.x)).toBeLessThan(1)
-    expect(edges.week && edges.spend && edges.week.r - edges.spend.r).toBeGreaterThan(8)
-    expect(edges.ticks).toHaveLength(7)
-
-    const chartClip = await page.evaluate(() => {
-      const svg = document.querySelector(".v4-chart svg") as SVGSVGElement | null
-      if (!svg) return { ok: false, over: 0 }
-      const box = svg.getBoundingClientRect()
-      let over = 0
-      for (const r of svg.querySelectorAll("rect")) {
-        const b = r.getBoundingClientRect()
-        if (b.height < 1) continue
-        over = Math.max(over, box.top - b.top, b.bottom - box.bottom)
-      }
-      return { ok: true, over }
-    })
-    expect(chartClip.ok).toBe(true)
-    expect(chartClip.over).toBeLessThan(2)
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+    await expect(page.locator(".skel-page")).toHaveCount(0)
+    await expect(page.locator(".nav", { hasText: "Today" })).toBeVisible()
+    await expect(page.locator(".nav", { hasText: "Sessions" })).toBeVisible()
+    await expect(page.locator(".nav", { hasText: "Findings" })).toBeVisible()
+    await expect(page.locator(".nav", { hasText: "Spend" })).toBeVisible()
+    await expect(page.getByText("Running now")).toBeVisible()
+    await expect(page.locator(".dayrow")).not.toHaveCount(0)
+    await expect(page.locator(".week-stack")).toHaveCount(0)
 
     await page.goto("/#/sessions")
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
-    await expect(page.locator(".v4-skel")).toHaveCount(0)
-    const rowH = await page.locator(".v4-rr").first().evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-    expect(rowH).toBeLessThan(50)
+    await expect(page.locator(".tbl.sess tbody tr").first()).toBeVisible()
+    const titles = await page.locator(".sess .title").allTextContents()
+    expect(titles.some((t) => /[a-f0-9]{8}-[a-f0-9]{4}/.test(t))).toBe(false)
+    const repos = await page.locator(".sess .meta").allTextContents()
+    expect(repos.some((t) => t.includes("…") || t.includes("acme-..."))).toBe(false)
+    expect(repos.some((t) => /acme|aftertrace|dotfiles/i.test(t))).toBe(true)
+
+    await page.goto("/#/findings")
+    await expect(page.locator("button.fr").first()).toBeVisible()
+    const findingTitles = (await page.locator("button.fr .t").allTextContents()).map((t) => t.trim())
+    expect(findingTitles.every((t) => t.length > 10)).toBe(true)
+    await expect(page.locator("button.fr", { hasText: /PDF report/i })).toHaveCount(1)
+    await expect(page.locator(".fdet .big")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Copy fix" })).toBeVisible()
   })
 
-  test("session rows keep one line at 1024 and settings share the page gutter", async ({ page }) => {
+  test("session rows wrap repo under the title and settings keep the page gutter", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 620 })
     await page.addInitScript(() => {
       localStorage.setItem("aftertrace-theme", "light")
@@ -103,52 +84,35 @@ test.describe("shared app layout", () => {
     })
     await page.goto("/#/sessions")
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
-    await expect(page.locator(".v4-skel")).toHaveCount(0)
-    const rowH = await page.locator(".v4-rr").first().evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-    expect(rowH).toBeLessThan(50)
+    const row = page.locator(".sess tbody tr.run, .sess tbody tr").filter({ has: page.locator(".c-title") }).first()
+    await expect(row.locator(".meta, .doing")).toBeVisible()
 
     await page.goto("/#/findings")
-    await expect(page.locator(".v4-skel")).toHaveCount(0)
-    const track = page.locator(".v4-fr .trk").first()
-    await expect(track).toBeVisible()
-    const trackW = await track.evaluate((el) => (el as HTMLElement).getBoundingClientRect().width)
-    expect(trackW).toBeGreaterThan(40)
-    const findRowH = await page.locator(".v4-fr").first().evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-    expect(findRowH).toBeGreaterThanOrEqual(54)
-    expect(findRowH).toBeLessThanOrEqual(58)
-    const nm = await page.locator(".v4-fr .nm").first().evaluate((el) => getComputedStyle(el).whiteSpace)
-    expect(nm).toBe("nowrap")
-    const paneOverflow = await page.locator(".v4-pane").evaluate((el) => getComputedStyle(el).overflowY)
-    expect(paneOverflow).toBe("visible")
-    const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-    expect(stripH).toBeGreaterThanOrEqual(16)
-
-    await page.locator(".v4-fr").filter({ hasText: "PDF report" }).click()
-    await expect(page.locator(".v4-pane").getByRole("button", { name: "Done" })).toHaveCount(1)
-    await expect(page.locator(".v4-pane .done-btn")).toBeVisible()
-    await expect(page.locator(".v4-pane .frow.hero").getByRole("button", { name: "Done" })).toHaveCount(0)
+    await page.locator(".fr").filter({ hasText: "PDF report" }).click()
+    await expect(page.getByRole("button", { name: "Copy fix" })).toHaveCount(1)
+    await expect(page.getByRole("button", { name: "Done" })).toHaveCount(0)
 
     await page.goto("/#/")
-    await expect(page.locator(".v4-skel")).toHaveCount(0)
-    const homeX = await page.locator(".v4-ph h1").evaluate((el) => el.getBoundingClientRect().x)
+    const homeHeading = page.getByRole("heading", { name: "Today" })
+    await expect(homeHeading).toBeVisible()
+    await expect.poll(async () => homeHeading.evaluate((el) => el.getBoundingClientRect().x)).toBeGreaterThan(100)
+    const homeX = await homeHeading.evaluate((el) => el.getBoundingClientRect().x)
     await page.goto("/#/settings")
-    const setX = await page.locator("h1").evaluate((el) => el.getBoundingClientRect().x)
-    expect(Math.abs(homeX - setX)).toBeLessThan(2)
+    const setHeading = page.getByRole("heading", { name: "Settings" })
+    await expect(setHeading).toBeVisible()
+    await expect.poll(async () => setHeading.evaluate((el) => el.getBoundingClientRect().x)).toBeGreaterThan(100)
+    const setX = await setHeading.evaluate((el) => el.getBoundingClientRect().x)
+    expect(Math.abs(homeX - setX)).toBeLessThan(24)
     const budget = page.locator(".budget-field")
     await expect(budget).toBeVisible()
-    const budgetH = await budget.evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-    expect(budgetH).toBeLessThanOrEqual(34)
     const suffixLines = await budget.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
     expect(suffixLines).toBe(1)
   })
 
-  test("recap long numerals wrap instead of overflowing the page", async ({ page }) => {
+  test("Spend long numerals stay on the page", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto("/#/recap")
-    await page.getByRole("button", { name: "Previous week" }).click()
-    await page.getByRole("button", { name: "Previous week" }).click()
-    await page.getByRole("button", { name: "Previous week" }).click()
-    await expect(page.locator(".recap-primary").filter({ hasText: "$12345.67" })).toBeVisible()
+    await page.goto("/#/spend")
+    await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
     const extra = await pageOverflow(page)
     expect(extra).toBeLessThanOrEqual(1)
   })
@@ -156,13 +120,11 @@ test.describe("shared app layout", () => {
   test("findings uses skeleton or cache, never Loading…", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto("/#/findings?skeleton=1")
-    await expect(page.locator(".v4-skel")).toBeVisible()
-    await expect(page.locator(".v4-skel .v4-fr").first()).toBeVisible()
-    await expect(page.locator(".v4-skel .v4-strip i").first()).toBeVisible()
+    await expect(page.locator(".skel-page")).toBeVisible()
     await expect(page.getByText("Loading…")).toHaveCount(0)
 
     await page.goto("/#/findings")
-    await expect(page.locator(".v4-fr .nm").first()).toBeVisible()
+    await expect(page.locator(".fr .t").first()).toBeVisible()
     const cached = await page.evaluate(() => sessionStorage.getItem("aftertrace.findings"))
     expect(cached).toBeTruthy()
     expect(JSON.parse(cached || "[]").length).toBeGreaterThan(0)

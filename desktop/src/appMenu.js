@@ -5,16 +5,25 @@ function appMenuTemplate({
   appName = "Aftertrace",
   packaged = true,
   onCheckUpdates,
+  onSettings,
 } = {}) {
   const checkItem = {
     id: "check-for-updates",
     label: "Check for Updates…",
     click: () => (typeof onCheckUpdates === "function" ? onCheckUpdates() : undefined),
   }
+  const settingsItem = {
+    id: "settings",
+    label: "Settings…",
+    accelerator: "CmdOrCtrl+,",
+    click: () => (typeof onSettings === "function" ? onSettings() : undefined),
+  }
   const macApp = {
     label: appName,
     submenu: [
       { role: "about" },
+      { type: "separator" },
+      settingsItem,
       { type: "separator" },
       checkItem,
       { type: "separator" },
@@ -26,7 +35,9 @@ function appMenuTemplate({
     ],
   }
   const template = [
-    ...(isMac ? [macApp] : [{ label: "File", submenu: [checkItem, { type: "separator" }, { role: "quit" }] }]),
+    ...(isMac
+      ? [macApp]
+      : [{ label: "File", submenu: [settingsItem, { type: "separator" }, checkItem, { type: "separator" }, { role: "quit" }] }]),
     { role: "editMenu" },
     { role: "windowMenu" },
     ...(!packaged

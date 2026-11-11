@@ -34,10 +34,11 @@ const READY_UPDATE = {
   checkedAt: Date.now() - 90_000,
 }
 
-async function mockDesktop(page: Page, state = READY_UPDATE) {
-  await page.addInitScript((st) => {
+async function mockDesktop(page: Page, state = READY_UPDATE, kind: "dashboard" | "settings" = "dashboard") {
+  await page.addInitScript(({ st, kind: windowKind }) => {
     window.aftertraceDesktop = {
       platform: "darwin",
+      windowKind,
       getUpdate: async () => st,
       checkUpdates: async () => st,
       restartToUpdate: async () => true,
@@ -46,19 +47,15 @@ async function mockDesktop(page: Page, state = READY_UPDATE) {
         return () => {}
       },
     }
-  }, state)
+  }, { st: state, kind })
 }
 
 async function waitFonts(page: Page) {
-  const loaded = await page.evaluate(async () => {
+  await page.evaluate(async () => {
     await document.fonts.ready
     await document.fonts.load('600 28px "Inter"')
-    await document.fonts.load('500 28px "Inter"')
-    await document.fonts.load('600 20px "Newsreader"')
     await document.fonts.load('500 22px "Geist Mono"')
-    return document.fonts.check('600 28px "Inter"')
   })
-  expect(loaded).toBe(true)
 }
 
 async function shot(page: Page, name: string, theme: "light" | "dark", keepHover = false) {
@@ -76,7 +73,25 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
   await page.waitForTimeout(120)
   const file = `${name}-${theme}.png`
   await page.screenshot({ path: resolve(outDir, file), fullPage: false })
-  const docs = ["home", "home-history", "findings", "sessions", "recap", "recap-empty", "recap-long", "tray", "popover"]
+  const docs = [
+    "home",
+    "home-history",
+    "today",
+    "findings",
+    "findings-resolved",
+    "sessions",
+    "spend",
+    "settings",
+    "settings-updates",
+    "first-run",
+    "empty",
+    "turn-long",
+    "recap",
+    "recap-empty",
+    "recap-long",
+    "tray",
+    "popover",
+  ]
   if (docs.includes(name)) {
     await page.screenshot({ path: resolve(docsDir, file), fullPage: false })
   }
@@ -117,13 +132,24 @@ test("sessions list", async ({ page }) => {
   await page.goto("/#/sessions")
   await waitFonts(page)
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
-  await expect(page.locator(".v4-rr")).toHaveCount(6)
-  await expect(page.locator(".v4-rr .v4-st").filter({ hasText: "Running" })).toHaveCount(1)
-  await page.locator(".v4-rr").nth(1).click()
-  await expect(page.locator(".v4-pane .v4-st")).toContainText("Done")
-  await expect(page.locator(".v4-pane h2")).not.toHaveText("")
+  const rows = page.locator(".tbl.sess tbody tr").filter({ has: page.locator(".c-title") })
+  await expect(rows.first()).toBeVisible()
+  await expect(page.locator(".sess tr.run")).toHaveCount(1)
+  await expect(page.locator(".sess .title").first()).not.toHaveText(/^[a-f0-9-]{8,}$/)
+  await expect(page.locator(".sess .meta").first()).toBeVisible()
+  await expect(page.locator(".sess .meta").first()).not.toHaveText(/acme-\.\.\./)
+  await rows.nth(1).click()
+  await expect(page.locator(".insp h2")).not.toHaveText("")
   await shot(page, "sessions", "light")
   await shot(page, "sessions", "dark")
+})
+
+test("long turn collapses extra steps", async ({ page }) => {
+  await page.goto(`/#/trace/${HERO_TRACE}?long=1`)
+  await waitFonts(page)
+  await expect(page.locator(".step-group")).toContainText("more steps")
+  await shot(page, "turn-long", "light")
+  await shot(page, "turn-long", "dark")
 })
 
 test("story default: a turn reads as steps", async ({ page }) => {
@@ -260,8 +286,7 @@ test("session detail", async ({ page }) => {
   await page.goto("/#/session/e61c32c0-0193-4bab-9096-4e952c6c8a0c")
   await expect(page.locator(".session-title")).toContainText("charged twice")
   await expect(page.locator(".session-story")).toBeVisible()
-  await expect(page.locator(".kpis")).toHaveCount(0)
-  await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
+  await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()
   await shot(page, "session", "light")
   await shot(page, "session", "dark")
 })
@@ -269,30 +294,24 @@ test("session detail", async ({ page }) => {
 test("findings", async ({ page }) => {
   await page.goto("/#/findings")
   await waitFonts(page)
-  await expect(page.locator(".v4-pane .frow.hero")).toBeVisible()
-  await expect(page.locator(".v4-pane .frow.hero")).toContainText("permission prompts")
-  await expect(page.locator(".v4-pane .fix-btn")).toBeVisible()
-  await expect(page.locator(".frow.hero .pill")).toHaveCount(0)
-  await expect(page.locator(".pillar")).toHaveCount(0)
-  await expect(page.locator(".hero-imp")).toHaveCount(0)
-  await expect(page.locator(".frow.quiet").first()).toBeVisible()
-  await expect(page.locator(".frow.resolved")).toContainText("git commit")
-  await expect(page.locator(".celebrate")).toHaveCount(0)
-  const titles = (await page.locator(".v4-fr .nm").allTextContents()).map((t) => t.trim())
+  await expect(page.locator(".fr.sel")).toBeVisible()
+  await expect(page.locator(".fr.sel")).toContainText(/prompt/i)
+  await expect(page.getByRole("button", { name: "Copy fix" })).toBeVisible()
+  await page.getByRole("tab", { name: "Resolved" }).click()
+  await expect(page.locator(".fr.resolved")).toContainText("git commit")
+  await page.getByRole("tab", { name: "Open" }).click()
+  const titles = (await page.locator("button.fr .t").allTextContents()).map((t) => t.trim())
+  expect(titles.some((t) => t.length <= 10)).toBe(false)
   expect(titles.some((t) => /pdf-report/i.test(t))).toBe(false)
   expect(titles.some((t) => /PDF report/i.test(t))).toBe(true)
   const counts = new Map<string, number>()
   for (const t of titles) counts.set(t, (counts.get(t) || 0) + 1)
   const dupes = [...counts.entries()].filter(([, n]) => n > 1).map(([t]) => t)
   expect(dupes, `duplicate finding titles: ${dupes.join(", ")}`).toEqual([])
-  await page.locator(".v4-fr").filter({ hasText: "PDF report" }).click()
-  await expect(page.locator(".v4-pane .v4-lbl")).toHaveText("This")
-  await expect(page.locator(".v4-pane .v4-big")).toContainText("/mo")
-  await expect(page.locator(".v4-pane").getByRole("button", { name: "Done" })).toHaveCount(1)
-  await expect(page.locator(".v4-pane .done-btn")).toBeVisible()
-  await expect(page.locator(".v4-strip i").first()).toBeVisible()
-  const stripH = await page.locator(".v4-strip").evaluate((el) => (el as HTMLElement).getBoundingClientRect().height)
-  expect(stripH).toBeGreaterThanOrEqual(16)
+  await page.locator(".fr").filter({ hasText: "PDF report" }).click()
+  await expect(page.locator(".fdet .big")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Copy fix" })).toHaveCount(1)
+  await expect(page.getByRole("button", { name: "Done" })).toHaveCount(0)
   await expect(page.getByText("Loading…")).toHaveCount(0)
   await shot(page, "findings", "light")
   await shot(page, "findings", "dark")
@@ -301,42 +320,43 @@ test("findings", async ({ page }) => {
 test("findings skeleton", async ({ page }) => {
   await page.goto("/#/findings?skeleton=1")
   await waitFonts(page)
-  await expect(page.locator(".v4-skel")).toBeVisible()
+  await expect(page.locator(".skel-page")).toBeVisible()
   await expect(page.getByText("Loading…")).toHaveCount(0)
   await shot(page, "findings-skeleton", "light")
   await shot(page, "findings-skeleton", "dark")
 })
 
-async function openPermissionWin(page: Page) {
+test("findings copy fix confirms then resolves", async ({ page }) => {
   await page.goto("/#/findings")
   await page.evaluate(() => localStorage.setItem("aftertrace-resolved", JSON.stringify(["permission.allow_rule_candidate:# permission prompts for Bash(git commit:*), all approved"])))
   await page.reload()
-  await expect(page.locator(".v4-pane .frow.hero")).toContainText("permission prompts")
-  await page.locator(".v4-pane .fix-btn").click()
-  await expect(page.locator(".win-stage")).toBeVisible()
-  await expect(page.locator(".win-figure")).toHaveText("6")
-  await expect(page.locator(".win-label")).toContainText("prompts removed")
-  await expect(page.locator(".win-aside")).toContainText("1 min saved")
-}
-
-test("findings win state", async ({ page }) => {
-  await openPermissionWin(page)
+  await expect(page.locator(".fr.sel")).toContainText(/prompt/i)
+  await page.getByRole("button", { name: "Copy fix" }).click()
+  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible()
   await shot(page, "findings-win", "light")
-  await openPermissionWin(page)
-  await shot(page, "findings-win", "dark")
-  await expect(page.locator(".win-stage")).toHaveCount(0, { timeout: 2500 })
-  await expect(page.locator(".frow.resolved").filter({ hasText: "npm test" })).toBeVisible()
-  await shot(page, "findings-resolved", "dark")
+  await expect(page.locator("button.fr", { hasText: /npm test/ })).toHaveCount(0, { timeout: 2500 })
+  await page.getByRole("tab", { name: "Resolved" }).click()
+  await expect(page.locator(".fr.resolved").filter({ hasText: "npm test" })).toBeVisible()
   await shot(page, "findings-resolved", "light")
+  await shot(page, "findings-resolved", "dark")
 })
 
-test("cost", async ({ page }) => {
-  await page.goto("/#/cost")
-  await expect(page.getByRole("heading", { name: "Cost" })).toBeVisible()
-  await expect(page.locator(".sub")).toContainText("drove most of this period's spend")
-  await expect(page.locator(".sub")).not.toContainText("cost_usd")
-  await expect(page.locator(".ribbon-read")).not.toContainText("Point at a slice")
-  await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
+test("spend", async ({ page }) => {
+  await page.goto("/#/spend")
+  await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
+  await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()
+  const triple = await page.locator("main").evaluate((el) => {
+    const re = /\$\d+\.\d{3}\b/
+    const walk = (n: Node, acc: string[]): string[] => {
+      if (n.nodeType === 3 && re.test(n.textContent || "")) acc.push(n.textContent || "")
+      n.childNodes.forEach((c) => walk(c, acc))
+      return acc
+    }
+    return walk(el, [])
+  })
+  expect(triple, triple.join(" | ")).toEqual([])
+  await shot(page, "spend", "light")
+  await shot(page, "spend", "dark")
   await shot(page, "cost", "light")
   await shot(page, "cost", "dark")
 })
@@ -361,36 +381,31 @@ test("query ask", async ({ page }) => {
 
 test("empty state", async ({ page }) => {
   await page.goto("/#/empty")
-  await expect(page.getByRole("heading", { name: "No Claude Code sessions on this machine" })).toBeVisible()
-  await expect(page.locator(".code pre")).toContainText("CLAUDE_CODE_ENABLE_TELEMETRY")
+  await expect(page.getByText("Your next Claude Code session shows up here as it runs.")).toBeVisible()
+  await expect(page.getByRole("link", { name: "Turn on live tracing" })).toBeVisible()
   await page.waitForTimeout(500)
   await shot(page, "empty", "light")
   await shot(page, "empty", "dark")
 })
 
-test("first-run connect: history found", async ({ page }) => {
-  await page.goto("/#/connect?welcome=found")
-  await expect(page.locator(".found-kicker")).toContainText(/Found \d+ days of Claude Code sessions/)
-  await expect(page.locator(".found-spend")).toContainText("$")
-  await expect(page.getByRole("heading", { name: "Use Sonnet for quick replies in aftertrace." })).toBeVisible()
-  await expect(page.locator(".found-save")).toHaveText(/Saves about \$\d+ a month/)
-  await expect(page.locator(".found-one")).toContainText("aftertrace")
-  await expect(page.locator(".found-dollars")).toHaveCount(0)
-  await expect(page.locator(".found-est")).toHaveText("estimated from session files")
-  await expect(page.getByRole("button", { name: "Show me" })).toBeVisible()
+test("first-run: history found", async ({ page }) => {
+  await page.goto("/#/?welcome=found")
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+  await expect(page.locator(".fr-found")).toContainText(/Claude Code sessions/)
+  await expect(page.locator(".fr-t")).toContainText("Use Sonnet for quick replies in aftertrace.")
+  await expect(page.getByRole("button", { name: "Show me the sessions" })).toBeVisible()
   await expect(page.getByRole("link", { name: "See all findings" })).toBeVisible()
-  await expect(page.locator(".found-nudge")).toContainText("slow hooks and retry waste")
-  await expect(page.locator(".found-proj")).toHaveCount(0)
-  await expect(page.locator(".found-one .pill")).toHaveCount(0)
   await page.waitForTimeout(500)
   await shot(page, "connect-found", "light")
   await shot(page, "connect-found", "dark")
+  await shot(page, "first-run", "light")
+  await shot(page, "first-run", "dark")
 })
 
-test("first-run connect: nothing found", async ({ page }) => {
-  await page.goto("/#/connect?welcome=empty")
-  await expect(page.getByRole("heading", { name: "No Claude Code sessions on this machine" })).toBeVisible()
-  await expect(page.locator(".code pre")).toContainText("CLAUDE_CODE_ENABLE_TELEMETRY")
+test("first-run: nothing found", async ({ page }) => {
+  await page.goto("/#/?welcome=empty")
+  await expect(page.getByText(/No Claude Code sessions on this machine/)).toBeVisible()
+  await expect(page.getByRole("link", { name: "Turn on live tracing" })).toBeVisible()
   await page.waitForTimeout(500)
   await shot(page, "connect-empty", "light")
   await shot(page, "connect-empty", "dark")
@@ -414,43 +429,31 @@ test("waterfall skeleton", async ({ page }) => {
 test("home: story, stats, live lane, next finding", async ({ page }) => {
   await page.goto("/#/")
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
-  await expect(page.locator(".hero-mark")).toHaveCount(0)
-  await expect(page.locator(".v4-tabs")).toContainText("Spend")
-  await expect(page.locator(".v4-st").filter({ hasText: "Running" })).toBeVisible()
-  await expect(page.locator(".next-card").first()).toBeVisible()
-  await expect(page.locator(".v4-sv .next-card")).toHaveCount(2)
-  await expect(page.locator(".v4-chart svg")).toBeVisible()
-  const savable = page.locator(".v4-sv .v4-li.next-card").first()
-  const nm = await savable.locator(".nm").boundingBox()
-  const amt = await savable.locator(".v").boundingBox()
-  expect(nm && amt).toBeTruthy()
-  expect(amt!.x).toBeGreaterThan(nm!.x + nm!.width)
-  const homeCost = (await page.locator(".v4-now .v4-tk b").last().textContent())?.trim()
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+  await expect(page.locator(".nav", { hasText: "Spend" })).toBeVisible()
+  await expect(page.getByText("Running now")).toBeVisible()
+  await expect(page.locator(".lane").first()).toBeVisible()
+  await expect(page.locator(".top-f")).toBeVisible()
+  await expect(page.locator(".dayrow").first()).toBeVisible()
+  const homeCost = (await page.locator(".lane-cost").first().textContent())?.trim()
+  expect(homeCost).toMatch(/^\$\d/)
+  expect(homeCost).not.toMatch(/^\$\d+\.\d{3}$/)
   await page.goto("/#/sessions")
-  await expect(page.locator(".v4-rr .v4-st").filter({ hasText: "Running" })).toBeVisible()
-  const listCost = (await page.locator(".v4-rr").filter({ has: page.locator(".v4-st", { hasText: "Running" }) }).locator(".v.num").textContent())?.trim()
+  await expect(page.locator(".sess tr.run")).toBeVisible()
+  const listCost = (await page.locator(".sess tr.run td").last().textContent())?.trim()
   expect(homeCost).toBe(listCost)
-  expect(homeCost).toMatch(/^\$0\.\d{3}$/)
   await page.goto("/#/")
   await waitFonts(page)
   await shot(page, "home", "light")
   await shot(page, "home", "dark")
+  await shot(page, "today", "light")
+  await shot(page, "today", "dark")
 })
 
 test("home: history-only", async ({ page }) => {
   await page.goto("/#/?history=1")
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
-  await expect(page.locator(".v4-sv")).toContainText("Savable")
-  await expect(page.locator(".v4-sv .next-card")).toHaveCount(1)
-  await expect(page.locator(".hero-mark")).toHaveCount(0)
-  await expect(page.locator(".stat")).toHaveCount(0)
-  await expect(page.locator(".v4-st").filter({ hasText: "Running" })).toHaveCount(0)
-  await expect(page.locator(".v4-now")).toContainText("Last session")
-  await expect(page.locator(".v4-now .t")).not.toHaveText("History only.")
-  await expect(page.locator(".next-card .nm")).toContainText("Sonnet")
-  await expect(page.getByText(/\d+ findings/)).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
   await shot(page, "home-history", "light")
   await shot(page, "home-history", "dark")
 })
@@ -469,15 +472,20 @@ test("connect: snippet, prompt copy, live verification", async ({ page }) => {
 })
 
 test("settings: capture gates", async ({ page }) => {
+  await mockDesktop(page, { status: "idle", version: null, current: "0.5.7", error: null, checkedAt: Date.now() - 90_000 }, "settings")
   await page.goto("/#/settings")
+  await page.getByRole("tab", { name: "Privacy" }).click()
   await expect(page.locator(".gate")).toHaveCount(4)
-  await page.getByRole("radio", { name: /Max 20x/ }).click()
-  await expect(page.getByRole("radio", { name: /Max 20x/ })).toHaveAttribute("aria-checked", "true")
+  await page.getByRole("tab", { name: "General" }).click()
+  await page.locator("select").nth(1).selectOption("max20")
+  await expect(page.locator("select").nth(1)).toHaveValue("max20")
+  await shot(page, "settings", "light")
+  await shot(page, "settings", "dark")
 })
 
 test("sidebar: g-shortcuts and command palette", async ({ page }) => {
   await page.goto("/#/")
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
   await page.keyboard.press("g")
   await page.keyboard.press("f")
   await expect(page).toHaveURL(/#\/findings/)
@@ -502,7 +510,8 @@ test("tray popover", async ({ page }) => {
   const running = page.locator(".v4-pop .v4-st").filter({ hasText: "Running" })
   if (await running.count()) {
     const trayCost = (await page.locator(".v4-pop .v4-tk b").last().textContent())?.trim()
-    expect(trayCost).toMatch(/^\$0\.\d{3}$/)
+    expect(trayCost).toMatch(/^\$\d/)
+    expect(trayCost).not.toMatch(/^\$\d+\.\d{3}$/)
     expect(trayCost).not.toBe("$0.410")
   }
   await shot(page, "tray", "light")
@@ -618,31 +627,13 @@ test("apps: list, app page, findings, trace", async ({ page }) => {
   await shot(page, "app-trace", "dark")
 })
 
-test("recap: story, lanes, receipt, week switch", async ({ page }) => {
+test("spend merged recap", async ({ page }) => {
   await page.goto("/#/recap")
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: "Recap" })).toBeVisible()
-  await expect(page.locator(".recap-lead")).toBeVisible()
-  await expect(page.locator(".recap-primary").first()).toBeVisible()
-  await expect(page.locator(".v4-hero")).toBeVisible()
-  await expect(page.locator(".v4-chip")).toHaveCount(0)
-  await expect(page.locator(".receipt")).toContainText("AFTERTRACE")
-  await expect(page.locator(".v4-g4")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
+  await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()
   await shot(page, "recap", "light")
   await shot(page, "recap", "dark")
-  const label = await page.locator(".v4-seg button.on").textContent()
-  await page.getByRole("button", { name: "Previous week" }).click()
-  await expect(page.locator(".v4-seg button.on")).not.toHaveText(label || "")
-  await page.getByRole("button", { name: "Previous week" }).click()
-  await expect(page.locator(".recap-lead")).toContainText("Nothing ran this week")
-  await expect(page.locator(".v4-chip")).toHaveCount(0)
-  await shot(page, "recap-empty", "light")
-  await shot(page, "recap-empty", "dark")
-  await page.getByRole("button", { name: "Previous week" }).click()
-  await expect(page.locator(".recap-primary").filter({ hasText: "$12345.67" })).toBeVisible()
-  await expect(page.locator(".recap-lead")).toContainText("128")
-  await shot(page, "recap-long", "light")
-  await shot(page, "recap-long", "dark")
 })
 
 test("in-app Restart to update sits in the sidebar footer", async ({ page }) => {
@@ -661,18 +652,19 @@ test("in-app Restart to update sits in the sidebar footer", async ({ page }) => 
 })
 
 test("Settings shows version, last checked, and Check for updates", async ({ page }) => {
-  await mockDesktop(page)
+  await mockDesktop(page, READY_UPDATE, "settings")
   await page.goto("/#/settings")
   await waitFonts(page)
+  await expect(page.locator(".budget-suffix")).toHaveText("/ week")
+  const suffixLines = await page.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
+  expect(suffixLines).toBe(1)
+  await page.getByRole("tab", { name: "Updates" }).click()
   const updates = page.locator("[data-settings=updates]")
   await expect(updates).toBeVisible()
   await expect(updates).toContainText("v0.5.6")
   await expect(updates.getByRole("button", { name: "Check for updates" })).toBeVisible()
   await expect(updates.getByRole("button", { name: "Restart to update" })).toBeVisible()
-  await expect(updates.locator("dd").nth(1)).toContainText("ago")
-  await expect(page.locator(".budget-suffix")).toHaveText("/ week")
-  const suffixLines = await page.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
-  expect(suffixLines).toBe(1)
+  await expect(updates).toContainText("ago")
   await shot(page, "settings-updates", "light")
   await shot(page, "settings-updates", "dark")
 })

@@ -1,61 +1,57 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react"
 import {
-  CircleDollarSign,
-  House,
+  ChartPie,
+  Cube,
   Lightbulb,
-  Moon,
-  Plug,
-  Receipt,
-  Rows3,
-  Search,
-  Settings,
-  SquareTerminal,
+  ListBullets,
   Sun,
-  Boxes,
-  type LucideIcon,
-} from "lucide-react"
+  type Icon,
+} from "@phosphor-icons/react"
 import { Link, useLocation } from "wouter"
-import { api } from "../lib/api"
+import { api, emptyMode } from "../lib/api"
 import { startPoll } from "../lib/poll"
-import { ago } from "../lib/format"
 import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
-import type { Status } from "../lib/types"
-import { useNow } from "../hooks/useNow"
-import { desktop, displayVersion, type UpdateState } from "../lib/desktop"
+import type { AppSummary, Status } from "../lib/types"
+import { desktop, displayVersion, windowKind, type UpdateState } from "../lib/desktop"
+import { hashParam } from "../lib/hash"
 import { CommandPalette } from "./CommandPalette"
-import { Logo } from "./Logo"
 
-type Item = { href: string; label: string; icon: LucideIcon; key: string; match?: (loc: string) => boolean }
+type Item = {
+  href: string
+  label: string
+  icon: Icon
+  key: string
+  match?: (loc: string) => boolean
+}
 
 const NAV: Item[] = [
-  { href: "/", label: "Home", icon: House, key: "h", match: (l) => l === "/" },
-  { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
+  { href: "/", label: "Today", icon: Sun, key: "h", match: (l) => l === "/" },
   {
     href: "/sessions",
     label: "Sessions",
-    icon: Rows3,
+    icon: ListBullets,
     key: "s",
     match: (l) => l.startsWith("/sessions") || l.startsWith("/session/") || (l.startsWith("/trace/") && !fromApps()),
   },
-  { href: "/recap", label: "Recap", icon: Receipt, key: "r" },
+  { href: "/findings", label: "Findings", icon: Lightbulb, key: "f" },
+  { href: "/spend", label: "Spend", icon: ChartPie, key: "c", match: (l) => l === "/spend" || l === "/cost" || l === "/recap" },
 ]
-const HIDDEN: Item[] = [
-  { href: "/apps", label: "Apps", icon: Boxes, key: "a", match: (l) => l.startsWith("/apps") || (l.startsWith("/trace/") && fromApps()) },
-  { href: "/cost", label: "Cost", icon: CircleDollarSign, key: "c" },
-  { href: "/query", label: "Query", icon: SquareTerminal, key: "q" },
-  { href: "/connect", label: "Connect", icon: Plug, key: "n" },
-  { href: "/settings", label: "Settings", icon: Settings, key: "," },
-]
-const ALL = [...NAV, ...HIDDEN]
 
 function fromApps(): boolean {
   return /[?&]app=1/.test(window.location.hash) || /[?&]app=1/.test(window.location.search)
 }
 
+type ShellApi = { openCommand: () => void; mock: boolean }
+
+const ShellCtx = createContext<ShellApi>({ openCommand: () => {}, mock: false })
+export function useShell() {
+  return useContext(ShellCtx)
+}
+
 export function Shell({
   children,
-  theme,
+  theme: _theme,
   onTheme,
   mock,
 }: {
@@ -67,8 +63,10 @@ export function Shell({
   const [cmd, setCmd] = useState(false)
   const [status, setStatus] = useState<Status | null>(null)
   const [update, setUpdate] = useState<UpdateState | null>(null)
+  const [apps, setApps] = useState<AppSummary[]>([])
   const [loc, nav] = useLocation()
   const pendingG = useRef(0)
+  const prefs = windowKind() === "settings"
 
   useEffect(() => {
     let alive = true
@@ -80,6 +78,7 @@ export function Shell({
         /* keep last */
       }
     }, { visibleMs: 15000, hiddenMs: 60000 })
+    api.apps().then((a) => alive && setApps(a)).catch(() => undefined)
     return () => {
       alive = false
       stop()
@@ -96,25 +95,27 @@ export function Shell({
   }, [])
 
   useEffect(() => {
-    if (mock || !status || loc !== "/") return
-    try {
-      if (localStorage.getItem("aftertrace.welcome")) return
-      if (!status.live_otel) {
-        localStorage.setItem("aftertrace.welcome", status.history?.found ? "found" : "empty")
-        nav("/connect", { replace: true })
-      } else {
-        localStorage.setItem("aftertrace.welcome", "done")
-      }
-    } catch {
-      /* private mode */
+    const api = desktop()
+    if (!api?.getAccentColor) return
+    const apply = (hex: string) => {
+      if (hex) document.documentElement.style.setProperty("--accent", hex.startsWith("#") ? hex : `#${hex}`)
     }
-  }, [mock, status, loc, nav])
+    api.getAccentColor().then(apply).catch(() => {})
+    return api.onAccentColor ? api.onAccentColor(apply) : undefined
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
         setCmd((v) => !v)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault()
+        const d = desktop()
+        if (d?.openSettings) d.openSettings()
+        else nav("/settings")
         return
       }
       const tag = (e.target as HTMLElement)?.tagName
@@ -124,8 +125,15 @@ export function Shell({
         return
       }
       if (Date.now() - pendingG.current < 1200) {
-        const hit = ALL.find((i) => i.key === e.key)
         pendingG.current = 0
+        if (e.key === ",") {
+          nav("/settings")
+          e.preventDefault()
+          return
+        }
+        const hit = [...NAV, { href: "/apps", label: "Apps", icon: Cube, key: "a" }, { href: "/query", label: "Query", icon: ChartPie, key: "q" }].find(
+          (i) => i.key === e.key,
+        )
         if (hit) {
           nav(hit.href)
           e.preventDefault()
@@ -136,39 +144,49 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey)
   }, [nav])
 
-  const counts: Record<string, React.ReactNode> = {
-    "/": status && status.running > 0 ? <span className="live-count" title={`${status.running} running`}>{status.running}</span> : null,
-    "/findings": status && status.findings > 0 ? <span className="side-count">{status.findings}</span> : null,
-  }
-
-  if (loc === "/tray") {
-    return <StatusContext.Provider value={status}>{children}</StatusContext.Provider>
-  }
+  const shell = useMemo(() => ({ openCommand: () => setCmd(true), mock }), [mock])
+  const running = (status?.running || 0) > 0 && !emptyMode() && hashParam("welcome") == null
+  const appSources = apps.filter((a) => a.service)
 
   return (
     <StatusContext.Provider value={status}>
-      <div className="app">
-        <aside className="side" aria-label="Main">
-          <Link href="/" className="brand">
-            <Logo size={18} />
-            <span className="wordmark">Aftertrace</span>
-            {mock && <span className="tag warn">demo</span>}
-          </Link>
-          <button type="button" className="side-search" onClick={() => setCmd(true)}>
-            <Search size={14} />
-            <span>Search</span>
-            <kbd>⌘K</kbd>
-          </button>
-          <nav className="side-nav">
-            {NAV.map((it) => (
-              <NavItem key={it.href} item={it} badge={counts[it.href]} />
-            ))}
-          </nav>
-          <div className="side-foot">
-            <NavItem item={HIDDEN.find((i) => i.href === "/settings")!} badge={null} />
-            <div className="side-status">
-              <div className="side-status-lines">
-                <ReceivingLine status={status} />
+      <ShellCtx.Provider value={shell}>
+        <div className={`win${prefs ? " prefs" : ""}`}>
+          {!prefs && (
+            <aside className="side" aria-label="Main">
+              <div className="lights" aria-hidden="true" />
+              <div className="grp">
+                {NAV.map((it) => (
+                  <NavItem
+                    key={it.href}
+                    item={it}
+                    badge={
+                      it.href === "/sessions" && running ? (
+                        <span className="live" title={`${status?.running} running`} />
+                      ) : it.href === "/findings" && status && status.findings > 0 ? (
+                        <span className="ct">{status.findings}</span>
+                      ) : null
+                    }
+                  />
+                ))}
+              </div>
+              {appSources.length > 0 && (
+                <div className="grp">
+                  <div className="grp-h">Apps</div>
+                  {appSources.map((a) => (
+                    <Link
+                      key={a.service}
+                      href={`/apps/${encodeURIComponent(a.service)}`}
+                      className={`nav${loc.includes(`/apps/${a.service}`) ? " on" : ""}`}
+                    >
+                      <Cube size={16} weight={loc.includes(`/apps/${a.service}`) ? "fill" : "regular"} />
+                      <span>{a.service}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <div className="foot recv">
+                <StatusDot status={status} />
                 {update?.status === "ready" ? (
                   <button
                     type="button"
@@ -179,31 +197,23 @@ export function Shell({
                     Restart to update{displayVersion(update.version) ? ` · ${displayVersion(update.version)}` : ""}
                   </button>
                 ) : null}
+                {mock && <span className="demo">Demo data</span>}
               </div>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                title="Toggle theme"
-                onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
-              >
-                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-              </button>
-            </div>
-          </div>
-        </aside>
-        <main className="main">
-          {import.meta.env.VITE_DEMO === "1" && (
-            <div className="demo-banner">
-              You are looking at synthetic demo data. <a href="../docs/install.html">Install Aftertrace</a> to see your own Claude Code, agents and apps.
-            </div>
+            </aside>
           )}
-          <div key={pageKey(loc)} className="page-in">
-            {children}
-          </div>
-        </main>
-      </div>
-      <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(theme === "dark" ? "light" : "dark")} />
+          <main className="main">
+            {import.meta.env.VITE_DEMO === "1" && (
+              <div className="demo-banner">
+                You are looking at synthetic demo data.
+              </div>
+            )}
+            <div key={loc.split("?")[0]} className="page-in">
+              {children}
+            </div>
+          </main>
+        </div>
+        <CommandPalette open={cmd} onClose={() => setCmd(false)} onTheme={() => onTheme(_theme === "dark" ? "light" : "dark")} />
+      </ShellCtx.Provider>
     </StatusContext.Provider>
   )
 }
@@ -213,32 +223,25 @@ function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
   const on = item.match ? item.match(loc) : loc === item.href || loc.startsWith(`${item.href}/`)
   const Icon = item.icon
   return (
-    <Link href={item.href} className={`side-item${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={`${item.label} (g ${item.key})`}>
-      <Icon size={16} strokeWidth={1.7} />
-      <span className="side-text">{item.label}</span>
+    <Link href={item.href} className={`nav${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={`${item.label} (g ${item.key})`}>
+      <Icon size={16} weight={on ? "fill" : "regular"} />
+      <span>{item.label}</span>
       {badge}
     </Link>
   )
 }
 
-function ReceivingLine({ status }: { status: Status | null }) {
-  const now = useNow(1000)
-  if (!status) return <span className="recv">Connecting…</span>
-  if (!status.last_ns) {
-    return (
-      <Link href="/connect" className="recv is-idle">
-        <i className="recv-dot" /> Waiting
-      </Link>
-    )
+function StatusDot({ status }: { status: Status | null }) {
+  if (!status) return <><span className="dot off" />Connecting…</>
+  if (!status.last_ns) return <><span className="dot off" />Not tracing yet</>
+  const fresh = Date.now() * 1e6 - status.last_ns < 5 * 60e9
+  if (status.history?.found && !status.live_otel) {
+    return <><span className="dot off" />History only</>
   }
-  const fresh = now * 1e6 - status.last_ns < 5 * 60e9
   return (
-    <span className={`recv${fresh ? " is-live" : ""}`} title="Last data received">
-      <i className="recv-dot" /> {fresh ? "Receiving" : "Last data"} · {ago(status.last_ns, now)}
-    </span>
+    <>
+      <span className={`dot${fresh ? "" : " off"}`} />
+      {fresh ? "Receiving" : "History only"}
+    </>
   )
-}
-
-function pageKey(loc: string): string {
-  return loc.split("?")[0]
 }

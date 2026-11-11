@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: native-instrument redesign, with design-review overrides.
+
+**Choice.** One PR against main, no merge/tag/release. The desktop UI follows SPEC.md (native Mac instrument: Today / Sessions / Findings / Spend, Settings window, Phosphor, SF Pro, one time ribbon) with these review wins over SPEC: a single `usd()` money rule (2 decimals, `<$0.01` for tiny, no cents at $100+, never 3-decimal values); Sessions puts repo under the title instead of a truncating column; Today keeps per-day bars and a legend, not a duplicate week stacked bar; Findings keep the amber hero, native inactive-grey selection, and Copy fix → Copied micro-animation (no WinStage); motion is only selection / sheet / list-reorder, under 200ms, with `prefers-reduced-motion`; Spend, the Settings window, resolved findings and 20+ step turns share the same language and show up in PR screenshots. Silent updater and sidebar `Restart to update` from v0.5.7 stay. Engine and version stay 0.5.7.
+
+**Why.** The previous UI read as a vibe-coded toy: mixed type, truncated finding titles, session hashes, Cost/Recap/Connect competing in the sidebar, 3-decimal money. The review pass kills leftover SPEC mistakes (week bar duplicating day bars, truncated repo, count-ups, WinStage as the primary finding action).
+
+**How to reverse.** Revert the PR. Tokens live in `web/src/styles/tokens.css` + `app.css`; money in `web/src/lib/format.ts` `usd()` and `desktop/src/glance.js` `sayUsd`.
+
 ## Nov 11 2026: public README positioning and a Homebrew cask tap.
 
 **Choice.** One PR, no merge/tag/release. README is a first-visit page: one-line time/cost/usage pitch, fixture-UI demo GIF, DMG + `brew install --cask rahulkraken/tap/aftertrace`, an honest supported-tools table (Cursor is not supported), the fourteen shipped rules, local-only privacy with the GitHub Releases update-check and opt-in Ask named, a short fair note vs ccusage and CodeBurn. No security/audit/compliance framing. Community files: bug and feature templates, Discussions for questions, SUPPORT.md. Homebrew ships an **app cask** (`packaging/homebrew/Casks/aftertrace.rb`, v0.5.7 arm64 DMG) meant for `RahulKraken/homebrew-tap`. That tap repo does not exist yet. Same token is not used for a CLI formula. Release Assemble generates `aftertrace.rb` from the built DMG sha256 and attaches it.
