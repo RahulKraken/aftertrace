@@ -668,10 +668,6 @@ pre { font: 11px var(--mono); background: var(--bg-recessed); padding: 8px; bord
   margin-top: 4px;
   color: var(--mute);
 }
-
-  62% { transform: translateY(-2px) scale(1.01); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
 @media (prefers-reduced-motion: reduce) {
   .win-figure { animation: none; }
   .findings-page.is-win .findings-body { transition: none; }
@@ -778,10 +774,6 @@ pre { font: 11px var(--mono); background: var(--bg-recessed); padding: 8px; bord
   background: var(--hue-model); width: 2px; left: 3.5px;
 }
 body.is-col-resize, body.is-col-resize * { cursor: col-resize !important; user-select: none !important; }
-.row.flash { }
-
-  100% { background: var(--sel); }
-}
 
 .sk {
   display: block; border-radius: var(--r-control);
@@ -793,7 +785,6 @@ body.is-col-resize, body.is-col-resize * { cursor: col-resize !important; user-s
 .sk-chip { width: 16px; height: 16px; margin: 0 8px 0 28px; }
 .sk-name { height: 10px; }
 .sk-bar { position: absolute; top: 7px; height: 16px; border-radius: var(--r-8); }
- }
 .skel .row { cursor: default; }
 
 .fix-btn, .copy-inline {
@@ -835,10 +826,6 @@ body.is-col-resize, body.is-col-resize * { cursor: col-resize !important; user-s
 .fix-preview { margin-top: 8px; max-height: 132px; }
 .win-mark { display: flex; align-items: center; gap: 6px; }
 .celebrate { display: flex; align-items: center; gap: 8px; }
-.frow.win.fresh {  }
-
-  100% { box-shadow: 0 0 0 12px transparent; }
-}
 .val-wrap { position: relative; display: inline-flex; }
 .val-sugg {
   position: absolute; left: 0; top: calc(100% + 4px); z-index: 8;
@@ -1583,7 +1570,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 /* ── Alive: data that moves when it means something ──────────────────── */
 
 /* Things that arrive together cascade, a beat apart. */
- }
 .stagger > * { animation: rise-in var(--dur-sheet) var(--ease-out) both; }
 .stagger > *:nth-child(1) {  }
 .stagger > *:nth-child(2) {  }
@@ -1599,9 +1585,7 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .spark-wrap { position: relative; display: inline-flex; flex: none; }
 .spark { cursor: crosshair; }
 .spark-line { stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) var(--dur-sheet) forwards; }
- }
 .spark-area { animation: fade-up var(--dur-sheet) ease var(--dur-sheet) both; }
- }
 .spark-stop-top { stop-color: var(--faint); stop-opacity: 0.28; }
 .spark-stop-bottom { stop-color: var(--faint); stop-opacity: 0; }
 .spark-model .spark-stop-top { stop-color: var(--hue-model); stop-opacity: 0.32; }
@@ -1619,13 +1603,9 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 }
 .spark-tip .mute { color: color-mix(in oklab, var(--surface) 65%, transparent); }
 .spark-tip b { font-weight: 600; font-variant-numeric: tabular-nums; }
- }
-
- }
 .home-story { position: relative; }
 .hl-wait { background-image: linear-gradient(color-mix(in oklab, var(--hue-wait) 45%, transparent), color-mix(in oklab, var(--hue-wait) 45%, transparent));
   background-repeat: no-repeat; background-position: 0 92%; background-size: 0% 0.18em; animation: underline var(--dur-sheet) var(--ease-out) var(--dur-sheet) forwards; }
- }
 
 /* Bars grow from their start, one after another. */
 .grow-bars > i { transform-origin: left center;   }
@@ -1648,7 +1628,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
   background: linear-gradient(100deg, transparent 0%, color-mix(in oklab, var(--hue-model) 9%, transparent) 45%, transparent 60%);
   transform: translateX(-100%); animation: sweep 3.2s ease-in-out infinite;
 }
- }
 .lane-doing-wrap { display: block; position: relative; overflow: hidden; height: 17px; }
 .lanes .lane-doing { display: block; }
 .count { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
@@ -1667,7 +1646,6 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-shee
 .wf .bar, .wf .step-bar { transform-origin: left center;   }
 .wf .bar-lab, .wf .slowest { animation: fade-up var(--dur-sheet) ease both;  }
 /* Recap: the receipt prints out of its slot, once. */
- to { clip-path: inset(0 0 0 0); transform: none; } }
 .receipt { animation: print var(--dur-sheet) cubic-bezier(0.32, 0.72, 0, 1) var(--dur-sheet) both; }
 .q-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) forwards;  }
 /* First data on Connect: the check lands, a ring spreads from it, once. */
@@ -1675,8 +1653,6 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-shee
 .verify-check { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-full); flex: none;
   background: var(--hue-ok); color: var(--surface); animation: pop var(--dur-sheet) cubic-bezier(0.34, 1.56, 0.64, 1) var(--dur-select) both; }
 .verify-check::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--hue-ok); animation: ring var(--dur-sheet) var(--ease-out) var(--dur-sheet) both; }
- }
- to { transform: scale(2.4); opacity: 0; } }
 
 /* Sessions: four weeks at a glance. Columns grow up in a wave; the hovered day reads out above. */
 .activity { margin: 18px 0 18px; padding: 14px 16px 12px; border: 1px solid var(--line); border-radius: var(--r-14); background: var(--surface); box-shadow: var(--shadow-1); }
@@ -1693,7 +1669,6 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-shee
   transition: background-color var(--dur-1) ease, opacity var(--dur-2) ease; }
 .act-col.is-empty .act-bar { background: var(--bg-recessed); }
 .act-wait { position: absolute; left: 0; right: 0; top: 0; display: block; background: var(--hue-wait); }
- }
 @media (hover: hover) and (pointer: fine) {
   .act-col:hover .act-bar { background: var(--hue-model); }
 }
