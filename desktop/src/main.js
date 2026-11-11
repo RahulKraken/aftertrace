@@ -23,7 +23,6 @@ if (process.platform === "darwin" && app.dock) {
   app.dock.hide()
 }
 
-app.commandLine.appendSwitch("enable-features", "OverlayScrollbar")
 app.setName("Aftertrace")
 smoke.applyPaths(app)
 if (process.platform === "win32") {
