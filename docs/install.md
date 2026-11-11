@@ -4,13 +4,14 @@ Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothi
 
 ## Download for Mac
 
-**[Download for Mac](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg)** (Apple silicon) — Open the DMG, drag Aftertrace to Applications. Double-click to open. If macOS says the developer cannot be verified, right-click Aftertrace, choose Open, then Open again (only while builds are unsigned).
+**Apple silicon**, signed and notarized. Open the DMG, drag Aftertrace to Applications.
 
-[Windows](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) · [Linux AppImage](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage) · [Linux .deb](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.deb)
+- **DMG:** [Aftertrace-mac-arm64.dmg](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-arm64.dmg) (`Aftertrace-mac.dmg` is the same file)
+- **Homebrew:** `brew install --cask rahulkraken/tap/aftertrace` — the cask lives in a personal tap; see [`packaging/homebrew/`](../packaging/homebrew/)
 
-The app lives in the menu bar (tray on Windows and Linux), starts the same engine, and opens http://127.0.0.1:7311. While the dashboard is open it is a normal Mac app (Dock and Cmd+Tab). Closing the window keeps the menu bar and the engine; it does not quit. Start at login is off until you opt in from the first-launch screen or the menu. The menu extra is a compact square “trace corner” glyph; click it for the current session, today’s spend, one finding, and utilities (including Check for updates / Restart to update). Update checks hit GitHub Releases only — not usage telemetry. See [desktop-shell.md](desktop-shell.md).
+The app lives in the menu bar, starts the same engine, and opens http://127.0.0.1:7311. While the dashboard is open it is a normal Mac app (Dock and Cmd+Tab). Closing the window keeps the menu bar and the engine; it does not quit. Start at login is off until you opt in from the first-launch screen or the menu. The menu extra is a compact square “trace corner” glyph; click it for the current session, today’s spend, one finding, and utilities (including Check for updates / Restart to update). Update checks hit GitHub Releases only — not usage telemetry. See [desktop-shell.md](desktop-shell.md).
 
-The consumer Mac download is Apple silicon, signed and notarized when Apple secrets are present, and unsigned otherwise. [Signing](signing.md).
+Windows and Linux desktop packages are attached to GitHub Releases as CI artifacts. They are untested; the supported app is Apple silicon macOS. [Signing](signing.md).
 
 ## CLI (macOS and Linux)
 
@@ -31,7 +32,7 @@ Re-running upgrades the binary and restarts the service. If the install director
 
 Or download an archive from the releases page, untar it, and put `aftertrace` on your `PATH`, then `aftertrace service install` (or `aftertrace serve`) and open http://127.0.0.1:7311.
 
-Windows is not in the curl installer yet. Use the [Windows download](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe) above. Building the Go binary from source still needs a CGO toolchain such as MSYS2 MinGW (DuckDB ships a `windows-amd64` library).
+Windows is not in the curl installer. The Windows desktop package is an untested CI artifact. Building the Go binary from source still needs a CGO toolchain such as MSYS2 MinGW (DuckDB ships a `windows-amd64` library).
 
 ## Run it at login
 

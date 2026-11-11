@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in Aftertrace looks wrong.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not attach real traces, prompts, emails, or filesystem paths.
+        `aftertrace demo` is enough to reproduce most engine bugs.
+  - type: input
+    id: version
+    attributes:
+      label: Aftertrace version
+      description: About Aftertrace, or `aftertrace version`.
+      placeholder: v0.5.7
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Mac DMG
+        - Homebrew cask (`rahulkraken/tap/aftertrace`)
+        - `install.sh` CLI
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: macOS version
+      description: Apple silicon is the supported build. Mention another OS only if that is where you hit this.
+      placeholder: macOS 15.1, M4
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Tool
+      description: Which source you were using (Claude Code version, Codex, an app, …).
+      placeholder: Claude Code 2.1.x
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Prefer steps against `aftertrace demo`. Paste serve log lines from `~/.aftertrace/serve.log` only after you have checked they contain no prompts or paths.
+    validations:
+      required: true
