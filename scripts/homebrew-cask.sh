@@ -38,8 +38,7 @@ cask "aftertrace" do
   version "$version"
   sha256 "$sha256"
 
-  url "https://github.com/RahulKraken/aftertrace/releases/download/v#{version}/Aftertrace-mac-arm64.dmg",
-      verified: "github.com/RahulKraken/aftertrace/"
+  url "https://github.com/RahulKraken/aftertrace/releases/download/v#{version}/Aftertrace-mac-arm64.dmg"
   name "Aftertrace"
   desc "Time, cost and usage for your AI coding tools"
   homepage "https://rahulkraken.github.io/aftertrace/"

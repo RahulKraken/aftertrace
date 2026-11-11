@@ -2,9 +2,11 @@
 
 This directory is the source copy of the Aftertrace **cask**. Copy `Casks/aftertrace.rb` into [RahulKraken/homebrew-tap](https://github.com/RahulKraken/homebrew-tap) as `Casks/aftertrace.rb`.
 
-The tap repository does not exist yet. Until it does, `brew install --cask rahulkraken/tap/aftertrace` will fail.
+Homebrew refuses casks from untrusted taps, so install is three commands:
 
 ```bash
+brew tap rahulkraken/tap
+brew trust rahulkraken/tap
 brew install --cask rahulkraken/tap/aftertrace
 ```
 

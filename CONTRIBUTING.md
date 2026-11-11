@@ -70,9 +70,11 @@ Notes come from the matching `CHANGELOG.md` section. Add the section first. Tag,
 
 Dry-run without publishing: Actions → Release → Run workflow, or look at Desktop workflow artifacts on a PR (`Aftertrace-mac-arm64.dmg` is in `aftertrace-desktop-mac`).
 
-The public Homebrew install is a **cask** for the Apple-silicon Mac app, copied into `RahulKraken/homebrew-tap` as `Casks/aftertrace.rb`. Source copy: [`packaging/homebrew/`](packaging/homebrew/). That tap does not exist until Rahul creates it.
+The public Homebrew install is a **cask** for the Apple-silicon Mac app, copied into `RahulKraken/homebrew-tap` as `Casks/aftertrace.rb`. Source copy: [`packaging/homebrew/`](packaging/homebrew/). Homebrew refuses casks from untrusted taps:
 
 ```bash
+brew tap rahulkraken/tap
+brew trust rahulkraken/tap
 brew install --cask rahulkraken/tap/aftertrace
 ```
 
