@@ -35,6 +35,8 @@ Open the disk image and drag Aftertrace to Applications.
 **Homebrew:**
 
 ```bash
+brew tap rahulkraken/tap
+brew trust rahulkraken/tap
 brew install --cask rahulkraken/tap/aftertrace
 ```
 

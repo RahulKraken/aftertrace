@@ -7,7 +7,15 @@ Aftertrace is one binary with an embedded DuckDB and an embedded React UI. Nothi
 **Apple silicon**, signed and notarized. Open the DMG, drag Aftertrace to Applications.
 
 - **DMG:** [Aftertrace-mac-arm64.dmg](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-arm64.dmg) (`Aftertrace-mac.dmg` is the same file)
-- **Homebrew:** `brew install --cask rahulkraken/tap/aftertrace` — the cask lives in a personal tap; see [`packaging/homebrew/`](../packaging/homebrew/)
+- **Homebrew** (personal tap; Homebrew refuses unsigned taps until you trust it):
+
+  ```bash
+  brew tap rahulkraken/tap
+  brew trust rahulkraken/tap
+  brew install --cask rahulkraken/tap/aftertrace
+  ```
+
+  Source copy of the cask: [`packaging/homebrew/`](../packaging/homebrew/).
 
 The app lives in the menu bar, starts the same engine, and opens http://127.0.0.1:7311. While the dashboard is open it is a normal Mac app (Dock and Cmd+Tab). Closing the window keeps the menu bar and the engine; it does not quit. Start at login is off until you opt in from the first-launch screen or the menu. The menu extra is a compact square “trace corner” glyph; click it for the current session, today’s spend, one finding, and utilities (including Check for updates / Restart to update). Update checks hit GitHub Releases only — not usage telemetry. See [desktop-shell.md](desktop-shell.md).
 
