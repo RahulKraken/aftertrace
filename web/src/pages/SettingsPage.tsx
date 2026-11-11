@@ -217,7 +217,6 @@ export function SettingsPage() {
         )}
         {tab === "updates" && (
           <div className="set-sec" data-settings="updates">
-            <h2>Updates</h2>
             {shell ? (
               <>
                 <div className="set-row">

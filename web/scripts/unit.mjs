@@ -17,8 +17,9 @@ const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardM
 const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { recapLead, recapShipped } = await vite.ssrLoadModule("/src/lib/recapStory.ts")
+const { spendLead } = await vite.ssrLoadModule("/src/lib/spendInsight.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
-const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
+const { mockOverview, projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
 
 let failed = 0
@@ -274,6 +275,12 @@ eq(longLead.some((p) => p.kind === "primary" && p.text === "$12346"), true, "rec
 eq(longLead.some((p) => p.kind === "primary" && p.text === "23h 59 min"), true, "recapLead long duration")
 eq(recapLead({ stats: { turn_ms: 460980000, sessions: 128, cost_usd: 12345.67 } }).some((p) => p.kind === "primary" && p.text === "5d 8h"), true, "recapLead multi-day duration")
 eq(recapShipped({ stats: { lines_added: 1234567, commits: 2048 } }).some((p) => p.text.includes("1,234,567")), true, "recapShipped long lines")
+
+const ov = mockOverview()
+const weekSess = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.hi)
+eq(spendLead(weekSess, ov.week.cost_usd), "Two sessions made 71% of your spend.", "demo spend lead")
+eq(spendLead([{ cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }], 5), null, "equal five sessions fall back")
+eq(spendLead([{ cost_usd: 8 }, { cost_usd: 1 }], 9), "One session made 89% of your spend.", "one session dominates")
 
 if (failed) {
   console.error(`${failed} failed`)

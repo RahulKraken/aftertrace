@@ -184,6 +184,11 @@ test("long turn collapses extra steps", async ({ page }) => {
   await shot(page, "turn-long", "light")
   await shot(page, "turn-long", "dark")
   await page.setViewportSize({ width: 1024, height: 720 })
+  await expect.poll(async () => page.locator(".st-scroll").evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(40)
+  await page.locator(".st-scroll").evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await expect.poll(async () => page.locator(".st-scroll").evaluate((el) => el.scrollTop)).toBeGreaterThan(40)
   await shot(page, "turn-long-1024", "light")
   await page.setViewportSize({ width: 1440, height: 900 })
   await shot(page, "turn-long-1440", "light")
@@ -388,6 +393,7 @@ test("spend", async ({ page }) => {
   await page.goto("/#/spend")
   await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
   await expect(page.locator(".insight")).toBeVisible()
+  await expect(page.locator(".insight")).toContainText("Two sessions made 71% of your spend")
   await expect(page.getByRole("button", { name: "Ask about spend" })).toBeVisible()
   await expect(page.getByText("Top sessions by cost")).toBeVisible()
   await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()

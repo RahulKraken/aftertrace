@@ -1,5 +1,5 @@
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; }
+html, body, #root { margin: 0; height: 100%; overflow: hidden; }
 html { background: var(--window); }
 body {
   background: var(--window);
@@ -26,7 +26,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: var(--window);
   overflow: hidden;
   height: 100%;
+  max-height: 100%;
   min-height: 0;
+}
+.page-in > .view-in,
+.page-in > .story-page,
+.page-in > .wf {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+.page-in > .view-in {
+  display: flex;
+  flex-direction: column;
+}
+.view-in > .story-page,
+.view-in > .wf {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 .win.prefs { grid-template-columns: 1fr; }
 .win.prefs .tb { padding-left: 86px; }
@@ -38,6 +60,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   flex-direction: column;
   padding: 0 10px 10px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   -webkit-app-region: drag;
 }
 .lights { height: var(--toolbar); flex: none; }
@@ -96,7 +120,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .side-update:hover { color: var(--accent); }
 
-.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--window); }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: var(--window); }
 .tb {
   height: var(--toolbar);
   flex: none;
@@ -254,9 +278,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .lane-top .lt { font: var(--t-headline); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane-top .n { flex: none; }
 .lane-cost { font: var(--t-num); min-width: 64px; text-align: right; flex: none; }
-.lane-doing { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px 17px; color: var(--l1); min-width: 0; }
+.lane-doing { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px 17px; color: var(--l1); min-width: 0; overflow: hidden; }
 .lane-doing svg { width: 14px; height: 14px; color: var(--c-tool); flex: none; }
 .lane-doing .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lane-doing .l2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.lane-doing .lane-tokens { flex: none; overflow: visible; text-overflow: clip; }
 .lane-rib { position: relative; margin-left: 17px; }
 .week-h { margin-top: 4px; }
 .hero {
@@ -313,8 +339,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .today > .insp { display: none; }
 }
 .s300 { --inspector: 280px; grid-template-columns: minmax(0, 1fr) minmax(240px, var(--inspector)); }
-.tblwrap { padding-top: 6px; overflow: auto; }
-.sess { table-layout: fixed; }
+.tblwrap { padding-top: 6px; min-width: 0; overflow-x: hidden; overflow-y: auto; }
+.sess { table-layout: fixed; min-width: 0; max-width: 100%; }
 .sess td.c-title { font-weight: 500; white-space: normal; overflow: visible; vertical-align: top; }
 .sess td.c-title .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
 .sess td.c-dot { padding: 0 0 0 8px; }
@@ -539,7 +565,7 @@ tbody.stagger > tr,
 .insp h2 { -webkit-line-clamp: 3; }
 .kv { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: visible; }
 .kv .v, .kv .k { white-space: nowrap; overflow: visible; }
-.sess col.c-title-col { min-width: 240px; width: auto; }
+.sess col.c-title-col { min-width: 0; width: auto; }
 .sess col.c-shape-col { width: 100px; }
 .sess col.c-time-col { width: 136px; }
 .sess td.c-title .title { overflow: hidden; text-overflow: ellipsis; }

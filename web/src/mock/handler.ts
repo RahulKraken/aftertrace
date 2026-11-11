@@ -13,6 +13,8 @@ import {
   sessionDetail,
   sessions,
 } from "./load"
+import { hashParam } from "../lib/hash"
+import { padLongTrace } from "./longTurn"
 import { mockOverview, mockSources, mockStatus } from "./overview"
 import { fieldValues, queryTraces, runQuery } from "./query"
 import { runSql } from "./sql"
@@ -58,7 +60,9 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
       const t = getTrace(id)
       if (!t) return json({ error: "not found" }, 404)
       const session = sessions.find((s) => s.session_id === t.session_id)
-      return json({ ...t, session_title: session?.title || null })
+      const long = hashParam("long") === "1" || url.searchParams.get("long") === "1"
+      const body = long ? padLongTrace(t) : t
+      return json({ ...body, session_title: session?.title || null })
     }
     if (p === "/api/findings") return json(findings)
     if (p === "/api/fields") return json(fields)

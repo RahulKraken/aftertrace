@@ -204,6 +204,27 @@ app
     setWin.close()
 
     win.setContentSize(1024, 720)
+    await loadHash(
+      win,
+      "/trace/509cb3acac23db7c6e9b7d180a474268?long=1",
+      "light",
+      `${PAINTED} && !!document.querySelector('.step-group')`,
+    )
+    await exec(win, `document.querySelector('.step-group .link')?.click(); true`)
+    await waitFor(win, "!!document.querySelector('.st-steps') && !document.querySelector('.step-group')")
+    await waitFor(
+      win,
+      "(() => { const el = document.querySelector('.st-scroll'); return !!(el && el.scrollHeight > el.clientHeight + 40); })()",
+    )
+    await exec(win, `const el = document.querySelector('.st-scroll'); if (el) el.scrollTop = el.scrollHeight; true`)
+    await waitFor(
+      win,
+      "(() => { const el = document.querySelector('.st-scroll'); return !!(el && el.scrollTop > 40); })()",
+    )
+    await sleep(250)
+    await savePng(win, path.join(OUT, "turn-long-1024-light.png"))
+
+    win.setContentSize(1024, 720)
     await loadHash(win, "/findings", "light", "!!document.querySelector('.fr.sel')")
     const rec1 = path.join(OUT, "rec-1.png")
     const rec2 = path.join(OUT, "rec-2.png")

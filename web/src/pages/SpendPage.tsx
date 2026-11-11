@@ -7,6 +7,7 @@ import { useShell } from "../components/Shell"
 import { durHead, modelName, pct, tok, usd } from "../lib/format"
 import { receiptMarkdown } from "../lib/receipt"
 import { recapLead, recapShipped } from "../lib/recapStory"
+import { spendLead } from "../lib/spendInsight"
 import { readPlan } from "../lib/plan"
 import { useToast } from "../lib/toast"
 import { modelFamily } from "../lib/model"
@@ -82,7 +83,8 @@ export function SpendPage() {
   const hitIdx = table?.columns.indexOf("cache_hit") ?? -1
   const labelIdx = 0
   const weekCost = week?.cost_usd || 0
-  const topShare = weekCost > 0 ? top.reduce((a, s) => a + (s.cost_usd || 0), 0) / weekCost : 0
+  const insightLead = spendLead(weekSessions, weekCost) || (recap ? recapLead(recap).map((p) => p.text).join("") : "")
+  const insightShipped = recap ? recapShipped(recap).map((p) => p.text).join("") : ""
 
   if (err && !table && !ov) {
     return (
@@ -138,13 +140,8 @@ export function SpendPage() {
       </Toolbar>
       <div className="body">
         <div className="pad spend">
-          {recap ? (
-            <p className="insight">
-              {topShare >= 0.45
-                ? `Half your spend came from ${top.length} sessions.`
-                : recapLead(recap).map((p) => p.text).join("")}{" "}
-              {recapShipped(recap).map((p) => p.text).join("")}
-            </p>
+          {insightLead || insightShipped ? (
+            <p className="insight">{[insightLead, insightShipped].filter(Boolean).join(" ")}</p>
           ) : null}
           {week && (
             <div className="hero">

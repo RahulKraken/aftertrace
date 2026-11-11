@@ -287,11 +287,16 @@ function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) 
             modelName(session?.models?.[0]),
             `${dur(elapsed)} elapsed`,
             session ? `${dur(session.turn_ms)} agent` : null,
-            session?.tokens != null ? `${tok(session.tokens)} tokens` : null,
           ]
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {session?.tokens != null ? (
+          <>
+            <span className="l3">·</span>
+            <span className="l2 lane-tokens">{tok(session.tokens)} tokens</span>
+          </>
+        ) : null}
       </div>
       {RIBBON_ORDER.filter((k) => parts[k] / Math.max(partsTotal(parts), 1) > 0.08).length > 1 ? (
         <Ribbon parts={parts} live tall />

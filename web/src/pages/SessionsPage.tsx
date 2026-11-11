@@ -88,7 +88,6 @@ export function SessionsPage() {
 
   const groups = useMemo(() => groupSessions(filtered), [filtered])
   const maxMs = Math.max(...filtered.map((s) => s.turn_ms || 0), 1)
-  const weekSpend = filtered.reduce((a, s) => a + (s.cost_usd || 0), 0)
 
   if (err && !rows) {
     return (
@@ -146,7 +145,7 @@ export function SessionsPage() {
                 <th className="c-shape">Where time went</th>
                 <th className="r">Time</th>
                 <th className="r">Tokens</th>
-                <th className="r">Cost · {usd(weekSpend)}</th>
+                <th className="r">Cost</th>
               </tr>
             </thead>
             <tbody>

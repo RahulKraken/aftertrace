@@ -65,6 +65,18 @@ test.describe("shared app layout", () => {
         await expect(page.locator(".today > .insp"), `Worth changing hidden at ${width}`).toBeVisible()
         const titleWidth = await page.locator(".lane .lt").first().evaluate((el) => el.clientWidth)
         expect(titleWidth, `running title cramped at ${width}`).toBeGreaterThan(280)
+        const tokens = page.locator(".lane-doing .lane-tokens")
+        await expect(tokens).toHaveText(/tokens/)
+        const tokenBox = await tokens.evaluate((el) => ({
+          lines: el.getClientRects().length,
+          text: (el.textContent || "").trim(),
+          sw: el.scrollWidth,
+          cw: el.clientWidth,
+        }))
+        expect(tokenBox.lines, `running tokens wrap at ${width}`).toBe(1)
+        expect(tokenBox.text, `running tokens clipped at ${width}`).toMatch(/\d/)
+        expect(tokenBox.text.includes("…") || tokenBox.text.endsWith("..."), `running tokens ellipsized at ${width}`).toBe(false)
+        expect(tokenBox.sw, `running tokens overflow at ${width}`).toBeLessThanOrEqual(tokenBox.cw + 1)
       } else {
         await expect(page.locator(".today > .insp")).toBeHidden()
       }
@@ -85,6 +97,10 @@ test.describe("shared app layout", () => {
           expect(text.length, `session title ${i} at ${width}`).toBeGreaterThan(8)
           expect(box?.height || 0, `session title height ${i} at ${width}`).toBeGreaterThan(10)
         }
+      }
+      if (width === 960 || width === 1024) {
+        const box = await page.locator(".tblwrap").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }))
+        expect(box.sw, `sessions list wider than pane at ${width}`).toBeLessThanOrEqual(box.cw)
       }
 
       await page.goto("/#/findings")
@@ -232,4 +248,26 @@ test("sidebar shows one Restart to update when the desktop update is ready", asy
   await expect(page.locator(".side-update")).toHaveText("Restart to update · v0.5.7")
   await expect(page.locator(".recv")).toBeVisible()
   await expect(page.locator("[data-update=ready]")).toHaveCount(1)
+})
+
+test("long turn expands without scrolling the window", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 720 })
+  await page.goto("/#/trace/509cb3acac23db7c6e9b7d180a474268?long=1")
+  await expect(page.locator(".step-group")).toContainText("more steps")
+  await page.locator(".step-group .link").click()
+  await expect(page.locator(".step-group")).toHaveCount(0)
+  const pane = page.locator(".st-scroll")
+  await expect.poll(async () => pane.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(40)
+  await pane.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  const scrolled = await pane.evaluate((el) => ({ top: el.scrollTop, sh: el.scrollHeight, ch: el.clientHeight }))
+  expect(scrolled.top, "turn pane did not scroll to the end").toBeGreaterThan(40)
+  expect(scrolled.top + scrolled.ch, "turn pane not at end").toBeGreaterThanOrEqual(scrolled.sh - 2)
+  const docTop = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
+  expect(docTop, "document scrolled after expanding a long turn").toBe(0)
+  await expect(page.locator(".nav", { hasText: "Today" })).toBeVisible()
+  const side = await page.locator(".side").boundingBox()
+  expect(side?.x ?? 99).toBeLessThan(8)
+  await expect(page.locator(".st-end")).toBeVisible()
 })
