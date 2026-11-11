@@ -155,8 +155,23 @@ export function sayTok(v: number | null | undefined): string {
 }
 
 export function pct(v: number | null | undefined): string {
-  if (v == null) return "—"
-  return `${Math.round(v * 100)}%`
+  if (v == null || Number.isNaN(v)) return "—"
+  const n = v <= 1 ? v * 100 : v
+  if (n > 0 && n < 1) return "<1%"
+  return `${Math.round(n)}%`
+}
+
+// Headline durations: 49m, 2m. Tables and rows keep seconds via dur().
+export function durHead(ms: number | null | undefined): string {
+  if (ms == null || Number.isNaN(ms)) return "—"
+  const neg = ms < 0 ? "-" : ""
+  const abs = Math.abs(ms)
+  if (abs < 45_000) return dur(ms)
+  const m = Math.round(abs / 60_000)
+  if (m < 60) return `${neg}${m}m`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return rm ? `${neg}${h}h ${rm}m` : `${neg}${h}h`
 }
 
 export function when(ns: number | null | undefined): { date: string; time: string } {

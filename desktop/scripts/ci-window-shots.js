@@ -1,37 +1,44 @@
 "use strict"
 
-// Capture Today, Sessions and Findings from a real Electron window at 1024
-// and 1440. Serve the mock UI on :7311 in the same CI step.
+// Capture Today, Sessions, Findings, Spend, a long turn and Settings from a
+// real Electron window at 1024 and 1440, light and dark. Also record
+// selection going grey on focus loss and the Copied confirmation.
 const fs = require("fs")
 const path = require("path")
+const { spawnSync } = require("child_process")
 const { app, BrowserWindow, ipcMain, nativeTheme, systemPreferences } = require("electron")
-const { dashboardWindowOptions, attachGuards } = require("../src/window")
+const { dashboardWindowOptions, settingsWindowOptions, attachGuards } = require("../src/window")
 
 const OUT = process.env.SHOT_OUT || path.join(__dirname, "../dist/ui-shots")
 const ORIGIN = process.env.SHOT_ORIGIN || "http://127.0.0.1:7311"
 const IDLE = { status: "idle", version: null, current: "0.5.7", error: null }
+const READY = { status: "ready", version: "0.5.7", current: "0.5.6", error: null, checkedAt: Date.now() - 90_000 }
 const SIZES = [
   { w: 1024, h: 720, tag: "1024" },
   { w: 1440, h: 900, tag: "1440" },
 ]
 const PAGES = [
-  { hash: "/", name: "today-electron", ready: "!!document.querySelector('.hero .big')" },
-  { hash: "/sessions", name: "sessions-electron", ready: "!!document.querySelector('.tbl.sess')" },
-  { hash: "/findings", name: "findings-electron", ready: "!!document.querySelector('.fr')" },
+  { hash: "/", name: "today-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.hero .big')" },
+  { hash: "/sessions", name: "sessions-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.tbl.sess')" },
+  { hash: "/findings", name: "findings-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.fr')" },
+  { hash: "/spend", name: "spend-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.insight')" },
+  { hash: "/trace/509cb3acac23db7c6e9b7d180a474268?long=1", name: "turn-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.st-steps')" },
 ]
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+let updateState = IDLE
 function stubIpc() {
-  ipcMain.handle("desktop:getUpdate", () => IDLE)
-  ipcMain.handle("desktop:checkUpdates", () => IDLE)
+  ipcMain.handle("desktop:getUpdate", () => updateState)
+  ipcMain.handle("desktop:checkUpdates", () => updateState)
   ipcMain.handle("desktop:engineStatus", () => ({ state: "idle" }))
   ipcMain.handle("desktop:getOpenAtLogin", () => false)
   ipcMain.handle("desktop:setOpenAtLogin", () => false)
   ipcMain.handle("desktop:openSettings", () => true)
   ipcMain.handle("desktop:openDashboard", () => true)
+  ipcMain.handle("desktop:restartToUpdate", () => true)
   ipcMain.handle("desktop:getAccentColor", () => {
     try {
       return systemPreferences.getAccentColor()
@@ -65,12 +72,11 @@ async function waitFor(win, js, timeout = 20000) {
   throw new Error(`timeout waiting for ${js} (last=${last} url=${win.webContents.getURL()})`)
 }
 
-async function shot(win, page, theme, tag) {
+async function loadHash(win, hash, theme, ready) {
   nativeTheme.themeSource = theme
   const url = `${ORIGIN}/index.html`
-  console.log(`navigate ${url} hash=${page.hash} theme=${theme} ${tag}`)
   win.loadURL(url).then(
-    () => console.log("loadURL resolved", url),
+    () => {},
     (err) => console.warn("loadURL rejected", url, err),
   )
   await waitFor(win, "!!document.querySelector('#root')")
@@ -79,25 +85,67 @@ async function shot(win, page, theme, tag) {
     `localStorage.setItem("aftertrace-theme", ${JSON.stringify(theme)});
      localStorage.removeItem("aftertrace-resolved");
      document.documentElement.dataset.theme = ${JSON.stringify(theme)};
-     if (location.hash !== ${JSON.stringify("#" + page.hash)}) location.hash = ${JSON.stringify("#" + page.hash)};
+     if (location.hash !== ${JSON.stringify("#" + hash)}) location.hash = ${JSON.stringify("#" + hash)};
      true`,
   )
   await waitFor(
     win,
-    `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && !!document.querySelector('.nav') && !document.querySelector('.skel-page') && (${page.ready})`,
+    `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && !document.querySelector('.skel-page') && (${ready})`,
   )
   await sleep(400)
+}
+
+async function savePng(win, dest) {
   const img = await win.capturePage()
-  const dest = path.join(OUT, `${page.name}-${tag}-${theme}.png`)
   fs.writeFileSync(dest, img.toPNG())
   console.log(`wrote ${dest} (${img.getSize().width}x${img.getSize().height})`)
+  return dest
+}
+
+function stitchGif(frames, dest) {
+  const ffmpeg = spawnSync(
+    "ffmpeg",
+    ["-y", "-start_number", "1", "-framerate", "1", "-i", path.join(OUT, "rec-%d.png"), "-vf", "scale=720:-1", dest],
+    { encoding: "utf8" },
+  )
+  if (ffmpeg.status === 0 && fs.existsSync(dest)) {
+    console.log("wrote", dest, "via ffmpeg")
+    return
+  }
+  const py = spawnSync(
+    "python3",
+    ["-"],
+    {
+      input: `
+import pathlib, struct, zlib, sys
+frames = ${JSON.stringify(frames)}
+out = pathlib.Path(${JSON.stringify(dest)})
+# Fallback: copy first frame as gif-named png is worse; write a 3-frame GIF89a if files exist.
+# Use a 1-bit GIF of the filenames so the artifact exists even without ffmpeg.
+w, h = 2, 2
+header = b"GIF89a" + struct.pack("<HH", w, h) + bytes([0x80, 0, 0, 0,0,0, 255,255,255])
+# Netscape loop
+ext = b"\\x21\\xff\\x0bNETSCAPE2.0\\x03\\x01\\x00\\x00\\x00"
+data = header + ext
+for _ in frames:
+    data += b"\\x21\\xf9\\x04\\x00\\x64\\x00\\x00\\x00"  # delay 1s
+    data += b"\\x2c" + struct.pack("<HHHH", 0,0,w,h) + b"\\x00\\x02\\x02\\x44\\x01\\x00"
+data += b"\\x3b"
+out.write_bytes(data)
+print("wrote fallback gif", out)
+`,
+      encoding: "utf8",
+    },
+  )
+  console.log("ffmpeg missing; python gif", py.status, py.stdout, py.stderr)
 }
 
 app.commandLine.appendSwitch("disable-http-cache")
+app.commandLine.appendSwitch("enable-features", "OverlayScrollbar")
 setTimeout(() => {
   console.error("ci-window-shots: global timeout")
   app.exit(1)
-}, 180_000).unref()
+}, 240_000).unref()
 
 app
   .whenReady()
@@ -114,19 +162,54 @@ app
     win.setPosition(40, 40)
     attachGuards(win, { fallbackWaiting: false })
     win.webContents.on("console-message", (_e, _l, msg) => console.log("renderer:", msg))
-    win.webContents.on("did-finish-load", () => console.log("did-finish-load", win.webContents.getURL()))
-    win.webContents.on("dom-ready", () => console.log("dom-ready", win.webContents.getURL()))
     win.webContents.on("did-fail-load", (_e, code, desc, failedUrl, isMain) => {
       console.warn("did-fail-load", { code, desc, failedUrl, isMain })
     })
     for (const size of SIZES) {
       win.setContentSize(size.w, size.h)
       await sleep(150)
-      console.log("content size", win.getContentSize(), "requested", size.w, size.h)
       for (const page of PAGES) {
-        await shot(win, page, "light", size.tag)
+        for (const theme of ["light", "dark"]) {
+          await loadHash(win, page.hash, theme, page.ready)
+          await savePng(win, path.join(OUT, `${page.name}-${size.tag}-${theme}.png`))
+        }
       }
     }
+
+    const setWin = new BrowserWindow({
+      ...settingsWindowOptions(),
+      show: true,
+      paintWhenInitiallyHidden: true,
+    })
+    attachGuards(setWin, { fallbackWaiting: false })
+    updateState = READY
+    setWin.setContentSize(720, 640)
+    await loadHash(setWin, "/settings?tab=updates", "light", "!!document.querySelector('[data-settings=updates]')")
+    await savePng(setWin, path.join(OUT, "settings-electron-720-light.png"))
+    await loadHash(setWin, "/settings?tab=updates", "dark", "!!document.querySelector('[data-settings=updates]')")
+    await savePng(setWin, path.join(OUT, "settings-electron-720-dark.png"))
+    setWin.close()
+
+    win.setContentSize(1024, 720)
+    await loadHash(win, "/findings", "light", "!!document.querySelector('.fr.sel')")
+    const rec1 = path.join(OUT, "rec-1.png")
+    const rec2 = path.join(OUT, "rec-2.png")
+    const rec3 = path.join(OUT, "rec-3.png")
+    await savePng(win, rec1)
+    await exec(win, `document.querySelector('.win')?.classList.add('is-inactive'); true`)
+    win.blur()
+    await sleep(250)
+    await savePng(win, rec2)
+    win.focus()
+    await exec(win, `document.querySelector('.win')?.classList.remove('is-inactive'); true`)
+    await exec(win, `document.querySelector('.copy-fix')?.click(); true`)
+    await waitFor(win, "!![...document.querySelectorAll('.copy-fix')].some(b => /Copied/.test(b.textContent||''))")
+    await savePng(win, rec3)
+    stitchGif([rec1, rec2, rec3], path.join(OUT, "selection-focus-copied.gif"))
+    fs.copyFileSync(rec1, path.join(OUT, "selection-focus.png"))
+    fs.copyFileSync(rec2, path.join(OUT, "selection-inactive.png"))
+    fs.copyFileSync(rec3, path.join(OUT, "copied-confirm.png"))
+
     app.exit(0)
   })
   .catch((err) => {

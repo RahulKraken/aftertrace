@@ -2,9 +2,10 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, ChevronRight, CircleAlert, MessageCircleQuestion, ShieldQuestion, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "wouter"
+import { Toolbar } from "../../lib/chrome"
 import { dur, sayDur, usd } from "../../lib/format"
 import { indexContent } from "../../lib/content"
-import { buildForest } from "../../lib/span"
+import { buildForest, type SpanNode } from "../../lib/span"
 import { buildStory, cleanPrompt, relPaths, summarize, type Action, type Chapter, type Pause, type StoryItem } from "../../lib/steps"
 import { turnStory } from "../../lib/story"
 import type { Breakdown, Finding, Trace } from "../../lib/types"
@@ -22,16 +23,111 @@ const SHOW_WAIT_MS = 5_000
 type Gap = { kind: "gap"; id: string; label: string }
 type ShownStep = StoryItem | Gap
 
-function padSteps(items: StoryItem[]): StoryItem[] {
-  if (!items.length) return items
-  const out = [...items]
-  let i = 0
-  while (out.length < 24) {
-    const src = items[i % items.length]
-    out.push({ ...src, id: `${src.id}-pad-${out.length}` })
-    i++
+const LONG_STEPS = [
+  "Reading the failing test output",
+  "Asking a subagent to grep the checkout path",
+  "Opening src/checkout/session.go",
+  "go test ./internal/billing failed",
+  "Patching the idempotency key on the charge path",
+  "Re-running the unit tests",
+  "Reading CLAUDE.md for the billing notes",
+  "Asking a subagent to find other charge sites",
+  "Editing tests/checkout_test.go",
+  "npm test -- --watch=false",
+  "Git diff of the checkout package",
+  "Fixing a nil pointer in the webhook handler",
+  "Asking a subagent to scan the webhook logs",
+  "Retrying the failed HTTP 529 request",
+  "Writing a regression test for double charge",
+  "Formatting the patched files",
+  "Updating the billing README",
+  "Running go test ./...",
+  "Staging the checkout changes",
+  "Summarising what changed",
+]
+
+function fakeSpan(id: string, name: string, start: number, end: number, extra: Partial<SpanNode> = {}): SpanNode {
+  return {
+    span_id: id,
+    parent_span_id: extra.parent_span_id ?? null,
+    name,
+    start_ns: start,
+    end_ns: end,
+    duration_ms: (end - start) / 1e6,
+    is_error: Boolean(extra.is_error),
+    status_message: extra.status_message ?? null,
+    attrs: extra.attrs || {},
+    kids: extra.kids || [],
+    critical: extra.critical,
+    joined: extra.joined,
+    retry_end_ns: extra.retry_end_ns ?? null,
+    findings: extra.findings,
   }
-  return out
+}
+
+function fakeAction(id: string, start: number, end: number, verb: string, object: string, err = false, kids: Action[] = []): Action {
+  return {
+    span: fakeSpan(id, err ? "claude_code.tool.execution" : "claude_code.tool", start, end, {
+      is_error: err,
+      attrs: { tool_name: err ? "Bash" : "Agent" },
+    }),
+    cat: err ? "run" : "agent",
+    verb,
+    object,
+    code: true,
+    detail: err ? "exit 1" : "",
+    ms: (end - start) / 1e6,
+    waitMs: 0,
+    error: err,
+    file: null,
+    kids,
+  }
+}
+
+function padSteps(items: StoryItem[]): StoryItem[] {
+  const chapters = items.filter((it) => it.kind === "chapter").length
+  const need = Math.max(0, 22 - chapters)
+  if (!need) return items
+  let t = 0
+  for (const it of items) {
+    if (it.kind === "chapter") t = Math.max(t, it.endNs)
+    if (it.kind === "pause") t = Math.max(t, it.startNs + it.ms * 1e6)
+  }
+  const extra: StoryItem[] = []
+  for (let i = 0; i < need; i++) {
+    const start = t + (8 + i) * 1e9
+    const end = start + (11 + i * 2) * 1e9
+    const subagent = i === 1 || i === 7 || i === 12
+    const error = i === 3
+    extra.push({
+      kind: "chapter",
+      id: `long-${i}`,
+      title: LONG_STEPS[i] || `Checking remaining files ${i + 1}`,
+      startNs: start,
+      endNs: end,
+      thinkMs: 800 + i * 160,
+      cost: 0.012 + i * 0.004,
+      actions: subagent
+        ? [
+            fakeAction(
+              `long-act-${i}`,
+              start,
+              end,
+              "asked",
+              "a subagent to search",
+              false,
+              [fakeAction(`long-nest-${i}`, start + 2e9, end - 1e9, "ran", "rg --type go charge")],
+            ),
+          ]
+        : error
+          ? [fakeAction(`long-act-${i}`, start, end, "ran", "go test ./internal/billing", true)]
+          : [],
+      errors: error ? 1 : 0,
+      titleSpan: null,
+    })
+    t = end
+  }
+  return [...items, ...extra]
 }
 
 function visibleSteps(items: StoryItem[], expand: boolean): ShownStep[] {
@@ -102,32 +198,21 @@ export function TurnStory({
 
   const totalMs = root.duration_ms
   const cost = trace.spans.reduce((n, s) => n + (s.joined?.cost_usd || 0), 0)
+  const sessionTitle = (trace.session_title || prompt || "Session").split("\n")[0].trim()
+  const crumb = sessionTitle.length > 52 ? `${sessionTitle.slice(0, 50)}…` : sessionTitle
 
   return (
-    <div className={`wf story-mode ${selected ? "has-pane" : ""}`}>
+    <div className={`story-page wf story-mode ${selected ? "has-pane" : ""}`}>
+      <Toolbar
+        title={<span title={sessionTitle}>{crumb}</span>}
+        sub={`Turn ${trace.turn_index} of ${trace.turn_count}`}
+        back={{ href: `/session/${trace.session_id}`, label: "Back to session" }}
+      >
+        <TraceViewSwitch view={view} onChange={onView} />
+      </Toolbar>
       <div className="wf-main">
         <div className="st-scroll">
           <div className="st-wrap">
-            <div className="crumbs">
-              <Link href="/sessions">Sessions</Link> ›{" "}
-              <Link href={`/session/${trace.session_id}`} className="mono">
-                {trace.session_id.slice(0, 8)}
-              </Link>{" "}
-              › Turn {trace.turn_index} of {trace.turn_count}
-              <span className="spacer" />
-              <span className={`live-badge ${running ? "is-live" : "is-done"}`}>
-                {running ? <i className="live-dot" /> : null}
-                {running ? "Running" : "Done"}
-              </span>
-              <TraceViewSwitch view={view} onChange={onView} />
-              <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="Previous turn ([)">
-                ‹
-              </button>
-              <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="Next turn (])">
-                ›
-              </button>
-            </div>
-
             {prompt ? (
               <div className={`st-prompt ${promptOpen ? "is-open" : ""}`}>
                 <div className="st-label">You asked</div>
@@ -156,7 +241,7 @@ export function TurnStory({
             <TimeBar bd={trace.breakdown} totalMs={totalMs} onWait={() => reveal((i) => i.kind === "pause")} hasPause={story.items.some((i) => i.kind === "pause")} />
 
             {story.final || story.filesChanged.length ? (
-              <section className={`st-outcome ${story.final ? "" : "is-bare"}`}>
+              <section className="st-outcome is-bare">
                 {story.final ? (
                   <>
                     <div className="st-label">{running ? "Latest from Claude" : "Where it ended"}</div>

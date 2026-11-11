@@ -9,9 +9,9 @@ import { EmptyState } from "../components/EmptyState"
 import { Ribbon, RibbonKey } from "../components/Ribbon"
 import { SearchField, Toolbar } from "../lib/chrome"
 import { useShell } from "../components/Shell"
-import { clock, dur, modelName, pct, tok, usd } from "../lib/format"
+import { clock, dur, durHead, modelName, pct, tok, usd } from "../lib/format"
 import { hashParam } from "../lib/hash"
-import { addParts, emptyParts, fromBreakdown, partsTotal } from "../lib/ribbon"
+import { addParts, emptyParts, fromBreakdown, partsTotal, RIBBON_ORDER } from "../lib/ribbon"
 import { useStatus } from "../lib/status"
 import { actionSentence, monthlyUSD, shortTitle } from "../lib/welcome"
 import type { Finding, HistoryProject, LiveLane, Overview, Session, Status } from "../lib/types"
@@ -152,7 +152,7 @@ function Today({ ov, sessions, openCount }: { ov: Overview; sessions: Session[];
 
           <div className="sec-h week-h">
             This week
-            <span className="m">{weekRange(ov.lo, ov.hi)}</span>
+            <span className="m">{weekRange(ov.hi)}</span>
           </div>
           <div className="hero">
             <div>
@@ -160,11 +160,11 @@ function Today({ ov, sessions, openCount }: { ov: Overview; sessions: Session[];
               <div className="cap">spent</div>
             </div>
             <div>
-              <div className="big n">{dur(ov.week.turn_ms)}</div>
+              <div className="big n">{durHead(ov.week.turn_ms)}</div>
               <div className="cap">agent time</div>
             </div>
             <div>
-              <div className="big n amb">{dur(ov.week.breakdown.permission_wait)}</div>
+              <div className="big n amb">{durHead(ov.week.breakdown.permission_wait)}</div>
               <div className="cap">waiting on you</div>
             </div>
             <div className="facts">
@@ -228,7 +228,8 @@ function Today({ ov, sessions, openCount }: { ov: Overview; sessions: Session[];
               <div className="ft">{findingTitle(hero)}</div>
               <div className="fd l2">{hero.detail}</div>
               <div className="fsave">
-                <span className="n">{usd(hero.monthly_usd ?? monthlyUSD(hero))}</span>a month
+                <span className="n">{usd(hero.monthly_usd ?? monthlyUSD(hero))}</span>
+                a month if this keeps up
               </div>
               <div className="fact">
                 <Link href={`/findings?focus=${hero.id}`} className="btn pri">
@@ -281,12 +282,20 @@ function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) 
         <span className="mono">{doing || "working"}</span>
         <span className="l3">·</span>
         <span className="l2">
-          {[session?.repo, modelName(session?.models?.[0]), dur(elapsed), session?.tokens != null ? `${tok(session.tokens)} tokens` : null]
+          {[
+            session?.repo,
+            modelName(session?.models?.[0]),
+            `${dur(elapsed)} elapsed`,
+            session ? `${dur(session.turn_ms)} agent` : null,
+            session?.tokens != null ? `${tok(session.tokens)} tokens` : null,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </span>
       </div>
-      <Ribbon parts={parts} live tall />
+      {RIBBON_ORDER.filter((k) => parts[k] / Math.max(partsTotal(parts), 1) > 0.08).length > 1 ? (
+        <Ribbon parts={parts} live tall />
+      ) : null}
     </Link>
   )
 }
@@ -320,7 +329,7 @@ function FirstRun({ status }: { status: Status | null }) {
             <b className="n">{usd(h.cost_usd)}</b> and <b className="n">{tok(h.tokens)}</b> tokens.
           </div>
           {f ? (
-            <div className="fr-card group">
+            <div className="fr-card">
               <div className="fr-t">{actionSentence(f)}</div>
               <div className="fr-save">
                 <span className="big n amb">{usd(monthly)}</span>
@@ -344,7 +353,7 @@ function FirstRun({ status }: { status: Status | null }) {
               </div>
             </div>
           ) : (
-            <div className="fr-card group">
+            <div className="fr-card">
               <div className="fr-t">Nothing to change yet in {h.sessions} sessions. That's rare.</div>
             </div>
           )}
@@ -396,9 +405,10 @@ function projects(rows: Session[]): HistoryProject[] {
   return [...m.values()].sort((a, b) => b.cost_usd - a.cost_usd || a.name.localeCompare(b.name))
 }
 
-function weekRange(lo: number, hi: number) {
-  const a = new Date(lo / 1e6)
+function weekRange(hi: number) {
   const b = new Date((hi - 1) / 1e6)
+  const a = new Date(b)
+  a.setDate(b.getDate() - 6)
   const same = a.getMonth() === b.getMonth()
   const left = a.toLocaleDateString("en-GB", { day: "numeric", month: same ? undefined : "short" })
   const right = b.toLocaleDateString("en-GB", { day: "numeric", month: "short" })

@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: design-review round 1.
+
+**Choice.** Turn crumbs use the session prompt title; long-turn fixture is 20+ unique rising-timestamp steps. Sessions hide the time-ribbon column below 1180px, wrap inspector titles to 3 lines, 2×2 nowrap stats. Today and Spend share `overview.week`. Elapsed vs agent time are labelled. Resolved findings show the date, quiet Reopen, muted amber, secondary Copy fix. Spend leads with an insight, a model bar + legend, and top 5 sessions. Settings is a 720×640 Mac Settings window with icon tabs. `global.css` and `v4.css` are gone; `token-lint` fails raw font-size/radius/ms outside `tokens.css`. Selection is ≤140ms; WinStage and shimmer are deleted. DESIGN.md is the one design source.
+
+**Why.** Round 1 review of PR #57: hash in the turn header, fake long-turn clocks, Sessions clipped at 1024, Today/Spend totals disagreed, two style systems, leftover celebration motion.
+
+**How to reverse.** Restore `web/src/styles/global.css` and `v4.css` from git; drop `web/scripts/token-lint.mjs`.
+
 ## Nov 11 2026: Today week stats never wrap; window min 960.
 
 **Choice.** Dashboard `minWidth` is 960. Today hero values, captions and the sessions/tokens/cache-hit column are `white-space: nowrap`. The Worth changing pane (`--inspector`) narrows first (320 → 260 → 200) and hides below 1000px so the stat row fits. Running-now cost stays on the right; tokens move to the secondary line so the title can use the row.

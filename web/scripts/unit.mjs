@@ -12,7 +12,7 @@ const vite = await createServer({
   appType: "custom",
 })
 
-const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
+const { dur, durHead, tok, usd, sayDur, sayUsd, sayTok, moneyParts, pct, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
@@ -48,6 +48,10 @@ eq(sayTok(1_400_000), "1.4M", "sayTok 1.4M")
 eq(usd(0.41), "$0.41", "usd two decimals")
 eq(usd(0.968), "$0.97", "usd never three decimals")
 eq(dur(49 * 60_000), "49m", "dur omits 0s")
+eq(durHead(49 * 60_000 + 8000), "49m", "durHead drops seconds")
+eq(durHead(134_000), "2m", "durHead 2m")
+eq(pct(0.91), "91%", "pct fraction")
+eq(pct(0.003), "<1%", "pct under one")
 
 const opus = {
   id: 1,
@@ -185,7 +189,7 @@ eq(
     headline: "Skill pdf-report drove 30% of spend",
     detail: "16 requests, 1 activations, $6.48 per activation. Mostly claude-opus-5 at effort max.",
   }),
-  "Generate monthly PDF report on Opus",
+  "PDF report runs on Opus at max effort",
   "shortTitle skill pdf-report",
 )
 const mcpGet = {

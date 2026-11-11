@@ -111,6 +111,8 @@ export type Trace = {
   in_progress?: boolean
   // service.name of the trace. Anything not claude-code* is an app.
   service?: string
+  // First prompt of the parent session, when the list knows it.
+  session_title?: string | null
 }
 
 export type Evidence = {

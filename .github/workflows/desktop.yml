@@ -458,16 +458,26 @@ jobs:
           mkdir -p "$SHOT_OUT"
           (cd desktop && npx electron scripts/ci-window-shots.js)
           ls -lah "$SHOT_OUT"
-          test -s "$SHOT_OUT/today-electron-1024-light.png"
-          test -s "$SHOT_OUT/today-electron-1440-light.png"
-          test -s "$SHOT_OUT/sessions-electron-1024-light.png"
-          test -s "$SHOT_OUT/sessions-electron-1440-light.png"
-          test -s "$SHOT_OUT/findings-electron-1024-light.png"
-          test -s "$SHOT_OUT/findings-electron-1440-light.png"
+          for page in today sessions findings spend turn; do
+            for size in 1024 1440; do
+              for theme in light dark; do
+                test -s "$SHOT_OUT/${page}-electron-${size}-${theme}.png"
+              done
+            done
+          done
+          test -s "$SHOT_OUT/settings-electron-720-light.png"
+          test -s "$SHOT_OUT/settings-electron-720-dark.png"
+          test -s "$SHOT_OUT/selection-focus.png"
+          test -s "$SHOT_OUT/selection-inactive.png"
+          test -s "$SHOT_OUT/copied-confirm.png"
+          test -s "$SHOT_OUT/selection-focus-copied.gif"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: aftertrace-macos-ui-shots
-          path: desktop/dist/ui-shots/*.png
+          path: |
+            desktop/dist/ui-shots/*.png
+            desktop/dist/ui-shots/*.gif
+            desktop/dist/ui-shots/*.mp4
           if-no-files-found: warn
           retention-days: 14

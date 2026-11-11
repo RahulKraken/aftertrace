@@ -14,7 +14,7 @@ SELECT
   'Skill ' || s.skill_name || ' drove ' || printf('%.0f', (s.cost / nullif(t.total,0)) * 100) || '% of spend' AS headline,
   s.cost AS impact_value,
   'USD' AS impact_unit,
-  s.n_req || ' requests, ' || s.acts || ' activations, $' ||
+  s.n_req || ' requests, ' || s.acts || ' activation' || CASE WHEN s.acts = 1 THEN '' ELSE 's' END || ', $' ||
     printf('%.2f', s.cost / greatest(1, s.acts)) || ' per activation. Mostly ' || coalesce(s.model, '?') ||
     ' at effort ' || coalesce(s.effort, 'none') || '.' AS detail,
   'Check whether ' || s.skill_name || ' needs ' || coalesce(s.model, 'this model') || ' at ' || coalesce(s.effort, 'this') ||

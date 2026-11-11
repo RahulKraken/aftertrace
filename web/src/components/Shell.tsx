@@ -68,8 +68,19 @@ export function Shell({
   const [findings, setFindings] = useState<Finding[]>([])
   const [resolved, setResolved] = useState(() => resolvedKeys())
   const [loc, nav] = useLocation()
+  const [inactive, setInactive] = useState(false)
   const pendingG = useRef(0)
   const prefs = windowKind() === "settings"
+
+  useEffect(() => {
+    const on = () => setInactive(!document.hasFocus())
+    window.addEventListener("blur", on)
+    window.addEventListener("focus", on)
+    return () => {
+      window.removeEventListener("blur", on)
+      window.removeEventListener("focus", on)
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -158,7 +169,7 @@ export function Shell({
   return (
     <StatusContext.Provider value={status}>
       <ShellCtx.Provider value={shell}>
-        <div className={`win${prefs ? " prefs" : ""}`}>
+        <div className={`win${prefs ? " prefs" : ""}${inactive ? " is-inactive" : ""}`}>
           {!prefs && (
             <aside className="side" aria-label="Main">
               <div className="lights" aria-hidden="true" />
@@ -239,6 +250,7 @@ function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
 }
 
 function StatusDot({ status }: { status: Status | null }) {
+  if (emptyMode()) return <><span className="dot off" />Not tracing yet</>
   if (!status) return <><span className="dot off" />Connecting…</>
   if (!status.last_ns) return <><span className="dot off" />Not tracing yet</>
   const fresh = Date.now() * 1e6 - status.last_ns < 5 * 60e9

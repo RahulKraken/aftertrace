@@ -72,6 +72,11 @@ test.describe("shared app layout", () => {
       await page.goto("/#/sessions")
       await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
       expect(await pageOverflow(page), `Sessions overflow at ${width}`).toBeLessThanOrEqual(1)
+      if (width <= 1024) {
+        await expect(page.locator(".sess thead th.c-shape")).toBeHidden()
+        const titleW = await page.locator(".sess td.c-title").first().evaluate((el) => el.clientWidth)
+        expect(titleW, `session title col at ${width}`).toBeGreaterThanOrEqual(200)
+      }
 
       await page.goto("/#/findings")
       await expect(page.locator("button.fr").first()).toBeVisible()
@@ -130,7 +135,7 @@ test.describe("shared app layout", () => {
     await page.goto("/#/sessions")
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
     const row = page.locator(".sess tbody tr.run, .sess tbody tr").filter({ has: page.locator(".c-title") }).first()
-    await expect(row.locator(".meta, .doing")).toBeVisible()
+    await expect(row.locator(".meta").first()).toBeVisible()
 
     await page.goto("/#/findings")
     await page.locator(".fr").filter({ hasText: "PDF report" }).click()

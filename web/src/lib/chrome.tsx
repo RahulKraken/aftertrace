@@ -1,4 +1,4 @@
-import { MagnifyingGlass } from "@phosphor-icons/react"
+import { CaretLeft, MagnifyingGlass } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
 import { Link } from "wouter"
 import { searchShortcut } from "./desktop"
@@ -38,14 +38,21 @@ export function Segmented<T extends string>({
 export function Toolbar({
   title,
   sub,
+  back,
   children,
 }: {
   title?: ReactNode
   sub?: ReactNode
+  back?: { href: string; label?: string }
   children?: ReactNode
 }) {
   return (
     <div className="tb">
+      {back ? (
+        <Link href={back.href} className="tb-back" aria-label={back.label || "Back"}>
+          <CaretLeft size={16} weight="bold" />
+        </Link>
+      ) : null}
       {title ? <h1>{title}</h1> : null}
       {sub ? <span className="sub">{sub}</span> : null}
       <span className="sp" />

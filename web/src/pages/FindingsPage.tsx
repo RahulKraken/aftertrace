@@ -14,7 +14,7 @@ import { fixFor, rankHero } from "../lib/fixes"
 import { shortTitle } from "../lib/welcome"
 import { monthlyUSD } from "../lib/welcome"
 import type { Finding, Session, SessionDetail } from "../lib/types"
-import { findingKey, onWins, resolveFinding, resolvedKeys } from "../lib/wins"
+import { findingKey, onWins, reopenFinding, resolveFinding, resolvedAt, resolvedKeys } from "../lib/wins"
 
 type Tab = "open" | "resolved"
 
@@ -143,7 +143,15 @@ export function FindingsPage() {
           )}
         </div>
         <div className="pad">
-          <FindingDetail f={hero} sessions={sessions} details={details} copied={copied} onCopy={() => hero && copyFix(hero)} />
+          <FindingDetail
+            f={hero}
+            sessions={sessions}
+            details={details}
+            copied={copied}
+            resolved={Boolean(hero && resolved.has(findingKey(hero)))}
+            onCopy={() => hero && copyFix(hero)}
+            onReopen={() => hero && reopenFinding(hero)}
+          />
         </div>
       </div>
     </>
@@ -184,9 +192,8 @@ function Group({
             data-finding={f.id}
             onClick={() => onFocus(f.id)}
           >
-            <span className={`sw ${swatch(f)}`} />
             <span className="t">{titleOf(f)}</span>
-            <span className={`v n${f.impact_unit.startsWith("USD") ? " amb" : ""}`}>{valueOf(f)}</span>
+            <span className={`v n${f.impact_unit.startsWith("USD") && !resolved ? " amb" : ""}`}>{valueOf(f)}</span>
           </button>
         )
       })}
@@ -199,23 +206,37 @@ function FindingDetail({
   sessions,
   details,
   copied,
+  resolved,
   onCopy,
+  onReopen,
 }: {
   f?: Finding | null
   sessions: Session[]
   details: Record<string, SessionDetail>
   copied: boolean
+  resolved?: boolean
   onCopy: () => void
+  onReopen: () => void
 }) {
   if (!f) {
     return <div className="fdet l2">Pick a finding.</div>
   }
   const fx = fixFor(f)
   const money = f.impact_unit.startsWith("USD")
-  const waits = waitBars(f)
+  const waits = resolved ? [] : waitBars(f, sessions, details)
   const seen = seenRows(f, sessions, details)
+  const doneAt = resolved ? resolvedAt(findingKey(f)) : null
+  const recovered = money || /wait/i.test(f.impact_unit)
   return (
-    <div className="fdet">
+    <div className={`fdet${resolved ? " is-resolved" : ""}`}>
+      {resolved ? (
+        <div className="resolved-h">
+          <span className="l2">Resolved {doneAt ? resolvedDay(doneAt) : ""}</span>
+          <button type="button" className="link" onClick={onReopen}>
+            Reopen
+          </button>
+        </div>
+      ) : null}
       <h2>
         {titleHead(f)}
         {monoBit(f) ? (
@@ -227,10 +248,10 @@ function FindingDetail({
       </h2>
       <div className="l2">{f.detail}</div>
       <div className="impact">
-        <span className={`big n${money || /wait/i.test(f.impact_unit) ? " amb" : ""}`}>
+        <span className={`big n${recovered && !resolved ? " amb" : ""}`}>
           {money ? usd(monthlyUSD(f) || f.impact_value) : dur(f.impact_value * 1000)}
         </span>
-        <span className="l2">{money ? "a month" : impactCaption(f)}</span>
+        <span className="l2">{money ? "a month if this keeps up" : impactCaption(f)}</span>
       </div>
       {waits.length > 0 && (
         <>
@@ -238,11 +259,11 @@ function FindingDetail({
           <div className="waits">
             {waits.map((w) => (
               <div className="wrow" key={w.label}>
-                <span className="wl">{w.label}</span>
+                <span className="wl" title={w.label}>{w.label}</span>
                 <div className="wbar">
                   {w.parts.map((p, i) => (
-                    <i key={i} style={{ flex: `${p.share} 0 0` }}>
-                      <em className="n">{dur(p.ms)}</em>
+                    <i key={i} style={{ flex: `${p.share} 0 0` }} title={dur(p.ms)}>
+                      {i === w.parts.length - 1 ? <em className="n">{dur(w.total)}</em> : null}
                     </i>
                   ))}
                   {w.rest > 0 ? <b style={{ flex: `${w.rest} 0 0` }} /> : null}
@@ -259,7 +280,7 @@ function FindingDetail({
           </div>
           <div className="code">{fx.snippet}</div>
           <div className="fact2">
-            <button type="button" className={`btn pri copy-fix fix-btn${copied ? " is-copied" : ""}`} onClick={onCopy}>
+            <button type="button" className={`btn copy-fix fix-btn${resolved ? "" : " pri"}${copied ? " is-copied" : ""}`} onClick={onCopy}>
               <Copy size={14} weight="regular" />
               {copied ? "Copied" : "Copy fix"}
             </button>
@@ -315,6 +336,8 @@ function monoBit(f: Finding) {
 function valueOf(f: Finding) {
   if (f.impact_unit.startsWith("USD")) return usd(monthlyUSD(f) || f.impact_value)
   if (isTime(f)) return dur(f.impact_value * 1000)
+  if (f.rule_id === "plugin.skills_unused") return `${f.impact_value} skill${f.impact_value === 1 ? "" : "s"}`
+  if (f.impact_unit === "calls failed") return `${f.impact_value} failed call${f.impact_value === 1 ? "" : "s"}`
   if (f.sessions.length) return `${f.sessions.length} session${f.sessions.length === 1 ? "" : "s"}`
   return String(f.impact_value)
 }
@@ -325,34 +348,38 @@ function impactCaption(f: Finding) {
   return f.impact_unit
 }
 
-function swatch(f: Finding) {
-  if (f.impact_unit.startsWith("USD")) return "money"
-  if (/wait/i.test(f.impact_unit) || f.rule_id.includes("permission")) return "t-wait"
-  if (/retry/i.test(f.rule_id) || /retry/i.test(f.impact_unit)) return "t-retry"
-  if (f.rule_id.includes("hook")) return "t-hook"
-  return "t-other"
-}
-
-function waitBars(f: Finding) {
+function waitBars(f: Finding, sessions: Session[], details: Record<string, SessionDetail>) {
   if (!/wait/i.test(f.impact_unit) || !f.evidence.length) return []
   const evidenceMs = (e: { label: string }) => Number((e.label.match(/([\d.]+)/) || [])[1] || 0) * 1000
-  const sess = f.sessions
   const tot = Math.max(f.evidence.reduce((a, e) => a + evidenceMs(e), 0), 1)
-  if (sess.length <= 1) {
-    const ms = f.evidence.map(evidenceMs)
-    return [{ label: titleOf(f), parts: ms.map((n) => ({ ms: n, share: n / tot })), rest: 0 }]
+  const seen = seenRows(f, sessions, details)
+  const byTrace = new Map<string, string>()
+  for (const s of seen) {
+    const d = details[s.key]
+    for (const t of d?.turns || []) byTrace.set(t.trace_id, s.key)
   }
-  const per = Math.ceil(f.evidence.length / sess.length)
-  return sess.map((id, i) => {
-    const slice = f.evidence.slice(i * per, (i + 1) * per)
-    const ms = slice.map(evidenceMs)
-    const sum = ms.reduce((a, b) => a + b, 0)
+  const grouped = new Map<string, { label: string; ms: number[] }>()
+  for (const e of f.evidence) {
+    const key = byTrace.get(e.trace_id) || seen[0]?.key || "session"
+    const row = seen.find((s) => s.key === key)
+    const label = row ? `${row.title} · ${row.when}` : e.label
+    const g = grouped.get(key) || { label, ms: [] }
+    g.ms.push(evidenceMs(e))
+    grouped.set(key, g)
+  }
+  return [...grouped.values()].map((g) => {
+    const sum = g.ms.reduce((a, b) => a + b, 0)
     return {
-      label: slice[0]?.label.replace(/waited\s+/i, "") || id,
-      parts: ms.map((n) => ({ ms: n, share: n / tot })),
+      label: g.label,
+      total: sum,
+      parts: g.ms.map((n) => ({ ms: n, share: n / tot })),
       rest: Math.max(0, 1 - sum / tot),
     }
   })
+}
+
+function resolvedDay(at: number) {
+  return new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
 }
 
 function shortDate(ns: number) {

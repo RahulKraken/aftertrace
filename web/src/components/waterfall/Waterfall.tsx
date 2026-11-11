@@ -392,8 +392,12 @@ export function Waterfall({
             ) : (
               <>
                 <Link href="/sessions">Sessions</Link> ›{" "}
-                <Link href={`/session/${trace.session_id}`} className="mono">
-                  {trace.session_id.slice(0, 8)}
+                <Link href={`/session/${trace.session_id}`} title={trace.session_title || undefined}>
+                  {trace.session_title
+                    ? trace.session_title.length > 52
+                      ? `${trace.session_title.slice(0, 50)}…`
+                      : trace.session_title
+                    : "Session"}
                 </Link>{" "}
                 › Turn {trace.turn_index} of {trace.turn_count}
               </>

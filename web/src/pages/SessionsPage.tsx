@@ -10,7 +10,7 @@ import { SearchField, Segmented, Toolbar } from "../lib/chrome"
 import { useShell } from "../components/Shell"
 import { dur, modelName, pct, tok, usd, when } from "../lib/format"
 import { fromBreakdown } from "../lib/ribbon"
-import type { Finding, Session, SessionDetail } from "../lib/types"
+import type { Finding, LiveLane, Session, SessionDetail } from "../lib/types"
 
 type Range = "week" | "month" | "all"
 
@@ -22,11 +22,13 @@ export function SessionsPage() {
   const [focus, setFocus] = useState(true)
   const [details, setDetails] = useState<Record<string, SessionDetail>>({})
   const [findings, setFindings] = useState<Finding[]>([])
+  const [live, setLive] = useState<LiveLane[]>([])
   const [range, setRange] = useState<Range>("week")
   const [, nav] = useLocation()
 
   useEffect(() => {
     api.findings().then(setFindings).catch(() => undefined)
+    api.overview().then((o) => setLive(o.live || [])).catch(() => undefined)
   }, [])
 
   const running = Boolean(rows?.some((r) => r.running))
@@ -113,7 +115,7 @@ export function SessionsPage() {
 
   return (
     <>
-      <Toolbar title="Sessions" sub={`${filtered.length} this week · ${usd(weekSpend)}`}>
+      <Toolbar title="Sessions" sub={`${filtered.length} session${filtered.length === 1 ? "" : "s"}`}>
         <Segmented
           ariaLabel="Range"
           value={range}
@@ -131,20 +133,20 @@ export function SessionsPage() {
           <table className="tbl sess">
             <colgroup>
               <col style={{ width: 22 }} />
-              <col />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 72 }} />
+              <col className="c-title-col" />
+              <col className="c-shape-col" />
+              <col className="c-time-col" />
               <col style={{ width: 62 }} />
-              <col style={{ width: 64 }} />
+              <col style={{ width: 72 }} />
             </colgroup>
             <thead>
               <tr>
                 <th />
                 <th>Session</th>
-                <th>Where time went</th>
+                <th className="c-shape">Where time went</th>
                 <th className="r">Time</th>
                 <th className="r">Tokens</th>
-                <th className="r">Cost</th>
+                <th className="r">Cost · {usd(weekSpend)}</th>
               </tr>
             </thead>
             <tbody>
@@ -155,6 +157,7 @@ export function SessionsPage() {
                   sel={sel}
                   focus={focus}
                   maxMs={maxMs}
+                  live={live}
                   onSel={setSel}
                   onOpen={(id) => nav(`/session/${id}`)}
                 />
@@ -162,7 +165,7 @@ export function SessionsPage() {
             </tbody>
           </table>
         </div>
-        <SessionPane session={selected} detail={detail} findings={findings} />
+        <SessionPane session={selected} detail={detail} findings={findings} live={live.find((l) => l.session_id === selected?.session_id)} />
       </div>
     </>
   )
@@ -173,6 +176,7 @@ function GroupRows({
   sel,
   focus,
   maxMs,
+  live,
   onSel,
   onOpen,
 }: {
@@ -180,6 +184,7 @@ function GroupRows({
   sel: string | null
   focus: boolean
   maxMs: number
+  live: LiveLane[]
   onSel: (id: string) => void
   onOpen: (id: string) => void
 }) {
@@ -206,7 +211,16 @@ function GroupRows({
             <td className="c-shape">
               <Ribbon parts={fromBreakdown(s.breakdown)} length={(s.turn_ms || 0) / maxMs} />
             </td>
-            <td className="r l2">{dur(s.turn_ms)}</td>
+            <td className="r l2 c-time">
+              {s.running ? (
+                <>
+                  <div>{dur(elapsedOf(s, live))}</div>
+                  <div className="doing">{dur(s.turn_ms)} agent</div>
+                </>
+              ) : (
+                dur(s.turn_ms)
+              )}
+            </td>
             <td className="r l2">{tok(s.tokens)}</td>
             <td className="r">{usd(s.cost_usd)}</td>
           </tr>
@@ -216,14 +230,23 @@ function GroupRows({
   )
 }
 
+function elapsedOf(s: Session, live: LiveLane[]) {
+  const lane = live.find((l) => l.session_id === s.session_id)
+  if (lane) return Date.now() - lane.start_ns / 1e6
+  const wall = Date.now() - s.start_ns / 1e6
+  return wall > 0 && wall < 24 * 3600_000 ? wall : s.turn_ms
+}
+
 function SessionPane({
   session,
   detail,
   findings,
+  live,
 }: {
   session?: Session
   detail?: SessionDetail
   findings: Finding[]
+  live?: LiveLane
 }) {
   if (!session) {
     return (
@@ -247,8 +270,8 @@ function SessionPane({
           <div className="k">cost</div>
         </div>
         <div>
-          <div className="v">{dur(session.turn_ms)}</div>
-          <div className="k">{session.turns} turn{session.turns === 1 ? "" : "s"}</div>
+          <div className="v">{dur(session.running && live ? Date.now() - live.start_ns / 1e6 : session.turn_ms)}</div>
+          <div className="k">{session.running ? "elapsed" : `${session.turns} turn${session.turns === 1 ? "" : "s"}`}</div>
         </div>
         <div>
           <div className="v">{tok(session.tokens)}</div>

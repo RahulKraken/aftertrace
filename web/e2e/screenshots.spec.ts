@@ -91,13 +91,25 @@ async function shot(page: Page, name: string, theme: "light" | "dark", keepHover
     "findings",
     "findings-1024",
     "findings-1440",
+    "sessions-1024",
+    "sessions-1440",
+    "spend-1024",
+    "spend-1440",
+    "turn-long-1024",
+    "turn-long-1440",
+    "settings-1024",
+    "settings-1440",
     "findings-resolved",
     "sessions",
     "sessions-1024",
     "sessions-1440",
     "spend",
+    "spend-1024",
+    "spend-1440",
     "settings",
     "settings-updates",
+    "turn-long-1024",
+    "turn-long-1440",
     "first-run",
     "empty",
     "turn-long",
@@ -164,14 +176,23 @@ test("sessions list", async ({ page }) => {
 test("long turn collapses extra steps", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?long=1`)
   await waitFonts(page)
+  await expect(page.locator(".tb h1")).not.toHaveText(/^[a-f0-9]{8}$/)
   await expect(page.locator(".step-group")).toContainText("more steps")
+  await page.locator(".step-group .link").click()
+  const titles = await page.locator(".st-title").allTextContents()
+  expect(new Set(titles).size, "long-turn steps repeat").toBe(titles.length)
   await shot(page, "turn-long", "light")
   await shot(page, "turn-long", "dark")
+  await page.setViewportSize({ width: 1024, height: 720 })
+  await shot(page, "turn-long-1024", "light")
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await shot(page, "turn-long-1440", "light")
 })
 
 test("story default: a turn reads as steps", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}`)
   await waitFonts(page)
+  await expect(page.locator(".tb h1")).not.toHaveText(/^[a-f0-9]{8}$/)
   await expect(page.locator(".seg-view button.on")).toHaveText("Story")
   await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
   await expect(page.locator(".st-bar i")).not.toHaveCount(0)
@@ -314,6 +335,7 @@ test("findings", async ({ page }) => {
   await expect(page.locator(".fr.sel")).toBeVisible()
   await expect(page.locator(".fr.sel")).toContainText(/prompt/i)
   await expect(page.getByRole("button", { name: "Copy fix" })).toBeVisible()
+  await expect(page.locator(".waits .wl").first()).not.toHaveText(/^[\d.]+s$/)
   await expect(page.locator(".tb .sub")).toHaveText(/15 open/)
   await expect(page.locator(".nav .ct")).toHaveText("15")
   const titles = (await page.locator("button.fr .t").allTextContents()).map((t) => t.trim())
@@ -355,6 +377,9 @@ test("findings copy fix confirms then resolves", async ({ page }) => {
   await expect(page.locator("button.fr", { hasText: /npm test/ })).toHaveCount(0, { timeout: 2500 })
   await page.getByRole("tab", { name: "Resolved" }).click()
   await expect(page.locator(".fr.resolved").filter({ hasText: "npm test" })).toBeVisible()
+  await expect(page.locator(".resolved-h")).toContainText(/Resolved/)
+  await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible()
+  await expect(page.locator(".copy-fix.pri")).toHaveCount(0)
   await shot(page, "findings-resolved", "light")
   await shot(page, "findings-resolved", "dark")
 })
@@ -362,6 +387,9 @@ test("findings copy fix confirms then resolves", async ({ page }) => {
 test("spend", async ({ page }) => {
   await page.goto("/#/spend")
   await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
+  await expect(page.locator(".insight")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Ask about spend" })).toBeVisible()
+  await expect(page.getByText("Top sessions by cost")).toBeVisible()
   await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()
   const triple = await page.locator("main").evaluate((el) => {
     const re = /\$\d+\.\d{3}\b/
@@ -377,6 +405,10 @@ test("spend", async ({ page }) => {
   await shot(page, "spend", "dark")
   await shot(page, "cost", "light")
   await shot(page, "cost", "dark")
+  await page.setViewportSize({ width: 1024, height: 720 })
+  await shot(page, "spend-1024", "light")
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await shot(page, "spend-1440", "light")
 })
 
 test("query builder", async ({ page }) => {
@@ -480,16 +512,31 @@ test("Today, Sessions and Findings at 1024 and 1440", async ({ page }) => {
     const valueLines = await page.locator(".hero .big").evaluateAll((els) => els.map((el) => el.getClientRects().length))
     expect(valueLines.every((n) => n === 1), `Today values wrap at ${width}`).toBe(true)
     await shot(page, `today-${width}`, "light")
+    await shot(page, `today-${width}`, "dark")
 
     await page.goto("/#/sessions")
     await waitFonts(page)
     await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
     await shot(page, `sessions-${width}`, "light")
+    await shot(page, `sessions-${width}`, "dark")
 
     await page.goto("/#/findings")
     await waitFonts(page)
     await expect(page.locator(".fr.sel")).toBeVisible()
     await shot(page, `findings-${width}`, "light")
+    await shot(page, `findings-${width}`, "dark")
+
+    await page.goto("/#/spend")
+    await waitFonts(page)
+    await expect(page.getByRole("heading", { name: "Spend" })).toBeVisible()
+    await shot(page, `spend-${width}`, "light")
+    await shot(page, `spend-${width}`, "dark")
+
+    await page.goto("/#/settings")
+    await waitFonts(page)
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
+    await shot(page, `settings-${width}`, "light")
+    await shot(page, `settings-${width}`, "dark")
   }
 })
 
@@ -516,7 +563,10 @@ test("connect: snippet, prompt copy, live verification", async ({ page }) => {
 
 test("settings: capture gates", async ({ page }) => {
   await mockDesktop(page, { status: "idle", version: null, current: "0.5.7", error: null, checkedAt: Date.now() - 90_000 }, "settings")
+  await page.setViewportSize({ width: 720, height: 640 })
   await page.goto("/#/settings")
+  await expect(page.locator(".search")).toHaveCount(0)
+  await expect(page.locator(".set-tab")).toHaveCount(4)
   await page.getByRole("tab", { name: "Privacy" }).click()
   await expect(page.locator(".gate")).toHaveCount(4)
   await page.getByRole("tab", { name: "General" }).click()
@@ -696,15 +746,17 @@ test("in-app Restart to update sits in the sidebar footer", async ({ page }) => 
 
 test("Settings shows version, last checked, and Check for updates", async ({ page }) => {
   await mockDesktop(page, READY_UPDATE, "settings")
+  await page.setViewportSize({ width: 720, height: 640 })
   await page.goto("/#/settings")
   await waitFonts(page)
+  await expect(page.locator(".search")).toHaveCount(0)
   await expect(page.locator(".budget-suffix")).toHaveText("/ week")
   const suffixLines = await page.locator(".budget-suffix").evaluate((el) => el.getClientRects().length)
   expect(suffixLines).toBe(1)
   await page.getByRole("tab", { name: "Updates" }).click()
   const updates = page.locator("[data-settings=updates]")
   await expect(updates).toBeVisible()
-  await expect(updates).toContainText("v0.5.6")
+  await expect(updates).toContainText("Version 0.5.7 is ready. Restart to update.")
   await expect(updates.getByRole("button", { name: "Check for updates" })).toBeVisible()
   await expect(updates.getByRole("button", { name: "Restart to update" })).toBeVisible()
   await expect(updates).toContainText("ago")

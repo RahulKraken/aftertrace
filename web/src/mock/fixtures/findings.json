@@ -27,7 +27,7 @@
   "headline": "6 permission prompts for Bash(npm test:*), all approved",
   "impact_value": 88.89,
   "impact_unit": "s waited",
-  "detail": "You approved Bash(npm test:*) 6 times in 2 session(s). Waiting on you cost 89s of wall clock.",
+  "detail": "You approved Bash(npm test:*) 6 times in 2 sessions.",
   "recommendation": "Add \"Bash(npm test:*)\" to permissions.allow in ~/.claude/settings.json, or choose \"Yes, and don't ask again\" next time.",
   "evidence": [
    {
@@ -170,7 +170,7 @@
   "headline": "3 permission prompts for Bash(git commit:*), all approved",
   "impact_value": 35.737,
   "impact_unit": "s waited",
-  "detail": "You approved Bash(git commit:*) 3 times in 1 session(s). Waiting on you cost 36s of wall clock.",
+  "detail": "You approved Bash(git commit:*) 3 times in 1 session.",
   "recommendation": "Add \"Bash(git commit:*)\" to permissions.allow in ~/.claude/settings.json, or choose \"Yes, and don't ask again\" next time.",
   "evidence": [
    {
@@ -234,7 +234,7 @@
   "headline": "Skill pdf-report drove 30% of spend",
   "impact_value": 6.4828,
   "impact_unit": "USD",
-  "detail": "16 requests, 1 activations, $6.48 per activation. Mostly claude-opus-5 at effort max.",
+  "detail": "16 requests, 1 activation, $6.48 per activation. Mostly claude-opus-5 at effort max.",
   "recommendation": "Check whether pdf-report needs claude-opus-5 at max effort. Try a lower effort level or a cheaper model for this skill and compare output.",
   "evidence": [
    {

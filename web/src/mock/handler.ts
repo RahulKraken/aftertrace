@@ -34,7 +34,12 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
     if (p === "/api/apps") return json(apps)
     if (p === "/api/recap") {
       const wk = Number(url.searchParams.get("week") || 0)
-      return json({ ...recaps[Math.min(wk, recaps.length - 1)], has_older: wk < recaps.length - 1 })
+      const recap = recaps[Math.min(wk, recaps.length - 1)]
+      if (wk === 0) {
+        const ov = mockOverview()
+        return json({ ...recap, stats: ov.week, lo: ov.lo, hi: ov.hi, has_older: wk < recaps.length - 1 })
+      }
+      return json({ ...recap, has_older: wk < recaps.length - 1 })
     }
     if (p.startsWith("/api/app/")) {
       const d = appDetail(decodeURIComponent(p.slice("/api/app/".length)))
@@ -52,7 +57,8 @@ export async function handle(path: string, init?: RequestInit): Promise<unknown>
       const id = p.split("/").pop() || ""
       const t = getTrace(id)
       if (!t) return json({ error: "not found" }, 404)
-      return json(t)
+      const session = sessions.find((s) => s.session_id === t.session_id)
+      return json({ ...t, session_title: session?.title || null })
     }
     if (p === "/api/findings") return json(findings)
     if (p === "/api/fields") return json(fields)
