@@ -437,28 +437,26 @@ jobs:
       - name: Build mock UI
         working-directory: web
         run: npm ci && npx vite build
-      - name: Serve mock UI on :7311
-        run: |
-          python3 -m http.server 7311 --bind 127.0.0.1 --directory web/dist &
-          echo $! > /tmp/mock-ui.pid
-          for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:7311/ >/dev/null && exit 0
-            sleep 1
-          done
-          echo "mock UI did not start"
-          exit 1
       - name: Desktop npm ci
         working-directory: desktop
         run: npm ci
       - name: Capture Today and Sessions from Electron
-        working-directory: desktop
         env:
           SHOT_OUT: ${{ github.workspace }}/desktop/dist/ui-shots
           SHOT_ORIGIN: http://127.0.0.1:7311
           ELECTRON_ENABLE_LOGGING: "1"
         run: |
+          python3 -m http.server 7311 --bind 127.0.0.1 --directory web/dist >/tmp/mock-ui.log 2>&1 &
+          echo $! > /tmp/mock-ui.pid
+          cleanup() { kill "$(cat /tmp/mock-ui.pid)" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:7311/ >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:7311/ >/dev/null
           mkdir -p "$SHOT_OUT"
-          npx electron scripts/ci-window-shots.js
+          (cd desktop && npx electron scripts/ci-window-shots.js)
           ls -lah "$SHOT_OUT"
           test -s "$SHOT_OUT/today-electron-light.png"
           test -s "$SHOT_OUT/today-electron-dark.png"
