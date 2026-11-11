@@ -17,12 +17,13 @@ const SIZES = [
   { w: 1024, h: 720, tag: "1024" },
   { w: 1440, h: 900, tag: "1440" },
 ]
+const PAINTED = "!document.querySelector('.skel-page') && !/Connecting/.test(document.body.innerText||'')"
 const PAGES = [
-  { hash: "/", name: "today-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.hero .big')" },
-  { hash: "/sessions", name: "sessions-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.tbl.sess') && document.querySelectorAll('.sess td.c-title .title').length > 1 && [...document.querySelectorAll('.sess td.c-title .title')].every((el) => el.clientHeight > 8 && (el.textContent || '').trim().length > 8)" },
-  { hash: "/findings", name: "findings-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.fr')" },
-  { hash: "/spend", name: "spend-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.insight')" },
-  { hash: "/trace/509cb3acac23db7c6e9b7d180a474268?long=1", name: "turn-electron", ready: "!!document.querySelector('.nav') && !!document.querySelector('.st-steps')" },
+  { hash: "/", name: "today-electron", ready: `${PAINTED} && /\\$/.test(document.querySelector('.hero .big')?.textContent||'')` },
+  { hash: "/sessions", name: "sessions-electron", ready: `${PAINTED} && document.querySelectorAll('.sess td.c-title .title').length > 1 && [...document.querySelectorAll('.sess td.c-title .title')].every((el) => el.clientHeight > 8 && (el.textContent || '').trim().length > 8)` },
+  { hash: "/findings", name: "findings-electron", ready: `${PAINTED} && !!document.querySelector('.fr.sel')` },
+  { hash: "/spend", name: "spend-electron", ready: `${PAINTED} && /\\$/.test(document.querySelector('.insight')?.textContent||'')` },
+  { hash: "/trace/509cb3acac23db7c6e9b7d180a474268?long=1", name: "turn-electron", ready: `${PAINTED} && !!document.querySelector('.st-steps')` },
 ]
 
 function sleep(ms) {
@@ -75,10 +76,18 @@ async function waitFor(win, js, timeout = 20000) {
 async function loadHash(win, hash, theme, ready) {
   nativeTheme.themeSource = theme
   const url = `${ORIGIN}/index.html`
+  const loaded = new Promise((resolve) => {
+    const t = setTimeout(resolve, 8000)
+    win.webContents.once("did-finish-load", () => {
+      clearTimeout(t)
+      resolve()
+    })
+  })
   win.loadURL(url).then(
     () => {},
     (err) => console.warn("loadURL rejected", url, err),
   )
+  await loaded
   await waitFor(win, "!!document.querySelector('#root')")
   await exec(
     win,
@@ -90,15 +99,22 @@ async function loadHash(win, hash, theme, ready) {
   )
   await waitFor(
     win,
-    `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && !document.querySelector('.skel-page') && (${ready})`,
+    `document.documentElement.dataset.theme === ${JSON.stringify(theme)} && (${ready})`,
   )
-  await sleep(400)
+  await sleep(600)
 }
 
 async function savePng(win, dest) {
+  // First capture can be a stale compositor frame of the skeleton.
+  await win.webContents.capturePage()
+  await sleep(120)
   const img = await win.capturePage()
-  fs.writeFileSync(dest, img.toPNG())
-  console.log(`wrote ${dest} (${img.getSize().width}x${img.getSize().height})`)
+  const buf = img.toPNG()
+  fs.writeFileSync(dest, buf)
+  console.log(`wrote ${dest} (${img.getSize().width}x${img.getSize().height}, ${buf.length} bytes)`)
+  if (buf.length < 40_000 && !/settings-electron/.test(dest)) {
+    throw new Error(`shot too small (likely skeleton): ${dest} ${buf.length} bytes`)
+  }
   return dest
 }
 
