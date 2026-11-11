@@ -1,0 +1,36 @@
+name: Feature request
+description: A change that would save time or money, or make a supported tool clearer.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions belong in [Discussions](https://github.com/RahulKraken/aftertrace/discussions).
+        Aftertrace is a local time / cost / usage app for one person.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is slow, expensive, or unclear today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Aftertrace to do?
+    validations:
+      required: true
+  - type: textarea
+    id: tools
+    attributes:
+      label: Which tools does this involve?
+      description: Claude Code, Codex CLI, Gemini CLI, your own OTEL app, …
+      placeholder: Claude Code
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+    validations:
+      required: false

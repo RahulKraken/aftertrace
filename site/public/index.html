@@ -31,7 +31,7 @@
     <div class="hero-download">
       <a class="btn" id="mac-download" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>
       <p class="dl-chip" hidden><a id="mac-download-other" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a></p>
-      <p class="dl-alt"><a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-win.exe">Windows</a> · <a href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-linux.AppImage">Linux</a> · <a href="demo/">Live demo</a></p>
+      <p class="dl-alt"><code>brew install --cask rahulkraken/tap/aftertrace</code> · <a href="demo/">Live demo</a></p>
       <p class="open-note">First open: right-click Aftertrace, choose Open, then Open again.</p>
     </div>
     <div class="dev-install">
@@ -114,7 +114,7 @@
   <section class="band privacy">
     <h2>Local-first, by construction.</h2>
     <div class="ps">
-      <div><h3>Binds to 127.0.0.1</h3><p>The receivers and the UI listen on your machine only. No account, no cloud, no telemetry, no update check.</p></div>
+      <div><h3>Binds to 127.0.0.1</h3><p>The receivers and the UI listen on your machine only. No account, no cloud, no usage telemetry. The Mac app checks GitHub Releases for updates.</p></div>
       <div><h3>Content is opt-in, twice</h3><p>Prompts, responses and tool output are dropped at ingest unless Claude Code sends them <em>and</em> you run with <code>--store-content</code>.</p></div>
       <div><h3>Identity is always dropped</h3><p>Email, account and org ids, and your OS user name never reach the store.</p></div>
       <div><h3>Ask is the only exit</h3><p>Plain-English questions are off by default. Turned on, they send the schema and query rows to the Anthropic API, nothing else.</p></div>
@@ -142,7 +142,7 @@
   <section class="band start">
     <h2>Start in a minute</h2>
     <ol class="steps">
-      <li><h3>Download</h3><p><a id="mac-start" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>. Open the DMG, drag Aftertrace to Applications.<span class="open-note"> First open: right-click Aftertrace, choose Open.</span></p><p>The CLI:</p><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre></li>
+      <li><h3>Download</h3><p><a id="mac-start" href="https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac.dmg">Download for Mac</a>. Open the DMG, drag Aftertrace to Applications.<span class="open-note"> First open: right-click Aftertrace, choose Open.</span></p><p>Homebrew: <code>brew install --cask rahulkraken/tap/aftertrace</code></p><p>The CLI:</p><pre><code>curl -fsSL https://rahulkraken.github.io/aftertrace/install.sh | sh</code></pre></li>
       <li><h3>Connect</h3><p>Live export is optional. The Connect page gives you the settings block for Claude Code (or the snippet for your app) and turns green when the first span lands.</p></li>
     </ol>
   </section>

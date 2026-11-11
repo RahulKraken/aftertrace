@@ -70,7 +70,13 @@ Notes come from the matching `CHANGELOG.md` section. Add the section first. Tag,
 
 Dry-run without publishing: Actions → Release → Run workflow, or look at Desktop workflow artifacts on a PR (`Aftertrace-mac-arm64.dmg` is in `aftertrace-desktop-mac`).
 
-There is no Homebrew tap yet. `sh scripts/homebrew-formula.sh vX.Y.Z` prints `Formula/aftertrace.rb` for a published release, with the four archive URLs and their sha256 from its `checksums.txt` (pass a local `checksums.txt` as the second argument to skip the download). Committing that file to a repo named `homebrew-<name>` makes `brew install <owner>/<name>/aftertrace` work; regenerate it on each tag.
+The public Homebrew install is a **cask** for the Apple-silicon Mac app, copied into `RahulKraken/homebrew-tap` as `Casks/aftertrace.rb`. Source copy: [`packaging/homebrew/`](packaging/homebrew/). That tap does not exist until Rahul creates it.
+
+```bash
+brew install --cask rahulkraken/tap/aftertrace
+```
+
+`sh scripts/homebrew-cask.sh VERSION SHA256` (or `--from path/to/Aftertrace-mac-arm64.dmg`) prints the cask. The Release Assemble job generates the same file from the built DMG and attaches `aftertrace.rb` to the GitHub Release — copy that into the tap. Do not also ship `Formula/aftertrace.rb` under the same token; it would collide. `sh scripts/homebrew-formula.sh` still prints a CLI formula for archives, for anyone who wants it privately.
 
 ## Tests
 
@@ -104,5 +110,7 @@ If the rule should fire on `aftertrace demo`, add a scenario in `internal/demo` 
 - New env vars: names copied from [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage), not invented.
 - Docs use relative links. Commands in fenced blocks have been run.
 - No real user data. No badges for things that do not exist.
+
+Questions go in GitHub Discussions (enable it in repo settings if the link 404s). Bugs and features use the issue templates. Do not open a blank issue.
 
 User-facing docs live in `docs/` and [README.md](README.md). `docs/spec.md` is the product spec, not a getting-started guide. JSON API: [docs/api.md](docs/api.md).

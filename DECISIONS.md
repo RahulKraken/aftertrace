@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: public README positioning and a Homebrew cask tap.
+
+**Choice.** One PR, no merge/tag/release. README is a first-visit page: one-line time/cost/usage pitch, fixture-UI demo GIF, DMG + `brew install --cask rahulkraken/tap/aftertrace`, an honest supported-tools table (Cursor is not supported), the fourteen shipped rules, local-only privacy with the GitHub Releases update-check and opt-in Ask named, a short fair note vs ccusage and CodeBurn. No security/audit/compliance framing. Community files: bug and feature templates, Discussions for questions, SUPPORT.md. Homebrew ships an **app cask** (`packaging/homebrew/Casks/aftertrace.rb`, v0.5.7 arm64 DMG) meant for `RahulKraken/homebrew-tap`. That tap repo does not exist yet. Same token is not used for a CLI formula. Release Assemble generates `aftertrace.rb` from the built DMG sha256 and attaches it.
+
+**Why.** Reddit / awesome-lists / OpenDMG / Show HN. The old README led with the how-it-works bench, still said builds were unsigned, and advertised Windows/Linux. ccusage and CodeBurn already own token tables; Aftertrace's difference is live, cross-tool time and friction findings. Cursor has no ingest path in this repo.
+
+**How to reverse.** Restore README.md from git history. Drop `.github/ISSUE_TEMPLATE/`, SUPPORT.md, `packaging/homebrew/`, `scripts/homebrew-cask.sh`, and the Release Assemble cask step.
+
 ## Nov 10 2026: ship 0.5.7.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.7` are 0.5.7. CI fixture is 0.5.8 so macos-15 still has a newer local feed. Tag `v0.5.7` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags.

@@ -97,12 +97,20 @@ jobs:
           export EXPECT_DESKTOP_VERSION
           sh scripts/verify-release-assets.sh dist
           node desktop/scripts/release-identity.cjs dist
+      - name: Homebrew cask from the arm64 DMG
+        run: |
+          EXPECT_DESKTOP_VERSION=$(node -p "require('./desktop/package.json').version")
+          sh scripts/homebrew-cask.sh "$EXPECT_DESKTOP_VERSION" --from dist/Aftertrace-mac-arm64.dmg > dist/aftertrace.rb
+          echo "----- aftertrace.rb (copy into RahulKraken/homebrew-tap) -----"
+          cat dist/aftertrace.rb
       - name: List what a release would attach
         run: |
           echo "Engine (install.sh):"
           ls -lah dist/aftertrace_*.tar.gz dist/checksums.txt
           echo "Desktop:"
           ls -lah dist/Aftertrace-* dist/latest*.yml
+          echo "Homebrew cask:"
+          ls -lah dist/aftertrace.rb
       - uses: actions/upload-artifact@v7
         with:
           name: release-assets
@@ -132,6 +140,7 @@ jobs:
             dist/latest-mac.yml
             dist/latest.yml
             dist/latest-linux.yml
+            dist/aftertrace.rb
           if-no-files-found: error
       - name: Release notes from CHANGELOG.md
         if: startsWith(github.ref, 'refs/tags/v')
@@ -160,7 +169,8 @@ jobs:
             Aftertrace-mac.dmg Aftertrace-mac.zip latest-mac.yml \
             Aftertrace-mac-arm64.dmg Aftertrace-mac-arm64.zip \
             Aftertrace-win.exe latest.yml \
-            Aftertrace-linux.AppImage Aftertrace-linux.deb
+            Aftertrace-linux.AppImage Aftertrace-linux.deb \
+            aftertrace.rb
           for f in Aftertrace-*-mac.dmg Aftertrace-*-mac.zip \
                    Aftertrace-*-mac-*.dmg Aftertrace-*-mac-*.zip \
                    Aftertrace-*-win.exe \

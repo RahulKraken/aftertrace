@@ -147,6 +147,17 @@ jobs:
           shellcheck -s sh desktop/scripts/pack-ci-fixture.sh
           shellcheck -s sh desktop/scripts/macos-session-probe.sh
           shellcheck -s sh desktop/scripts/signed-upgrade-smoke.sh
+          shellcheck -s sh scripts/homebrew-cask.sh
+          shellcheck -s sh web/scripts/gen-readme-demo.sh
+      - name: Homebrew cask matches the generator
+        run: |
+          ver=$(awk -F'"' '/^  version / {print $2; exit}' packaging/homebrew/Casks/aftertrace.rb)
+          sha=$(awk -F'"' '/^  sha256 / {print $2; exit}' packaging/homebrew/Casks/aftertrace.rb)
+          test -n "$ver" && test -n "$sha"
+          sh scripts/homebrew-cask.sh "$ver" "$sha" > "$RUNNER_TEMP/aftertrace.rb"
+          diff -u packaging/homebrew/Casks/aftertrace.rb "$RUNNER_TEMP/aftertrace.rb"
+          grep -q 'depends_on arch: :arm64' packaging/homebrew/Casks/aftertrace.rb
+          grep -q 'strategy :github_latest' packaging/homebrew/Casks/aftertrace.rb
       - name: Site download tests
         working-directory: site
         run: npm test
