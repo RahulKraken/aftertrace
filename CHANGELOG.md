@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.5.8
+
+**Desktop**
+- Native-instrument dashboard: Today, Sessions, Findings, Spend, and a Mac Settings window. Phosphor icons, SF Pro, one time ribbon. Silent updater and sidebar **Restart to update** from 0.5.7 stay.
+
+**UI**
+- One money rule (`usd()`: 2 decimals, `<$0.01` for tiny amounts, no cents at $100+). Sessions put the repo under the title. Findings keep the amber hero and Copy fix. Spend leads with an insight, a model bar, and the top sessions.
+
 ## v0.5.7
 
 **Desktop**

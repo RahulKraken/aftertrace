@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: ship 0.5.8.
+
+**Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.
+
+**Why.** Rahul approved merging #57 and shipping signed v0.5.8 at 7:52 AM IST on Nov 12. Installed 0.5.7 needs a newer GitHub Releases `latest-mac.yml` to auto-detect.
+
+**How to reverse.** Revert the bump PR; do not delete earlier tags.
+
 ## Nov 11 2026: design-review round 1.
 
 **Choice.** Turn crumbs use the session prompt title; long-turn fixture is 20+ unique rising-timestamp steps. Sessions hide the time-ribbon column below 1180px, wrap inspector titles to 3 lines, 2×2 nowrap stats. Today and Spend share `overview.week`. Elapsed vs agent time are labelled. Resolved findings show the date, quiet Reopen, muted amber, secondary Copy fix. Spend leads with an insight, a model bar + legend, and top 5 sessions. Settings is a 720×640 Mac Settings window with icon tabs. `global.css` and `v4.css` are gone; `token-lint` fails raw font-size/radius/ms outside `tokens.css`. Selection is ≤140ms; WinStage and shimmer are deleted. DESIGN.md is the one design source.

@@ -26,7 +26,7 @@ A local Mac app that watches your AI coding tools and tells you where the time a
 
 ## Install
 
-**Apple silicon.** v0.5.7 is signed and notarized.
+**Apple silicon.** v0.5.8 is signed and notarized.
 
 **DMG:** [Aftertrace-mac-arm64.dmg](https://github.com/RahulKraken/aftertrace/releases/latest/download/Aftertrace-mac-arm64.dmg)
 
@@ -116,7 +116,7 @@ More: [docs/privacy.md](docs/privacy.md).
 
 ## Status
 
-v0.5.7. Built against Claude Code 2.1.x telemetry (enhanced telemetry beta). Some of that telemetry is in beta and may change.
+v0.5.8. Built against Claude Code 2.1.x telemetry (enhanced telemetry beta). Some of that telemetry is in beta and may change.
 
 [How it works](docs/how-it-works.md) · [Install](docs/install.md) · [Findings](docs/findings.md) · [Writing a rule](docs/writing-rules.md) · [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md)
 
