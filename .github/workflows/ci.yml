@@ -191,7 +191,8 @@ jobs:
     name: Scale harness
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: macos-14
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 180 || 20 }}
+    # PR go test is still 14m. Dispatch and a slow macos-14 queue need headroom.
+    timeout-minutes: 180
     env:
       CGO_ENABLED: "1"
     steps:
