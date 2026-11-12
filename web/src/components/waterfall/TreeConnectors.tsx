@@ -9,8 +9,8 @@ export function glyphCenterX(depth: number): number {
   return TREE_PAD + depth * TREE_DEPTH + TREE_CARET + TREE_GLYPH / 2
 }
 
-// A parent's line drops from its count chip, and reaches a child at its chip
-// when it has one, else at its icon: the rail never runs through a chip.
+// A parent's line drops from its disclosure chevron, and reaches a child at
+// its chevron when it has one, else at its icon.
 function chipCenterX(depth: number): number {
   return TREE_PAD + depth * TREE_DEPTH + TREE_CARET / 2
 }

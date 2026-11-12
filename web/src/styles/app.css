@@ -22,7 +22,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .win {
   position: relative;
   display: grid;
-  grid-template-columns: var(--sidebar) 1fr;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
   background: var(--window);
   overflow: hidden;
   height: 100%;
@@ -59,7 +59,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   display: flex;
   flex-direction: column;
   padding: 0 10px 10px;
-  min-width: 0;
+  width: var(--sidebar);
+  min-width: var(--sidebar);
+  max-width: var(--sidebar);
   min-height: 0;
   overflow: hidden;
   -webkit-app-region: drag;
@@ -73,6 +75,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   gap: 8px;
   height: 28px;
   padding: 0 10px;
+  min-width: 0;
   border-radius: var(--r-control);
   color: var(--l1);
   font: var(--t-body);
@@ -80,11 +83,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   transition: background var(--dur-ui) ease;
 }
 .nav svg { width: 16px; height: 16px; color: var(--l2); flex: none; }
+.nav > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav:hover { background: var(--hover); }
 .nav.on { background: var(--sel-quiet); }
 .nav.on svg { color: var(--accent); }
-.nav .ct { margin-left: auto; font: var(--t-callout); color: var(--l2); }
-.nav .live { width: 6px; height: 6px; border-radius: 50%; background: var(--live); margin-left: auto; }
+.nav .ct { margin-left: auto; flex: none; font: var(--t-callout); color: var(--l2); }
+.nav .live { width: 6px; height: 6px; border-radius: 50%; background: var(--live); margin-left: auto; flex: none; }
 .side .foot {
   margin-top: auto;
   display: flex;
@@ -546,7 +550,7 @@ tbody.stagger > tr,
 }
 @media (max-width: 720px) {
   .win { grid-template-columns: 1fr; }
-  .side { position: sticky; top: 0; z-index: 5; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--sep); }
+  .side { position: sticky; top: 0; z-index: 5; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--sep); width: auto; min-width: 0; max-width: none; }
   .lights { display: none; }
   .side .grp, .side .foot { flex-direction: row; margin: 0; }
   .side .grp-h, .side .foot { display: none; }

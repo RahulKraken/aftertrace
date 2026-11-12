@@ -461,7 +461,7 @@ jobs:
           mkdir -p "$SHOT_OUT"
           (cd desktop && npx electron scripts/ci-window-shots.js)
           ls -lah "$SHOT_OUT"
-          for page in today sessions findings spend turn; do
+          for page in today sessions findings spend turn turn-timeline; do
             for size in 1024 1440; do
               for theme in light dark; do
                 test -s "$SHOT_OUT/${page}-electron-${size}-${theme}.png"

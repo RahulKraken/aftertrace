@@ -138,6 +138,11 @@ input.search { width: 100%; }
 /* waterfall */
 .wf { display: flex; height: 100%; max-height: 100%; min-height: 0; overflow: hidden; background: var(--surface); }
 .wf-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.wf .tb { flex: none; min-width: 0; }
+.wf .tb h1 {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wf .tb .sub { flex: none; white-space: nowrap; }
 .wf-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .wf-title { display: flex; align-items: baseline; gap: 12px; margin-top: 4px; }
 .wf-title h1 { font-size: var(--fs-20); }
@@ -158,14 +163,15 @@ input.search { width: 100%; }
 }
 .navbtn:disabled { opacity: 0.4; cursor: default; }
 
-.wf-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.wf-body { flex: 1; min-height: 0; min-width: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
 .ruler {
   display: flex; height: 24px; border-bottom: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface) 92%, var(--bg));
-  position: sticky; top: 0; z-index: 3; flex: none;
+  position: sticky; top: 0; z-index: 3; flex: none; min-width: 0;
+  padding-right: var(--track-pad);
 }
 .ruler .lab { width: var(--labw); flex: none; border-right: 1px solid var(--line); font-size: var(--fs-11); color: var(--faint); padding: 5px 12px; }
-.ruler .trk { flex: 1; position: relative; }
+.ruler .trk { flex: 1; position: relative; min-width: 0; overflow: hidden; }
 .tick {
   position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line);
   font: 10.5px var(--sans); color: var(--faint); padding: 5px 0 0 4px;
@@ -173,10 +179,10 @@ input.search { width: 100%; }
 }
 .comp-mark { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--hue-hook); }
 
-.rows { flex: 1; overflow: auto; position: relative; }
-.rows-inner { min-height: 100%; }
+.rows { flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; padding-right: var(--track-pad); }
+.rows-inner { min-height: 100%; min-width: 0; }
 .tree-layer {
-  position: absolute; inset: 0 auto 0 0; width: var(--labw); pointer-events: none; z-index: 4; overflow: visible;
+  position: absolute; inset: 0 auto 0 0; width: var(--labw); pointer-events: none; z-index: 4; overflow: hidden;
 }
 .tree-lines { display: block; overflow: visible; }
 .tree-lines path {
@@ -195,34 +201,30 @@ input.search { width: 100%; }
 }
 .row {
   display: flex; height: var(--row); align-items: center; cursor: default; position: relative; z-index: 2;
+  min-width: 0; overflow: hidden;
 }
 .row:hover, .row.hov { background: var(--sel); }
 .row.sel { background: var(--sel); }
 .row .lab {
   width: var(--labw); flex: none; display: flex; align-items: center; height: 100%;
   border-right: 1px solid var(--line); padding-right: 8px; overflow: hidden; position: relative; z-index: 2;
+  min-width: 0;
 }
-.row .trk { flex: 1; position: relative; height: 100%; }
+.row .trk { flex: 1; position: relative; height: 100%; min-width: 0; overflow: hidden; }
 .tree-pad { flex: none; height: 100%; }
 .caret {
-  flex: none; width: 18px; font-size: var(--fs-10); color: var(--mute); cursor: pointer;
+  flex: none; width: 18px; height: 16px; padding: 0; margin: 0; border: 0;
+  font-size: var(--fs-10); color: var(--mute); cursor: pointer;
   user-select: none; display: flex; align-items: center; justify-content: center;
-  border-radius: var(--r-4);
+  border-radius: var(--r-4); background: none;
+  transition: background-color var(--dur-ui) ease, color var(--dur-ui) ease, transform var(--dur-select) ease-out;
 }
 .caret:hover { color: var(--ink); background: var(--bg-recessed); }
-/* A parent row's caret is a count of what sits directly inside it, like a
-   folded tab: hairline when open, filled when closed. */
-.caret.count {
-  height: 16px; width: 18px; padding: 0; margin: 0; border: 1px solid var(--line-2); letter-spacing: -0.02em; overflow: hidden;
-  background: var(--surface); font: 500 10px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--mute);
-  transition: background-color var(--dur-ui) ease, color var(--dur-ui) ease, border-color var(--dur-ui) ease, transform var(--dur-select) ease-out;
-}
-.caret.count.is-closed { background: var(--bg-recessed); color: var(--ink-2); border-color: color-mix(in oklab, var(--ink) 18%, var(--line-2)); }
-.caret.count:hover { color: var(--ink); border-color: color-mix(in oklab, var(--ink) 30%, var(--line-2)); background: var(--surface); }
-.caret.count:active { transform: scale(0.94); }
-.caret.count svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-sheet) var(--ease-out); }
-.caret.count svg.is-open { transform: rotate(90deg); }
-.caret.count:focus-visible { outline: 2px solid color-mix(in oklab, var(--hue-model) 45%, transparent); outline-offset: 1px; }
+.caret:active { transform: scale(0.94); }
+.caret svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-sheet) var(--ease-out); }
+.caret svg.is-open { transform: rotate(90deg); }
+.caret:focus-visible { outline: 2px solid color-mix(in oklab, var(--hue-model) 45%, transparent); outline-offset: 1px; }
+button.caret.is-closed { color: var(--ink-2); }
 
 /* ⋯ on the row you point at: the menu for that span. */
 .row-more {
@@ -303,7 +305,7 @@ input.search { width: 100%; }
 .row.err .lab { box-shadow: inset 2px 0 0 var(--hue-retry); }
 
 .bar {
-  position: absolute; top: 9px; height: 14px; border-radius: var(--r-full); display: flex; overflow: hidden; min-width: 4px;
+  position: absolute; top: 9px; height: 14px; border-radius: var(--r-full); display: flex; overflow: hidden; min-width: 2px;
   transform-origin: left center;
   background: color-mix(in oklab, var(--bar-hue, var(--hue-tool)) 14%, transparent);
   border: 1px solid color-mix(in oklab, var(--bar-hue, var(--hue-tool)) 42%, transparent);
@@ -332,7 +334,7 @@ input.search { width: 100%; }
 .ph-ttft { --ph: var(--hue-model); opacity: 0.65; }
 .ph-tool { --ph: var(--hue-tool); }
 .ph-agent { --ph: var(--hue-agent); }
-.ph-turn { --ph: var(--hue-turn); }
+.ph-turn { --ph: var(--ink); }
 .ph-hook { --ph: var(--hue-hook); }
 .ph-mcp { --ph: var(--hue-mcp); }
 .ph-bash { --ph: var(--hue-bash); }
@@ -1397,7 +1399,7 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 }
 .row.is-step .name { font-weight: 500; color: var(--ink); }
 .row.is-step { cursor: pointer; }
-.step-bar { position: absolute; top: 8px; height: 16px; border-radius: var(--r-5); background: color-mix(in oklab, var(--ink) 4%, transparent); }
+.step-bar { position: absolute; top: 8px; height: 16px; min-width: 2px; border-radius: var(--r-5); background: color-mix(in oklab, var(--ink) 8%, transparent); border: 1px solid color-mix(in oklab, var(--ink) 16%, transparent); }
 .sb-seg { position: absolute; top: 3px; bottom: 3px; border-radius: var(--r-2); overflow: hidden; display: block; }
 .sb-model { background: color-mix(in oklab, var(--hue-model) 70%, transparent); }
 .sb-tool { background: color-mix(in oklab, var(--hue-tool) 75%, transparent); }
@@ -1412,12 +1414,18 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
 .wf .row .glyph svg, .st-act .glyph svg { width: 13px; height: 13px; }
 .wf .row .glyph.g-turn { background: var(--ink); border-color: var(--ink); }
 .wf .bar { border-radius: var(--r-5); height: 16px; top: 8px; }
+.wf .bar.is-turn {
+  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  border-color: color-mix(in oklab, var(--ink) 28%, transparent);
+}
 .wf .row.err .bar, .wf .bar.err { background: color-mix(in oklab, var(--hue-retry) 14%, transparent); border-color: color-mix(in oklab, var(--hue-retry) 55%, transparent); }
 .bar-lab {
   position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none;
   font-size: var(--fs-12); color: var(--mute); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%; overflow: hidden;
 }
 .bar-lab.is-err { color: var(--hue-retry); font-weight: 500; }
+.bar-lab.is-inside { color: var(--ink); font-weight: 600; }
 .slowest {
   font-size: var(--fs-9); font-weight: 600; letter-spacing: 0.06em; text-transform: none; padding: 1px 6px; border-radius: var(--r-4);
   color: color-mix(in oklab, var(--hue-wait) 75%, var(--ink)); background: var(--hue-wait-bg);
@@ -1585,7 +1593,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .spark-wrap { position: relative; display: inline-flex; flex: none; }
 .spark { cursor: crosshair; }
 .spark-line { stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) var(--dur-sheet) forwards; }
-.spark-area { animation: fade-up var(--dur-sheet) ease var(--dur-sheet) both; }
 .spark-stop-top { stop-color: var(--faint); stop-opacity: 0.28; }
 .spark-stop-bottom { stop-color: var(--faint); stop-opacity: 0; }
 .spark-model .spark-stop-top { stop-color: var(--hue-model); stop-opacity: 0.32; }
@@ -1593,7 +1600,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .spark-wait .spark-stop-top { stop-color: var(--hue-wait); stop-opacity: 0.36; }
 .spark-wait .spark-stop-bottom { stop-color: var(--hue-wait); }
 .spark-area { fill-opacity: 1; }
-.spark-dot { animation: fade-up var(--dur-sheet) ease var(--dur-sheet) both; }
 .spark-dot.is-hover { animation: none; stroke: var(--surface); stroke-width: 1.5; }
 .spark-cross { stroke: color-mix(in oklab, var(--ink) 22%, transparent); stroke-width: 1; stroke-dasharray: 2 2; }
 .spark-tip {
@@ -1627,8 +1633,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 /* Share bars and glyph segments grow from their start. */
 .grow-x, .bar-track i, .mwf-seg { transform-origin: left center; transform-box: fill-box;  }
 .mwf-seg {  }
-/* Table rows cascade without moving the table's layout. */
-tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-sheet); }
 /* Story: the time bar fills in, part by part. */
 .st-bar i { transform-origin: left center;  }
 .st-bar i:nth-child(1) {  }
@@ -1637,7 +1641,6 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-shee
 .st-bar i:nth-child(4) {  }
 /* Timeline: each bar grows from its start, rows a beat apart, like a trace being drawn. */
 .wf .bar, .wf .step-bar { transform-origin: left center;   }
-.wf .bar-lab, .wf .slowest { animation: fade-up var(--dur-sheet) ease both;  }
 /* Recap: the receipt prints out of its slot, once. */
 .receipt { animation: print var(--dur-sheet) cubic-bezier(0.32, 0.72, 0, 1) var(--dur-sheet) both; }
 .q-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) forwards;  }

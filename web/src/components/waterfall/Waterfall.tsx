@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link } from "wouter"
 import { bottleneckFor } from "../../lib/bottleneck"
-import { dur, niceTicks, tok, usd, wallClock } from "../../lib/format"
+import { BAR_LAB_FONT, BAR_LAB_FONT_INSIDE, barBox, measureBarLabel, placeBarLabel, spanExtent } from "../../lib/barLayout"
+import { Toolbar } from "../../lib/chrome"
+import { dur, niceTicks, tok, usd } from "../../lib/format"
 import { hueVar } from "../../lib/hue"
 import { hashFlag, tickLabel } from "../../lib/replay"
 import {
@@ -23,7 +24,7 @@ import {
   waitChild,
   type SpanNode,
 } from "../../lib/span"
-import { appStory, turnStory } from "../../lib/story"
+import { appStory } from "../../lib/story"
 import { indexContent, type ContentIndex } from "../../lib/content"
 import { groupSteps, PAUSE_MS, STEP } from "../../lib/steps"
 import { rowLabel } from "../../lib/labels"
@@ -69,8 +70,7 @@ export function Waterfall({
   }, [trace, content])
   const mark = useMemo(() => bottleneckFor(trace, findings), [trace, findings])
   const wantReplay = replayProp ?? hashFlag("replay")
-  const t0 = root.start_ns
-  const t1 = root.end_ns
+  const { start_ns: t0, end_ns: t1 } = spanExtent(root)
   const fullMs = Math.max((t1 - t0) / 1e6, 1)
   const { live, nowMs, axisMs, restart } = useReplay(fullMs, wantReplay)
   const nowNs = t0 + nowMs * 1e6
@@ -372,6 +372,11 @@ export function Waterfall({
 
   const playPct = live ? xOf(nowNs) : null
 
+  const sessionTitle = (trace.session_title || "Session").split("\n")[0].trim()
+  const crumb = sessionTitle.length > 52 ? `${sessionTitle.slice(0, 50)}…` : sessionTitle
+  const appTitle = trace.service || root.name
+  const appCrumb = appTitle.length > 52 ? `${appTitle.slice(0, 50)}…` : appTitle
+
   return (
     <div
       ref={wfRef}
@@ -379,48 +384,41 @@ export function Waterfall({
       style={labPx ? ({ ["--labw" as string]: `${labPx}px` } as React.CSSProperties) : undefined}
     >
       <div className="wf-main">
-        <div className="wf-head">
-          <div className="crumbs">
-            {isAppTrace(trace.service) ? (
-              <>
-                <Link href="/apps">Apps</Link> ›{" "}
-                <Link href={`/apps/${encodeURIComponent(trace.service || "")}`} className="mono">
-                  {trace.service}
-                </Link>{" "}
-                › <span className="mono">{root.name}</span>
-              </>
+        <Toolbar
+          title={
+            isAppTrace(trace.service) ? (
+              <span className="mono" title={appTitle}>
+                {appCrumb}
+              </span>
             ) : (
-              <>
-                <Link href="/sessions">Sessions</Link> ›{" "}
-                <Link href={`/session/${trace.session_id}`} title={trace.session_title || undefined}>
-                  {trace.session_title
-                    ? trace.session_title.length > 52
-                      ? `${trace.session_title.slice(0, 50)}…`
-                      : trace.session_title
-                    : "Session"}
-                </Link>{" "}
-                › Turn {trace.turn_index} of {trace.turn_count}
-              </>
-            )}
-            <span className="spacer" />
-            <span className={`live-badge ${live || trace.in_progress ? "is-live" : "is-done"}`}>
-              {live || trace.in_progress ? <i className="live-dot" /> : null}
-              {live ? "Live" : trace.in_progress ? "Running" : "Done"}
+              <span title={sessionTitle}>{crumb}</span>
+            )
+          }
+          sub={isAppTrace(trace.service) ? appStory(root) : `Turn ${trace.turn_index} of ${trace.turn_count}`}
+          back={
+            isAppTrace(trace.service)
+              ? { href: `/apps/${encodeURIComponent(trace.service || "")}`, label: "Back to app" }
+              : { href: `/session/${trace.session_id}`, label: "Back to session" }
+          }
+        >
+          {live || trace.in_progress ? (
+            <span className="live-badge is-live">
+              <i className="live-dot" />
+              {live ? "Live" : "Running"}
             </span>
-            <button type="button" className="replay-btn" onClick={restart} hidden={live}>
-              Replay
-            </button>
-            {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
-            <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
-              ‹
-            </button>
-            <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="]">
-              ›
-            </button>
-          </div>
-          <h1 className="story-line" style={{ margin: "8px 0 0" }}>
-            {isAppTrace(trace.service) ? appStory(root) : turnStory(trace)}
-          </h1>
+          ) : null}
+          <button type="button" className="replay-btn" onClick={restart} hidden={live}>
+            Replay
+          </button>
+          {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
+          <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
+            ‹
+          </button>
+          <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="]">
+            ›
+          </button>
+        </Toolbar>
+        <div className="wf-head">
           <div className="wf-stats">
             <Stat k="Duration" v={dur(live ? nowMs : root.duration_ms)} />
             {!isAppTrace(trace.service) && trace.breakdown?.permission_wait ? <Stat k="Waiting on you" v={dur(trace.breakdown.permission_wait)} tone="wait" /> : null}
@@ -620,8 +618,14 @@ export function Waterfall({
               {hoverX != null && hoverNs != null && (
                 <>
                   <div className="crosshair" style={{ left: hoverX }} />
-                  <div className="crosshair-label" style={{ left: hoverX }}>
-                    {dur((hoverNs - t0) / 1e6)} · {wallClock(hoverNs)}
+                  <div
+                    className="crosshair-label"
+                    style={{
+                      left: hoverX,
+                      transform: hoverX > trackW - 72 ? "translateX(calc(-100% - 6px))" : "translateX(6px)",
+                    }}
+                  >
+                    {dur((hoverNs - t0) / 1e6)}
                   </div>
                 </>
               )}
@@ -757,18 +761,6 @@ export function Waterfall({
   )
 }
 
-const MIN_BAR_PX = 4
-
-function barBox(leftPct: number, widthPct: number, trackW: number): { left: string; width: string } {
-  if (trackW <= 0) {
-    return { left: `${leftPct}%`, width: `${Math.max(widthPct, 0.5)}%` }
-  }
-  const leftPx = (leftPct / 100) * trackW
-  const widthPx = Math.max((widthPct / 100) * trackW, MIN_BAR_PX)
-  const left = Math.min(Math.max(0, leftPx), Math.max(0, trackW - widthPx))
-  return { left: `${left}px`, width: `${widthPx}px` }
-}
-
 function hostRow(spanId: string, rows: { span: SpanNode }[], byId: Map<string, SpanNode>): string | null {
   const visible = new Set(rows.map((r) => r.span.span_id))
   let cur: string | null = spanId
@@ -832,10 +824,10 @@ function Row({
     return ck === "wait" || ck === "run"
   })
   const ro = collapsed && kids && !phasesOnly ? rollup(span) : null
-  // The count chip says how many sit directly inside; the pill only adds what is nested deeper.
   const pill = ro ? (isStep ? `${span.kids.length} ${span.kids.length === 1 ? "call" : "calls"}` : ro.n > kids ? `${ro.n} in all` : "") : ""
-  const endNs = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
-  const L = xOf(span.start_ns)
+  const extent = spanExtent(span)
+  const endNs = nowNs != null ? Math.min(extent.end_ns, nowNs) : extent.end_ns
+  const L = xOf(extent.start_ns)
   const W = Math.max(xOf(endNs) - L, 0)
   const wait = waitChild(span)
   // Red means this span failed, or the wait/run step folded into its bar did.
@@ -849,13 +841,18 @@ function Row({
   const hiddenErr = !err && collapsed && hasError(span)
   const a = span.attrs
   const attempt = Number(a.attempt || 0)
-  const box = barBox(L, W, trackW)
-  const shownMs = Math.max(0, (endNs - span.start_ns) / 1e6)
+  const box = isStep ? stepBox(span, xOf, trackW, nowNs) : barBox(L, W, trackW)
+  const shownMs = Math.max(0, (endNs - extent.start_ns) / 1e6)
   const cost = costOf(span)
-  // Time and cost beside the bar they describe; before it when the bar runs to the edge.
   const barLabel = [dur(shownMs), cost >= 0.001 ? usd(cost) : ""].filter(Boolean).join(" · ")
-  const barEndPx = trackW > 0 ? parseFloat(box.left) + parseFloat(box.width) : 0
-  const labelBefore = trackW > 0 && barEndPx > trackW - 120
+  const slowTag = slowest ? "Slowest" : ""
+  const labelText = [barLabel, slowTag].filter(Boolean).join(" ")
+  const extra = slowTag ? 18 : 0
+  const labelW = measureBarLabel(labelText, BAR_LAB_FONT) + extra
+  const insideLabelW = measureBarLabel(labelText, BAR_LAB_FONT_INSIDE) + extra
+  const placed = placeBarLabel({ barLeft: box.leftPx, barWidth: box.widthPx, trackW, labelW, insideLabelW })
+  const hasDur = shownMs > 0 || extent.end_ns > extent.start_ns || span.duration_ms > 0
+  const fullName = [name, attempt > 1 ? `×${attempt}` : "", target, pill].filter(Boolean).join(" ")
 
   const onBarClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -875,6 +872,7 @@ function Row({
     <motion.div
       className={`row ${isStep ? "is-step" : ""} ${selected ? "sel" : ""} ${err ? "err" : ""} ${flash ? "flash" : ""} ${hovered || menuOpen ? "hov" : ""}`}
       data-span={span.span_id}
+      data-ms={String(Math.round(shownMs))}
       initial={false}
       animate={{ top: index * ROW }}
       exit={{ opacity: 0 }}
@@ -892,23 +890,18 @@ function Row({
         {kids ? (
           <button
             type="button"
-            className={`caret count ${collapsed ? "is-closed" : ""}`}
+            className={`caret ${collapsed ? "is-closed" : ""}`}
             aria-expanded={!collapsed}
+            aria-label={collapsed ? `Show the ${kids} inside` : `Hide the ${kids} inside`}
             title={collapsed ? `Show the ${kids} inside` : `Hide the ${kids} inside`}
             onClick={(e) => {
               e.stopPropagation()
               onToggle()
             }}
           >
-            {isStep ? (
-              <svg viewBox="0 0 10 10" aria-hidden className={collapsed ? "" : "is-open"}>
-                <path d="M3.5 2 L6.5 5 L3.5 8" />
-              </svg>
-            ) : kids > 99 ? (
-              "99+"
-            ) : (
-              kids
-            )}
+            <svg viewBox="0 0 10 10" aria-hidden className={collapsed ? "" : "is-open"}>
+              <path d="M3.5 2 L6.5 5 L3.5 8" />
+            </svg>
           </button>
         ) : (
           <span className="caret" />
@@ -920,25 +913,11 @@ function Row({
             <SpanIcon span={span} />
           </span>
         )}
-        <span className="name">
+        <span className="name" title={fullName}>
           {name}
           {attempt > 1 ? <span className="badge">×{attempt}</span> : null}
           {target ? <span className="t">{target}</span> : null}
         </span>
-        <AnimatePresence>
-          {ro ? (
-            <motion.span
-              className="n-pill"
-              key="n"
-              initial={false}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {pill}
-            </motion.span>
-          ) : null}
-        </AnimatePresence>
         {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
         <button
           type="button"
@@ -962,19 +941,20 @@ function Row({
       <div className="trk">
         {isStep ? (
           <StepBar span={span} xOf={xOf} trackW={trackW} nowNs={nowNs} />
-        ) : (
+        ) : hasDur ? (
         <div
-          className={`bar ${k === "wait" ? "is-wait" : ""} ${err ? "err" : ""}`}
-          style={{ ...box, ["--bar-hue" as string]: hueVar(span) }}
+          className={`bar ${k === "wait" ? "is-wait" : ""} ${k === "turn" ? "is-turn" : ""} ${err ? "err" : ""}`}
+          data-bar="1"
+          style={{ left: box.left, width: box.width, ["--bar-hue" as string]: hueVar(span) }}
           onClick={onBarClick}
         >
           <Phases span={span} />
         </div>
-        )}
-        {!mark && k !== "turn" && trackW > 0 ? (
+        ) : null}
+        {!mark && k !== "turn" && trackW > 0 && barLabel ? (
           <span
-            className={`bar-lab ${labelBefore ? "is-before" : ""} ${err ? "is-err" : ""}`}
-            style={labelBefore ? { right: trackW - parseFloat(isStep ? stepBox(span, xOf, trackW, nowNs).left : box.left) + 6 } : { left: (isStep ? stepEnd(span, xOf, trackW, nowNs) : barEndPx) + 6 }}
+            className={`bar-lab is-${placed.mode} ${err ? "is-err" : ""}`}
+            style={{ left: placed.left, maxWidth: Math.max(0, trackW - placed.left) }}
           >
             {barLabel}
             {slowest ? <b className="slowest">Slowest</b> : null}
@@ -1047,10 +1027,10 @@ function humanGaps(trace: Trace): Gap[] {
 // A step's own bar: each call inside it at its place in time, thinking and
 // tools in their colours, so a closed step still shows its rhythm.
 function StepBar({ span, xOf, trackW, nowNs }: { span: SpanNode; xOf: (ns: number) => number; trackW: number; nowNs: number | null }) {
+  const box = stepBox(span, xOf, trackW, nowNs)
   const end = (n: number) => (nowNs != null ? Math.min(n, nowNs) : n)
-  const box = barBox(xOf(span.start_ns), Math.max(xOf(end(span.end_ns)) - xOf(span.start_ns), 0), trackW)
   return (
-    <div className="step-bar" style={box}>
+    <div className="step-bar" data-bar="1" style={{ left: box.left, width: box.width }}>
       {span.kids.map((c) => {
         if (nowNs != null && c.start_ns > nowNs) return null
         const l = xOf(c.start_ns) - xOf(span.start_ns)
@@ -1106,11 +1086,8 @@ function callStats(spans: SpanNode[] | Trace["spans"]): { llmCalls: number; toke
 }
 
 function stepBox(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null) {
-  const end = nowNs != null ? Math.min(span.end_ns, nowNs) : span.end_ns
-  return barBox(xOf(span.start_ns), Math.max(xOf(end) - xOf(span.start_ns), 0), trackW)
-}
-
-function stepEnd(span: SpanNode, xOf: (ns: number) => number, trackW: number, nowNs: number | null): number {
-  const b = stepBox(span, xOf, trackW, nowNs)
-  return parseFloat(b.left) + parseFloat(b.width)
+  const extent = spanExtent(span)
+  const end = nowNs != null ? Math.min(extent.end_ns, nowNs) : extent.end_ns
+  const L = xOf(extent.start_ns)
+  return barBox(L, Math.max(xOf(end) - L, 0), trackW)
 }
