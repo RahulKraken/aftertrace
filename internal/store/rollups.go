@@ -648,6 +648,9 @@ func (s *Store) refreshDirtyLocked() error {
 	if len(tids) == 0 && len(sids) == 0 {
 		return nil
 	}
+	if err := s.backfillLLMFactsSessions(sids); err != nil {
+		return err
+	}
 	const batch = 80
 	for i := 0; i < len(tids); i += batch {
 		j := i + batch
@@ -670,7 +673,13 @@ func (s *Store) refreshDirtyLocked() error {
 	if err := s.refreshDaysForTraces(tids); err != nil {
 		return err
 	}
-	return s.refreshModels()
+	if err := s.refreshModels(); err != nil {
+		return err
+	}
+	if err := s.rebuildSourceStats(); err != nil {
+		return err
+	}
+	return s.recountMetaLocked()
 }
 
 // EnsureRollups backfills materialized tables for a store opened from an older
@@ -774,6 +783,10 @@ func (s *Store) rebuildAllLocked() error {
 	if err := s.rebuildSourceStats(); err != nil {
 		return err
 	}
+	return s.recountMetaLocked()
+}
+
+func (s *Store) recountMetaLocked() error {
 	var c Counts
 	_ = s.DB.QueryRow(`SELECT (SELECT count(*) FROM spans),(SELECT count(*) FROM span_events),(SELECT count(*) FROM events),(SELECT count(*) FROM metric_points)`).
 		Scan(&c.Spans, &c.SpanEvents, &c.Events, &c.MetricPoints)
@@ -811,7 +824,20 @@ func (s *Store) backfillLLMFacts() error {
 		}
 	}
 	rows.Close()
-	insert := `INSERT INTO llm_facts
+	if err := s.backfillLLMFactsSessions(ids); err != nil {
+		return err
+	}
+	if orphan {
+		insert := llmFactsInsertSQL()
+		if _, err := s.DB.Exec(insert + ` AND s.session_id IS NULL`); err != nil {
+			return fmt.Errorf("backfill llm_facts: %w", err)
+		}
+	}
+	return nil
+}
+
+func llmFactsInsertSQL() string {
+	return `INSERT INTO llm_facts
 		(trace_id, span_id, session_id, start_ns, model, request_id, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, is_error, attempt)
 		SELECT s.trace_id, s.span_id, s.session_id, s.start_ns, a(s.attrs,'model'), a(s.attrs,'request_id'),
 			coalesce(n(e.attrs,'cost_usd'), n(s.attrs,'cost_usd')),
@@ -819,6 +845,13 @@ func (s *Store) backfillLLMFacts() error {
 			s.is_error, n(s.attrs,'attempt')
 		FROM spans s LEFT JOIN events e ON e.name='api_request' AND e.request_id = a(s.attrs,'request_id')
 		WHERE s.name='claude_code.llm_request'`
+}
+
+func (s *Store) backfillLLMFactsSessions(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	insert := llmFactsInsertSQL()
 	const batch = 20
 	for i := 0; i < len(ids); i += batch {
 		j := i + batch
@@ -826,17 +859,11 @@ func (s *Store) backfillLLMFacts() error {
 			j = len(ids)
 		}
 		ph := placeholders(j - i)
-		if _, err := s.DB.Exec(insert+` AND s.session_id IN (`+ph+`)`, anyStrings(ids[i:j])...); err != nil {
-			return fmt.Errorf("backfill llm_facts: %w", err)
+		args := anyStrings(ids[i:j])
+		if _, err := s.DB.Exec(`DELETE FROM llm_facts WHERE session_id IN (`+ph+`)`, args...); err != nil {
+			return err
 		}
-		if (i/batch)%8 == 7 {
-			if _, err := s.DB.Exec(`CHECKPOINT`); err != nil {
-				return err
-			}
-		}
-	}
-	if orphan {
-		if _, err := s.DB.Exec(insert + ` AND s.session_id IS NULL`); err != nil {
+		if _, err := s.DB.Exec(insert+` AND s.session_id IN (`+ph+`)`, args...); err != nil {
 			return fmt.Errorf("backfill llm_facts: %w", err)
 		}
 	}

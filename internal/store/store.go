@@ -381,16 +381,6 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 	}
 	if s.deferRollups > 0 {
 		s.markDirty(spans, evs, pts)
-		if err := s.upsertLLMFacts(spans, evs); err != nil {
-			return err
-		}
-		if err := s.bumpSources(spans, evs, pts); err != nil {
-			return err
-		}
-		if err := s.bumpCounts(len(spans), len(sevs), len(evs), len(pts)); err != nil {
-			return err
-		}
-		s.noteOrigin(spans, evs, pts)
 		return nil
 	}
 	return s.refreshAfterInsert(spans, sevs, evs, pts)

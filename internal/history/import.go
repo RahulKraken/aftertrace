@@ -142,11 +142,6 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 			}
 		}
 	}
-	if res.Sessions > 0 && res.Sessions%64 != 0 {
-		if _, err := st.DB.Exec(`CHECKPOINT`); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
