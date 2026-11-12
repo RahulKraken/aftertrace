@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,6 +98,70 @@ func treeFiles(t *testing.T, root string) map[string]string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+func TestProfiles(t *testing.T) {
+	ci := profileNamed("ci")
+	if ci.Size != 32<<20 || ci.Idle != 20*time.Second || ci.Sessions != 80 {
+		t.Fatalf("ci: %+v", ci)
+	}
+	if !ci.SmallCorpus() || !ci.ShortIdle() {
+		t.Fatal("ci should be marked small/short")
+	}
+	nightly := profileNamed("nightly")
+	if nightly.Size != 512<<20 || nightly.Idle != 10*time.Minute || nightly.Sessions != 800 {
+		t.Fatalf("nightly: %+v", nightly)
+	}
+	if !nightly.SmallCorpus() {
+		t.Fatal("512 MiB is not a 2 GiB corpus")
+	}
+	if nightly.ShortIdle() {
+		t.Fatal("nightly idle should be 10 minutes")
+	}
+	full := profileNamed("full")
+	if full.Size != 2<<30 || full.Sessions != 3000 || full.Idle != 10*time.Minute {
+		t.Fatalf("full: %+v", full)
+	}
+	if full.SmallCorpus() || full.ShortIdle() {
+		t.Fatal("full should be representative")
+	}
+}
+
+func TestDesktopIdleCadence(t *testing.T) {
+	if desktopHealthEvery != time.Second {
+		t.Fatalf("health %s", desktopHealthEvery)
+	}
+	if desktopGlanceEvery != 45*time.Second {
+		t.Fatalf("glance %s want 45s (tray IDLE_MS)", desktopGlanceEvery)
+	}
+	if desktopFindingsEvery != 30*time.Second {
+		t.Fatalf("findings %s want 30s", desktopFindingsEvery)
+	}
+}
+
+func TestCrashKillAfter(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	d := crashKillAfter(rng, 2*time.Second, false)
+	if d < 50*time.Millisecond || d > 1600*time.Millisecond {
+		t.Fatalf("short import kill %s", d)
+	}
+	d = crashKillAfter(rng, 90*time.Second, true)
+	if d < 50*time.Millisecond || d > 1600*time.Millisecond {
+		t.Fatalf("small-corpus kill %s", d)
+	}
+	d = crashKillAfter(rng, 20*time.Minute, false)
+	if d < 2*time.Second || d > 5*time.Minute {
+		t.Fatalf("long import kill %s", d)
+	}
+}
+
+func TestMarkdownNotRepresentative(t *testing.T) {
+	r := &Report{Profile: "ci", Corpus: "32 MiB"}
+	r.add(Budget{ID: "B4", Name: "RSS", Target: "≤350 MB", Pass: true, Representative: false, Measured: "136 MB"})
+	md := r.Markdown()
+	if !strings.Contains(md, "not representative") {
+		t.Fatalf("markdown:\n%s", md)
+	}
 }
 
 func TestScaleBudgets(t *testing.T) {

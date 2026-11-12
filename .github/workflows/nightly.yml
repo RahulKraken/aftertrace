@@ -13,7 +13,7 @@ jobs:
   idle:
     name: 10-minute idle
     runs-on: macos-14
-    timeout-minutes: 40
+    timeout-minutes: 180
     env:
       CGO_ENABLED: "1"
       AFTERTRACE_HARNESS: "1"
@@ -26,10 +26,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Scale harness (32MiB corpus, 10-minute idle)
+      - name: Scale harness (512MiB corpus, 10-minute idle)
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
-          go test -count=1 -timeout 35m ./internal/harness -run TestScaleBudgets -v
+          go test -count=1 -timeout 3h ./internal/harness -run TestScaleBudgets -v
           echo "----- budget summary -----"
           cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
       - name: powermetrics

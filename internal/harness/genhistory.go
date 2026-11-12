@@ -242,7 +242,15 @@ func writeSession(path string, s sessionSpec) (int64, error) {
 		return n, err
 	}
 
-	turns := 2 + s.Index%5
+	// Stored DuckDB rows come from assistant usage turns. Tool-result
+	// padding is stripped at ingest, so a 2 GiB tree of "xxxxx" still
+	// yields a tiny DB and cannot speak to a 735 MB field file. Keep a
+	// few large tool_result lines (B5) and spend the rest of the session
+	// on turns the importer actually writes.
+	turns := 48 + s.Index%32
+	if s.Subagent {
+		turns = 3
+	}
 	remaining := s.Pad
 	if remaining < 512 {
 		remaining = 512

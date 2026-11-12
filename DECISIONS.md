@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: measure the field corpus, do not raise the DuckDB cap.
+
+**Choice.** Keep `memory_limit=256MB` (244 MiB) in the shipped DSN. The 32 MiB / 20 s PR job stays so CI stays around 15 minutes; those passes are labelled **not representative**. Nightly uses at least 512 MiB and a full 10-minute idle. CI `workflow_dispatch` can run a larger corpus without the other jobs. B1/B2 drive a test-only tray stand-in (health every 1 s, glance every 45 s, findings every 30 s) because the desktop is not present. B4 records first-import wall and CPU; B8 SIGKILL waits scale with golden import duration (capped at 5 minutes). `gen-history` still honours `--size` as JSONL bytes, but each session also gets 48–79 assistant usage turns so the stored DB is not a 27 MB file of stripped padding. Small-corpus B4/B5 passes do not speak to a 735 MB field DB or 7.9 GB of `~/.claude/projects`.
+
+**Why.** Rahul's Mac OOMs at the 244 MiB DuckDB cap. A 32 MiB corpus never reaches that cap, so a green B4/B5 there proves nothing about the field bug.
+
+**How to reverse.** Revert this follow-up. Nightly goes back to 32 MiB; drop `workflow_dispatch` inputs and the tray stand-in.
+
 ## Nov 12 2026: report-only scale and energy harness.
 
 **Choice.** One PR, no merge/tag/release. PRs #59, #60 and #61 stay untouched. Engine behaviour on the default `serve` path is unchanged. Add a hidden `aftertrace dev gen-history` command, a `serve --exit-after-warm` test flag, `internal/harness` driving a real `serve` for budgets B1–B9, report-only `internal/store/audit_test.go` table tests for the three known store bugs, a `macos-14` `scale` job (~15 min, 32 MiB corpus) that publishes a JSON artifact and prints markdown (no PR comments), `nightly.yml` with a 10-minute idle, `docs/how-it-works/budgets.md`, and this entry. Budget misses and audit bugs log `known bug` / skip; they do not fail CI. `AFTERTRACE_FAIL_STORE` is a sentinel path Insert checks only when set. Electron main CPU and `powermetrics` are TODOs on GitHub-hosted runners. Each later fix PR flips its own assertion to `t.Fatal`.

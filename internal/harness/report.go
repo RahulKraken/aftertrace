@@ -24,14 +24,15 @@ type Report struct {
 }
 
 type Budget struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Target     string `json:"target"`
-	Measured   any    `json:"measured"`
-	Pass       bool   `json:"pass"`
-	ReportOnly bool   `json:"report_only"`
-	Corpus     string `json:"corpus"`
-	Notes      string `json:"notes,omitempty"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Target         string `json:"target"`
+	Measured       any    `json:"measured"`
+	Pass           bool   `json:"pass"`
+	ReportOnly     bool   `json:"report_only"`
+	Corpus         string `json:"corpus"`
+	Notes          string `json:"notes,omitempty"`
+	Representative bool   `json:"representative"`
 }
 
 func newReport(p Profile) *Report {
@@ -73,6 +74,13 @@ func (r *Report) Markdown() string {
 		vs := "miss"
 		if x.Pass {
 			vs = "pass"
+		}
+		if !x.Representative {
+			if x.Pass {
+				vs = "pass, not representative"
+			} else {
+				vs = "miss, not representative"
+			}
 		}
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", x.ID, x.Name, x.Target, stringify(x.Measured), vs)
 		if x.Notes != "" {

@@ -47,7 +47,14 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 	rep.Notes = append(rep.Notes,
 		"Report-only: a miss does not fail CI.",
 		"B1 Electron main CPU is not measured in this job (TODO: packaged desktop on a self-hosted Mac).",
+		"DSN memory_limit=256MB (244 MiB), unchanged from shipped engine.",
 	)
+	if p.SmallCorpus() {
+		rep.Notes = append(rep.Notes, "Corpus smaller than 2 GiB: B3/B4/B5/B8 passes are not representative of a 735 MB field DB / 7.9 GB ~/.claude/projects / 244 MiB DuckDB cap.")
+	}
+	if p.ShortIdle() {
+		rep.Notes = append(rep.Notes, "Idle window shorter than 10 minutes: B1/B2 cannot catch the 45s tray glance poll or the 30s findings refresh.")
+	}
 
 	histDir := filepath.Join(work, "projects")
 	t.Logf("generating history %s", p.CorpusNote())
@@ -58,45 +65,60 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 	t.Logf("generated %d bytes in %s", gr.Bytes, histDir)
 
 	goldenDB := filepath.Join(work, "golden.duckdb")
-	b4, b5, goldenFP, err := measureBackfill(t, bin, work, histDir, goldenDB, p)
-	if err != nil {
-		return rep, err
-	}
+	b4, b5, goldenFP, importDur, err := measureBackfill(t, bin, work, histDir, goldenDB, p)
 	rep.add(b4)
 	rep.add(b5)
-
-	b8, err := measureCrash(t, bin, work, histDir, goldenDB, goldenFP, p)
+	importOK := err == nil
 	if err != nil {
-		rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts match clean import; no imported-without-rows", Measured: err.Error(), Pass: false, Notes: "harness error"})
+		t.Logf("first import did not finish: %v (B4/B5 recorded; skip B8/B3 that need a golden DB)", err)
+		rep.Notes = append(rep.Notes, "first import did not finish: "+err.Error())
+	}
+
+	if importOK {
+		b8, err := measureCrash(t, bin, work, histDir, goldenDB, goldenFP, importDur, p)
+		if err != nil {
+			rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts match clean import; no imported-without-rows", Measured: err.Error(), Pass: false, Notes: "harness error", Representative: !p.SmallCorpus()})
+		} else {
+			rep.add(b8)
+		}
+
+		b3, err := measureRestart(t, bin, work, histDir, goldenDB, goldenFP, p)
+		if err != nil {
+			rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero data-table writes", Measured: err.Error(), Pass: false, Representative: !p.SmallCorpus()})
+		} else {
+			rep.add(b3)
+		}
 	} else {
-		rep.add(b8)
+		rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts match clean import; no imported-without-rows", Measured: "skipped: no golden import", Pass: false, Notes: "first import did not finish", Representative: !p.SmallCorpus()})
+		rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero data-table writes", Measured: "skipped: no golden import", Pass: false, Representative: !p.SmallCorpus()})
 	}
 
-	b3, err := measureRestart(t, bin, work, histDir, goldenDB, goldenFP, p)
-	if err != nil {
-		rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero data-table writes", Measured: err.Error(), Pass: false})
+	if _, err := os.Stat(goldenDB); err != nil {
+		t.Logf("no golden DB (%v); skipping B1/B2/B10", err)
+		rep.add(Budget{ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min (engine); Electron main ≤2 CPU-s", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
+		rep.add(Budget{ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
+		rep.add(Budget{ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard", Measured: "skipped: no golden import", Pass: false})
 	} else {
-		rep.add(b3)
-	}
+		idleProc, err := Start(StartOpts{Bin: bin, Dir: filepath.Join(work, "idle"), HistoryDir: histDir, DB: copyDB(t, goldenDB, filepath.Join(work, "idle.duckdb"))})
+		if err != nil {
+			return rep, err
+		}
+		if err := idleProc.WaitReady(3 * time.Minute); err != nil {
+			_ = idleProc.Kill()
+			return rep, err
+		}
+		if err := idleProc.WaitWarm(p.ImportWait()); err != nil {
+			t.Logf("idle warm wait: %v (continuing)", err)
+		}
 
-	idleProc, err := Start(StartOpts{Bin: bin, Dir: filepath.Join(work, "idle"), HistoryDir: histDir, DB: copyDB(t, goldenDB, filepath.Join(work, "idle.duckdb"))})
-	if err != nil {
-		return rep, err
-	}
-	if err := idleProc.WaitReady(3 * time.Minute); err != nil {
-		_ = idleProc.Kill()
-		return rep, err
-	}
-	// Let warmup finish (history skip + reopen) before idle.
-	time.Sleep(2 * time.Second)
+		b1, b2 := measureIdle(t, idleProc, p)
+		rep.add(b1)
+		rep.add(b2)
 
-	b1, b2 := measureIdle(t, idleProc, p)
-	rep.add(b1)
-	rep.add(b2)
-
-	b10 := measureLatency(t, idleProc, p)
-	rep.add(b10)
-	_ = idleProc.Stop()
+		b10 := measureLatency(t, idleProc, p)
+		rep.add(b10)
+		_ = idleProc.Stop()
+	}
 
 	b6 := measureLoad(t, bin, work, histDir, p)
 	rep.add(b6)
@@ -110,11 +132,12 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 	return rep, nil
 }
 
-func measureBackfill(t *testing.T, bin, work, hist, db string, p Profile) (Budget, Budget, tableFP, error) {
+func measureBackfill(t *testing.T, bin, work, hist, db string, p Profile) (Budget, Budget, tableFP, time.Duration, error) {
 	dir := filepath.Join(work, "backfill")
+	t0 := time.Now()
 	proc, err := Start(StartOpts{Bin: bin, Dir: dir, HistoryDir: hist, DB: db, ExitAfterWarm: true})
 	if err != nil {
-		return Budget{}, Budget{}, tableFP{}, err
+		return Budget{}, Budget{}, tableFP{}, 0, err
 	}
 	stop := make(chan struct{})
 	spill := watchSpill(db, stop, p.SpillEvery)
@@ -140,34 +163,47 @@ func measureBackfill(t *testing.T, bin, work, hist, db string, p Profile) (Budge
 			}
 		}
 	}()
-	err = proc.WaitExit(20 * time.Minute)
+	waitErr := proc.WaitExit(p.ImportWait())
+	wall := time.Since(t0)
+	cpu := CPUFromState(proc.Cmd.ProcessState)
 	close(stop)
 	<-done
-	if err != nil {
-		return Budget{}, Budget{}, tableFP{}, fmt.Errorf("backfill: %w", err)
-	}
 	peakMu.Lock()
 	peakMB := float64(peak) / (1024 * 1024)
 	peakMu.Unlock()
 	hits := uniquePaths(spill.Hits())
-	fp, err := fingerprint(db)
-	if err != nil {
-		return Budget{}, Budget{}, tableFP{}, err
-	}
 	b4 := Budget{
-		ID: "B4", Name: "Backfill peak RSS", Target: "≤350 MB",
-		Measured: map[string]any{"peak_rss_mb": round1(peakMB), "corpus": p.CorpusNote()},
-		Pass:     peak > 0 && peak <= 350<<20,
-		Notes:    fmt.Sprintf("sampled every %s during first import", p.RSSEvery),
+		ID: "B4", Name: "Backfill peak RSS", Target: "≤350 MB on 2 GiB",
+		Measured: map[string]any{
+			"peak_rss_mb": round1(peakMB), "wall_s": wall.Seconds(), "cpu_s": cpu,
+			"corpus": p.CorpusNote(), "memory_limit": "256MB DSN (244 MiB)",
+		},
+		Pass:           waitErr == nil && peak > 0 && peak <= 350<<20,
+		Notes:          fmt.Sprintf("first import start-to-warm, RSS every %s; DSN memory_limit=256MB (244 MiB)", p.RSSEvery),
+		Representative: !p.SmallCorpus(),
 	}
 	b5 := Budget{
 		ID: "B5", Name: "No temp spill", Target: "no <db>.tmp and no temp_directory files",
-		Measured: map[string]any{"hits": len(hits), "paths": hits},
-		Pass:     len(hits) == 0,
-		Notes:    "checked every 500ms",
+		Measured:       map[string]any{"hits": len(hits), "paths": hits, "corpus": p.CorpusNote(), "wall_s": wall.Seconds()},
+		Pass:           len(hits) == 0,
+		Notes:          "checked every 500ms during first import",
+		Representative: !p.SmallCorpus(),
 	}
-	t.Logf("B4 peak RSS %.1f MB; B5 spill hits %d; golden spans=%d", peakMB, len(hits), fp.Spans)
-	return b4, b5, fp, nil
+	if waitErr != nil {
+		b4.Notes += "; import did not finish: " + waitErr.Error()
+		t.Logf("B4 peak RSS %.1f MB wall=%s cpu=%.3fs (import failed: %v); B5 spill hits %d", peakMB, wall.Truncate(time.Millisecond), cpu, waitErr, len(hits))
+		fp, fpErr := fingerprint(db)
+		if fpErr != nil {
+			return b4, b5, tableFP{}, wall, fmt.Errorf("backfill: %w", waitErr)
+		}
+		return b4, b5, fp, wall, fmt.Errorf("backfill: %w", waitErr)
+	}
+	fp, err := fingerprint(db)
+	if err != nil {
+		return b4, b5, tableFP{}, wall, err
+	}
+	t.Logf("B4 peak RSS %.1f MB wall=%s cpu=%.3fs; B5 spill hits %d; golden spans=%d", peakMB, wall.Truncate(time.Millisecond), cpu, len(hits), fp.Spans)
+	return b4, b5, fp, wall, nil
 }
 
 func measureRestart(t *testing.T, bin, work, hist, db string, before tableFP, p Profile) (Budget, error) {
@@ -197,10 +233,11 @@ func measureRestart(t *testing.T, bin, work, hist, db string, before tableFP, p 
 		ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero data-table writes",
 		Measured: map[string]any{
 			"wall_s": wall.Seconds(), "cpu_s": cpu, "writes": writes,
-			"before": before, "after": after,
+			"before": before, "after": after, "corpus": p.CorpusNote(),
 		},
-		Pass:  pass,
-		Notes: "serve --exit-after-warm on an unchanged corpus",
+		Pass:           pass,
+		Notes:          "serve --exit-after-warm on an unchanged corpus (skip + reopen)",
+		Representative: !p.SmallCorpus(),
 	}, nil
 }
 
@@ -208,6 +245,8 @@ func measureIdle(t *testing.T, proc *Proc, p Profile) (Budget, Budget) {
 	db, wal := snapFile(proc.DB), snapFile(proc.DB+".wal")
 	cpu0, errCPU := CPUSeconds(proc.PID())
 	wall0 := time.Now()
+	stop := make(chan struct{})
+	traffic := startDesktopIdle(proc, stop)
 	samples := 0
 	tk := time.NewTicker(p.IdleEvery)
 	defer tk.Stop()
@@ -217,6 +256,7 @@ func measureIdle(t *testing.T, proc *Proc, p Profile) (Budget, Budget) {
 		samples++
 		_, _ = CPUSeconds(proc.PID())
 	}
+	close(stop)
 	cpu1, _ := CPUSeconds(proc.PID())
 	cpu := cpu1 - cpu0
 	if errCPU != nil {
@@ -229,20 +269,27 @@ func measureIdle(t *testing.T, proc *Proc, p Profile) (Budget, Budget) {
 		ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min (engine); Electron main ≤2 CPU-s",
 		Measured: map[string]any{
 			"cpu_s": cpu, "wall_s": time.Since(wall0).Seconds(), "samples": samples,
-			"quota_cpu_s_for_window": quota,
+			"quota_cpu_s_for_window": quota, "idle_window": p.Idle.String(),
+			"health_hits": traffic.health.Load(), "glance_hits": traffic.glance.Load(),
+			"findings_hits": traffic.findings.Load(), "corpus": p.CorpusNote(),
 		},
-		Pass:   cpu >= 0 && cpu <= quota+1e-9,
-		Notes:  "Electron main: TODO (not started in this job). Sampled ps/getrusage every 1s.",
-		Corpus: p.CorpusNote(),
+		Pass:           cpu >= 0 && cpu <= quota+1e-9,
+		Notes:          "tray stand-in: health 1s, glance 45s, findings 30s. Electron main TODO. Sampled every 1s.",
+		Corpus:         p.CorpusNote(),
+		Representative: !p.ShortIdle(),
 	}
 	b2 := Budget{
 		ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged",
 		Measured: map[string]any{
-			"db_before": db, "db_after": db2, "wal_before": wal, "wal_after": wal2, "changed": disk,
+			"db_before": db, "db_after": db2, "wal_before": wal, "wal_after": wal2,
+			"changed": disk, "idle_window": p.Idle.String(), "corpus": p.CorpusNote(),
 		},
-		Pass: !disk,
+		Pass:           !disk,
+		Notes:          "same window as B1, with tray glance stand-in",
+		Representative: !p.ShortIdle(),
 	}
-	t.Logf("B1 idle cpu=%.3fs / %s (quota %.3f); B2 disk_changed=%v", cpu, p.Idle, quota, disk)
+	t.Logf("B1 idle cpu=%.3fs / %s (quota %.3f) glance=%d findings=%d; B2 disk_changed=%v",
+		cpu, p.Idle, quota, traffic.glance.Load(), traffic.findings.Load(), disk)
 	return b1, b2
 }
 
@@ -274,8 +321,9 @@ func measureLatency(t *testing.T, proc *Proc, p Profile) Budget {
 	return Budget{
 		ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard",
 		Measured: summary, Pass: pass,
-		Notes:  "same endpoints as internal/perf; this run uses the harness corpus, not the 92k seed",
-		Corpus: p.CorpusNote(),
+		Notes:          "same endpoints as internal/perf; this run uses the harness corpus, not the 92k seed",
+		Corpus:         p.CorpusNote(),
+		Representative: !p.SmallCorpus(),
 	}
 }
 
@@ -368,8 +416,9 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 			"database_is_closed": nClosed.Load(), "other": nOther.Load(), "err": nErr.Load(),
 			"seconds": p.Load.Seconds(), "readers": 8, "otlp_batches_per_s": p.OTLPRate,
 		},
-		Pass:  ok,
-		Notes: "8 readers × every GET at 4 Hz while OTLP replays and history backfill runs",
+		Pass:           ok,
+		Notes:          "8 readers × every GET at 4 Hz while OTLP replays and history backfill runs",
+		Representative: !p.SmallCorpus(),
 	}
 }
 
@@ -402,9 +451,10 @@ func measureDupReplay(t *testing.T, bin, work string, p Profile) Budget {
 	t.Logf("B7 diffs=%d http_ok=%d", len(diffs), acc.OK)
 	return Budget{
 		ID: "B7", Name: "Counts with duplicates", Target: "rollups = oracle; cost within 1e-9",
-		Measured: map[string]any{"diffs": diffs, "oracle": want, "rollups": got, "replay": acc},
-		Pass:     len(diffs) == 0,
-		Notes:    fmt.Sprintf("each of %d batches replayed %d times, shuffled", p.OTLPBatches, p.OTLPCopies),
+		Measured:       map[string]any{"diffs": diffs, "oracle": want, "rollups": got, "replay": acc},
+		Pass:           len(diffs) == 0,
+		Notes:          fmt.Sprintf("each of %d batches replayed %d times, shuffled", p.OTLPBatches, p.OTLPCopies),
+		Representative: true,
 	}
 }
 
@@ -447,12 +497,32 @@ func measureFailStore(t *testing.T, bin, work string, p Profile) Budget {
 			"during_fail_http": failHTTP, "during_fail_grpc": failGRPC,
 			"after_http": okHTTP, "span_rows": nspans,
 		},
-		Pass:  exporterOK && once && okHTTP.OK > 0,
-		Notes: "AFTERTRACE_FAIL_STORE sentinel; current engine may return 400/Unknown instead of 503/UNAVAILABLE",
+		Pass:           exporterOK && once && okHTTP.OK > 0,
+		Notes:          "AFTERTRACE_FAIL_STORE sentinel; current engine may return 400/Unknown instead of 503/UNAVAILABLE",
+		Representative: true,
 	}
 }
 
-func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP, p Profile) (Budget, error) {
+func crashKillAfter(rng *rand.Rand, importDur time.Duration, smallCorpus bool) time.Duration {
+	if smallCorpus || importDur <= 15*time.Second {
+		return time.Duration(50+rng.IntN(1500)) * time.Millisecond
+	}
+	lo := importDur / 20
+	if lo < 2*time.Second {
+		lo = 2 * time.Second
+	}
+	hi := importDur * 9 / 10
+	const capWait = 5 * time.Minute
+	if hi > capWait {
+		hi = capWait
+	}
+	if hi <= lo {
+		hi = lo + time.Second
+	}
+	return lo + time.Duration(rng.Int64N(int64(hi-lo)))
+}
+
+func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP, importDur time.Duration, p Profile) (Budget, error) {
 	rng := rand.New(rand.NewPCG(uint64(p.Seed), 9))
 	type trial struct {
 		I                   int           `json:"i"`
@@ -470,7 +540,7 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 		if err != nil {
 			return Budget{}, err
 		}
-		wait := time.Duration(50+rng.IntN(1500)) * time.Millisecond
+		wait := crashKillAfter(rng, importDur, p.SmallCorpus())
 		time.Sleep(wait)
 		_ = proc.Kill()
 		time.Sleep(200 * time.Millisecond)
@@ -478,7 +548,7 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 		if err != nil {
 			return Budget{}, err
 		}
-		if err := proc2.WaitExit(15 * time.Minute); err != nil {
+		if err := proc2.WaitExit(p.ImportWait()); err != nil {
 			t.Logf("B8 trial %d restart: %v", i, err)
 			pass = false
 			trials = append(trials, trial{I: i, KillAfter: wait})
@@ -505,10 +575,11 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 	}
 	return Budget{
 		ID: "B8", Name: "Resume after SIGKILL", Target: "10 trials: counts match clean import; no file imported without rows",
-		Measured: map[string]any{"trials": trials, "golden": goldenFP},
-		Pass:     pass && p.CrashTrials > 0,
-		Notes:    fmt.Sprintf("%d trials on the %s corpus", p.CrashTrials, FormatSize(p.Size)),
-		Corpus:   p.CorpusNote(),
+		Measured:       map[string]any{"trials": trials, "golden": goldenFP},
+		Pass:           pass && p.CrashTrials > 0,
+		Notes:          fmt.Sprintf("%d trials on the %s corpus; SIGKILL at 5–90%% of golden import (capped at 5m)", p.CrashTrials, FormatSize(p.Size)),
+		Corpus:         p.CorpusNote(),
+		Representative: !p.SmallCorpus(),
 	}, nil
 }
 
