@@ -136,10 +136,15 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 		res.Sessions++
 		res.Turns += out.Turns
 		res.Requests += out.Requests
-		if res.Sessions%8 == 0 {
+		if res.Sessions%64 == 0 {
 			if _, err := st.DB.Exec(`CHECKPOINT`); err != nil {
 				return err
 			}
+		}
+	}
+	if res.Sessions > 0 && res.Sessions%64 != 0 {
+		if _, err := st.DB.Exec(`CHECKPOINT`); err != nil {
+			return err
 		}
 	}
 	return nil
