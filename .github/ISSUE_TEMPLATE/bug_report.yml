@@ -13,7 +13,7 @@ body:
     attributes:
       label: Aftertrace version
       description: About Aftertrace, or `aftertrace version`.
-      placeholder: v0.5.7
+      placeholder: v0.5.8
     validations:
       required: true
   - type: dropdown

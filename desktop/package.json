@@ -1,7 +1,7 @@
 {
   "name": "aftertrace-desktop",
   "productName": "Aftertrace",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Time, cost and usage for your AI work. Local desktop shell around the Aftertrace engine.",
   "private": true,
   "license": "Apache-2.0",
