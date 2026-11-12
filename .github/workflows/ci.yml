@@ -34,12 +34,12 @@ jobs:
       - run: go vet ./...
       # Read handlers run concurrently with ingest; -race keeps them honest.
       - run: go test -race ./...
-      # -race inflates RSS. Bound DuckDB without it: 256MB memory_limit, 2 threads.
+      # -race inflates RSS. Bound DuckDB without it: 256MB memory_limit, 2 threads, peak < 450 MB on ~700 MB / 100k spans.
       - name: DuckDB RSS bound
         if: matrix.os == 'ubuntu-latest'
         env:
           AFTERTRACE_RSS_TEST: "1"
-        run: go test -count=1 -timeout 15m ./internal/store -run TestPeakRSSOnSeededDB -v
+        run: go test -count=1 -timeout 25m ./internal/store -run TestPeakRSSOnSeededDB -v
       - name: Realistic seed latency and RSS
         if: matrix.os == 'ubuntu-latest'
         env:

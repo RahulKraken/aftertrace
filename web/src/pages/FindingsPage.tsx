@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { CaretRight, Copy } from "@phosphor-icons/react"
 import { Link } from "wouter"
-import { api, emptyMode } from "../lib/api"
+import { api, emptyMode, isTransientError } from "../lib/api"
 import { readCached, writeCached } from "../lib/poll"
 import { previewSkeleton } from "../lib/cache"
 import { FindingsSkeleton } from "../components/PageSkeleton"
@@ -39,7 +39,7 @@ export function FindingsPage() {
       writeCached("aftertrace.findings", rows)
       setErr(null)
     }).catch((e: Error) => {
-      if (!fs) setErr(e.message)
+      if (!fs && !isTransientError(e)) setErr("Aftertrace can't reach its engine.")
     })
     api.sessions().then((rows) => {
       setSessions(rows)

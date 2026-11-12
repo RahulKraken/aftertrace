@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams } from "wouter"
-import { api } from "../lib/api"
+import { api, isTransientError } from "../lib/api"
 import { startPoll } from "../lib/poll"
 import { hashFlag } from "../lib/replay"
 import type { Finding, Trace } from "../lib/types"
@@ -54,7 +54,9 @@ export function TracePage() {
         setTrace(t)
         setFindings(f)
       })
-      .catch((e: Error) => setErr(e.message))
+      .catch((e: Error) => {
+        if (!isTransientError(e)) setErr("This turn is not in the store.")
+      })
   }, [params.id])
 
   // A running turn grows as spans arrive. Re-fetch it until Claude Code sends the turn's root span.

@@ -20,14 +20,27 @@ import { fieldValues, queryTraces, runQuery } from "./query"
 import { runSql } from "./sql"
 
 function json<T>(data: T, status = 200): T {
-  if (status >= 400) throw Object.assign(new Error((data as { error?: string }).error || "error"), { payload: data })
+  if (status >= 400) throw Object.assign(new Error((data as { error?: string }).error || "error"), { payload: data, status })
   return data
+}
+
+function flap(): boolean {
+  const w = globalThis as { __aftertraceFlap?: number }
+  const n = Number(w.__aftertraceFlap || 0)
+  if (n > 0) {
+    w.__aftertraceFlap = n - 1
+    return true
+  }
+  return false
 }
 
 export async function handle(path: string, init?: RequestInit): Promise<unknown> {
   const url = new URL(path, "http://aftertrace.local")
   const p = url.pathname
   const method = (init?.method || "GET").toUpperCase()
+  if (flap() && p.startsWith("/api/") && p !== "/api/health" && p !== "/api/version") {
+    return json({ error: "sql: database is closed" }, 503)
+  }
 
   if (method === "GET") {
     if (p === "/api/overview") return json(mockOverview())

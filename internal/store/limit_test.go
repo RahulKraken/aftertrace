@@ -28,6 +28,13 @@ func TestDSNLocksMemoryAndThreads(t *testing.T) {
 	if threads != "2" {
 		t.Fatalf("threads=%q, want 2", threads)
 	}
+	var order string
+	if err := st.DB.QueryRow(`SELECT current_setting('preserve_insertion_order')`).Scan(&order); err != nil {
+		t.Fatal(err)
+	}
+	if order != "false" && order != "False" {
+		t.Fatalf("preserve_insertion_order=%q, want false", order)
+	}
 	if _, err := st.DB.Exec(`SET memory_limit='16GB'`); err == nil {
 		t.Fatal("SET memory_limit succeeded; lock_configuration should refuse it")
 	}

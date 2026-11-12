@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/RahulKraken/aftertrace/internal/pricing"
 
@@ -33,11 +35,35 @@ type Store struct {
 	wmu  sync.Mutex
 	cmu  sync.Mutex
 	chg  []func()
-	// deferRollups > 0 skips per-batch refreshAfterInsert. History import
-	// writes many sessions; rebuilding rollups once at the end is the same
-	// result without repeating day/model scans on every file.
+	// deferRollups > 0 skips per-batch trace/session/day refresh. History
+	// import writes many sessions; dirty IDs are refreshed once on the way out.
 	deferRollups int
+	unavailable  atomic.Bool
+	dirtySess    map[string]struct{}
+	dirtyTrace   map[string]struct{}
+	// failInsertAfterChunks is a test hook. Production leaves it 0.
+	failInsertAfterChunks int
+	insertChunksDone      int
 }
+
+// TestingFailInsertAfterChunks arms the unexported insert-failure hook.
+// After n successful 256-row chunks, insertLocked returns an error. n <= 0
+// disarms it. Tests only; production never calls this.
+func (s *Store) TestingFailInsertAfterChunks(n int) {
+	if s == nil {
+		return
+	}
+	s.wmu.Lock()
+	s.failInsertAfterChunks = n
+	s.insertChunksDone = 0
+	s.wmu.Unlock()
+}
+
+// ErrUnavailable is returned (and mapped to HTTP 503) while the DuckDB handle
+// is closed or being replaced. Callers must not run queries on a closed *sql.DB.
+var ErrUnavailable = errors.New("restarting")
+
+const insertChunk = 256
 
 type Span struct {
 	TraceID       string
@@ -102,8 +128,10 @@ const HistorySource = "history"
 // option: DuckDB refuses a different configuration on a file this process already holds.
 // memory_limit and threads are set here because lock_configuration forbids SET later.
 // A menu-bar sidecar on a large DB must not take every core or multiple GB of RSS
-// while views and findings warm up.
-const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=256MB&threads=2&allocator_flush_threshold=16MB"
+// while views and findings warm up. preserve_insertion_order=false lets DuckDB
+// spill and compact without keeping insert order, which is what OOM'd history
+// import, compact, and llm_facts backfill at the 244 MiB cap.
+const dsnOptions = "?enable_external_access=false&lock_configuration=true&memory_limit=256MB&threads=2&allocator_flush_threshold=16MB&preserve_insertion_order=false"
 
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -114,6 +142,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	s := &Store{DB: db, Path: path}
+	configureDB(db)
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
@@ -163,28 +192,49 @@ func migrateDayStats(db *sql.DB) error {
 	return nil
 }
 
+func configureDB(db *sql.DB) {
+	if db == nil {
+		return
+	}
+	// DuckDB is one instance. Extra sql.DB connections each keep Arrow/result
+	// buffers on the Go heap, which is why RSS sat hundreds of MB above memory_limit.
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(1)
+}
+
 func (s *Store) Close() error {
-	if s == nil || s.DB == nil {
+	if s == nil {
+		return nil
+	}
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+	s.unavailable.Store(true)
+	if s.DB == nil {
 		return nil
 	}
 	return s.DB.Close()
 }
 
 func (s *Store) recycleLocked() error {
+	s.unavailable.Store(true)
 	if s.DB != nil {
 		_ = s.DB.Close()
-		s.DB = nil
 	}
 	db, err := sql.Open("duckdb", s.Path+dsnOptions)
 	if err != nil {
+		s.DB = nil
 		return err
 	}
+	configureDB(db)
 	s.DB = db
+	s.unavailable.Store(false)
 	return nil
 }
 
 // Reopen closes the DuckDB instance and opens the same file again. Insert
 // leaves jemalloc dirty pages that memory_limit does not return to the OS.
+// HTTP handlers see Unavailable() during the swap and must return 503, not
+// query the closed handle.
 func (s *Store) Reopen() error {
 	if s == nil {
 		return fmt.Errorf("store: nil")
@@ -192,6 +242,51 @@ func (s *Store) Reopen() error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
 	return s.recycleLocked()
+}
+
+// Unavailable reports that the handle is closed or being replaced. Health may
+// stay 200; every other API must 503 with code "restarting".
+func (s *Store) Unavailable() bool {
+	if s == nil {
+		return true
+	}
+	return s.unavailable.Load() || s.DB == nil
+}
+
+// Warm strips leftover --store-content payloads, backfills rollups, and
+// recycles the DuckDB instance so jemalloc dirty pages return to the OS.
+func (s *Store) Warm(stripContent bool) error {
+	if s == nil {
+		return fmt.Errorf("store: nil")
+	}
+	if stripContent {
+		n, err := s.CompactContent()
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			if err := s.Reopen(); err != nil {
+				return err
+			}
+		}
+	}
+	if err := s.EnsureRollups(); err != nil {
+		return err
+	}
+	return s.Reopen()
+}
+
+// Closed reports whether err is a closed-handle or restarting failure.
+func Closed(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrUnavailable) || errors.Is(err, sql.ErrConnDone) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "database is closed") ||
+		strings.Contains(msg, "sql: connection is already closed")
 }
 
 func (s *Store) OnChange(fn func()) {
@@ -229,11 +324,16 @@ func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []Metric
 	return err
 }
 
-// WithDeferredRollups runs fn with per-insert rollup refresh off, then rebuilds
-// session/day/model tables once. Nested calls rebuild only on the outermost exit.
+// WithDeferredRollups runs fn with per-insert trace/session/day refresh off,
+// then refreshes only the sessions and traces that were written. A no-op
+// history pass (every file unchanged) does not scan the whole file.
 func (s *Store) WithDeferredRollups(fn func() error) error {
 	s.wmu.Lock()
 	s.deferRollups++
+	if s.dirtySess == nil {
+		s.dirtySess = map[string]struct{}{}
+		s.dirtyTrace = map[string]struct{}{}
+	}
 	s.wmu.Unlock()
 	err := fn()
 	s.wmu.Lock()
@@ -241,7 +341,9 @@ func (s *Store) WithDeferredRollups(fn func() error) error {
 	need := s.deferRollups == 0
 	var rerr error
 	if need {
-		rerr = s.rebuildAllLocked()
+		rerr = s.refreshDirtyLocked()
+		s.dirtySess = nil
+		s.dirtyTrace = nil
 	}
 	s.wmu.Unlock()
 	if need && rerr == nil {
@@ -271,6 +373,45 @@ func (s *Store) ReplaceHistory(sessionID string, spans []Span, sevs []SpanEvent,
 }
 
 func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	if s.Unavailable() {
+		return ErrUnavailable
+	}
+	n := len(spans)
+	if len(sevs) > n {
+		n = len(sevs)
+	}
+	if len(evs) > n {
+		n = len(evs)
+	}
+	if len(pts) > n {
+		n = len(pts)
+	}
+	for i := 0; i < n || (n == 0 && i == 0); i += insertChunk {
+		if s.failInsertAfterChunks > 0 && s.insertChunksDone >= s.failInsertAfterChunks {
+			return fmt.Errorf("test: insert failed after %d chunks", s.insertChunksDone)
+		}
+		j := i + insertChunk
+		if err := s.insertChunkTx(clipSpans(spans, i, j), clipSevs(sevs, i, j), clipEvs(evs, i, j), clipPts(pts, i, j)); err != nil {
+			return err
+		}
+		if s.failInsertAfterChunks > 0 {
+			s.insertChunksDone++
+		}
+		if n == 0 {
+			break
+		}
+	}
+	if s.deferRollups > 0 {
+		s.markDirty(spans, evs, pts)
+		return nil
+	}
+	return s.refreshAfterInsert(spans, sevs, evs, pts)
+}
+
+func (s *Store) insertChunkTx(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	if len(spans)+len(sevs)+len(evs)+len(pts) == 0 {
+		return nil
+	}
 	ctx := context.Background()
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -343,13 +484,75 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 		}
 		stmt.Close()
 	}
-	if err := tx.Commit(); err != nil {
-		return err
+	return tx.Commit()
+}
+
+func (s *Store) markDirty(spans []Span, evs []Event, pts []MetricPoint) {
+	if s.dirtySess == nil {
+		s.dirtySess = map[string]struct{}{}
+		s.dirtyTrace = map[string]struct{}{}
 	}
-	if s.deferRollups > 0 {
+	for _, sp := range spans {
+		if sp.TraceID != "" {
+			s.dirtyTrace[sp.TraceID] = struct{}{}
+		}
+		if sp.SessionID != "" {
+			s.dirtySess[sp.SessionID] = struct{}{}
+		}
+	}
+	for _, e := range evs {
+		if e.TraceID != "" {
+			s.dirtyTrace[e.TraceID] = struct{}{}
+		}
+		if e.SessionID != "" {
+			s.dirtySess[e.SessionID] = struct{}{}
+		}
+	}
+	for _, p := range pts {
+		if p.SessionID != "" {
+			s.dirtySess[p.SessionID] = struct{}{}
+		}
+	}
+}
+
+func clipSpans(v []Span, i, j int) []Span {
+	if i >= len(v) {
 		return nil
 	}
-	return s.refreshAfterInsert(spans, sevs, evs, pts)
+	if j > len(v) {
+		j = len(v)
+	}
+	return v[i:j]
+}
+
+func clipSevs(v []SpanEvent, i, j int) []SpanEvent {
+	if i >= len(v) {
+		return nil
+	}
+	if j > len(v) {
+		j = len(v)
+	}
+	return v[i:j]
+}
+
+func clipEvs(v []Event, i, j int) []Event {
+	if i >= len(v) {
+		return nil
+	}
+	if j > len(v) {
+		j = len(v)
+	}
+	return v[i:j]
+}
+
+func clipPts(v []MetricPoint, i, j int) []MetricPoint {
+	if i >= len(v) {
+		return nil
+	}
+	if j > len(v) {
+		j = len(v)
+	}
+	return v[i:j]
 }
 
 func (s *Store) Counts() (Counts, error) {

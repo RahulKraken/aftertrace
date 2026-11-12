@@ -8,7 +8,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react"
 import { Link, useLocation } from "wouter"
-import { api, emptyMode } from "../lib/api"
+import { api, emptyMode, onReconnect } from "../lib/api"
 import { startPoll } from "../lib/poll"
 import type { Theme } from "../lib/theme"
 import { StatusContext } from "../lib/status"
@@ -69,6 +69,7 @@ export function Shell({
   const [resolved, setResolved] = useState(() => resolvedKeys())
   const [loc, nav] = useLocation()
   const [inactive, setInactive] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const pendingG = useRef(0)
   const prefs = windowKind() === "settings"
 
@@ -82,15 +83,13 @@ export function Shell({
     }
   }, [])
 
+  useEffect(() => onReconnect(setReconnecting), [])
+
   useEffect(() => {
     let alive = true
     const stop = startPoll(async () => {
-      try {
-        const s = await api.status()
-        if (alive) setStatus(s)
-      } catch {
-        /* keep last */
-      }
+      const s = await api.status()
+      if (alive) setStatus(s)
     }, { visibleMs: 15000, hiddenMs: 60000 })
     api.apps().then((a) => alive && setApps(a)).catch(() => undefined)
     api.findings().then((rows) => alive && setFindings(rows)).catch(() => undefined)
@@ -204,7 +203,7 @@ export function Shell({
                 </div>
               )}
               <div className="foot recv">
-                <StatusDot status={status} />
+                <StatusDot status={status} reconnecting={reconnecting} />
                 {update?.status === "ready" ? (
                   <button
                     type="button"
@@ -249,7 +248,8 @@ function NavItem({ item, badge }: { item: Item; badge: React.ReactNode }) {
   )
 }
 
-function StatusDot({ status }: { status: Status | null }) {
+function StatusDot({ status, reconnecting }: { status: Status | null; reconnecting: boolean }) {
+  if (reconnecting) return <span data-reconnect=""><span className="dot off" />Reconnecting…</span>
   if (emptyMode()) return <><span className="dot off" />Not tracing yet</>
   if (!status) return <><span className="dot off" />Connecting…</>
   if (!status.last_ns) return <><span className="dot off" />Not tracing yet</>

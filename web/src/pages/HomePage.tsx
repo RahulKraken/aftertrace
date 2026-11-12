@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { CaretRight, Pulse, TerminalWindow } from "@phosphor-icons/react"
 import { Link, useLocation } from "wouter"
-import { api, emptyMode } from "../lib/api"
+import { api, emptyMode, isTransientError } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
 import { previewSkeleton } from "../lib/cache"
 import { HomeSkeleton } from "../components/PageSkeleton"
@@ -36,7 +36,8 @@ export function HomePage() {
           setErr(null)
         })
         .catch((e: Error) => {
-          if (alive && !ov) setErr(e.message)
+          if (alive && !ov && !isTransientError(e)) setErr("Aftertrace can't reach its engine.")
+          throw e
         })
     const stop = startPoll(load, { visibleMs: live ? 4000 : 30000, hiddenMs: 60000 })
     return () => {

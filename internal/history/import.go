@@ -63,7 +63,7 @@ func Import(st *store.Store, dir string) (Result, error) {
 		}
 		bySession[sid] = append(bySession[sid], f)
 	}
-	live, err := st.LiveSessions(sessionIDs)
+	live, err := liveSessionsBatched(st, sessionIDs)
 	if err != nil {
 		return res, err
 	}
@@ -95,6 +95,7 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 		var out sessionOut
 		out.SessionID = sid
 		nErr, nEmpty := 0, 0
+		var pending []pendingFile
 		for _, f := range group {
 			recs, err := ParseFile(f.Path)
 			if err != nil {
@@ -120,7 +121,7 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 			out.Events = append(out.Events, part.Events...)
 			out.Turns += part.Turns
 			out.Requests += part.Requests
-			_ = upsertFile(st.DB, f, "imported", part.Turns, part.Requests, now)
+			pending = append(pending, pendingFile{f: f, turns: part.Turns, requests: part.Requests})
 		}
 		res.Errors += nErr
 		res.Empty += nEmpty
@@ -131,13 +132,49 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 			continue
 		}
 		if err := st.ReplaceHistory(out.SessionID, out.Spans, nil, out.Events, nil); err != nil {
+			for _, p := range pending {
+				_ = upsertFile(st.DB, p.f, "error", 0, 0, now)
+			}
 			return err
+		}
+		for _, p := range pending {
+			_ = upsertFile(st.DB, p.f, "imported", p.turns, p.requests, now)
 		}
 		res.Sessions++
 		res.Turns += out.Turns
 		res.Requests += out.Requests
+		if res.Sessions%64 == 0 {
+			if _, err := st.DB.Exec(`CHECKPOINT`); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+func liveSessionsBatched(st *store.Store, ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	const n = 200
+	for i := 0; i < len(ids); i += n {
+		j := i + n
+		if j > len(ids) {
+			j = len(ids)
+		}
+		part, err := st.LiveSessions(ids[i:j])
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range part {
+			out[k] = v
+		}
+	}
+	return out, nil
+}
+
+type pendingFile struct {
+	f        File
+	turns    int
+	requests int
 }
 
 func unchanged(group []File, known map[string]fileRow) bool {

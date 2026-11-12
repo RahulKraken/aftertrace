@@ -642,11 +642,51 @@ func (s *Store) dropRollupsLocked(ids []string) error {
 	return nil
 }
 
+func (s *Store) refreshDirtyLocked() error {
+	tids := keys(s.dirtyTrace)
+	sids := keys(s.dirtySess)
+	if len(tids) == 0 && len(sids) == 0 {
+		return nil
+	}
+	if err := s.backfillLLMFactsSessions(sids); err != nil {
+		return err
+	}
+	const batch = 80
+	for i := 0; i < len(tids); i += batch {
+		j := i + batch
+		if j > len(tids) {
+			j = len(tids)
+		}
+		if err := s.refreshTraces(tids[i:j]); err != nil {
+			return err
+		}
+	}
+	for i := 0; i < len(sids); i += batch {
+		j := i + batch
+		if j > len(sids) {
+			j = len(sids)
+		}
+		if err := s.refreshSessions(sids[i:j]); err != nil {
+			return err
+		}
+	}
+	if err := s.refreshDaysForTraces(tids); err != nil {
+		return err
+	}
+	if err := s.refreshModels(); err != nil {
+		return err
+	}
+	if err := s.rebuildSourceStats(); err != nil {
+		return err
+	}
+	return s.recountMetaLocked()
+}
+
 // EnsureRollups backfills materialized tables for a store opened from an older
 // file. Skipped when there are no interaction turns (the RSS pad seed) or when
 // rows already exist.
 func (s *Store) EnsureRollups() error {
-	if s == nil || s.DB == nil {
+	if s == nil || s.Unavailable() {
 		return nil
 	}
 	var n int
@@ -679,15 +719,8 @@ func (s *Store) rebuildAllLocked() error {
 			return err
 		}
 	}
-	if _, err := s.DB.Exec(`INSERT INTO llm_facts
-		(trace_id, span_id, session_id, start_ns, model, request_id, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, is_error, attempt)
-		SELECT s.trace_id, s.span_id, s.session_id, s.start_ns, a(s.attrs,'model'), a(s.attrs,'request_id'),
-			coalesce(n(e.attrs,'cost_usd'), n(s.attrs,'cost_usd')),
-			n(s.attrs,'input_tokens'), n(s.attrs,'output_tokens'), n(s.attrs,'cache_read_tokens'), n(s.attrs,'cache_creation_tokens'),
-			s.is_error, n(s.attrs,'attempt')
-		FROM spans s LEFT JOIN events e ON e.name='api_request' AND e.request_id = a(s.attrs,'request_id')
-		WHERE s.name='claude_code.llm_request'`); err != nil {
-		return fmt.Errorf("backfill llm_facts: %w", err)
+	if err := s.backfillLLMFacts(); err != nil {
+		return err
 	}
 	rows, err := s.DB.Query(`SELECT DISTINCT trace_id FROM spans WHERE name='claude_code.interaction'
 		UNION SELECT DISTINCT trace_id FROM spans s WHERE s.name LIKE 'claude_code.%' AND coalesce(s.parent_span_id,'') <> ''
@@ -747,21 +780,13 @@ func (s *Store) rebuildAllLocked() error {
 	if err := s.refreshModels(); err != nil {
 		return err
 	}
-	if _, err := s.DB.Exec(`DELETE FROM source_stats`); err != nil {
+	if err := s.rebuildSourceStats(); err != nil {
 		return err
 	}
-	if _, err := s.DB.Exec(`INSERT INTO source_stats (name, kind, spans, events, metrics, first_ns, last_ns)
-		SELECT svc,
-			CASE WHEN svc LIKE 'claude-code%' THEN 'claude-code' ELSE 'app' END,
-			count(*) FILTER (WHERE k='spans'), count(*) FILTER (WHERE k='events'), count(*) FILTER (WHERE k='metrics'),
-			min(t0), max(t1)
-		FROM (
-			SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown') AS svc, 'spans' AS k, start_ns AS t0, end_ns AS t1 FROM spans
-			UNION ALL SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'), 'events', ts_ns, ts_ns FROM events
-			UNION ALL SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'), 'metrics', ts_ns, ts_ns FROM metric_points
-		) r GROUP BY svc`); err != nil {
-		return fmt.Errorf("source_stats: %w", err)
-	}
+	return s.recountMetaLocked()
+}
+
+func (s *Store) recountMetaLocked() error {
 	var c Counts
 	_ = s.DB.QueryRow(`SELECT (SELECT count(*) FROM spans),(SELECT count(*) FROM span_events),(SELECT count(*) FROM events),(SELECT count(*) FROM metric_points)`).
 		Scan(&c.Spans, &c.SpanEvents, &c.Events, &c.MetricPoints)
@@ -777,6 +802,107 @@ func (s *Store) rebuildAllLocked() error {
 	}
 	if live > 0 {
 		_ = s.setMeta(metaLiveOTel, "1")
+	}
+	return nil
+}
+
+func (s *Store) backfillLLMFacts() error {
+	rows, err := s.DB.Query(`SELECT DISTINCT coalesce(session_id, '') FROM spans WHERE name='claude_code.llm_request' ORDER BY 1`)
+	if err != nil {
+		return err
+	}
+	var ids []string
+	var orphan bool
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			if id == "" {
+				orphan = true
+				continue
+			}
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	if err := s.backfillLLMFactsSessions(ids); err != nil {
+		return err
+	}
+	if orphan {
+		insert := llmFactsInsertSQL()
+		if _, err := s.DB.Exec(insert + ` AND s.session_id IS NULL`); err != nil {
+			return fmt.Errorf("backfill llm_facts: %w", err)
+		}
+	}
+	return nil
+}
+
+func llmFactsInsertSQL() string {
+	return `INSERT INTO llm_facts
+		(trace_id, span_id, session_id, start_ns, model, request_id, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, is_error, attempt)
+		SELECT s.trace_id, s.span_id, s.session_id, s.start_ns, a(s.attrs,'model'), a(s.attrs,'request_id'),
+			coalesce(n(e.attrs,'cost_usd'), n(s.attrs,'cost_usd')),
+			n(s.attrs,'input_tokens'), n(s.attrs,'output_tokens'), n(s.attrs,'cache_read_tokens'), n(s.attrs,'cache_creation_tokens'),
+			s.is_error, n(s.attrs,'attempt')
+		FROM spans s LEFT JOIN events e ON e.name='api_request' AND e.request_id = a(s.attrs,'request_id')
+		WHERE s.name='claude_code.llm_request'`
+}
+
+func (s *Store) backfillLLMFactsSessions(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	insert := llmFactsInsertSQL()
+	const batch = 20
+	for i := 0; i < len(ids); i += batch {
+		j := i + batch
+		if j > len(ids) {
+			j = len(ids)
+		}
+		ph := placeholders(j - i)
+		args := anyStrings(ids[i:j])
+		if _, err := s.DB.Exec(`DELETE FROM llm_facts WHERE session_id IN (`+ph+`)`, args...); err != nil {
+			return err
+		}
+		if _, err := s.DB.Exec(insert+` AND s.session_id IN (`+ph+`)`, args...); err != nil {
+			return fmt.Errorf("backfill llm_facts: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) rebuildSourceStats() error {
+	if _, err := s.DB.Exec(`DELETE FROM source_stats`); err != nil {
+		return err
+	}
+	// Three scans instead of UNION ALL of every row: each aggregation fits the 256 MB cap.
+	if _, err := s.DB.Exec(`INSERT INTO source_stats (name, kind, spans, events, metrics, first_ns, last_ns)
+		SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'),
+			CASE WHEN coalesce(json_extract_string(resource, '$."service.name"'), 'unknown') LIKE 'claude-code%' THEN 'claude-code' ELSE 'app' END,
+			count(*), 0, 0, min(start_ns), max(end_ns)
+		FROM spans GROUP BY 1, 2`); err != nil {
+		return fmt.Errorf("source_stats spans: %w", err)
+	}
+	if _, err := s.DB.Exec(`INSERT INTO source_stats (name, kind, spans, events, metrics, first_ns, last_ns)
+		SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'),
+			CASE WHEN coalesce(json_extract_string(resource, '$."service.name"'), 'unknown') LIKE 'claude-code%' THEN 'claude-code' ELSE 'app' END,
+			0, count(*), 0, min(ts_ns), max(ts_ns)
+		FROM events GROUP BY 1, 2
+		ON CONFLICT (name) DO UPDATE SET
+			events = excluded.events,
+			first_ns = least(source_stats.first_ns, excluded.first_ns),
+			last_ns = greatest(source_stats.last_ns, excluded.last_ns)`); err != nil {
+		return fmt.Errorf("source_stats events: %w", err)
+	}
+	if _, err := s.DB.Exec(`INSERT INTO source_stats (name, kind, spans, events, metrics, first_ns, last_ns)
+		SELECT coalesce(json_extract_string(resource, '$."service.name"'), 'unknown'),
+			CASE WHEN coalesce(json_extract_string(resource, '$."service.name"'), 'unknown') LIKE 'claude-code%' THEN 'claude-code' ELSE 'app' END,
+			0, 0, count(*), min(ts_ns), max(ts_ns)
+		FROM metric_points GROUP BY 1, 2
+		ON CONFLICT (name) DO UPDATE SET
+			metrics = excluded.metrics,
+			first_ns = least(source_stats.first_ns, excluded.first_ns),
+			last_ns = greatest(source_stats.last_ns, excluded.last_ns)`); err != nil {
+		return fmt.Errorf("source_stats metrics: %w", err)
 	}
 	return nil
 }

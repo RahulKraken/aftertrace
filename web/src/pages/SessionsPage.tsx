@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation } from "wouter"
-import { api, emptyMode } from "../lib/api"
+import { api, emptyMode, isTransientError } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
 import { previewSkeleton } from "../lib/cache"
 import { SessionsSkeleton } from "../components/PageSkeleton"
@@ -41,7 +41,8 @@ export function SessionsPage() {
           writeCached("aftertrace.sessions", next)
           setErr(null)
         } catch (e) {
-          if (!rows) setErr((e as Error).message)
+          if (!rows && !isTransientError(e)) setErr("Aftertrace can't reach its engine.")
+          throw e
         }
       },
       { visibleMs: running ? 5000 : 30000, hiddenMs: 60000 },

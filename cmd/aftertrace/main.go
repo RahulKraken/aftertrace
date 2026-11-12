@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -190,10 +191,14 @@ func cmdServe(args []string) int {
 			}
 		}
 		if !*f.storeContent {
-			if n, err := st.CompactContent(); err != nil {
+			n, err := st.CompactContent()
+			if err != nil {
 				log.Printf("compact: %v", err)
 			} else if n > 0 {
 				log.Printf("compact    stripped stored prompt/response payloads")
+				if err := st.Reopen(); err != nil {
+					log.Printf("reopen db: %v", err)
+				}
 			}
 		}
 		if err := st.EnsureRollups(); err != nil {
@@ -202,6 +207,7 @@ func cmdServe(args []string) int {
 		if err := st.Reopen(); err != nil {
 			log.Printf("reopen db: %v", err)
 		}
+		debug.FreeOSMemory()
 		c, _ := st.Counts()
 		log.Printf("  db          %s  (%d spans)", st.Path, c.Spans)
 	}()

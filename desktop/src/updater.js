@@ -338,7 +338,10 @@ function createUpdater(deps = {}) {
     const hourly = scheduleInterval(run, HOUR_MS)
     if (hourly && typeof hourly.unref === "function") hourly.unref()
     const pm = deps.powerMonitor
-    if (pm && typeof pm.on === "function") pm.on("resume", run)
+    if (pm && typeof pm.on === "function") {
+      pm.on("resume", run)
+      pm.on("unlock-screen", run)
+    }
     const netApi = deps.net
     if (netApi && typeof netApi.isOnline === "function") {
       let online = Boolean(netApi.isOnline())

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Engine**
+- Requests that hit a closed DuckDB handle return **503** `{code:"restarting"}` instead of `sql: database is closed`. Health stays up with `restarting:true`. History import, compact, and `llm_facts` backfill stream in bounded batches under the 256 MB DuckDB cap (`preserve_insertion_order=false`, 2 connections). No-op history import no longer rebuilds every rollup table. Compact walks 100-rowid windows and reopens every 800 rows. On this VM a **746 MB / 100k-span** seed: RSS before open 17 MB, peak **372 MB**, steady **108 MB**, no OOM (was Rahul 579 MB RSS + compact/rollups OOM at the 244 MiB cap; prior CI Open+count on a 517 MB file was 441 / 45).
+
+**Desktop**
+- Dashboard treats 503/network errors as **Reconnecting…** with backoff and keeps the last snapshot. Driver strings are never shown. Update checks also run on unlock-screen and when the dashboard window opens; **Restart to update** still appears as soon as the download finishes.
+
 ## v0.5.8
 
 **Desktop**

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation } from "wouter"
-import { api, emptyMode } from "../lib/api"
+import { api, emptyMode, isTransientError } from "../lib/api"
 import { EmptyState } from "../components/EmptyState"
 import { SearchField, Segmented, Toolbar } from "../lib/chrome"
 import { useShell } from "../components/Shell"
@@ -45,7 +45,9 @@ export function SpendPage() {
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    api.cost(dim).then(setTable).catch((e: Error) => setErr(e.message))
+    api.cost(dim).then((t) => { setTable(t); setErr(null) }).catch((e: Error) => {
+      if (!isTransientError(e) && !table && !ov) setErr("Aftertrace can't reach its engine.")
+    })
     api.recap(0).then(setRecap).catch(() => undefined)
     api.overview().then(setOv).catch(() => undefined)
     api.sessions().then(setSessions).catch(() => undefined)

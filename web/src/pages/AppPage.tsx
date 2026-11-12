@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "wouter"
 import { ModelName } from "../components/SpanIcon"
 import { RequestScatter } from "../components/RequestScatter"
-import { api } from "../lib/api"
+import { api, isTransientError } from "../lib/api"
 import { dur, int, pct, sayDur, sayUsd, tok, usd, when, modelName } from "../lib/format"
 import { actionSentence, moneyLabel } from "../lib/welcome"
 import type { AppDetail, AppGroup, Finding } from "../lib/types"
@@ -19,7 +19,9 @@ export function AppPage() {
     api
       .app(service)
       .then(setD)
-      .catch((e: Error) => setErr(e.message))
+      .catch((e: Error) => {
+        if (!isTransientError(e)) setErr("This app is not in the store.")
+      })
     api
       .findings()
       .then(setFindings)
