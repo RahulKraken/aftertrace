@@ -54,4 +54,4 @@ Every screen has about ten units of user attention. If two things both look impo
 
 - Findings list no longer uses unexplained ribbon-coloured dots; section headers already group Money / Your time / Setup.
 - Recap is Spend. The insight sentence leads; the model bar uses model colours and a legend.
-- `token-lint` (`web/scripts/token-lint.mjs`) fails CI on raw `font-size`, `border-radius`, or `ms` outside `tokens.css`.
+- `token-lint` (`web/scripts/token-lint.mjs`) fails CI on raw `font-size`, `border-radius`, or `ms` outside `tokens.css`, leftover `--fs-*` tokens, and `font:` shorthands with a raw px size.

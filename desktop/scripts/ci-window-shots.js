@@ -244,6 +244,15 @@ app
     fs.copyFileSync(rec2, path.join(OUT, "selection-inactive.png"))
     fs.copyFileSync(rec3, path.join(OUT, "copied-confirm.png"))
 
+    win.setContentSize(1024, 720)
+    await loadHash(win, "/", "light", `${PAINTED} && /\\$/.test(document.querySelector('.hero .big')?.textContent||'')`)
+    await exec(win, `document.querySelector('.win')?.classList.add('is-inactive'); true`)
+    win.blur()
+    await sleep(250)
+    await savePng(win, path.join(OUT, "sidebar-inactive-1024-light.png"))
+    win.focus()
+    await exec(win, `document.querySelector('.win')?.classList.remove('is-inactive'); true`)
+
     app.exit(0)
   })
   .catch((err) => {
