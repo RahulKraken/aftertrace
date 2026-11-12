@@ -1,9 +1,13 @@
 package history
 
 import (
+	"database/sql"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RahulKraken/aftertrace/internal/store"
 )
@@ -205,6 +209,108 @@ func TestParseDefensive(t *testing.T) {
 			t.Fatalf("assistant without usage: %+v", r)
 		}
 	}
+}
+
+func TestImportFailureRetries(t *testing.T) {
+	dir := writeLargeSession(t, 200)
+	files, err := ListTranscripts(dir)
+	if err != nil || len(files) != 1 {
+		t.Fatalf("transcripts: %d err=%v", len(files), err)
+	}
+	path := files[0].Path
+	sid := files[0].SessionID
+
+	gold := openStore(t)
+	if _, err := Import(gold, dir); err != nil {
+		t.Fatal(err)
+	}
+	wantSpans, wantEvents, wantCost := sessionTotals(t, gold, sid)
+	if wantSpans <= 256 {
+		t.Fatalf("fixture spans=%d, need > 256 so a chunk can commit before the injected failure", wantSpans)
+	}
+
+	st := openStore(t)
+	st.TestingFailInsertAfterChunks(1)
+	_, err = Import(st, dir)
+	if err == nil {
+		t.Fatal("expected injected insert failure")
+	}
+
+	var status string
+	qerr := st.DB.QueryRow(`SELECT status FROM history_files WHERE path = ?`, path).Scan(&status)
+	if qerr == nil && status == "imported" {
+		t.Fatalf("failed import marked imported (status=%s)", status)
+	}
+	if qerr != nil && qerr != sql.ErrNoRows {
+		t.Fatal(qerr)
+	}
+
+	var midSpans int
+	if err := st.DB.QueryRow(`SELECT count(*) FROM spans WHERE session_id = ?`, sid).Scan(&midSpans); err != nil {
+		t.Fatal(err)
+	}
+	if midSpans == 0 {
+		t.Fatal("expected at least one committed chunk before the injected failure")
+	}
+
+	st.TestingFailInsertAfterChunks(0)
+	res, err := Import(st, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sessions != 1 {
+		t.Fatalf("retry import %+v", res)
+	}
+	if err := st.DB.QueryRow(`SELECT status FROM history_files WHERE path = ?`, path).Scan(&status); err != nil || status != "imported" {
+		t.Fatalf("retry status=%q err=%v", status, err)
+	}
+	gotSpans, gotEvents, gotCost := sessionTotals(t, st, sid)
+	if gotSpans != wantSpans || gotEvents != wantEvents || gotCost != wantCost {
+		t.Fatalf("retry spans=%d events=%d cost=%v; want spans=%d events=%d cost=%v",
+			gotSpans, gotEvents, gotCost, wantSpans, wantEvents, wantCost)
+	}
+}
+
+func sessionTotals(t *testing.T, st *store.Store, sid string) (spans, events int, cost float64) {
+	t.Helper()
+	if err := st.DB.QueryRow(`SELECT count(*) FROM spans WHERE session_id = ?`, sid).Scan(&spans); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DB.QueryRow(`SELECT count(*) FROM events WHERE session_id = ?`, sid).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DB.QueryRow(`SELECT coalesce(sum(cost_usd),0) FROM llm_facts WHERE session_id = ?`, sid).Scan(&cost); err != nil {
+		t.Fatal(err)
+	}
+	if spans == 0 {
+		t.Fatal("session missing from store")
+	}
+	return
+}
+
+func writeLargeSession(t *testing.T, turns int) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "projects")
+	proj := filepath.Join(root, "-home-user-retry")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sid := "aabbccdd-eeee-4fff-8aaa-bbbbbbbbbbbb"
+	var b strings.Builder
+	t0 := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+	iso := func(at time.Time) string { return at.UTC().Format("2006-01-02T15:04:05.000Z") }
+	for i := 0; i < turns; i++ {
+		at := t0.Add(time.Duration(i) * time.Minute)
+		pid := fmt.Sprintf("%s-p%d", sid[:8], i)
+		fmt.Fprintf(&b, `{"type":"user","uuid":"%s-u%d","timestamp":"%s","sessionId":"%s","cwd":"/home/user/retry","version":"2.1.305","promptId":"%s","message":{"role":"user","content":"turn %d"}}`+"\n",
+			sid[:8], i, iso(at), sid, pid, i)
+		fmt.Fprintf(&b, `{"type":"assistant","uuid":"%s-a%d","timestamp":"%s","sessionId":"%s","cwd":"/home/user/retry","version":"2.1.305","promptId":"%s","requestId":"req_%s_%d","message":{"id":"msg_%s_%d","role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"ok %d"}],"usage":{"input_tokens":120,"output_tokens":40}}}`+"\n",
+			sid[:8], i, iso(at.Add(2*time.Second)), sid, pid, sid[:8], i, sid[:8], i, i)
+	}
+	if err := os.WriteFile(filepath.Join(proj, sid+".jsonl"), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func dumpJSON(t *testing.T, st *store.Store) string {

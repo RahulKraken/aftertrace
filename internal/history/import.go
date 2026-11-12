@@ -95,6 +95,7 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 		var out sessionOut
 		out.SessionID = sid
 		nErr, nEmpty := 0, 0
+		var pending []pendingFile
 		for _, f := range group {
 			recs, err := ParseFile(f.Path)
 			if err != nil {
@@ -120,7 +121,7 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 			out.Events = append(out.Events, part.Events...)
 			out.Turns += part.Turns
 			out.Requests += part.Requests
-			_ = upsertFile(st.DB, f, "imported", part.Turns, part.Requests, now)
+			pending = append(pending, pendingFile{f: f, turns: part.Turns, requests: part.Requests})
 		}
 		res.Errors += nErr
 		res.Empty += nEmpty
@@ -131,7 +132,13 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 			continue
 		}
 		if err := st.ReplaceHistory(out.SessionID, out.Spans, nil, out.Events, nil); err != nil {
+			for _, p := range pending {
+				_ = upsertFile(st.DB, p.f, "error", 0, 0, now)
+			}
 			return err
+		}
+		for _, p := range pending {
+			_ = upsertFile(st.DB, p.f, "imported", p.turns, p.requests, now)
 		}
 		res.Sessions++
 		res.Turns += out.Turns
@@ -162,6 +169,12 @@ func liveSessionsBatched(st *store.Store, ids []string) (map[string]bool, error)
 		}
 	}
 	return out, nil
+}
+
+type pendingFile struct {
+	f        File
+	turns    int
+	requests int
 }
 
 func unchanged(group []File, known map[string]fileRow) bool {

@@ -41,6 +41,22 @@ type Store struct {
 	unavailable  atomic.Bool
 	dirtySess    map[string]struct{}
 	dirtyTrace   map[string]struct{}
+	// failInsertAfterChunks is a test hook. Production leaves it 0.
+	failInsertAfterChunks int
+	insertChunksDone      int
+}
+
+// TestingFailInsertAfterChunks arms the unexported insert-failure hook.
+// After n successful 256-row chunks, insertLocked returns an error. n <= 0
+// disarms it. Tests only; production never calls this.
+func (s *Store) TestingFailInsertAfterChunks(n int) {
+	if s == nil {
+		return
+	}
+	s.wmu.Lock()
+	s.failInsertAfterChunks = n
+	s.insertChunksDone = 0
+	s.wmu.Unlock()
 }
 
 // ErrUnavailable is returned (and mapped to HTTP 503) while the DuckDB handle
@@ -371,9 +387,15 @@ func (s *Store) insertLocked(spans []Span, sevs []SpanEvent, evs []Event, pts []
 		n = len(pts)
 	}
 	for i := 0; i < n || (n == 0 && i == 0); i += insertChunk {
+		if s.failInsertAfterChunks > 0 && s.insertChunksDone >= s.failInsertAfterChunks {
+			return fmt.Errorf("test: insert failed after %d chunks", s.insertChunksDone)
+		}
 		j := i + insertChunk
 		if err := s.insertChunkTx(clipSpans(spans, i, j), clipSevs(sevs, i, j), clipEvs(evs, i, j), clipPts(pts, i, j)); err != nil {
 			return err
+		}
+		if s.failInsertAfterChunks > 0 {
+			s.insertChunksDone++
 		}
 		if n == 0 {
 			break

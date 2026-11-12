@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: mark history files imported only after ReplaceHistory.
+
+**Choice.** `insertLocked` commits 256-row chunks, so `ReplaceHistory` is no longer one transaction. `upsertFile(..., "imported")` now runs only after `ReplaceHistory` returns nil. A mid-insert failure writes `status=error` (or leaves the row absent) so the next start retries; `ReplaceHistory` deletes then inserts, so the retry is idempotent. The fail-after-N-chunks field is unexported (zero in production); tests arm it through `TestingFailInsertAfterChunks`.
+
+**Why.** Marking imported before the write left a session permanently half-imported after a chunk committed and the rest failed.
+
+**How to reverse.** Move the `imported` upsert back above `ReplaceHistory`.
+
 ## Nov 12 2026: closed-DB 503, batched DuckDB jobs, reconnecting UI.
 
 **Choice.** One PR off main (0.5.8 identity), no merge/tag/release. (1) `Store.Reopen`/`Close` set `unavailable` before closing `*sql.DB`. `/api/*` except health/version return **503** `{error:"restarting",code:"restarting"}` instead of `sql: database is closed`. Health stays 200 with `ready:false, restarting:true`. (2) History import, compact, and `llm_facts` backfill run in bounded batches. DSN adds `preserve_insertion_order=false`; `sql.DB` is capped at 2 open / 1 idle conn. No-op history import no longer `DELETE`s and rebuilds every rollup table. Compact walks rowid windows of 100, CHECKPOINT+reopen every 800 rows. Serve still reopens after compact/rollups so jemalloc dirty pages return. UI treats 503/network/driver strings as transient: sidebar **Reconnecting…**, exponential backoff, last data stays; raw SQL never renders. (3) Update checks stay on launch, every hour, on wake/`unlock-screen`, when the network returns, and when the dashboard window opens. **Restart to update** still appears as soon as `update-downloaded` fires; ShipIt `autoRunAppAfterInstall` stays false (install on quit). Measured on this VM, 746 MB / 100k-span file, `Warm` (compact+rollups+reopen): RSS before open **17 MB**, peak **372 MB**, steady **108 MB**, no OOM (caps 450 / 200).
