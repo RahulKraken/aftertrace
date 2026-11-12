@@ -12,7 +12,7 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 180
     env:
       CGO_ENABLED: "1"
@@ -35,7 +35,7 @@ jobs:
       - name: powermetrics
         if: always()
         run: |
-          # GitHub-hosted macos-14 sometimes has passwordless sudo; a
+          # GitHub-hosted macos sometimes has passwordless sudo; a
           # self-hosted runner with sudo is the reliable path. If this
           # cannot run, leave the TODO in the log and in docs/how-it-works/budgets.md.
           if sudo -n true 2>/dev/null; then

@@ -28,7 +28,7 @@ Profiles:
 
 | Profile | JSONL size | Sessions | Idle | Crash trials | Where |
 |---|---|---|---|---|---|
-| `ci` | 32 MiB | 80 | 20 s | 10 (kill 50–1500 ms) | PR `scale` job on macos-14, ~15 min |
+| `ci` | 32 MiB | 80 | 20 s | 10 (kill 50–1500 ms) | PR `scale` job on macos-latest, ~15 min |
 | `nightly` | 512 MiB | 800 | 10 min | 10 | `nightly.yml` |
 | `full` | 2 GiB | 3000 | 10 min | 10 (kill 5–90% of golden import, capped at 5 min) | local / CI `workflow_dispatch` |
 
@@ -72,7 +72,7 @@ This is the row that can speak to the field bug. The 32 MiB / 20 s table below c
 
 ## Baselines from main — 32 MiB / 20 s idle (not representative)
 
-Measured on `main` at `d723d04` by `internal/harness` on **linux/amd64**. **Corpus: 32 MiB, 80 sessions, seed 42**. Idle window **20 s**. Crash trials: **10**, kill 50–1500 ms. B7/B9 use a dedicated empty store plus OTLP. macos-14 PR CI re-measures this profile. **Do not treat a pass here as evidence about the 244 MiB DuckDB cap, the 735 MB field DB, or a 10-minute hidden-window idle.**
+Measured on `main` at `d723d04` by `internal/harness` on **linux/amd64**. **Corpus: 32 MiB, 80 sessions, seed 42**. Idle window **20 s**. Crash trials: **10**, kill 50–1500 ms. B7/B9 use a dedicated empty store plus OTLP. macos-latest PR CI re-measures this profile. **Do not treat a pass here as evidence about the 244 MiB DuckDB cap, the 735 MB field DB, or a 10-minute hidden-window idle.**
 
 | ID | Measured | Corpus / window | vs target |
 |---|---|---|---|

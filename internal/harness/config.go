@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Profile names: ci (GitHub macos-14 ~15m, 32MiB, not representative),
+// Profile names: ci (GitHub macos-latest ~15m, 32MiB, not representative),
 // nightly (512MiB, 10m idle), full (2GiB, 10m idle).
 type Profile struct {
 	Name        string
