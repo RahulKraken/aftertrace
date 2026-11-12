@@ -13,7 +13,7 @@ const vite = await createServer({
 })
 
 const { dur, durHead, tok, usd, sayDur, sayUsd, sayTok, moneyParts, pct, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
-const { barBox, placeBarLabel, spanExtent, MIN_BAR_PX } = await vite.ssrLoadModule("/src/lib/barLayout.ts")
+const { barBox, placeBarLabel, spanExtent, MIN_BAR_PX, TRACK_PAD_RIGHT, measureBarLabel } = await vite.ssrLoadModule("/src/lib/barLayout.ts")
 const { turnStory } = await vite.ssrLoadModule("/src/lib/story.ts")
 const { wideTurn } = await vite.ssrLoadModule("/src/mock/wideTurn.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
@@ -294,6 +294,11 @@ eq(inside.left + 50 <= 400 + 1e-6, true, "inside label does not pass the edge")
 const before = placeBarLabel({ barLeft: 360, barWidth: 20, trackW: 400, labelW: 50 })
 eq(before.mode, "before", "label before a short bar at the edge")
 eq(before.left + 50 <= 400 + 1e-6, true, "before label does not pass the edge")
+const insideBold = placeBarLabel({ barLeft: 10, barWidth: 200, trackW: 220, labelW: 80, insideLabelW: 96 })
+eq(insideBold.mode, "inside", "inside uses the heavier measure")
+eq(insideBold.left + 96 <= 220 + 1e-6, true, "bold inside label stays in the track")
+eq(TRACK_PAD_RIGHT, 12, "track right pad")
+eq(measureBarLabel("1m 27s · $1.45", "600 12px sans-serif") >= measureBarLabel("1m 27s · $1.45", "400 12px sans-serif"), true, "bold label is at least as wide")
 const ext = spanExtent({
   start_ns: 10,
   end_ns: 20,
@@ -314,6 +319,19 @@ eq(quietTurn.includes("wall clock"), false, "turnStory fallback has no wall cloc
 const wide = wideTurn()
 eq(wide.turn_count, 293, "wideTurn 293 turns")
 eq(wide.spans[0].duration_ms > 60_000, true, "wideTurn longer than a minute")
+eq(
+  wide.spans.some((s) => s.duration_ms === 87_000 && (s.joined?.cost_usd || 0) === 1.45),
+  true,
+  "wideTurn has a right-edge 1m 27s · $1.45 span",
+)
+eq(
+  wide.spans.some((s) => Number(s.attrs.input_tokens || 0) + Number(s.attrs.output_tokens || 0) > 1_000),
+  true,
+  "wideTurn LLM spans have tokens",
+)
+eq(dur(wide.spans[0].duration_ms), "2m 23s", "wideTurn duration tile")
+eq(dur(87_000), "1m 27s", "edge span duration")
+eq(usd(1.45), "$1.45", "edge span cost")
 eq(
   wide.events.some((e) => String(e.attrs.response || "").length > 100),
   true,

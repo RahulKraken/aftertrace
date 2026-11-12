@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: timeline track pad, one-line header, no call pills.
+
+**Choice.** The time track keeps `--track-pad` (12px) on the right. Inside-bar labels are measured at the 600 weight they render in. Timeline uses Story's one-line `Toolbar` (back, session title with `…`, `Turn N of M`); the Done chip and the repeated heading are gone. Collapsed call counts live on the name tooltip, not a `2 calls` pill. `wide-turn` ends with a 1m 27s · $1.45 span and has token counts that match the cost.
+
+**Why.** Review of #61: row 5 sat flush on the window edge, the tautological bar count always passed, the 1024 header wrapped, Tokens showed 0, leftover `fade-up` rules pointed at a missing keyframe, and names only had ~12 characters.
+
+**How to reverse.** Drop `--track-pad`, restore the waterfall crumbs/heading, and put `.n-pill` back on the row.
+
 ## Nov 12 2026: timeline names, bars and cursor on one column.
 
 **Choice.** Timeline span names live in a fixed `--labw` (240px) column that ellipsizes, with the full text on `title` and in the inspector. Duration · cost labels stay in the time track and flip inside or left of the bar when they would clip. Every timed span gets a ≥2px bar; the parent row uses the descendant extent. The cursor chip is only the offset from turn start (`dur()`). The timeline title is `Turn N of M`; duration stays in the Duration tile. Disclosure carets are chevrons, not child-count badges. The sidebar column cannot shrink below `--sidebar`; count badges are `flex: none` so 1024/1280 never clip them.

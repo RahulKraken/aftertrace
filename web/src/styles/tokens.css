@@ -17,7 +17,7 @@
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
   --row: 32px; --toolbar: 52px; --sidebar: 220px; --inspector: 320px;
-  --labw: 240px;
+  --labw: 240px; --track-pad: 12px;
 
   --r-control: 6px; --r-group: 10px; --r-full: 999px;
 

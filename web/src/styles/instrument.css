@@ -138,6 +138,11 @@ input.search { width: 100%; }
 /* waterfall */
 .wf { display: flex; height: 100%; max-height: 100%; min-height: 0; overflow: hidden; background: var(--surface); }
 .wf-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.wf .tb { flex: none; min-width: 0; }
+.wf .tb h1 {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wf .tb .sub { flex: none; white-space: nowrap; }
 .wf-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .wf-title { display: flex; align-items: baseline; gap: 12px; margin-top: 4px; }
 .wf-title h1 { font-size: var(--fs-20); }
@@ -163,6 +168,7 @@ input.search { width: 100%; }
   display: flex; height: 24px; border-bottom: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface) 92%, var(--bg));
   position: sticky; top: 0; z-index: 3; flex: none; min-width: 0;
+  padding-right: var(--track-pad);
 }
 .ruler .lab { width: var(--labw); flex: none; border-right: 1px solid var(--line); font-size: var(--fs-11); color: var(--faint); padding: 5px 12px; }
 .ruler .trk { flex: 1; position: relative; min-width: 0; overflow: hidden; }
@@ -173,7 +179,7 @@ input.search { width: 100%; }
 }
 .comp-mark { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--hue-hook); }
 
-.rows { flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; }
+.rows { flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; padding-right: var(--track-pad); }
 .rows-inner { min-height: 100%; min-width: 0; }
 .tree-layer {
   position: absolute; inset: 0 auto 0 0; width: var(--labw); pointer-events: none; z-index: 4; overflow: hidden;
@@ -1419,7 +1425,7 @@ button.sum-err { border: 0; background: none; padding: 0; font: inherit; color: 
   max-width: 100%; overflow: hidden;
 }
 .bar-lab.is-err { color: var(--hue-retry); font-weight: 500; }
-.bar-lab.is-inside { color: var(--ink); font-weight: 500; }
+.bar-lab.is-inside { color: var(--ink); font-weight: 600; }
 .slowest {
   font-size: var(--fs-9); font-weight: 600; letter-spacing: 0.06em; text-transform: none; padding: 1px 6px; border-radius: var(--r-4);
   color: color-mix(in oklab, var(--hue-wait) 75%, var(--ink)); background: var(--hue-wait-bg);
@@ -1587,7 +1593,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .spark-wrap { position: relative; display: inline-flex; flex: none; }
 .spark { cursor: crosshair; }
 .spark-line { stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) var(--dur-sheet) forwards; }
-.spark-area { animation: fade-up var(--dur-sheet) ease var(--dur-sheet) both; }
 .spark-stop-top { stop-color: var(--faint); stop-opacity: 0.28; }
 .spark-stop-bottom { stop-color: var(--faint); stop-opacity: 0; }
 .spark-model .spark-stop-top { stop-color: var(--hue-model); stop-opacity: 0.32; }
@@ -1595,7 +1600,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 .spark-wait .spark-stop-top { stop-color: var(--hue-wait); stop-opacity: 0.36; }
 .spark-wait .spark-stop-bottom { stop-color: var(--hue-wait); }
 .spark-area { fill-opacity: 1; }
-.spark-dot { animation: fade-up var(--dur-sheet) ease var(--dur-sheet) both; }
 .spark-dot.is-hover { animation: none; stroke: var(--surface); stroke-width: 1.5; }
 .spark-cross { stroke: color-mix(in oklab, var(--ink) 22%, transparent); stroke-width: 1; stroke-dasharray: 2 2; }
 .spark-tip {
@@ -1629,8 +1633,6 @@ a, button, [role="tab"], .row, .side-item, .req-row, .app-card, .frow, .st-act, 
 /* Share bars and glyph segments grow from their start. */
 .grow-x, .bar-track i, .mwf-seg { transform-origin: left center; transform-box: fill-box;  }
 .mwf-seg {  }
-/* Table rows cascade without moving the table's layout. */
-tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-sheet); }
 /* Story: the time bar fills in, part by part. */
 .st-bar i { transform-origin: left center;  }
 .st-bar i:nth-child(1) {  }
@@ -1639,7 +1641,6 @@ tbody.stagger > tr { animation-name: fade-up; animation-duration: var(--dur-shee
 .st-bar i:nth-child(4) {  }
 /* Timeline: each bar grows from its start, rows a beat apart, like a trace being drawn. */
 .wf .bar, .wf .step-bar { transform-origin: left center;   }
-.wf .bar-lab, .wf .slowest { animation: fade-up var(--dur-sheet) ease both;  }
 /* Recap: the receipt prints out of its slot, once. */
 .receipt { animation: print var(--dur-sheet) cubic-bezier(0.32, 0.72, 0, 1) var(--dur-sheet) both; }
 .q-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur-sheet) var(--ease-out) forwards;  }

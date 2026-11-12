@@ -6,7 +6,16 @@ export const WIDE_TURN_ID = "wide-turn"
 
 const SESSION = "e61c32c0-0193-4bab-9096-4e952c6c8a0c"
 const T0 = Date.UTC(2026, 10, 12, 1, 11, 0) * 1e6
-const TOTAL_MS = 83_000
+const EDGE_MS = 87_000
+
+// Sonnet-ish: $3/M in, $15/M out. Last call is the long right-edge label.
+const LLM_USAGE = [
+  { input: 2_000, output: 400, cost: 0.012 },
+  { input: 2_800, output: 500, cost: 0.016 },
+  { input: 3_500, output: 630, cost: 0.02 },
+  { input: 4_000, output: 800, cost: 0.024 },
+  { input: 22_000, output: 92_600, cost: 1.45 },
+]
 
 const LONG_TITLES = [
   "No VMs, Cloud SQL, and a private service range: checking whether the Composer environment can reach the Airflow metadata DB through the VPC connector",
@@ -34,14 +43,13 @@ export function wideTurn(): Trace {
   }
 
   const rootId = "wide-root"
-  const t1 = T0 + TOTAL_MS * 1e6
   push({
     span_id: rootId,
     parent_span_id: null,
     name: "claude_code.interaction",
     start_ns: T0,
-    end_ns: t1,
-    duration_ms: TOTAL_MS,
+    end_ns: T0,
+    duration_ms: 0,
     attrs: {
       "session.id": SESSION,
       "span.type": "claude_code.interaction",
@@ -55,8 +63,9 @@ export function wideTurn(): Trace {
   LONG_TITLES.forEach((title, i) => {
     const rid = `wide-req-${i}`
     const thinkStart = cursor
-    const thinkMs = i === 4 ? Math.max(24_300, (t1 - thinkStart) / 1e6) : 8_000 + i * 1_100
-    const thinkEnd = i === 4 ? t1 : thinkStart + thinkMs * 1e6
+    const usage = LLM_USAGE[i]
+    const thinkMs = i === 4 ? EDGE_MS : 8_000 + i * 1_100
+    const thinkEnd = thinkStart + thinkMs * 1e6
     push({
       span_id: sid("llm"),
       parent_span_id: rootId,
@@ -64,8 +73,14 @@ export function wideTurn(): Trace {
       start_ns: thinkStart,
       end_ns: thinkEnd,
       duration_ms: thinkMs,
-      attrs: { request_id: rid, "gen_ai.request.model": "claude-sonnet-5", model: "claude-sonnet-5" },
-      joined: { cost_usd: i === 4 ? 0.041 : 0.012 + i * 0.004 },
+      attrs: {
+        request_id: rid,
+        "gen_ai.request.model": "claude-sonnet-5",
+        model: "claude-sonnet-5",
+        input_tokens: usage.input,
+        output_tokens: usage.output,
+      },
+      joined: { cost_usd: usage.cost },
     })
     events.push({
       name: "assistant_response",
@@ -213,6 +228,10 @@ export function wideTurn(): Trace {
       })
     }
   })
+
+  const end = Math.max(...spans.map((s) => s.end_ns))
+  spans[0].end_ns = end
+  spans[0].duration_ms = (end - T0) / 1e6
 
   return {
     trace_id: WIDE_TURN_ID,

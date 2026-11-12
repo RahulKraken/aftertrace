@@ -2,8 +2,13 @@
 // Labels never occupy the name column; bars never shrink below a visible sliver.
 
 export const MIN_BAR_PX = 2
+export const TRACK_PAD_RIGHT = 12
 
 export type LabelMode = "after" | "before" | "inside"
+
+const LAB_FACE = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif'
+export const BAR_LAB_FONT = `400 12px ${LAB_FACE}`
+export const BAR_LAB_FONT_INSIDE = `600 12px ${LAB_FACE}`
 
 export function barBox(
   leftPct: number,
@@ -25,32 +30,34 @@ export function placeBarLabel(opts: {
   barWidth: number
   trackW: number
   labelW: number
+  insideLabelW?: number
   gap?: number
 }): { mode: LabelMode; left: number } {
   const gap = opts.gap ?? 6
-  const labelW = Math.max(0, opts.labelW)
+  const afterW = Math.max(0, opts.labelW)
+  const insideW = Math.max(0, opts.insideLabelW ?? opts.labelW)
   const trackW = Math.max(0, opts.trackW)
-  const clamp = (left: number, mode: LabelMode): { mode: LabelMode; left: number } => ({
+  const clamp = (left: number, mode: LabelMode, w: number): { mode: LabelMode; left: number } => ({
     mode,
-    left: Math.min(Math.max(0, left), Math.max(0, trackW - labelW)),
+    left: Math.min(Math.max(0, left), Math.max(0, trackW - w)),
   })
-  if (trackW <= 0 || labelW <= 0) return { mode: "after", left: opts.barLeft + opts.barWidth + gap }
+  if (trackW <= 0 || afterW <= 0) return { mode: "after", left: opts.barLeft + opts.barWidth + gap }
 
   const after = opts.barLeft + opts.barWidth + gap
-  if (after + labelW <= trackW + 0.5) return clamp(after, "after")
+  if (after + afterW <= trackW + 0.5) return clamp(after, "after", afterW)
 
-  if (opts.barWidth >= labelW + 8) return clamp(opts.barLeft + opts.barWidth - labelW - 4, "inside")
+  if (opts.barWidth >= insideW + 8) return clamp(opts.barLeft + opts.barWidth - insideW - 4, "inside", insideW)
 
-  const before = opts.barLeft - gap - labelW
-  if (before >= -0.5) return clamp(before, "before")
+  const before = opts.barLeft - gap - afterW
+  if (before >= -0.5) return clamp(before, "before", afterW)
 
-  if (opts.barWidth > 12) return clamp(opts.barLeft + 4, "inside")
-  return clamp(after, "after")
+  if (opts.barWidth > 12) return clamp(opts.barLeft + 4, "inside", insideW)
+  return clamp(after, "after", afterW)
 }
 
 let labelCanvas: HTMLCanvasElement | null = null
 
-export function measureBarLabel(text: string, font = '12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif'): number {
+export function measureBarLabel(text: string, font = BAR_LAB_FONT): number {
   if (!text) return 0
   if (typeof document !== "undefined") {
     labelCanvas = labelCanvas || document.createElement("canvas")
@@ -60,7 +67,8 @@ export function measureBarLabel(text: string, font = '12px -apple-system, BlinkM
       return Math.ceil(ctx.measureText(text).width) + 2
     }
   }
-  return Math.ceil(text.length * 7.4) + 4
+  const em = /600|bold/.test(font) ? 8.2 : 7.4
+  return Math.ceil(text.length * em) + 4
 }
 
 export function spanExtent(span: { start_ns: number; end_ns: number; duration_ms?: number; kids?: { start_ns: number; end_ns: number; kids?: unknown[] }[] }): {

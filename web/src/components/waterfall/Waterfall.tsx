@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link } from "wouter"
 import { bottleneckFor } from "../../lib/bottleneck"
-import { barBox, measureBarLabel, placeBarLabel, spanExtent } from "../../lib/barLayout"
+import { BAR_LAB_FONT, BAR_LAB_FONT_INSIDE, barBox, measureBarLabel, placeBarLabel, spanExtent } from "../../lib/barLayout"
+import { Toolbar } from "../../lib/chrome"
 import { dur, niceTicks, tok, usd } from "../../lib/format"
 import { hueVar } from "../../lib/hue"
 import { hashFlag, tickLabel } from "../../lib/replay"
@@ -372,6 +372,11 @@ export function Waterfall({
 
   const playPct = live ? xOf(nowNs) : null
 
+  const sessionTitle = (trace.session_title || "Session").split("\n")[0].trim()
+  const crumb = sessionTitle.length > 52 ? `${sessionTitle.slice(0, 50)}…` : sessionTitle
+  const appTitle = trace.service || root.name
+  const appCrumb = appTitle.length > 52 ? `${appTitle.slice(0, 50)}…` : appTitle
+
   return (
     <div
       ref={wfRef}
@@ -379,48 +384,41 @@ export function Waterfall({
       style={labPx ? ({ ["--labw" as string]: `${labPx}px` } as React.CSSProperties) : undefined}
     >
       <div className="wf-main">
-        <div className="wf-head">
-          <div className="crumbs">
-            {isAppTrace(trace.service) ? (
-              <>
-                <Link href="/apps">Apps</Link> ›{" "}
-                <Link href={`/apps/${encodeURIComponent(trace.service || "")}`} className="mono">
-                  {trace.service}
-                </Link>{" "}
-                › <span className="mono">{root.name}</span>
-              </>
+        <Toolbar
+          title={
+            isAppTrace(trace.service) ? (
+              <span className="mono" title={appTitle}>
+                {appCrumb}
+              </span>
             ) : (
-              <>
-                <Link href="/sessions">Sessions</Link> ›{" "}
-                <Link href={`/session/${trace.session_id}`} title={trace.session_title || undefined}>
-                  {trace.session_title
-                    ? trace.session_title.length > 52
-                      ? `${trace.session_title.slice(0, 50)}…`
-                      : trace.session_title
-                    : "Session"}
-                </Link>{" "}
-                › Turn {trace.turn_index} of {trace.turn_count}
-              </>
-            )}
-            <span className="spacer" />
-            <span className={`live-badge ${live || trace.in_progress ? "is-live" : "is-done"}`}>
-              {live || trace.in_progress ? <i className="live-dot" /> : null}
-              {live ? "Live" : trace.in_progress ? "Running" : "Done"}
+              <span title={sessionTitle}>{crumb}</span>
+            )
+          }
+          sub={isAppTrace(trace.service) ? appStory(root) : `Turn ${trace.turn_index} of ${trace.turn_count}`}
+          back={
+            isAppTrace(trace.service)
+              ? { href: `/apps/${encodeURIComponent(trace.service || "")}`, label: "Back to app" }
+              : { href: `/session/${trace.session_id}`, label: "Back to session" }
+          }
+        >
+          {live || trace.in_progress ? (
+            <span className="live-badge is-live">
+              <i className="live-dot" />
+              {live ? "Live" : "Running"}
             </span>
-            <button type="button" className="replay-btn" onClick={restart} hidden={live}>
-              Replay
-            </button>
-            {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
-            <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
-              ‹
-            </button>
-            <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="]">
-              ›
-            </button>
-          </div>
-          <h1 className="story-line" style={{ margin: "8px 0 0" }}>
-            {isAppTrace(trace.service) ? appStory(root) : `Turn ${trace.turn_index} of ${trace.turn_count}`}
-          </h1>
+          ) : null}
+          <button type="button" className="replay-btn" onClick={restart} hidden={live}>
+            Replay
+          </button>
+          {traceView && onView ? <TraceViewSwitch view={traceView} onChange={onView} /> : null}
+          <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="[">
+            ‹
+          </button>
+          <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="]">
+            ›
+          </button>
+        </Toolbar>
+        <div className="wf-head">
           <div className="wf-stats">
             <Stat k="Duration" v={dur(live ? nowMs : root.duration_ms)} />
             {!isAppTrace(trace.service) && trace.breakdown?.permission_wait ? <Stat k="Waiting on you" v={dur(trace.breakdown.permission_wait)} tone="wait" /> : null}
@@ -849,10 +847,12 @@ function Row({
   const barLabel = [dur(shownMs), cost >= 0.001 ? usd(cost) : ""].filter(Boolean).join(" · ")
   const slowTag = slowest ? "Slowest" : ""
   const labelText = [barLabel, slowTag].filter(Boolean).join(" ")
-  const labelW = measureBarLabel(labelText) + (slowTag ? 18 : 0)
-  const placed = placeBarLabel({ barLeft: box.leftPx, barWidth: box.widthPx, trackW, labelW })
+  const extra = slowTag ? 18 : 0
+  const labelW = measureBarLabel(labelText, BAR_LAB_FONT) + extra
+  const insideLabelW = measureBarLabel(labelText, BAR_LAB_FONT_INSIDE) + extra
+  const placed = placeBarLabel({ barLeft: box.leftPx, barWidth: box.widthPx, trackW, labelW, insideLabelW })
   const hasDur = shownMs > 0 || extent.end_ns > extent.start_ns || span.duration_ms > 0
-  const fullName = [name, attempt > 1 ? `×${attempt}` : "", target].filter(Boolean).join(" ")
+  const fullName = [name, attempt > 1 ? `×${attempt}` : "", target, pill].filter(Boolean).join(" ")
 
   const onBarClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -918,20 +918,6 @@ function Row({
           {attempt > 1 ? <span className="badge">×{attempt}</span> : null}
           {target ? <span className="t">{target}</span> : null}
         </span>
-        <AnimatePresence>
-          {ro ? (
-            <motion.span
-              className="n-pill"
-              key="n"
-              initial={false}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {pill}
-            </motion.span>
-          ) : null}
-        </AnimatePresence>
         {hiddenErr ? <span className="err-dot" title="An error inside this span" /> : null}
         <button
           type="button"

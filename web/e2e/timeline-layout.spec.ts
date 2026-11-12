@@ -34,55 +34,97 @@ test.describe("timeline layout hotfix", () => {
   for (const width of WIDTHS) {
     test(`labels, bars and overflow at ${width}`, async ({ page }) => {
       await openTimeline(page, width)
-      await expect(page.locator(".story-line")).toHaveText("Turn 1 of 293")
-      await expect(page.locator(".story-line")).not.toContainText("wall clock")
-      await expect(page.locator(".wf-stat").filter({ hasText: "Duration" }).locator(".v")).toHaveText("1m 23s")
+      await expect(page.locator(".tb .sub")).toHaveText("Turn 1 of 293")
+      await expect(page.locator(".tb .sub")).not.toContainText("wall clock")
+      await expect(page.locator(".story-line")).toHaveCount(0)
+      await expect(page.locator(".live-badge.is-done")).toHaveCount(0)
+      await expect(page.locator(".wf-stat").filter({ hasText: "Duration" }).locator(".v")).toHaveText("2m 23s")
       await expect(page.locator(".caret.count")).toHaveCount(0)
       const caretText = await page.locator("button.caret").evaluateAll((els) => els.map((el) => (el.textContent || "").replace(/\s+/g, "").trim()))
       expect(caretText.every((t) => !/^\d+$/.test(t)), `caret badges at ${width}: ${caretText.join(",")}`).toBe(true)
 
+      const header = await page.locator(".tb").evaluate((el) => {
+        const title = el.querySelector("h1")
+        const sub = el.querySelector(".sub")
+        return {
+          height: el.getBoundingClientRect().height,
+          titleLines: title ? title.getClientRects().length : 0,
+          subLines: sub ? sub.getClientRects().length : 0,
+        }
+      })
+      expect(header.height, `header wraps at ${width}`).toBeLessThanOrEqual(56)
+      expect(header.titleLines, `session title wraps at ${width}`).toBe(1)
+      expect(header.subLines, `turn sub wraps at ${width}`).toBe(1)
+
       await openAllSteps(page)
       await expect(page.locator(".row [data-bar]").first()).toBeVisible()
+      await expect(page.locator(".bar-lab").filter({ hasText: "$1.45" }).first()).toBeVisible()
+      await expect(page.locator(".bar-lab").filter({ hasText: "1m 27s" }).first()).toBeVisible()
 
       const measured = await page.evaluate(() => {
         const trk = document.querySelector(".ruler .trk") as HTMLElement | null
-        const rows = document.querySelector(".rows") as HTMLElement | null
+        const rowsEl = document.querySelector(".rows") as HTMLElement | null
         const body = document.querySelector(".wf-body") as HTMLElement | null
         const names = [...document.querySelectorAll(".row .name")].map((el) => {
           const r = el.getBoundingClientRect()
           return { x: r.x, y: r.y, w: r.width, h: r.height, text: (el.textContent || "").trim() }
         })
-        const bars = [...document.querySelectorAll(".row [data-bar]")].map((el) => {
-          const r = el.getBoundingClientRect()
-          return { x: r.x, y: r.y, w: r.width, h: r.height }
+        const rows = [...document.querySelectorAll(".row[data-ms]")].map((el) => {
+          const html = el as HTMLElement
+          const bar = html.querySelector("[data-bar]") as HTMLElement | null
+          const br = bar?.getBoundingClientRect()
+          return {
+            id: html.dataset.span || "",
+            ms: Number(html.dataset.ms || 0),
+            isTurn: Boolean(html.querySelector(".glyph.g-turn")),
+            bar: br ? { x: br.x, y: br.y, w: br.width, h: br.height } : null,
+          }
         })
         const labs = [...document.querySelectorAll(".row .bar-lab")].map((el) => {
-          const r = el.getBoundingClientRect()
-          return { x: r.x, y: r.y, w: r.width, h: r.height, text: (el.textContent || "").trim() }
+          const html = el as HTMLElement
+          const r = html.getBoundingClientRect()
+          return {
+            x: r.x,
+            y: r.y,
+            w: r.width,
+            h: r.height,
+            text: (html.textContent || "").trim(),
+            scrollW: html.scrollWidth,
+            clientW: html.clientWidth,
+          }
         })
-        const timed = [...document.querySelectorAll(".row[data-ms]")].map((el) => Number((el as HTMLElement).dataset.ms || 0))
         return {
           trackRight: trk?.getBoundingClientRect().right ?? 0,
+          viewRight: document.documentElement.clientWidth,
           names,
-          bars,
+          rows,
           labs,
-          timed,
-          rowsOverflow: rows ? rows.scrollWidth - rows.clientWidth : 0,
+          rowsOverflow: rowsEl ? rowsEl.scrollWidth - rowsEl.clientWidth : 0,
           bodyOverflow: body ? body.scrollWidth - body.clientWidth : 0,
           pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         }
       })
 
-      expect(measured.bars.length, `bars at ${width}`).toBeGreaterThan(4)
+      const timed = measured.rows.filter((r) => r.ms > 0)
+      expect(timed.length, `timed rows at ${width}`).toBeGreaterThan(4)
       expect(measured.names.some((n) => n.text.length > 40), `long name visible at ${width}`).toBe(true)
-      for (const bar of measured.bars) {
-        expect(bar.w, `bar width at ${width}`).toBeGreaterThanOrEqual(2)
+      for (const row of timed) {
+        expect(row.bar, `missing bar for timed row at ${width}: ${row.id}`).toBeTruthy()
+        expect(row.bar!.w, `bar width at ${width}: ${row.id}`).toBeGreaterThanOrEqual(2)
       }
-      const timedRows = measured.timed.filter((ms) => ms > 0).length
-      expect(measured.bars.length, `a bar per timed row at ${width}`).toBeGreaterThanOrEqual(Math.min(timedRows, measured.bars.length))
 
+      const turn = measured.rows.find((r) => r.isTurn)
+      const kids = measured.rows.filter((r) => !r.isTurn && r.bar)
+      expect(turn?.bar, `parent turn bar at ${width}`).toBeTruthy()
+      expect(kids.length, `child bars at ${width}`).toBeGreaterThan(1)
+      const kidLeft = Math.min(...kids.map((k) => k.bar!.x))
+      const kidRight = Math.max(...kids.map((k) => k.bar!.x + k.bar!.w))
+      expect(Math.abs(turn!.bar!.x - kidLeft), `parent bar start at ${width}`).toBeLessThanOrEqual(1)
+      expect(Math.abs(turn!.bar!.x + turn!.bar!.w - kidRight), `parent bar end at ${width}`).toBeLessThanOrEqual(1)
+
+      const bars = timed.map((r) => r.bar!).filter(Boolean)
       for (const name of measured.names) {
-        for (const bar of measured.bars) {
+        for (const bar of bars) {
           expect(overlap(name, bar), `name overlaps bar at ${width}: "${name.text.slice(0, 40)}"`).toBe(false)
         }
         for (const lab of measured.labs) {
@@ -90,7 +132,9 @@ test.describe("timeline layout hotfix", () => {
         }
       }
       for (const lab of measured.labs) {
-        expect(lab.x + lab.w, `bar label past right edge at ${width}: "${lab.text}"`).toBeLessThanOrEqual(measured.trackRight + 1)
+        expect(lab.scrollW, `label text clipped at ${width}: "${lab.text}"`).toBeLessThanOrEqual(lab.clientW + 1)
+        expect(lab.x + lab.w, `bar label past track at ${width}: "${lab.text}"`).toBeLessThanOrEqual(measured.trackRight + 1)
+        expect(lab.x + lab.w, `bar label past viewport at ${width}: "${lab.text}"`).toBeLessThanOrEqual(measured.viewRight + 1)
       }
       expect(measured.rowsOverflow, `rows overflow at ${width}`).toBeLessThanOrEqual(1)
       expect(measured.bodyOverflow, `timeline overflow at ${width}`).toBeLessThanOrEqual(1)
