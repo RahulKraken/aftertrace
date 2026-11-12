@@ -55,13 +55,6 @@
   --dur-move: 140ms;
   --dur-sheet: 180ms;
 
-  --fs-9: 9.5px; --fs-10: 10px; --fs-105: 10.5px; --fs-11: 11px; --fs-115: 11.5px;
-  --fs-12: 12px; --fs-125: 12.5px; --fs-13: 13px; --fs-135: 13.5px; --fs-14: 14px;
-  --fs-145: 14.5px; --fs-15: 15px; --fs-155: 15.5px; --fs-16: 16px; --fs-17: 17px;
-  --fs-18: 18px; --fs-19: 19px; --fs-20: 20px; --fs-22: 22px; --fs-24: 24px;
-  --fs-26: 26px; --fs-27: 27px; --fs-28: 28px; --fs-30: 30px; --fs-32: 32px;
-  --fs-34: 34px; --fs-40: 40px;
-
   --r-2: 2px; --r-3: 3px; --r-4: 4px; --r-5: 5px; --r-7: 7px; --r-8: 8px;
   --r-9: 9px; --r-11: 11px; --r-12: 12px; --r-14: 14px; --r-16: 16px;
   --r-sm: var(--r-3); --r-md: var(--r-4); --r-lg: var(--r-8); --r-card: var(--r-12);
@@ -108,8 +101,8 @@
   --shadow-toast: var(--shadow-pop);
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
   --ok: var(--live);
-  --m-opus: var(--l1);
-  --m-son: var(--l3);
+  --m-opus: #4a3fd6;
+  --m-son: var(--c-think);
   --a2: color-mix(in srgb, var(--amber) 70%, white);
   --a3: color-mix(in srgb, var(--amber) 45%, white);
   --a4: color-mix(in srgb, var(--amber) 25%, white);
@@ -167,6 +160,7 @@
   --hue-mcp: #5fb4da;
   --hue-file: #5cc29c;
   --hue-web: #8ea5f0;
+  --m-opus: #9b94f5;
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
 }

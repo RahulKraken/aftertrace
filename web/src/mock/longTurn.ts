@@ -106,5 +106,11 @@ export function padLongTrace(t: Trace): Trace {
     }
     t0 = end
   }
-  return { ...t, spans, events }
+  const last = Math.max(...spans.map((s) => s.end_ns))
+  const padded = spans.map((s) =>
+    s.span_id === root.span_id
+      ? { ...s, end_ns: last, duration_ms: (last - s.start_ns) / 1e6 }
+      : s,
+  )
+  return { ...t, spans: padded, events }
 }

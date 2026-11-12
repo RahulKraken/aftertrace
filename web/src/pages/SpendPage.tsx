@@ -26,8 +26,8 @@ const DIMS = [
 ] as const
 
 const MODEL_TINT: Record<string, string> = {
-  opus: "var(--l1)",
-  sonnet: "var(--c-think)",
+  opus: "var(--m-opus)",
+  sonnet: "var(--m-son)",
   haiku: "var(--c-tool)",
   other: "var(--c-other)",
 }

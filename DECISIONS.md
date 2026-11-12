@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: redesign follow-up after v0.5.8.
+
+**Choice.** After shipping v0.5.8, a follow-up PR (not merged with the release) makes the long-turn fixture's Done clock match the last padded step, collapses type to the nine `--t-*` tokens and closes token-lint gaps (`--fs-*` and raw `font:` px), strips leftover entrance/pulse motion, gives Spend model bars `--m-opus` / `--m-son`, lets the Sessions inspector time bar sit full-width, greys the selected sidebar icon when the window is inactive, and quiets the failed pill to caption-on-group.
+
+**Why.** Those were known leftovers from the native-instrument review; they were not release-blocking.
+
+**How to reverse.** Revert the follow-up PR.
+
 ## Nov 12 2026: ship 0.5.8.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.

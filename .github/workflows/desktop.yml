@@ -478,6 +478,8 @@ jobs:
           test "$(wc -c < "$SHOT_OUT/today-electron-1024-light.png")" -gt 40000
           test -s "$SHOT_OUT/turn-long-1024-light.png"
           test "$(wc -c < "$SHOT_OUT/turn-long-1024-light.png")" -gt 40000
+          test -s "$SHOT_OUT/sidebar-inactive-1024-light.png"
+          test "$(wc -c < "$SHOT_OUT/sidebar-inactive-1024-light.png")" -gt 40000
       - uses: actions/upload-artifact@v7
         if: always()
         with:

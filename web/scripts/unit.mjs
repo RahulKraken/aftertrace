@@ -18,8 +18,9 @@ const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/char
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { recapLead, recapShipped } = await vite.ssrLoadModule("/src/lib/recapStory.ts")
 const { spendLead } = await vite.ssrLoadModule("/src/lib/spendInsight.ts")
-const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
+const { sessions, getTrace } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { mockOverview, projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
+const { padLongTrace } = await vite.ssrLoadModule("/src/mock/longTurn.ts")
 await vite.close()
 
 let failed = 0
@@ -281,6 +282,12 @@ const weekSess = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.h
 eq(spendLead(weekSess, ov.week.cost_usd), "Two sessions made 71% of your spend.", "demo spend lead")
 eq(spendLead([{ cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }], 5), null, "equal five sessions fall back")
 eq(spendLead([{ cost_usd: 8 }, { cost_usd: 1 }], 9), "One session made 89% of your spend.", "one session dominates")
+
+const longTrace = padLongTrace(getTrace("509cb3acac23db7c6e9b7d180a474268"))
+const longRoot = longTrace.spans.find((s) => s.name === "claude_code.interaction")
+const longLast = Math.max(...longTrace.spans.map((s) => s.end_ns))
+eq(longRoot.end_ns, longLast, "padLongTrace root ends with the last padded step")
+eq(longRoot.duration_ms > 10 * 60_000, true, "padLongTrace Done clock covers 10+ minutes of steps")
 
 if (failed) {
   console.error(`${failed} failed`)

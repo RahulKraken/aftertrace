@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Fail if CSS outside tokens.css uses raw font-size, radius, or ms values.
+// Fail if CSS outside tokens.css uses raw font-size, radius, or ms values,
+// leftover --fs-* type tokens, or a font shorthand with a raw px size.
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
@@ -23,6 +24,11 @@ function walk(dir) {
       if (/font-size:\s*[\d.]+px/.test(line)) hits.push(`${rel}:${i + 1}: raw font-size`)
       if (/border-radius:\s*[\d.]+px/.test(line)) hits.push(`${rel}:${i + 1}: raw border-radius`)
       if (/(?<![\w-])\d+(?:\.\d+)?ms/.test(line)) hits.push(`${rel}:${i + 1}: raw ms duration`)
+      if (/--fs-/.test(line)) hits.push(`${rel}:${i + 1}: leftover --fs-* type token`)
+      const fontDecl = line.match(/font:\s*([^;]+)/)
+      if (fontDecl && /\d+(?:\.\d+)?px/.test(fontDecl[1]) && !/var\(--t-/.test(fontDecl[1])) {
+        hits.push(`${rel}:${i + 1}: raw font size in font shorthand`)
+      }
     })
   }
 }
@@ -30,8 +36,8 @@ function walk(dir) {
 walk(root)
 if (hits.length) {
   console.error(`token-lint: ${hits.length} raw value(s) outside tokens.css`)
-  for (const h of hits.slice(0, 40)) console.error("  " + h)
-  if (hits.length > 40) console.error(`  … ${hits.length - 40} more`)
+  for (const h of hits.slice(0, 80)) console.error("  " + h)
+  if (hits.length > 80) console.error(`  … ${hits.length - 80} more`)
   process.exit(1)
 }
 console.log("token-lint: ok")

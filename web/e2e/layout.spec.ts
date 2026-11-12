@@ -270,4 +270,16 @@ test("long turn expands without scrolling the window", async ({ page }) => {
   const side = await page.locator(".side").boundingBox()
   expect(side?.x ?? 99).toBeLessThan(8)
   await expect(page.locator(".st-end")).toBeVisible()
+  const times = await page.locator(".st-time").allTextContents()
+  const toSec = (s: string) => {
+    const p = s.trim().split(":").map(Number)
+    if (p.some((n) => Number.isNaN(n))) return 0
+    if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2]
+    if (p.length === 2) return p[0] * 60 + p[1]
+    return p[0] || 0
+  }
+  const stepTimes = times.slice(0, -1).map(toSec)
+  const done = toSec(times[times.length - 1] || "0")
+  expect(stepTimes.length, "expanded long turn has steps").toBeGreaterThan(10)
+  expect(done, "Done clock behind a later step").toBeGreaterThanOrEqual(Math.max(...stepTimes))
 })
