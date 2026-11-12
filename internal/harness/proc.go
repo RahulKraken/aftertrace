@@ -289,21 +289,6 @@ func BuildBin(outDir string) (string, error) {
 	return bin, nil
 }
 
-func findModRoot() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for p := wd; ; p = filepath.Dir(p) {
-		if _, err := os.Stat(filepath.Join(p, "go.mod")); err == nil {
-			return p, nil
-		}
-		if filepath.Dir(p) == p {
-			return "", fmt.Errorf("go.mod not found from %s", wd)
-		}
-	}
-}
-
 func trim(b []byte, n int) string {
 	s := string(b)
 	if len(s) > n {
