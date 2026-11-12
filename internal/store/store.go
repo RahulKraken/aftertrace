@@ -213,6 +213,9 @@ func (s *Store) fireChange() {
 }
 
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	if err := injectedStoreFailure(); err != nil {
+		return err
+	}
 	s.wmu.Lock()
 	if live := liveSessionIDs(spans, evs, pts); len(live) > 0 {
 		if err := s.dropHistoryLocked(live); err != nil {
@@ -477,6 +480,20 @@ func (s *Store) LiveSessions(ids []string) (map[string]bool, error) {
 		out[id] = true
 	}
 	return out, rows.Err()
+}
+
+// injectedStoreFailure is a harness-only tripwire. AFTERTRACE_FAIL_STORE is a
+// path; when that file exists, Insert returns an error and writes nothing.
+// Unset in production. Used by internal/harness budget B9.
+func injectedStoreFailure() error {
+	p := strings.TrimSpace(os.Getenv("AFTERTRACE_FAIL_STORE"))
+	if p == "" {
+		return nil
+	}
+	if _, err := os.Stat(p); err == nil {
+		return fmt.Errorf("injected store failure")
+	}
+	return nil
 }
 
 func placeholders(n int) string {

@@ -33,6 +33,7 @@ Everything above is one process, `aftertrace serve`. It opens three ports and on
 | Tables | `spans`, `span_events`, `events`, `metric_points` | | [The store](how-it-works/store.md) |
 | Rules | 14, compiled into the binary | [Writing rules](writing-rules.md) | [Findings](how-it-works/findings.md) |
 | UI and JSON API | `127.0.0.1:7311` | `--ui-port`, `--listen` | [Reading a turn](how-it-works/turn.md) |
+| Scale and energy | report-only harness | `AFTERTRACE_HARNESS=1` | [Budgets](how-it-works/budgets.md) |
 | Ask | off | `--ask` and `ANTHROPIC_API_KEY` | [Ask](how-it-works/ask.md) |
 
 To start sending data, see [Install](install.md) and [Connect Claude Code](claude-code-setup.md).

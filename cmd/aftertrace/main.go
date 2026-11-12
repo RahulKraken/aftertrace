@@ -43,6 +43,8 @@ func main() {
 		os.Exit(cmdDemo(os.Args[2:]))
 	case "service":
 		os.Exit(cmdService(os.Args[2:]))
+	case "dev":
+		os.Exit(cmdDev(os.Args[2:]))
 	case "version", "--version":
 		fmt.Println("aftertrace", version)
 	case "help", "-h", "--help":
@@ -116,6 +118,7 @@ func addServeFlags(fs *flag.FlagSet) serveFlags {
 func cmdServe(args []string) int {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	f := addServeFlags(fs)
+	exitAfterWarm := fs.Bool("exit-after-warm", false, "exit after history import, compact, rollups and reopen (test flag)")
 	_ = fs.Parse(args)
 
 	var opts []api.Option
@@ -178,7 +181,9 @@ func cmdServe(args []string) int {
 	// History import and COUNT(*) walk the whole file. Do them after the
 	// ports are up so the menu-bar app can load, and so DuckDB stays at
 	// the DSN thread/memory cap instead of blocking first paint.
+	warmDone := make(chan struct{})
 	go func() {
+		defer close(warmDone)
 		if !*f.noHistory {
 			hr, err := history.Import(st, *f.historyDir)
 			if err != nil {
@@ -205,6 +210,15 @@ func cmdServe(args []string) int {
 		c, _ := st.Counts()
 		log.Printf("  db          %s  (%d spans)", st.Path, c.Spans)
 	}()
+
+	if *exitAfterWarm {
+		<-warmDone
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		recv.Shutdown(ctx)
+		_ = srv.Shutdown(ctx)
+		return 0
+	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

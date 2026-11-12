@@ -162,6 +162,61 @@ jobs:
         working-directory: site
         run: npm test
 
+  scale:
+    name: Scale harness
+    if: github.event_name == 'pull_request'
+    runs-on: macos-14
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Paths
+        id: paths
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          if git diff --name-only "$BASE"...HEAD | grep -Eq '^(internal/(store|history|otlp|api|harness)/|cmd/|\.github/workflows/(ci|nightly)\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Engine or harness paths changed; running the scale job."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No engine/harness paths; skipping the scale harness."
+          fi
+      - uses: actions/setup-go@v7
+        if: steps.paths.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Audit reproductions (report-only)
+        if: steps.paths.outputs.run == 'true'
+        run: go test -count=1 -timeout 5m ./internal/store -run 'TestAudit|TestInjectedStoreFailure' -v
+      - name: Scale + energy harness (report-only)
+        if: steps.paths.outputs.run == 'true'
+        env:
+          AFTERTRACE_HARNESS: "1"
+          AFTERTRACE_HARNESS_PROFILE: "ci"
+          AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
+          AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
+        run: |
+          mkdir -p "$AFTERTRACE_HARNESS_OUT"
+          go test -count=1 -timeout 14m ./internal/harness -run TestScaleBudgets -v
+          echo "----- budget summary -----"
+          cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || cat "$AFTERTRACE_HARNESS_JSON"
+      - name: Upload budget report
+        if: steps.paths.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scale-budget-report
+          path: |
+            ${{ runner.temp }}/harness/budgets.json
+            ${{ runner.temp }}/harness/budgets.md
+          if-no-files-found: ignore
+          retention-days: 14
+
   install:
     name: Installer (${{ matrix.os }})
     strategy:

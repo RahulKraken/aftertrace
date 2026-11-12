@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: report-only scale and energy harness.
+
+**Choice.** One PR, no merge/tag/release. PRs #59, #60 and #61 stay untouched. Engine behaviour on the default `serve` path is unchanged. Add a hidden `aftertrace dev gen-history` command, a `serve --exit-after-warm` test flag, `internal/harness` driving a real `serve` for budgets B1–B9, report-only `internal/store/audit_test.go` table tests for the three known store bugs, a `macos-14` `scale` job (~15 min, 32 MiB corpus) that publishes a JSON artifact and prints markdown (no PR comments), `nightly.yml` with a 10-minute idle, `docs/how-it-works/budgets.md`, and this entry. Budget misses and audit bugs log `known bug` / skip; they do not fail CI. `AFTERTRACE_FAIL_STORE` is a sentinel path Insert checks only when set. Electron main CPU and `powermetrics` are TODOs on GitHub-hosted runners. Each later fix PR flips its own assertion to `t.Fatal`.
+
+**Why.** Need a baseline and a machine-readable report before turning idle CPU, spill, duplicate counts, crash-resume and OTLP retries into hard gates. 2 GiB does not fit a 15-minute `macos-14` job, so CI uses 32 MiB / 80 sessions / seed 42 and says so.
+
+**How to reverse.** Revert the PR. Drop `internal/harness`, `cmd/aftertrace/dev.go`, `--exit-after-warm`, `AFTERTRACE_FAIL_STORE`, the `scale` job, `nightly.yml`, and `docs/how-it-works/budgets.md`.
+
 ## Nov 12 2026: ship 0.5.8.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.
