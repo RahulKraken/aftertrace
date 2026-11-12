@@ -707,8 +707,11 @@ function SqlTable({
   onTrace: (id: string) => void
 }) {
   const ti = res.columns.indexOf("trace_id")
-  const fmt = (v: unknown) => {
-    if (typeof v === "number") return Number.isInteger(v) ? String(v) : v.toFixed(3)
+  const fmt = (v: unknown, col: string) => {
+    if (typeof v === "number") {
+      if (/cost|usd/i.test(col)) return usd(v)
+      return Number.isInteger(v) ? String(v) : String(v)
+    }
     if (v == null) return ""
     const s = String(v)
     return s.length > 48 ? `${s.slice(0, 8)}…` : s
@@ -739,7 +742,7 @@ function SqlTable({
           >
             {r.map((v, j) => (
               <td key={j} className={typeof v === "number" ? "num" : undefined}>
-                {fmt(v)}
+                {fmt(v, res.columns[j] || "")}
               </td>
             ))}
           </tr>

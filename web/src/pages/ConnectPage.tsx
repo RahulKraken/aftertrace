@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { ArrowRight, Check, SquareTerminal } from "lucide-react"
+import { ArrowRight, Check, TerminalWindow } from "@phosphor-icons/react"
 import { siAnthropic, siClaude, siGooglegemini, siOpentelemetry } from "simple-icons"
 import { BrandIcon } from "../components/BrandIcon"
 import { Logo } from "../components/Logo"
@@ -57,7 +57,7 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
   "agent-sdk": <BrandIcon icon={siClaude} size={15} />,
   "claude-sdk": <BrandIcon icon={siAnthropic} size={15} />,
   otel: <BrandIcon icon={siOpentelemetry} size={15} />,
-  codex: <SquareTerminal size={15} strokeWidth={1.75} />,
+  codex: <TerminalWindow size={15} weight="regular" />,
   gemini: <BrandIcon icon={siGooglegemini} size={15} />,
 }
 
@@ -331,7 +331,7 @@ function FoundHistory({ status }: { status: Status | null }) {
                 nav(sessionsHref(f))
               }}
             >
-              Show me <ArrowRight size={14} />
+              Show me <ArrowRight size={14} weight="regular" />
             </button>
           </div>
         ) : (
@@ -412,7 +412,7 @@ function ClaudeCodeSnippet({ status }: { status: Status | null }) {
   )
 }
 
-function ConnectSources() {
+export function ConnectSources({ embedded = false }: { embedded?: boolean }) {
   const status = useStatus()
   const [pick, setPick] = useState(SOURCES[0].id)
   const [variant, setVariant] = useState(0)
@@ -426,9 +426,11 @@ function ConnectSources() {
   const code = src.id === "claude-code" ? JSON.stringify({ env: CC_ENV(ep, content) }, null, 2) : v.code(ep)
 
   return (
-    <div className="page connect">
-      <h1>Connect a source</h1>
-      <div className="sub">Everything stays on this machine. Pick what you want to see, paste one snippet, and this page confirms the first data.</div>
+    <div className={embedded ? "connect is-embedded" : "page connect"}>
+      {embedded ? null : <h1>Connect a source</h1>}
+      {embedded ? null : (
+        <div className="sub">Everything stays on this machine. Pick what you want to see, paste one snippet, and this page confirms the first data.</div>
+      )}
 
       <div className="connect-grid">
         <div className="src-list" role="tablist" aria-label="Sources">
@@ -528,7 +530,7 @@ function ConnectSources() {
 function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: React.ReactNode }) {
   return (
     <section className={`step${done ? " is-done" : ""}`}>
-      <div className="step-n">{done ? <Check size={13} /> : n}</div>
+      <div className="step-n">{done ? <Check size={13} weight="bold" /> : n}</div>
       <div className="step-body">
         <h2>{title}</h2>
         {children}
@@ -564,14 +566,14 @@ function Verify({ src }: { src: SourceDef }) {
       // The moment it works is worth marking: the check lands with a ring, once.
       <div className="verify is-ok is-celebrate" role="status">
         <span className="verify-check">
-          <Check size={15} strokeWidth={2.75} />
+          <Check size={15} weight="bold" />
         </span>
         <span>
           Receiving from <b>{fresh.name}</b>, {ago(fresh.last_ns, now)}. <Num value={fresh.spans} format={(n) => int(Math.round(n))} /> spans,{" "}
           <Num value={fresh.events} format={(n) => int(Math.round(n))} /> events so far.
         </span>
         <Link href={fresh.kind === "app" ? "/apps" : "/"} className="sec-link">
-          Open it <ArrowRight size={13} />
+          Open it <ArrowRight size={13} weight="regular" />
         </Link>
       </div>
     )

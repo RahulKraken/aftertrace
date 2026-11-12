@@ -1,4 +1,4 @@
-import { moneyParts } from "../lib/format"
+import { usd } from "../lib/format"
 
 export function Money({
   value,
@@ -7,12 +7,5 @@ export function Money({
   value: number | null | undefined
   className?: string
 }) {
-  const p = moneyParts(value)
-  if (!p) return <span className={className}>—</span>
-  return (
-    <span className={`v4-money ${className}`.trim()}>
-      {p.whole}
-      {p.cents ? <span className="v4-cents">{p.cents}</span> : null}
-    </span>
-  )
+  return <span className={`n ${className}`.trim()}>{usd(value)}</span>
 }

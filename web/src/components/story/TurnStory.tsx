@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, ChevronRight, CircleAlert, MessageCircleQuestion, ShieldQuestion, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "wouter"
+import { Toolbar } from "../../lib/chrome"
 import { dur, sayDur, usd } from "../../lib/format"
 import { indexContent } from "../../lib/content"
 import { buildForest } from "../../lib/span"
@@ -17,6 +18,17 @@ import type { TraceView } from "../../lib/traceView"
 
 // Short waits still show on the step; longer ones become a Pause card.
 const SHOW_WAIT_MS = 5_000
+
+type Gap = { kind: "gap"; id: string; label: string }
+type ShownStep = StoryItem | Gap
+
+function visibleSteps(items: StoryItem[], expand: boolean): ShownStep[] {
+  if (expand || items.length <= 20) return items
+  const head = items.slice(0, 8)
+  const tail = items.slice(-4)
+  const hidden = items.length - head.length - tail.length
+  return [...head, { kind: "gap", id: "long-gap", label: `${hidden} more steps` }, ...tail]
+}
 
 export function TurnStory({
   trace,
@@ -35,6 +47,7 @@ export function TurnStory({
   const [open, setOpen] = useState<Set<string>>(() => new Set())
   const [sel, setSel] = useState<string | null>(null)
   const [promptOpen, setPromptOpen] = useState(false)
+  const [expandLong, setExpandLong] = useState(false)
   const listRef = useRef<HTMLOListElement>(null)
   const running = Boolean(trace.in_progress)
   const prompt = content.prompt ? cleanPrompt(content.prompt.text) : ""
@@ -75,32 +88,21 @@ export function TurnStory({
 
   const totalMs = root.duration_ms
   const cost = trace.spans.reduce((n, s) => n + (s.joined?.cost_usd || 0), 0)
+  const sessionTitle = (trace.session_title || prompt || "Session").split("\n")[0].trim()
+  const crumb = sessionTitle.length > 52 ? `${sessionTitle.slice(0, 50)}…` : sessionTitle
 
   return (
-    <div className={`wf story-mode ${selected ? "has-pane" : ""}`}>
+    <div className={`story-page wf story-mode ${selected ? "has-pane" : ""}`}>
+      <Toolbar
+        title={<span title={sessionTitle}>{crumb}</span>}
+        sub={`Turn ${trace.turn_index} of ${trace.turn_count}`}
+        back={{ href: `/session/${trace.session_id}`, label: "Back to session" }}
+      >
+        <TraceViewSwitch view={view} onChange={onView} />
+      </Toolbar>
       <div className="wf-main">
         <div className="st-scroll">
           <div className="st-wrap">
-            <div className="crumbs">
-              <Link href="/sessions">Sessions</Link> ›{" "}
-              <Link href={`/session/${trace.session_id}`} className="mono">
-                {trace.session_id.slice(0, 8)}
-              </Link>{" "}
-              › Turn {trace.turn_index} of {trace.turn_count}
-              <span className="spacer" />
-              <span className={`live-badge ${running ? "is-live" : "is-done"}`}>
-                {running ? <i className="live-dot" /> : null}
-                {running ? "Running" : "Done"}
-              </span>
-              <TraceViewSwitch view={view} onChange={onView} />
-              <button className="navbtn" disabled={!trace.prev} onClick={() => (location.hash = `#/trace/${trace.prev}`)} title="Previous turn ([)">
-                ‹
-              </button>
-              <button className="navbtn" disabled={!trace.next} onClick={() => (location.hash = `#/trace/${trace.next}`)} title="Next turn (])">
-                ›
-              </button>
-            </div>
-
             {prompt ? (
               <div className={`st-prompt ${promptOpen ? "is-open" : ""}`}>
                 <div className="st-label">You asked</div>
@@ -129,7 +131,7 @@ export function TurnStory({
             <TimeBar bd={trace.breakdown} totalMs={totalMs} onWait={() => reveal((i) => i.kind === "pause")} hasPause={story.items.some((i) => i.kind === "pause")} />
 
             {story.final || story.filesChanged.length ? (
-              <section className={`st-outcome ${story.final ? "" : "is-bare"}`}>
+              <section className="st-outcome is-bare">
                 {story.final ? (
                   <>
                     <div className="st-label">{running ? "Latest from Claude" : "Where it ended"}</div>
@@ -159,16 +161,22 @@ export function TurnStory({
               ) : null}
             </div>
 
-            <ol className="st-steps stagger" ref={listRef}>
-              {story.items.map((it, i) =>
-                it.kind === "pause" ? (
+            <ol className="st-steps" ref={listRef}>
+              {visibleSteps(story.items, expandLong).map((it, i, arr) =>
+                it.kind === "gap" ? (
+                  <li key={it.id} className="step-group">
+                    <button type="button" className="link" onClick={() => setExpandLong(true)}>
+                      {it.label}
+                    </button>
+                  </li>
+                ) : it.kind === "pause" ? (
                   <PauseCard key={it.id} p={it} t0={root.start_ns} onOpen={setSel} selected={sel} />
                 ) : (
                   <ChapterRow
                     key={it.id}
                     c={it}
                     t0={root.start_ns}
-                    wallMs={chapterWall(it, story.items[i + 1])}
+                    wallMs={chapterWall(it, arr[i + 1]?.kind === "chapter" || arr[i + 1]?.kind === "pause" ? (arr[i + 1] as StoryItem) : undefined)}
                     open={open.has(it.id)}
                     onToggle={() => toggle(it.id)}
                     onOpen={setSel}
@@ -302,7 +310,7 @@ function ChapterRow({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ type: "spring", bounce: 0, visualDuration: 0.28 }}
+              transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
             >
               {c.actions.map((a) => (
                 <ActionRow key={a.span.span_id} a={a} onOpen={onOpen} selected={selected} depth={0} />

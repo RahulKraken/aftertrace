@@ -8,11 +8,11 @@ A left sidebar with three labelled groups, so the eight destinations read as thr
 
 | Group | Pages | The job |
 | - | - | - |
-| (top) | **Home** | What is happening, and what happened this week |
+| (top) | **Today** | What is running, and what happened this week |
 | Observe | **Sessions**, **Apps** | Look at what ran |
-| Improve | **Findings**, **Cost** | Decide what to change |
-| Explore | **Query**, **Recap** | Ask anything; see the week |
-| (bottom) | **Connect**, **Settings** | Add a source; tune the instrument |
+| Improve | **Findings**, **Spend** | Decide what to change; see where money went |
+| Explore | **Ask** (⌘K / Query) | Ask anything |
+| (window) | **Settings** (⌘,) | Sources, privacy, updates. Not in the sidebar |
 
 A trace opens from anywhere: a session row, a finding's evidence chip, a live lane, an Ask answer, ⌘K. The sidebar collapses to icons below 1100px and to a top bar on phones.
 

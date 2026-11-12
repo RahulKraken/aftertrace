@@ -2,6 +2,38 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 11 2026: design-review round 1.
+
+**Choice.** Turn crumbs use the session prompt title; long-turn fixture is 20+ unique rising-timestamp steps. Sessions hide the time-ribbon column below 1180px, wrap inspector titles to 3 lines, 2×2 nowrap stats. Today and Spend share `overview.week`. Elapsed vs agent time are labelled. Resolved findings show the date, quiet Reopen, muted amber, secondary Copy fix. Spend leads with an insight, a model bar + legend, and top 5 sessions. Settings is a 720×640 Mac Settings window with icon tabs. `global.css` and `v4.css` are gone; `token-lint` fails raw font-size/radius/ms outside `tokens.css`. Selection is ≤140ms; WinStage and shimmer are deleted. DESIGN.md is the one design source.
+
+**Why.** Round 1 review of PR #57: hash in the turn header, fake long-turn clocks, Sessions clipped at 1024, Today/Spend totals disagreed, two style systems, leftover celebration motion.
+
+**How to reverse.** Restore `web/src/styles/global.css` and `v4.css` from git; drop `web/scripts/token-lint.mjs`.
+
+## Nov 11 2026: Today week stats never wrap; window min 960.
+
+**Choice.** Dashboard `minWidth` is 960. Today hero values, captions and the sessions/tokens/cache-hit column are `white-space: nowrap`. The Worth changing pane (`--inspector`) narrows first (320 → 260 → 200) and hides below 1000px so the stat row fits. Running-now cost stays on the right; tokens move to the secondary line so the title can use the row.
+
+**Why.** The 1024 Electron Today shot wrapped "49m 8s", "waiting on you", and the facts column, and truncated the live title at "git l…".
+
+**How to reverse.** Restore `minWidth: 880` and the four-column hero grid.
+
+## Nov 11 2026: polish pass on the native-instrument PR.
+
+**Choice.** Open findings count is one number: sidebar, Today "Worth changing", and Findings "N open" all use `openFindings()` (API list minus client resolved marks). Seen-in rows name the session and date, cost on the right. Session inspector turns show a prompt snippet plus time and cost. Today running row is a quiet row + ribbon (no playhead ticks, no 2px min-width stubs). Keyboard hint uses `desktop.platform` so macOS reads ⌘K. macOS CI captures Today/Sessions from a real Electron window (`desktop/scripts/ci-window-shots.js`) so traffic lights and sidebar vibrancy show up.
+
+**Why.** Review of PR screenshots: dollar-only Seen in, 15 vs 14 counts, Turn 1/2/3, ribbon ticks, Ctrl K on a Mac product, Playwright chrome without native window chrome.
+
+**How to reverse.** Revert the follow-up commit. Drop the `macOS UI shots` job if Electron capture is too flaky on macos-15.
+
+## Nov 11 2026: native-instrument redesign, with design-review overrides.
+
+**Choice.** One PR against main, no merge/tag/release. The desktop UI follows SPEC.md (native Mac instrument: Today / Sessions / Findings / Spend, Settings window, Phosphor, SF Pro, one time ribbon) with these review wins over SPEC: a single `usd()` money rule (2 decimals, `<$0.01` for tiny, no cents at $100+, never 3-decimal values); Sessions puts repo under the title instead of a truncating column; Today keeps per-day bars and a legend, not a duplicate week stacked bar; Findings keep the amber hero, native inactive-grey selection, and Copy fix → Copied micro-animation (no WinStage); motion is only selection / sheet / list-reorder, under 200ms, with `prefers-reduced-motion`; Spend, the Settings window, resolved findings and 20+ step turns share the same language and show up in PR screenshots. Silent updater and sidebar `Restart to update` from v0.5.7 stay. Engine and version stay 0.5.7.
+
+**Why.** The previous UI read as a vibe-coded toy: mixed type, truncated finding titles, session hashes, Cost/Recap/Connect competing in the sidebar, 3-decimal money. The review pass kills leftover SPEC mistakes (week bar duplicating day bars, truncated repo, count-ups, WinStage as the primary finding action).
+
+**How to reverse.** Revert the PR. Tokens live in `web/src/styles/tokens.css` + `app.css`; money in `web/src/lib/format.ts` `usd()` and `desktop/src/glance.js` `sayUsd`.
+
 ## Nov 11 2026: public README positioning and a Homebrew cask tap.
 
 **Choice.** One PR, no merge/tag/release. README is a first-visit page: one-line time/cost/usage pitch, fixture-UI demo GIF, DMG + `brew install --cask rahulkraken/tap/aftertrace`, an honest supported-tools table (Cursor is not supported), the fourteen shipped rules, local-only privacy with the GitHub Releases update-check and opt-in Ask named, a short fair note vs ccusage and CodeBurn. No security/audit/compliance framing. Community files: bug and feature templates, Discussions for questions, SUPPORT.md. Homebrew ships an **app cask** (`packaging/homebrew/Casks/aftertrace.rb`, v0.5.7 arm64 DMG) meant for `RahulKraken/homebrew-tap`. That tap repo does not exist yet. Same token is not used for a CLI formula. Release Assemble generates `aftertrace.rb` from the built DMG sha256 and attaches it.

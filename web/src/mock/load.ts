@@ -84,11 +84,69 @@ export function appDetail(service: string): AppDetail | undefined {
   return appFiles[`./fixtures/apps/${service}.json`]
 }
 
+const FOLLOWUPS: Record<string, string[]> = {
+  "Tidy up my zsh aliases and add a git log alias": [
+    "Tidy up my zsh aliases and add a git log alias",
+    "Make git lg show the graph with dates",
+  ],
+  "Set up a pre-commit hook for the dotfiles repo": [
+    "Set up a pre-commit hook for the dotfiles repo",
+    "The hook is slow on git commit. Profile it.",
+    "Skip the hook for merge commits",
+  ],
+  "Fix the flaky orders test and make npm test pass": [
+    "Fix the flaky orders test and make npm test pass",
+    "npm test still flakes on checkout. Isolate it.",
+    "Retry the orders spec with a longer timeout",
+    "Why does the retry fire 11 times?",
+  ],
+  "Generate the monthly PDF report for the dashboard": [
+    "Generate the monthly PDF report for the dashboard",
+    "pdf-report is on Opus at max effort. Does it need that?",
+    "Write the Sonnet version of the skill",
+  ],
+  "Customers are getting charged twice when checkout times out. Find out why and fix it (ORD-142).": [
+    "Customers are getting charged twice when checkout times out. Find out why and fix it (ORD-142).",
+    "Trace the charge path around the timeout",
+    "Add an idempotency key on the payment intent",
+    "Confirm the ORD-142 replay is clean",
+  ],
+  "Why is the checkout page slow? Profile the bundle": [
+    "Why is the checkout page slow? Profile the bundle",
+    "The permission prompt for npm test keeps coming back",
+    "Allow Bash(npm test:*) for this repo",
+    "Re-run the bundle profile",
+    "Ship the allow rule",
+  ],
+}
+
 export function sessionDetail(id: string): SessionDetail | undefined {
   const d = sessionFiles[`./fixtures/sessions/${id}.json`]
   // The list carries the synthetic title; the detail should say the same.
   const listed = sessions.find((s) => s.session_id === id)
-  return d && listed ? { ...d, session: { ...d.session, title: listed.title } } : d
+  if (!d) return d
+  const title = listed?.title || d.session.title
+  const extras = (title && FOLLOWUPS[title]) || []
+  return {
+    ...d,
+    session: { ...d.session, title },
+    turns: d.turns.map((t, i) => ({
+      ...t,
+      prompt: usablePrompt(t.prompt) || extras[i] || followUpPrompt(title, i),
+    })),
+  }
+}
+
+function usablePrompt(p?: string | null) {
+  if (!p) return ""
+  const s = p.replace(/\s+/g, " ").trim()
+  if (!s || s === "<REDACTED>") return ""
+  return s
+}
+
+function followUpPrompt(title: string | null | undefined, i: number) {
+  const head = (title || "Untitled session").replace(/\s+/g, " ").trim()
+  return i === 0 ? head : `Follow-up: ${head}`
 }
 
 export function getTrace(id: string): Trace | undefined {

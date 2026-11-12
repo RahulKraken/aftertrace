@@ -1,143 +1,174 @@
-/* v4 chrome: hairline cards, cool neutrals, one amber for savable money.
-   Waterfall / span hues stay for traces. Brand ink #1F1D1A, cream #EFEAE2,
-   amber #E29A2E (savable only). */
+/* Aftertrace design tokens — Native instrument (SPEC.md §2 + design review). */
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-recessed: #f5f5f5;
-  --surface: #ffffff;
-  --surface-2: #fafafa;
-  --ink: #1f1d1a;
-  --ink-2: #171717;
-  --mute: #666666;
-  --faint: #a1a1a1;
-  --line: #ebebeb;
-  --line-2: #e0e0e0;
-  --sel: #f2f2f2;
-  --sel-strong: #f2f2f2;
-  --side-bg: #fafafa;
-  --sunk: #f5f5f5;
-  --grid: #f0f0f0;
-  --bar: #d9d9d9;
-  --bar-2: #ededed;
-  --cream: #efeae2;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Geist Mono", Menlo, monospace;
 
-  --t1: #171717;
-  --t2: #666666;
-  --t3: #a1a1a1;
-  --m-opus: var(--t1);
-  --m-son: #b4b4b4;
-  --ok: #3fa16a;
+  --t-display: 600 32px/38px var(--font-display);
+  --t-title1: 600 22px/28px var(--font-display);
+  --t-title2: 600 17px/22px var(--font-display);
+  --t-num: 600 20px/24px var(--font-display);
+  --t-headline: 600 13px/18px var(--font);
+  --t-body: 400 13px/18px var(--font);
+  --t-callout: 400 12px/16px var(--font);
+  --t-caption: 500 11px/14px var(--font);
+  --t-toolbar: 700 15px/20px var(--font-display);
 
-  --shadow-1: 0 1px 2px rgb(31 29 26 / 0.05);
-  --shadow-2: 0 1px 2px rgb(31 29 26 / 0.04), 0 4px 12px -2px rgb(31 29 26 / 0.06);
-  --shadow-pop: 0 2px 6px rgb(31 29 26 / 0.06), 0 16px 40px -12px rgb(31 29 26 / 0.22);
-  --shadow: var(--shadow-1);
-  --shadow-pane: -12px 0 32px -24px rgb(31 29 26 / 0.25);
-  --shadow-toast: var(--shadow-pop);
-  --ring: 0 0 0 3px color-mix(in oklab, var(--hue-model) 22%, transparent);
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --row: 32px; --toolbar: 52px; --sidebar: 220px; --inspector: 320px;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-lg: 14px;
+  --r-control: 6px; --r-group: 10px; --r-full: 999px;
+
+  --window: #ffffff;
+  --sidebar-bg: rgba(234, 234, 238, 0.86);
+  --group: rgba(0, 0, 0, 0.028);
+  --sep: rgba(0, 0, 0, 0.09);
+  --sep-strong: rgba(0, 0, 0, 0.14);
+  --hover: rgba(0, 0, 0, 0.04);
+  --sel-quiet: rgba(0, 0, 0, 0.07);
+  --sel-inactive: rgba(0, 0, 0, 0.12);
+
+  --l1: rgba(0, 0, 0, 0.86);
+  --l2: rgba(0, 0, 0, 0.54);
+  --l3: rgba(0, 0, 0, 0.30);
+
+  --accent: #0a74ff;
+  --on-accent: #ffffff;
+
+  --amber: #e5992f;
+  --amber-ink: #a85f00;
+  --amber-wash: rgba(229, 153, 47, 0.12);
+
+  --c-think: #7a74ea;
+  --c-tool: #2fa595;
+  --c-wait: var(--amber);
+  --c-retry: #e0655c;
+  --c-hook: #5b9bd5;
+  --c-other: rgba(0, 0, 0, 0.16);
+  --live: #31b45a;
+
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --dur-press: 80ms;
+  --dur-select: 120ms;
+  --dur-ui: 140ms;
+  --dur-move: 140ms;
+  --dur-sheet: 180ms;
+
+  --fs-9: 9.5px; --fs-10: 10px; --fs-105: 10.5px; --fs-11: 11px; --fs-115: 11.5px;
+  --fs-12: 12px; --fs-125: 12.5px; --fs-13: 13px; --fs-135: 13.5px; --fs-14: 14px;
+  --fs-145: 14.5px; --fs-15: 15px; --fs-155: 15.5px; --fs-16: 16px; --fs-17: 17px;
+  --fs-18: 18px; --fs-19: 19px; --fs-20: 20px; --fs-22: 22px; --fs-24: 24px;
+  --fs-26: 26px; --fs-27: 27px; --fs-28: 28px; --fs-30: 30px; --fs-32: 32px;
+  --fs-34: 34px; --fs-40: 40px;
+
+  --r-2: 2px; --r-3: 3px; --r-4: 4px; --r-5: 5px; --r-7: 7px; --r-8: 8px;
+  --r-9: 9px; --r-11: 11px; --r-12: 12px; --r-14: 14px; --r-16: 16px;
+  --r-sm: var(--r-3); --r-md: var(--r-4); --r-lg: var(--r-8); --r-card: var(--r-12);
+  --r-switch: var(--r-11);
+
+  --t-mono: 400 12px/18px var(--mono);
+  --t-mono-lg: 600 19px/24px var(--mono);
+
+  /* waterfall / legacy aliases — same family, not a second palette */
+  --sans: var(--font);
+  --display: var(--font-display);
+  --bg: var(--window);
+  --bg-recessed: var(--group);
+  --surface: var(--window);
+  --surface-2: var(--group);
+  --ink: var(--l1);
+  --ink-2: var(--l1);
+  --mute: var(--l2);
+  --faint: var(--l3);
+  --line: var(--sep);
+  --line-2: var(--sep-strong);
+  --sel: var(--hover);
+  --sel-strong: var(--sel-quiet);
+  --side-bg: var(--sidebar-bg);
+  --sunk: var(--group);
+  --grid: var(--sep);
+  --bar: var(--c-other);
+  --bar-2: var(--group);
+  --t1: var(--l1);
+  --t2: var(--l2);
+  --t3: var(--l3);
+  --side: var(--sidebar);
+  --page-x: 24px;
+  --pane: var(--inspector);
   --top: 0px;
-  --side: 224px;
-  --page-x: 40px;
-  --pane: 400px;
-  --labw: clamp(220px, 32%, 520px);
-  --row: 32px;
-  --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
-  --display: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
-
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --dur-press: 140ms;
-  --dur-1: 150ms;
-  --dur-2: 220ms;
-  --dur-3: 320ms;
-
-  --amber: #e29a2e;
-  --amber-ink: #a35f0a;
-  --amber-bg: #fdf4e6;
-  --a2: #edbb6e;
-  --a3: #f4d6a6;
-  --a4: #f9e9cf;
-
-  --hue-model: #6359e0;
-  --hue-model-soft: #dcd9fa;
-  --hue-tool: #14998e;
-  --hue-tool-soft: #c9ece7;
+  --radius: var(--r-group);
+  --radius-sm: var(--r-control);
+  --radius-lg: var(--r-group);
+  --shadow-1: none;
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --shadow-pane: none;
+  --shadow: var(--shadow-1);
+  --shadow-toast: var(--shadow-pop);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+  --ok: var(--live);
+  --m-opus: var(--l1);
+  --m-son: var(--l3);
+  --a2: color-mix(in srgb, var(--amber) 70%, white);
+  --a3: color-mix(in srgb, var(--amber) 45%, white);
+  --a4: color-mix(in srgb, var(--amber) 25%, white);
+  --amber-bg: var(--amber-wash);
+  --hue-model: var(--c-think);
+  --hue-model-soft: color-mix(in srgb, var(--c-think) 18%, transparent);
+  --hue-tool: var(--c-tool);
+  --hue-tool-soft: color-mix(in srgb, var(--c-tool) 18%, transparent);
   --hue-agent: #9466d6;
-  --hue-agent-soft: #e6dbf6;
+  --hue-agent-soft: color-mix(in srgb, #9466d6 18%, transparent);
   --hue-skill: #bd5a97;
   --hue-mcp: #2b88b0;
-  --hue-hook: #4b93c9;
+  --hue-hook: var(--c-hook);
   --hue-file: #2f9775;
-  --hue-bash: #1e938e;
+  --hue-bash: var(--c-tool);
   --hue-web: #5878d6;
-  --hue-wait: #e29a2e;
-  --hue-wait-bg: #fcf2e0;
-  --hue-retry: #d9534f;
-  --hue-turn: #aaa59c;
-  --hue-ok: #3a9566;
+  --hue-wait: var(--c-wait);
+  --hue-wait-bg: var(--amber-wash);
+  --hue-retry: var(--c-retry);
+  --hue-turn: var(--c-other);
+  --hue-ok: var(--live);
+  --ease-out: var(--ease);
+  --ease-in-out: var(--ease);
+  --ease-drawer: var(--ease);
+  --dur-1: var(--dur-ui);
+  --dur-2: var(--dur-ui);
+  --dur-3: var(--dur-move);
 }
 
-[data-theme="dark"] {
+:root[data-theme="dark"],
+.dark {
   color-scheme: dark;
-  --bg: #0b0b0c;
-  --bg-recessed: #18181b;
-  --surface: #111113;
-  --surface-2: #0e0e10;
-  --ink: #efeae2;
-  --ink-2: #ededed;
-  --mute: #a1a1a1;
-  --faint: #6b6b6b;
-  --line: #232326;
-  --line-2: #2f2f33;
-  --sel: #1a1a1a;
-  --sel-strong: #1a1a1a;
-  --side-bg: #0e0e10;
-  --sunk: #18181b;
-  --grid: #1a1a1a;
-  --bar: #3a3a3a;
-  --bar-2: #242424;
-
-  --t1: #ededed;
-  --t2: #a1a1a1;
-  --t3: #6b6b6b;
-  --m-opus: #cfcfcf;
-  --m-son: #555558;
-
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px -2px rgb(0 0 0 / 0.35);
-  --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.35), 0 18px 44px -12px rgb(0 0 0 / 0.6);
-  --shadow-pane: -12px 0 32px -20px rgb(0 0 0 / 0.6);
-
-  --amber-ink: #f0b358;
-  --amber-bg: #2a1f10;
-  --a2: #a8732a;
-  --a3: #6e4d20;
-  --a4: #43311a;
-
-  --hue-model: #9a92f4;
-  --hue-model-soft: #2f2b5c;
-  --hue-tool: #3fc0b2;
-  --hue-tool-soft: #163f3a;
+  --window: #1e1e20;
+  --sidebar-bg: rgba(44, 44, 48, 0.88);
+  --group: rgba(255, 255, 255, 0.035);
+  --sep: rgba(255, 255, 255, 0.09);
+  --sep-strong: rgba(255, 255, 255, 0.15);
+  --hover: rgba(255, 255, 255, 0.05);
+  --sel-quiet: rgba(255, 255, 255, 0.09);
+  --sel-inactive: rgba(255, 255, 255, 0.16);
+  --l1: rgba(255, 255, 255, 0.88);
+  --l2: rgba(255, 255, 255, 0.56);
+  --l3: rgba(255, 255, 255, 0.28);
+  --accent: #2f88ff;
+  --amber: #f0ad4e;
+  --amber-ink: #f4be6e;
+  --amber-wash: rgba(240, 173, 78, 0.14);
+  --c-think: #918cf5;
+  --c-tool: #45bfae;
+  --c-retry: #ef7d75;
+  --c-hook: #79b2e6;
+  --c-other: rgba(255, 255, 255, 0.2);
   --hue-agent: #b996ef;
-  --hue-agent-soft: #3a2a52;
   --hue-skill: #e08bc0;
   --hue-mcp: #5fb4da;
-  --hue-hook: #7db9e6;
   --hue-file: #5cc29c;
-  --hue-bash: #4cc3bd;
   --hue-web: #8ea5f0;
-  --hue-wait: #f0b45a;
-  --hue-wait-bg: #382a14;
-  --hue-retry: #ef7a77;
-  --hue-turn: #77726a;
-  --hue-ok: #67bf8e;
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {

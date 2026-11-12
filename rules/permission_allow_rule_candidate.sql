@@ -45,7 +45,7 @@ SELECT
   wait_ms/1000.0 AS impact_value,
   's waited' AS impact_unit,
   'You approved ' || pattern || ' ' || n || ' times in ' || json_array_length(sessions) ||
-    ' session(s). Waiting on you cost ' || printf('%.0f', wait_ms/1000.0) || 's of wall clock.' AS detail,
+    ' session' || CASE WHEN json_array_length(sessions) = 1 THEN '' ELSE 's' END || '.' AS detail,
   'Add "' || pattern || '" to permissions.allow in ~/.claude/settings.json, or choose "Yes, and don''t ask again" next time.' AS recommendation,
   evidence::VARCHAR AS evidence,
   sessions::VARCHAR AS sessions

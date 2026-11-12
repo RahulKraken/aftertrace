@@ -12,7 +12,74 @@ function windowIcon() {
 }
 
 function background() {
-  return nativeTheme.shouldUseDarkColors ? "#141312" : "#f6f5f1"
+  return nativeTheme.shouldUseDarkColors ? "#1e1e20" : "#ffffff"
+}
+
+function isMac() {
+  return process.platform === "darwin"
+}
+
+function dashboardWindowOptions() {
+  const mac = isMac()
+  return {
+    width: 1280,
+    height: 840,
+    minWidth: 960,
+    minHeight: 560,
+    show: false,
+    title: "Aftertrace",
+    icon: windowIcon(),
+    backgroundColor: mac ? "#00000000" : background(),
+    autoHideMenuBar: true,
+    ...(mac
+      ? {
+          titleBarStyle: "hiddenInset",
+          trafficLightPosition: { x: 20, y: 18 },
+          vibrancy: "sidebar",
+          visualEffectState: "active",
+          transparent: true,
+        }
+      : {}),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: ["--aftertrace-window=dashboard"],
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+      navigateOnDragDrop: false,
+    },
+  }
+}
+
+function settingsWindowOptions() {
+  const mac = isMac()
+  return {
+    width: 720,
+    height: 640,
+    minWidth: 560,
+    minHeight: 420,
+    show: false,
+    title: "Settings",
+    icon: windowIcon(),
+    backgroundColor: background(),
+    autoHideMenuBar: true,
+    ...(mac
+      ? {
+          titleBarStyle: "hiddenInset",
+          trafficLightPosition: { x: 20, y: 18 },
+        }
+      : {}),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: ["--aftertrace-window=settings"],
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+      navigateOnDragDrop: false,
+    },
+  }
 }
 
 function attachGuards(win, { fallbackWaiting = true } = {}) {
@@ -34,28 +101,24 @@ function attachGuards(win, { fallbackWaiting = true } = {}) {
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 840,
-    minWidth: 880,
-    minHeight: 560,
-    show: false,
-    title: "Aftertrace",
-    icon: windowIcon(),
-    backgroundColor: background(),
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webviewTag: false,
-      navigateOnDragDrop: false,
-    },
-  })
+  const win = new BrowserWindow(dashboardWindowOptions())
   attachGuards(win)
   win.once("ready-to-show", () => win.show())
   return win
 }
 
-module.exports = { createWindow, attachGuards, background }
+function createSettingsWindow() {
+  const win = new BrowserWindow(settingsWindowOptions())
+  attachGuards(win)
+  win.once("ready-to-show", () => win.show())
+  return win
+}
+
+module.exports = {
+  createWindow,
+  createSettingsWindow,
+  attachGuards,
+  background,
+  dashboardWindowOptions,
+  settingsWindowOptions,
+}

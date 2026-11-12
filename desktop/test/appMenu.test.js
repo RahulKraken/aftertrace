@@ -7,10 +7,12 @@ const { appMenuTemplate, appMenuLabels } = require("../src/appMenu")
 test("Mac Aftertrace menu puts Check for Updates… under About", () => {
   const labels = appMenuLabels({ isMac: true, appName: "Aftertrace", packaged: true })
   const about = labels.indexOf("about")
+  const settings = labels.indexOf("Settings…")
   const check = labels.indexOf("Check for Updates…")
   const hide = labels.indexOf("hide")
   assert.ok(about >= 0)
-  assert.ok(check > about)
+  assert.ok(settings > about)
+  assert.ok(check > settings)
   assert.ok(hide > check)
 })
 

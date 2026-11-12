@@ -420,3 +420,71 @@ jobs:
             desktop/dist/latest.yml
           if-no-files-found: error
           retention-days: 14
+
+  mac-ui-shots:
+    name: macOS UI shots
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+      - name: Build mock UI
+        working-directory: web
+        run: npm ci && npx vite build
+      - name: Desktop npm ci
+        working-directory: desktop
+        run: npm ci
+      - name: Capture Today and Sessions from Electron
+        env:
+          SHOT_OUT: ${{ github.workspace }}/desktop/dist/ui-shots
+          SHOT_ORIGIN: http://127.0.0.1:7311
+          ELECTRON_ENABLE_LOGGING: "1"
+        run: |
+          python3 -m venv /tmp/shot-venv
+          /tmp/shot-venv/bin/pip install -q pillow
+          export SHOT_PYTHON=/tmp/shot-venv/bin/python3
+          python3 -m http.server 7311 --bind 127.0.0.1 --directory web/dist >/tmp/mock-ui.log 2>&1 &
+          echo $! > /tmp/mock-ui.pid
+          cleanup() { kill "$(cat /tmp/mock-ui.pid)" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:7311/ >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:7311/ >/dev/null
+          mkdir -p "$SHOT_OUT"
+          (cd desktop && npx electron scripts/ci-window-shots.js)
+          ls -lah "$SHOT_OUT"
+          for page in today sessions findings spend turn; do
+            for size in 1024 1440; do
+              for theme in light dark; do
+                test -s "$SHOT_OUT/${page}-electron-${size}-${theme}.png"
+              done
+            done
+          done
+          test -s "$SHOT_OUT/settings-electron-720-light.png"
+          test -s "$SHOT_OUT/settings-electron-720-dark.png"
+          test -s "$SHOT_OUT/selection-focus.png"
+          test -s "$SHOT_OUT/selection-inactive.png"
+          test -s "$SHOT_OUT/copied-confirm.png"
+          test -s "$SHOT_OUT/selection-focus-copied.gif"
+          test "$(wc -c < "$SHOT_OUT/selection-focus-copied.gif")" -gt 10000
+          test "$(wc -c < "$SHOT_OUT/today-electron-1024-light.png")" -gt 40000
+          test -s "$SHOT_OUT/turn-long-1024-light.png"
+          test "$(wc -c < "$SHOT_OUT/turn-long-1024-light.png")" -gt 40000
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: aftertrace-macos-ui-shots
+          path: |
+            desktop/dist/ui-shots/*.png
+            desktop/dist/ui-shots/*.gif
+            desktop/dist/ui-shots/*.mp4
+          if-no-files-found: warn
+          retention-days: 14

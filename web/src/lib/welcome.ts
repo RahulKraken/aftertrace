@@ -154,11 +154,11 @@ export function shortTitle(f: Finding): string {
     case "model.switch_cache_rebuild":
       return "Stay on one model"
     case "tool.repeated_errors":
-      return "Fix the failing tool"
+      return `Fix ${toolLead(f.headline)} failures`
     case "skill.cost":
       return skillTitle(f)
     case "hook.overhead":
-      return "Slow hook"
+      return "Slow PreToolUse hook"
     case "permission.allow_rule_candidate":
       return f.headline.replace(/,.+$/, "") || "Permission prompts"
     default:
@@ -191,7 +191,7 @@ function skillTitle(f: Finding): string {
   const slug = skillSlug(f)
   const model = findingModel(f)
   if (slug === "pdf-report") {
-    return model ? `Generate monthly PDF report on ${model}` : "Generate monthly PDF report"
+    return model ? `PDF report runs on ${model} at max effort` : "PDF report runs at max effort"
   }
   const human = titleCaseSlug(slug) || f.rule_title || f.headline.replace(/\.$/, "")
   return model ? `${human} on ${model}` : human

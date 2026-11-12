@@ -31,22 +31,22 @@ test("readme demo under 20s", async ({ page }) => {
 
   await page.goto("/#/")
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
-  await expect(page.locator(".next-card").first()).toBeVisible()
-  await expect(page.locator(".v4-st").filter({ hasText: "Running" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+  await expect(page.locator(".lane").first()).toBeVisible()
+  await expect(page.getByText("Running now")).toBeVisible()
   await page.waitForTimeout(4500)
 
   await page.getByRole("link", { name: "Findings" }).click()
   await expect(page.getByRole("heading", { name: "Findings" })).toBeVisible()
-  const hero = page.locator(".v4-pane .frow.hero")
+  const hero = page.locator(".fr.sel")
   await expect(hero).toBeVisible()
   await page.waitForTimeout(2800)
 
-  await page.locator(".v4-fr").first().click()
-  await expect(page.locator(".v4-pane .v4-big")).toBeVisible()
+  await page.locator(".fr").first().click()
+  await expect(page.locator(".fdet .big")).toBeVisible()
   await page.waitForTimeout(4500)
 
-  const ev = page.locator(".v4-pane .ev").first()
+  const ev = page.locator(".fdet .li").first()
   if (await ev.count()) {
     await ev.click()
     await expect(page.locator(".wf")).toBeVisible({ timeout: 8000 })

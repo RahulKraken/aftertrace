@@ -1,29 +1,34 @@
 import { useEffect, useMemo, useState } from "react"
-import { ChevronRight } from "lucide-react"
 import { Link, useLocation } from "wouter"
-import { api } from "../lib/api"
+import { api, emptyMode } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
 import { previewSkeleton } from "../lib/cache"
 import { SessionsSkeleton } from "../components/PageSkeleton"
-import { clock, hm, sayTok, usd, when } from "../lib/format"
-import { modelFamily, primaryModel } from "../lib/model"
-import { shortTitle } from "../lib/welcome"
-import type { Finding, Session, SessionDetail } from "../lib/types"
-import { ModelChip } from "../components/ModelChip"
-import { Money } from "../components/Money"
-import { StateChip } from "../components/StateChip"
-import { TraceLine } from "../components/TraceLine"
+import { EmptyState } from "../components/EmptyState"
+import { Ribbon, RibbonKey } from "../components/Ribbon"
+import { SearchField, Segmented, Toolbar } from "../lib/chrome"
+import { useShell } from "../components/Shell"
+import { dur, modelName, pct, tok, usd, when } from "../lib/format"
+import { fromBreakdown } from "../lib/ribbon"
+import type { Finding, LiveLane, Session, SessionDetail } from "../lib/types"
+
+type Range = "week" | "month" | "all"
 
 export function SessionsPage() {
+  const { openCommand } = useShell()
   const [rows, setRows] = useState<Session[] | null>(() => readCached<Session[]>("aftertrace.sessions"))
   const [err, setErr] = useState<string | null>(null)
   const [sel, setSel] = useState<string | null>(null)
+  const [focus, setFocus] = useState(true)
   const [details, setDetails] = useState<Record<string, SessionDetail>>({})
   const [findings, setFindings] = useState<Finding[]>([])
+  const [live, setLive] = useState<LiveLane[]>([])
+  const [range, setRange] = useState<Range>("week")
   const [, nav] = useLocation()
 
   useEffect(() => {
     api.findings().then(setFindings).catch(() => undefined)
+    api.overview().then((o) => setLive(o.live || [])).catch(() => undefined)
   }, [])
 
   const running = Boolean(rows?.some((r) => r.running))
@@ -43,216 +48,311 @@ export function SessionsPage() {
     )
   }, [running])
 
-  useEffect(() => {
-    if (!rows?.length) return
-    const first = rows.find((s) => s.running) || rows[0]
-    setSel((cur) => cur || first.session_id)
-  }, [rows])
+  const filtered = useMemo(() => {
+    const all = rows || []
+    if (range === "all") return all
+    const newest = all.reduce((m, s) => Math.max(m, s.start_ns), 0)
+    const wall = Date.now() * 1e6
+    // Frozen demo fixtures sit weeks behind wall clock; keep their week intact.
+    const origin = newest > 0 && newest < wall - 7 * 86400e9 ? newest : Math.max(newest, wall)
+    const span = range === "week" ? 7 : 30
+    const lo = origin - span * 86400e9
+    return all.filter((s) => s.running || s.start_ns >= lo)
+  }, [rows, range])
 
   useEffect(() => {
-    if (!rows) return
-    const need = rows.slice(0, 24).filter((s) => !details[s.session_id])
+    if (!filtered.length) return
+    const first = filtered.find((s) => s.running) || filtered[0]
+    setSel((cur) => (cur && filtered.some((s) => s.session_id === cur) ? cur : first.session_id))
+  }, [filtered])
+
+  useEffect(() => {
+    if (!filtered.length) return
+    const need = filtered.slice(0, 24).filter((s) => !details[s.session_id])
     if (!need.length) return
     let alive = true
-    Promise.all(need.map((s) => api.session(s.session_id).then((d) => [s.session_id, d] as const))).then((pairs) => {
-      if (!alive) return
-      setDetails((cur) => {
-        const next = { ...cur }
-        for (const [id, d] of pairs) next[id] = d
-        return next
+    Promise.all(need.map((s) => api.session(s.session_id).then((d) => [s.session_id, d] as const)))
+      .then((pairs) => {
+        if (!alive) return
+        setDetails((cur) => {
+          const next = { ...cur }
+          for (const [id, d] of pairs) next[id] = d
+          return next
+        })
       })
-    }).catch(() => undefined)
+      .catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [rows, details])
+  }, [filtered, details])
 
-  const groups = useMemo(() => {
-    const out: { day: string; cost: number; rows: Session[] }[] = []
-    for (const s of rows || []) {
-      const d = dayLabel(s.start_ns)
-      if (!out.length || out[out.length - 1].day !== d) out.push({ day: d, cost: 0, rows: [] })
-      const g = out[out.length - 1]
-      g.rows.push(s)
-      g.cost += s.cost_usd || 0
-    }
-    return out
-  }, [rows])
+  const groups = useMemo(() => groupSessions(filtered), [filtered])
+  const maxMs = Math.max(...filtered.map((s) => s.turn_ms || 0), 1)
 
   if (err && !rows) {
     return (
-      <div className="page">
-        {err}
-        <div className="err-next">Reload this page. If it persists, check that aftertrace serve is running.</div>
-      </div>
+      <>
+        <Toolbar title="Sessions" />
+        <EmptyState line="Aftertrace can't reach its engine. Restart it?" action="Reload" onClick={() => window.location.reload()} />
+      </>
     )
   }
   if (previewSkeleton() || !rows) return <SessionsSkeleton />
-
-  const stats = {
-    sessions: rows.length,
-    time: rows.reduce((a, s) => a + (s.turn_ms || 0), 0),
-    spend: rows.reduce((a, s) => a + (s.cost_usd || 0), 0),
-    tokens: rows.reduce((a, s) => a + (s.tokens || 0), 0),
-  }
-  const families = new Set(rows.flatMap((s) => (s.models || []).map(modelFamily)).filter((f) => f !== "other"))
-  const selected = rows.find((s) => s.session_id === sel) || rows[0]
-  const detail = selected ? details[selected.session_id] : undefined
-
-  if (!rows.length) {
+  if (emptyMode() || !rows.length) {
     return (
-      <div className="v4">
-        <div className="v4-ph"><h1>Sessions</h1></div>
-        <section className="v4-card v4-empty">No sessions yet.</section>
-      </div>
+      <>
+        <Toolbar title="Sessions">
+          <SearchField onClick={openCommand} />
+        </Toolbar>
+        <EmptyState line="Your next Claude Code session shows up here as it runs." action="Turn on live tracing" href="/settings?tab=sources" />
+      </>
     )
   }
 
+  const selected = filtered.find((s) => s.session_id === sel) || filtered[0]
+  const detail = selected ? details[selected.session_id] : undefined
+
   return (
-    <div className="v4 split sessions">
-      <div className="v4-l">
-        <div className="v4-ph">
-          <h1>Sessions</h1>
+    <>
+      <Toolbar title="Sessions" sub={`${filtered.length} session${filtered.length === 1 ? "" : "s"}`}>
+        <Segmented
+          ariaLabel="Range"
+          value={range}
+          options={[
+            { id: "week", label: "Week" },
+            { id: "month", label: "Month" },
+            { id: "all", label: "All" },
+          ]}
+          onChange={setRange}
+        />
+        <SearchField onClick={openCommand} />
+      </Toolbar>
+      <div className="body split s300">
+        <div className="pad tblwrap" onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocus(false) }}>
+          <table className="tbl sess">
+            <colgroup>
+              <col style={{ width: 22 }} />
+              <col className="c-title-col" />
+              <col className="c-shape-col" />
+              <col className="c-time-col" />
+              <col style={{ width: 62 }} />
+              <col style={{ width: 72 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th />
+                <th>Session</th>
+                <th className="c-shape">Where time went</th>
+                <th className="r">Time</th>
+                <th className="r">Tokens</th>
+                <th className="r">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <GroupRows
+                  key={g.day}
+                  group={g}
+                  sel={sel}
+                  focus={focus}
+                  maxMs={maxMs}
+                  live={live}
+                  onSel={setSel}
+                  onOpen={(id) => nav(`/session/${id}`)}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="v4-stats">
-          <div><div className="v4-lbl">Sessions</div><div className="v4-num">{stats.sessions}</div></div>
-          <div>
-            <div className="v4-lbl">Time</div>
-            <div className="v4-num">
-              {hm(stats.time).h}<small>h</small>{hm(stats.time).m}<small>m</small>
-            </div>
-          </div>
-          <div><div className="v4-lbl">Spend</div><div className="v4-num"><Money value={stats.spend} /></div></div>
-          <div><div className="v4-lbl">Tokens</div><div className="v4-num mono">{sayTok(stats.tokens)}</div></div>
-          <div className="lg2">
-            {families.has("opus") && <ModelChip model="opus" />}
-            {families.has("sonnet") && <ModelChip model="sonnet" />}
-            {families.has("haiku") && <ModelChip model="haiku" />}
-          </div>
-        </div>
-        <section className="v4-card v4-runs">
-          {groups.map((g) => (
-            <div key={g.day}>
-              <div className="v4-dh"><span>{g.day}</span><span>{usd(g.cost)}</span></div>
-              {g.rows.map((s) => {
-                const fam = modelFamily(primaryModel(s.models))
-                const turns = details[s.session_id]?.turns || []
-                const vals = turns.map((t) => t.cost_usd || t.duration_ms || 0)
-                return (
-                  <button
-                    type="button"
-                    key={s.session_id}
-                    className={`v4-rr${sel === s.session_id ? " sel" : ""}`}
-                    onClick={() => setSel(s.session_id)}
-                    onDoubleClick={() => nav(`/session/${s.session_id}`)}
-                  >
-                    <span className={`v4-mq ${fam}`} />
-                    <span className="w2">
-                      {s.running ? <StateChip running /> : <span className="v4-id">{s.session_id.replace(/-/g, "").slice(0, 7)}</span>}
-                    </span>
-                    <span className="v4-when">{clock(s.start_ns)}</span>
-                    <TraceLine values={vals.length ? vals : [s.cost_usd || 0.05]} width={220} height={20} live={s.running} flag={s.findings > 0} sw={1.1} r={2.5} tail={0.74} />
-                    <span className="c">{s.turns}×</span>
-                    <span className="c">{sayTok(s.tokens)}</span>
-                    <span className="c">{durShort(s.turn_ms)}</span>
-                    <span className="v num">{usd(s.cost_usd)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </section>
+        <SessionPane session={selected} detail={detail} findings={findings} live={live.find((l) => l.session_id === selected?.session_id)} />
       </div>
-      <SessionPane session={selected} detail={detail} findings={findings} />
-    </div>
+    </>
   )
+}
+
+function GroupRows({
+  group,
+  sel,
+  focus,
+  maxMs,
+  live,
+  onSel,
+  onOpen,
+}: {
+  group: { day: string; cost: number; rows: Session[]; running?: boolean }
+  sel: string | null
+  focus: boolean
+  maxMs: number
+  live: LiveLane[]
+  onSel: (id: string) => void
+  onOpen: (id: string) => void
+}) {
+  return (
+    <>
+      <tr className="day">
+        <td colSpan={5}>{group.day}</td>
+        <td className="r">{usd(group.cost)}</td>
+      </tr>
+      {group.rows.map((s) => {
+        const on = sel === s.session_id
+        return (
+          <tr
+            key={s.session_id}
+            className={`${s.running ? "run " : ""}${on ? (focus ? "sel" : "sel-quiet") : ""}`}
+            onClick={() => onSel(s.session_id)}
+            onDoubleClick={() => onOpen(s.session_id)}
+          >
+            <td className="c-dot">{s.running ? <span className="dot live" /> : null}</td>
+            <td className="c-title">
+              <div className="title">{s.title || "Untitled session"}</div>
+              <div className="meta">{s.repo || "—"}</div>
+            </td>
+            <td className="c-shape">
+              <Ribbon parts={fromBreakdown(s.breakdown)} length={(s.turn_ms || 0) / maxMs} />
+            </td>
+            <td className="r l2 c-time">
+              {s.running ? (
+                <>
+                  <div>{dur(elapsedOf(s, live))}</div>
+                  <div className="doing">{dur(s.turn_ms)} agent</div>
+                </>
+              ) : (
+                dur(s.turn_ms)
+              )}
+            </td>
+            <td className="r l2">{tok(s.tokens)}</td>
+            <td className="r">{usd(s.cost_usd)}</td>
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+function elapsedOf(s: Session, live: LiveLane[]) {
+  const lane = live.find((l) => l.session_id === s.session_id)
+  if (lane) return Date.now() - lane.start_ns / 1e6
+  const wall = Date.now() - s.start_ns / 1e6
+  return wall > 0 && wall < 24 * 3600_000 ? wall : s.turn_ms
 }
 
 function SessionPane({
   session,
   detail,
   findings,
+  live,
 }: {
   session?: Session
   detail?: SessionDetail
   findings: Finding[]
+  live?: LiveLane
 }) {
   if (!session) {
     return (
-      <aside className="v4-pane">
-        <div className="v4-empty">Pick a run.</div>
+      <aside className="insp">
+        <div className="l2">Pick a session.</div>
       </aside>
     )
   }
-  const turns = detail?.turns || []
-  const vals = turns.map((t) => t.cost_usd || t.duration_ms || 0)
-  const peak = vals.length ? Math.max(...vals) : 0
   const t = when(session.start_ns)
-  const linked = findings.filter((f) => f.sessions?.includes(session.session_id)).slice(0, 1)
-  const end = session.end_ns || (turns.length ? turns[turns.length - 1].start_ns + (turns[turns.length - 1].duration_ms || 0) * 1e6 : session.start_ns)
+  const linked = findings.filter((f) => f.sessions?.includes(session.session_id)).slice(0, 4)
+  const parts = fromBreakdown(session.breakdown)
   return (
-    <aside className="v4-pane">
-      <div className="v4-ph">
-        <span className="v4-when">{t.date} · {t.time} · {session.session_id.replace(/-/g, "").slice(0, 7)}</span>
-        {session.findings > 0 ? <span className="v4-dot" style={{ background: "var(--amber)" }} /> : null}
+    <aside className="insp">
+      <h2>{session.title || "Untitled session"}</h2>
+      <div className="l2">
+        {[session.repo, modelName(session.models[0]), `${t.date}, ${t.time}`].filter(Boolean).join(" · ")}
       </div>
-      <h2>
-        <Link href={`/session/${session.session_id}`}>{session.title || `Session ${session.session_id.slice(0, 8)}`}</Link>
-      </h2>
-      <div className="chips">
-        <StateChip running={session.running} />
-        {primaryModel(session.models) ? <ModelChip model={primaryModel(session.models)} /> : null}
-      </div>
-      <div className="v4-kp">
-        <div><div className="v4-num"><Money value={session.cost_usd} /></div></div>
+      <div className="kv">
         <div>
-          <div className="v4-num">
-            {hm(session.turn_ms).h}<small>h</small>{hm(session.turn_ms).m}<small>m</small>
+          <div className="v">{usd(session.cost_usd)}</div>
+          <div className="k">cost</div>
+        </div>
+        <div>
+          <div className="v">{dur(session.running && live ? Date.now() - live.start_ns / 1e6 : session.turn_ms)}</div>
+          <div className="k">{session.running ? "elapsed" : `${session.turns} turn${session.turns === 1 ? "" : "s"}`}</div>
+        </div>
+        <div>
+          <div className="v">{tok(session.tokens)}</div>
+          <div className="k">tokens</div>
+        </div>
+        <div>
+          <div className="v">{pct(session.cache_hit)}</div>
+          <div className="k">cache hit</div>
+        </div>
+      </div>
+      <Ribbon parts={parts} tall />
+      <RibbonKey parts={parts} />
+      {detail?.turns?.length ? (
+        <>
+          <div className="label" style={{ marginTop: 22 }}>
+            Turns
           </div>
-        </div>
-        <div><div className="v4-num">{session.turns}<small>×</small></div></div>
-        <div><div className="v4-num mono">{sayTok(session.tokens)}</div></div>
-      </div>
-      <div className="v4-big-tr">
-        <TraceLine
-          values={vals.length ? vals : [session.cost_usd || 0.05]}
-          width={344}
-          height={190}
-          live={session.running}
-          flag={session.findings > 0}
-          peak={peak > 0 ? usd(peak) : undefined}
-          sw={1.4}
-          r={3.5}
-          tail={0.12}
-        />
-        <div className="v4-ticks">
-          {(vals.length ? vals : [1]).map((v, i) => (
-            <i key={i} className={v === peak && peak > 0 ? "peak" : ""} style={{ height: `${Math.max(12, (v / (peak || 1)) * 100)}%` }} />
-          ))}
-        </div>
-        <div className="ax">
-          <span>{clock(session.start_ns)}</span>
-          <span>{clock(end)}</span>
-        </div>
-      </div>
-      {linked.map((f) => (
-        <Link key={f.id} href={`/findings?focus=${f.id}`} className="v4-lk">
-          <span className="v4-dot" style={{ background: "var(--amber)" }} />
-          <span className="nm">{shortTitle(f)}</span>
-          <ChevronRight size={14} />
+          <div className="list">
+            {detail.turns.slice(0, 8).map((turn) => (
+              <Link key={turn.trace_id} href={`/trace/${turn.trace_id}`} className="li">
+                <div className="t">
+                  <div>{oneLine(turn.prompt) || oneLine(session.title) || "Untitled turn"}</div>
+                  <div className="l2 small">{dur(turn.duration_ms)}</div>
+                </div>
+                <span className="v n">{usd(turn.cost_usd)}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {linked.length > 0 && (
+        <>
+          <div className="label" style={{ marginTop: 22 }}>
+            {linked.length} finding{linked.length === 1 ? "" : "s"}
+          </div>
+          <div className="list">
+            {linked.map((f) => (
+              <Link key={f.id} href={`/findings?focus=${f.id}`} className="li">
+                <span className={`sw ${f.impact_unit.startsWith("USD") ? "money" : "t-wait"}`} />
+                <div className="t">{f.headline}</div>
+                <span className="v l2 n">{f.impact_unit.startsWith("USD") ? usd(f.impact_value) : dur(f.impact_value * 1000)}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+      <div style={{ marginTop: 18 }}>
+        <Link href={`/session/${session.session_id}`} className="btn">
+          Open session
         </Link>
-      ))}
+      </div>
     </aside>
   )
 }
 
-function dayLabel(ns: number): string {
-  const d = new Date(ns / 1e6)
-  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })
+function groupSessions(rows: Session[]) {
+  const out: { day: string; cost: number; rows: Session[]; running?: boolean }[] = []
+  const running = rows.filter((s) => s.running)
+  const rest = rows.filter((s) => !s.running)
+  if (running.length) {
+    out.push({
+      day: "Running",
+      cost: running.reduce((a, s) => a + (s.cost_usd || 0), 0),
+      rows: running,
+      running: true,
+    })
+  }
+  for (const s of rest) {
+    const d = dayLabel(s.start_ns)
+    if (!out.length || out[out.length - 1].day !== d) out.push({ day: d, cost: 0, rows: [] })
+    const g = out[out.length - 1]
+    g.rows.push(s)
+    g.cost += s.cost_usd || 0
+  }
+  return out
 }
 
-function durShort(ms: number): string {
-  const { h, m } = hm(ms)
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
+function dayLabel(ns: number) {
+  return new Date(ns / 1e6).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
+}
+
+function oneLine(s?: string | null) {
+  if (!s) return ""
+  return s.replace(/\s+/g, " ").trim()
 }

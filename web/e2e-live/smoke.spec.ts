@@ -8,20 +8,20 @@ test("every page renders against the real server", async ({ page, request }) => 
   expect((await status.json()).sessions).toBeGreaterThan(0)
 
   await page.goto("/#/")
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible()
-  await expect(page.locator(".v4-tabs")).toContainText("Spend")
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+  await expect(page.locator(".nav", { hasText: "Spend" })).toBeVisible()
 
   await page.goto("/#/sessions")
-  const sessionRows = page.locator(".v4-rr")
+  const sessionRows = page.locator(".tbl.sess tbody tr").filter({ has: page.locator(".c-title") })
   await expect(sessionRows.first()).toBeVisible()
   const n = await sessionRows.count()
   let opened = false
   for (let i = 0; i < n; i++) {
     await sessionRows.nth(i).click()
-    await expect(page.locator(".v4-pane h2 a")).toBeVisible()
-    await page.locator(".v4-pane h2 a").click()
+    await expect(page.locator(".insp h2")).toBeVisible()
+    await page.getByRole("link", { name: "Open session" }).click()
     await expect(page).toHaveURL(/#\/session\//)
-    await page.locator("table.grid tbody tr").first().click()
+    await page.locator("table.tbl tbody tr").first().click()
     await expect(page.locator(".st-ch").first()).toBeVisible()
     if ((await page.locator(".st-ch").filter({ has: page.locator(".st-sub") }).count()) > 0) {
       opened = true
@@ -31,7 +31,6 @@ test("every page renders against the real server", async ({ page, request }) => 
     await expect(sessionRows.first()).toBeVisible()
   }
   expect(opened).toBeTruthy()
-  // A turn opens as a story: steps that open into actions, each with an inspector.
   await page.locator(".st-ch").filter({ has: page.locator(".st-sub") }).first().locator(".st-ch-head").click()
   await page.locator(".st-act").first().click()
   await expect(page.locator("#pane")).toBeVisible()
@@ -41,7 +40,7 @@ test("every page renders against the real server", async ({ page, request }) => 
   await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
   await page.goto("/#/findings")
-  await expect(page.locator(".v4-pane .frow.hero")).toBeVisible()
+  await expect(page.locator(".fdet .big").or(page.locator(".fr.sel")).first()).toBeVisible()
 
   await page.goto("/#/apps")
   await expect(page.locator(".app-card")).toHaveCount(3)
@@ -50,12 +49,12 @@ test("every page renders against the real server", async ({ page, request }) => 
   await page.locator(".req-row").first().click()
   await expect(page.locator(".wf .row[data-span]").first()).toBeVisible()
 
-  await page.goto("/#/cost")
-  await expect(page.locator("table.grid tbody tr").first()).toBeVisible()
+  await page.goto("/#/spend")
+  await expect(page.locator("table.tbl tbody tr").first()).toBeVisible()
 
   await page.goto("/#/connect")
   await expect(page.locator(".code pre")).toContainText(/http:\/\/127\.0\.0\.1:\d+/)
 
   await page.goto("/#/settings")
-  await expect(page.locator(".kv")).toContainText("dev")
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
 })

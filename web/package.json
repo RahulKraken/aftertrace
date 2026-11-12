@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:embed": "node scripts/build-embed.mjs",
-    "lint": "oxlint src",
+    "lint": "oxlint src && node scripts/token-lint.mjs",
     "test": "node scripts/unit.mjs",
     "dev:live": "vite --config vite.live.config.ts",
     "preview": "vite preview",
@@ -15,6 +15,7 @@
     "screenshots": "playwright test"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "lucide-react": "^1.61.0",
     "motion": "^14.5.0",
     "react": "^19.3.1",

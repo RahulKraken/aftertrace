@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Search } from "lucide-react"
+import { MagnifyingGlass } from "@phosphor-icons/react"
 import { useLocation } from "wouter"
 import { api } from "../lib/api"
+import { desktop } from "../lib/desktop"
 import type { Finding, Session } from "../lib/types"
 
 type Item = { id: string; group: string; label: string; href?: string; run?: () => void; hint?: string }
@@ -23,15 +24,24 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
 
   const items = useMemo(() => {
     const pages: Item[] = [
-      { id: "p-h", group: "Pages", label: "Home", href: "/", hint: "g h" },
+      { id: "p-h", group: "Pages", label: "Today", href: "/", hint: "g h" },
       { id: "p-s", group: "Pages", label: "Sessions", href: "/sessions", hint: "g s" },
       { id: "p-a", group: "Pages", label: "Apps", href: "/apps", hint: "g a" },
       { id: "p-f", group: "Pages", label: "Findings", href: "/findings", hint: "g f" },
-      { id: "p-c", group: "Pages", label: "Cost", href: "/cost", hint: "g c" },
-      { id: "p-q", group: "Pages", label: "Query", href: "/query", hint: "g q" },
-      { id: "p-r", group: "Pages", label: "Recap", href: "/recap", hint: "g r" },
-      { id: "p-n", group: "Pages", label: "Connect a source", href: "/connect", hint: "g n" },
-      { id: "p-x", group: "Pages", label: "Settings", href: "/settings", hint: "g ," },
+      { id: "p-c", group: "Pages", label: "Spend", href: "/spend", hint: "g c" },
+      { id: "p-q", group: "Pages", label: "Ask", href: "/query", hint: "g q" },
+      { id: "p-n", group: "Pages", label: "Sources", href: "/settings?tab=sources", hint: "g n" },
+      {
+        id: "p-x",
+        group: "Pages",
+        label: "Settings",
+        hint: "⌘,",
+        run: () => {
+          const d = desktop()
+          if (d?.openSettings) d.openSettings()
+          else nav("/settings")
+        },
+      },
     ]
     const actions: Item[] = [
       { id: "a-theme", group: "Actions", label: "Toggle light and dark theme", run: onTheme },
@@ -100,7 +110,7 @@ export function CommandPalette({ open, onClose, onTheme }: { open: boolean; onCl
     <div className="cmd-back" onClick={onClose}>
       <div className="cmd" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
         <div className="cmd-in">
-          <Search size={15} />
+          <MagnifyingGlass size={15} weight="regular" />
           <input
             autoFocus
             placeholder="Search pages, sessions by prompt, findings, actions"

@@ -1,59 +1,39 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link } from "wouter"
-import { api } from "../lib/api"
+import { CaretRight, Pulse, TerminalWindow } from "@phosphor-icons/react"
+import { Link, useLocation } from "wouter"
+import { api, emptyMode } from "../lib/api"
 import { readCached, startPoll, writeCached } from "../lib/poll"
 import { previewSkeleton } from "../lib/cache"
 import { HomeSkeleton } from "../components/PageSkeleton"
-import { clock, hm, remain, runCost, sayTok, usd } from "../lib/format"
-import { mondayReset, readBudget } from "../lib/budget"
-import { barSlot, labelDays, niceAxis } from "../lib/chart"
-import { modelFamily, modelSlug, primaryModel, usageWindow } from "../lib/model"
-import { cardMoney, monthlyUSD, shortTitle } from "../lib/welcome"
-import type { DayPoint, LiveLane, ModelSpend, Overview, Session, Turn } from "../lib/types"
-import { Meter } from "../components/Meter"
-import { ModelChip } from "../components/ModelChip"
-import { Money } from "../components/Money"
-import { StateChip } from "../components/StateChip"
-import { TraceLine } from "../components/TraceLine"
-
-type Range = 7 | 30 | 90
-type Tab = "spend" | "tokens" | "savable"
-
-const AMBER = ["var(--amber)", "var(--a2)", "var(--a3)", "var(--a4)"]
+import { EmptyState } from "../components/EmptyState"
+import { Ribbon, RibbonKey } from "../components/Ribbon"
+import { SearchField, Toolbar } from "../lib/chrome"
+import { useShell } from "../components/Shell"
+import { clock, dur, durHead, modelName, pct, tok, usd } from "../lib/format"
+import { hashParam } from "../lib/hash"
+import { addParts, emptyParts, fromBreakdown, partsTotal, RIBBON_ORDER } from "../lib/ribbon"
+import { useStatus } from "../lib/status"
+import { actionSentence, monthlyUSD, shortTitle } from "../lib/welcome"
+import type { Finding, HistoryProject, LiveLane, Overview, Session, Status } from "../lib/types"
 
 export function HomePage() {
+  const { openCommand, openFindings } = useShell()
   const [ov, setOv] = useState<Overview | null>(() => readCached<Overview>("aftertrace.overview"))
   const [err, setErr] = useState<string | null>(null)
-  const [range, setRange] = useState<Range>(30)
-  const [tab, setTab] = useState<Tab>("spend")
-  const [budget, setBudget] = useState(() => readBudget())
   const [sessions, setSessions] = useState<Session[]>([])
-  const [costModels, setCostModels] = useState<ModelSpend[]>([])
+  const status = useStatus()
   const live = Boolean(ov?.live.length)
-
-  useEffect(() => {
-    const on = () => setBudget(readBudget())
-    window.addEventListener("aftertrace-budget", on)
-    return () => window.removeEventListener("aftertrace-budget", on)
-  }, [])
 
   useEffect(() => {
     let alive = true
     const load = () =>
-      Promise.all([api.overview(), api.sessions(), api.cost("model")])
-        .then(([o, ss, cost]) => {
+      Promise.all([api.overview(), api.sessions()])
+        .then(([o, ss]) => {
           if (!alive) return
           setOv(o)
           writeCached("aftertrace.overview", o)
           setSessions(ss)
           setErr(null)
-          const mi = cost.columns.indexOf("model")
-          const ci = cost.columns.indexOf("cost_usd")
-          const rows: ModelSpend[] = (cost.rows || []).map((r) => ({
-            model: String(r[mi] ?? ""),
-            cost_usd: Number(r[ci] || 0),
-          }))
-          setCostModels(rows)
         })
         .catch((e: Error) => {
           if (alive && !ov) setErr(e.message)
@@ -65,510 +45,417 @@ export function HomePage() {
     }
   }, [live])
 
+  const welcome = hashParam("welcome")
+  const firstRun = welcome === "found" || welcome === "empty" || (status && !status.live_otel && !import.meta.env.VITE_USE_MOCK)
+
   if (err && !ov) {
     return (
-      <div className="page">
-        {err}
-        <div className="err-next">Check that aftertrace serve is still running, then reload.</div>
-      </div>
+      <>
+        <Toolbar title="Today" />
+        <EmptyState
+          line="Aftertrace can't reach its engine. Restart it?"
+          action="Reload"
+          onClick={() => window.location.reload()}
+        />
+      </>
     )
   }
   if (previewSkeleton() || !ov) return <HomeSkeleton />
-  if (!ov.has_data) return <DesignedEmpty title="Overview" line="No sessions yet." />
 
-  return (
-    <HomeBody
-      ov={ov}
-      sessions={sessions}
-      costModels={costModels}
-      range={range}
-      setRange={setRange}
-      tab={tab}
-      setTab={setTab}
-      budget={budget?.weekly ?? null}
-    />
-  )
+  if (welcome === "found" || (firstRun && status?.history?.found && welcome !== "empty")) {
+    return <FirstRun status={status} />
+  }
+  if (welcome === "empty") {
+    return (
+      <>
+        <Toolbar title="Today">
+          <SearchField onClick={openCommand} />
+        </Toolbar>
+        <EmptyState
+          line="No Claude Code sessions on this machine. Turn on live tracing and the first turn shows up here."
+          action="Turn on live tracing"
+          href="/settings?tab=sources"
+        />
+      </>
+    )
+  }
+  if (emptyMode() || !ov.has_data) {
+    return (
+      <>
+        <Toolbar title="Today">
+          <SearchField onClick={openCommand} />
+        </Toolbar>
+        <EmptyState
+          line="Spend and sessions show up after your first run."
+          action="Turn on live tracing"
+          href="/settings?tab=sources"
+        />
+      </>
+    )
+  }
+
+  return <Today ov={ov} sessions={sessions} openCount={openFindings} />
 }
 
-function HomeBody({
-  ov,
-  sessions,
-  costModels,
-  range,
-  setRange,
-  tab,
-  setTab,
-  budget,
-}: {
-  ov: Overview
-  sessions: Session[]
-  costModels: ModelSpend[]
-  range: Range
-  setRange: (r: Range) => void
-  tab: Tab
-  setTab: (t: Tab) => void
-  budget: number | null
-}) {
-  const days = useMemo(() => sliceDays(ov.days, range), [ov.days, range])
-  const spend = days.reduce((a, d) => a + (d.cost_usd || 0), 0)
-  const tokens = range === 7 ? ov.week.tokens : days.reduce((a, d) => a + dayTokens(d), 0)
-  const savings = ov.savings
-  const savable = savings?.total_monthly || 0
-  const observed = savings?.observed_monthly || spend
-  const models = modelsFromDays(days, costModels)
-  const weekDays = sliceDays(ov.days, 7)
-  const weekSpend = ov.week.cost_usd
-  const win = usageWindow(ov.now, [
-    ...sessions.map((s) => s.start_ns),
-    ...ov.live.map((l) => l.start_ns),
-  ])
-  const live = ov.live[0]
-  const liveSession = live ? sessions.find((s) => s.session_id === live.session_id) : undefined
+function Today({ ov, sessions, openCount }: { ov: Overview; sessions: Session[]; openCount: number }) {
+  const { openCommand } = useShell()
+  const live = ov.live
+  const weekSessions = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.hi)
+  const weekParts = fromBreakdown(ov.week.breakdown)
+  const maxDay = Math.max(...ov.days.filter((d) => d.turn_ms > 0).map((d) => d.turn_ms), 1)
+  const days = [...ov.days].filter((d) => d.turns > 0 || d.cost_usd > 0).reverse()
+  const dayParts = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof emptyParts>>()
+    for (const s of weekSessions) {
+      const day = new Date(s.start_ns / 1e6)
+      day.setHours(0, 0, 0, 0)
+      const key = day.getTime()
+      map.set(key, addParts(map.get(key) || emptyParts(), s.breakdown))
+    }
+    return map
+  }, [weekSessions])
+  const repos = projects(weekSessions)
+  const shownLive = live.slice(0, 3)
+  const more = live.length - shownLive.length
+  const last = sessions[0]
+  const findings = ov.savings?.shown || (ov.top ? [ov.top] : [])
+  const hero = findings[0]
+  const rest = findings.slice(1, 4)
 
   return (
-    <div className="v4 home">
-      <div className="v4-ph">
-        <h1>Overview</h1>
-        <div className="v4-seg" role="tablist" aria-label="Range">
-          {([7, 30, 90] as Range[]).map((n) => (
-            <button type="button" key={n} className={range === n ? "on" : ""} onClick={() => setRange(n)}>
-              {n}D
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="v4-g">
-        <section className="v4-card">
-          <div className="v4-tabs">
-            <button type="button" className={tab === "spend" ? "on" : ""} onClick={() => setTab("spend")}>
-              <div className="v4-lbl">Spend</div>
-              <div className="v4-num"><Money value={spend} /></div>
-            </button>
-            <button type="button" className={tab === "tokens" ? "on" : ""} onClick={() => setTab("tokens")}>
-              <div className="v4-lbl">Tokens</div>
-              <div className="v4-num mono">{tokens ? sayTok(tokens) : "—"}</div>
-            </button>
-            <button type="button" className={`amb${tab === "savable" ? " on" : ""}`} onClick={() => setTab("savable")}>
-              <div className="v4-lbl">Savable</div>
-              <div className="v4-num">
-                <Money value={savable} />
-                {spend > 0 && savable > 0 ? <span className="v4-delta">{Math.round((savable / Math.max(observed, spend)) * 100)}%</span> : null}
-              </div>
-            </button>
+    <>
+      <Toolbar title="Today">
+        <SearchField onClick={openCommand} />
+      </Toolbar>
+      <div className="body today">
+        <div className="pad col">
+          <div className="sec-h">
+            Running now
+            <span className="m">{live.length ? `${live.length} session${live.length === 1 ? "" : "s"}` : ""}</span>
           </div>
-          <div className="v4-chart">
-            <DayChart days={days} tab={tab} savings={savable} spend={spend} />
-          </div>
-          {models.length > 0 && (
-            <div className="v4-leg">
-              {models.map((m) => (
-                <span className="x" key={m.model}>
-                  <ModelChip model={m.model} />
-                  <span className="v4-money">{usd(m.cost_usd)}</span>
-                  {m.tokens ? <span className="v4-tk">{sayTok(m.tokens)}</span> : null}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="v4-card v4-bud">
-          <div className="v4-lbl">{budget ? "Budget" : "This week"}</div>
-          <div className="v4-big v4-money">
-            <Money value={weekSpend} />
-            {budget ? <span className="of">/ {usd(budget)}</span> : null}
-          </div>
-          {budget ? (
-            <Meter
-              fill={weekSpend / budget}
-              left={`${Math.round((weekSpend / budget) * 100)}%`}
-              right={
-                <>
-                  {mondayReset().label} · <b>{remain(mondayReset().ms)}</b>
-                </>
-              }
-            />
+          {live.length ? (
+            shownLive.map((lane) => {
+              const s = sessions.find((x) => x.session_id === lane.session_id)
+              return <LiveLaneCard key={lane.session_id} lane={lane} session={s} />
+            })
           ) : (
-            <div className="v4-rs" style={{ marginTop: 10 }}>
-              <span>No cap set</span>
-              <Link href="/settings" className="v4-dim">
-                Settings
-              </Link>
-            </div>
+            <p className="l2" style={{ margin: "0 0 26px" }}>
+              Nothing running.{last ? ` Your last session ended at ${clock(last.end_ns)}.` : ""}{" "}
+              {last ? <Link href={`/session/${last.session_id}`} className="link">Open it</Link> : null}
+            </p>
           )}
-          <div className="v4-wk">
-            <WeekBars days={weekDays} budget={budget} />
+          {more > 0 ? (
+            <Link href="/sessions" className="link" style={{ display: "inline-block", margin: "-12px 0 22px" }}>
+              +{more} more
+            </Link>
+          ) : null}
+
+          <div className="sec-h week-h">
+            This week
+            <span className="m">{weekRange(ov.hi)}</span>
           </div>
-          {win && (
+          <div className="hero">
+            <div>
+              <div className="big n">{usd(ov.week.cost_usd)}</div>
+              <div className="cap">spent</div>
+            </div>
+            <div>
+              <div className="big n">{durHead(ov.week.turn_ms)}</div>
+              <div className="cap">agent time</div>
+            </div>
+            <div>
+              <div className="big n amb">{durHead(ov.week.breakdown.permission_wait)}</div>
+              <div className="cap">waiting on you</div>
+            </div>
+            <div className="facts">
+              <div>
+                <b className="n">{ov.week.sessions}</b> sessions
+              </div>
+              <div>
+                <b className="n">{tok(ov.week.tokens)}</b> tokens
+              </div>
+              <div>
+                <b className="n">{pct(ov.week.cache_hit)}</b> cache hit
+              </div>
+            </div>
+          </div>
+          <RibbonKey parts={weekParts} />
+          <div className="days">
+            {days.map((d) => {
+              const start = new Date(d.start_ns / 1e6)
+              start.setHours(0, 0, 0, 0)
+              const parts = dayParts.get(start.getTime()) || emptyParts()
+              const mix = partsTotal(parts) ? parts : fromBreakdown({
+                model: Math.max(0, d.turn_ms - d.wait_ms),
+                tool: 0,
+                permission_wait: d.wait_ms,
+                retry: 0,
+                hook: 0,
+                other: 0,
+              })
+              return (
+                <div className="dayrow" key={d.day} title={dayTip(mix)}>
+                  <span className="d">{dayName(d.start_ns)}</span>
+                  <Ribbon parts={mix} length={d.turn_ms / maxDay} />
+                  <span className="n l2">{dur(d.turn_ms)}</span>
+                  <span className="n c">{usd(d.cost_usd)}</span>
+                </div>
+              )
+            })}
+          </div>
+          {repos.length > 0 && (
             <>
-              <div className="v4-sep" />
-              <WindowCard win={win} />
+              <div className="sec-h repo-h">By repo</div>
+              <div className="repos">
+                {repos.slice(0, 3).map((p) => (
+                  <div key={p.name}>
+                    <span className="l2">{p.name}</span>
+                    <b className="n">{usd(p.cost_usd)}</b>
+                    <span className="l3 n">{Math.round((p.cost_usd / Math.max(ov.week.cost_usd, 0.01)) * 100)}% of spend</span>
+                  </div>
+                ))}
+              </div>
             </>
           )}
-        </section>
+        </div>
+        <aside className="insp col-r">
+          <div className="sec-h">
+            Worth changing
+            <span className="m">{openCount || ov.open || findings.length}</span>
+          </div>
+          {hero ? (
+            <div className="top-f">
+              <div className="ft">{findingTitle(hero)}</div>
+              <div className="fd l2">{hero.detail}</div>
+              <div className="fsave">
+                <span className="n">{usd(hero.monthly_usd ?? monthlyUSD(hero))}</span>
+                a month if this keeps up
+              </div>
+              <div className="fact">
+                <Link href={`/findings?focus=${hero.id}`} className="btn pri">
+                  Show me
+                </Link>
+                <span className="l2 small">
+                  {[shortDate(hero.last_ns || hero.first_ns), hero.project].filter(Boolean).join(" · ")}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="l2">Nothing to change yet.</p>
+          )}
+          <div className="list">
+            {rest.map((f) => (
+              <Link key={f.id} href={`/findings?focus=${f.id}`} className="li">
+                <span className={`sw ${swatch(f)}`} />
+                <div className="t">{findingTitle(f)}</div>
+                <span className={`v n ${f.impact_unit.startsWith("USD") ? "amb" : "l2"}`}>
+                  {f.impact_unit.startsWith("USD") ? usd(f.monthly_usd ?? monthlyUSD(f)) : dur(f.impact_value * 1000)}
+                </span>
+                <CaretRight className="chev" />
+              </Link>
+            ))}
+          </div>
+          <div className="all">
+            <Link href="/findings" className="link">
+              All {openCount || ov.open || findings.length} findings
+            </Link>
+          </div>
+        </aside>
       </div>
-
-      <div className="v4-g">
-        <NowCard
-          live={live}
-          session={liveSession}
-          last={!live && ov.history_only ? sessions[0] : undefined}
-          historyOnly={Boolean(ov.history_only)}
-        />
-        <SavableCard savings={savings} spend={observed || spend} />
-      </div>
-    </div>
+    </>
   )
 }
 
-function DesignedEmpty({ title, line }: { title: string; line: string }) {
+function LiveLaneCard({ lane, session }: { lane: LiveLane; session?: Session }) {
+  const doing = (lane.doing || "").replace(/^(Running|Using|Waiting)\s+/i, "")
+  const elapsed = Date.now() - lane.start_ns / 1e6
+  const parts = fromBreakdown(session?.breakdown)
   return (
-    <div className="v4">
-      <div className="v4-ph"><h1>{title}</h1></div>
-      <section className="v4-card v4-empty">{line}</section>
-    </div>
-  )
-}
-
-function WindowCard({ win }: { win: NonNullable<ReturnType<typeof usageWindow>> }) {
-  const used = hm(win.elapsed_ns / 1e6)
-  const left = remain(win.left_ns / 1e6)
-  return (
-    <div className="w2 v4-meter">
-      <div className="v4-lbl">5h window</div>
-      <div className="v4-num">
-        {used.h}
-        <small>h</small>
-        {used.m}
-        <small>m</small>
-        <small>/ 5h</small>
+    <Link href={`/session/${lane.session_id}`} className="lane">
+      <div className="lane-top">
+        <span className="dot live" />
+        <span className="lt">{lane.title || session?.title || "Running"}</span>
+        <span className="n lane-cost">{usd(session?.cost_usd ?? lane.cost_usd)}</span>
       </div>
-      <Meter
-        fill={win.elapsed_ns / (5 * 3600e9)}
-        time
-        left={clock(win.start_ns)}
-        right={
+      <div className="lane-doing">
+        <TerminalWindow size={14} weight="regular" />
+        <span className="mono">{doing || "working"}</span>
+        <span className="l3">·</span>
+        <span className="l2">
+          {[
+            session?.repo,
+            modelName(session?.models?.[0]),
+            `${dur(elapsed)} elapsed`,
+            session ? `${dur(session.turn_ms)} agent` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+        {session?.tokens != null ? (
           <>
-            resets {clock(win.end_ns)} · <b>{left}</b>
+            <span className="l3">·</span>
+            <span className="l2 lane-tokens">{tok(session.tokens)} tokens</span>
           </>
-        }
-      />
-    </div>
-  )
-}
-
-function NowCard({
-  live,
-  session,
-  last,
-  historyOnly,
-}: {
-  live?: LiveLane
-  session?: Session
-  last?: Session
-  historyOnly: boolean
-}) {
-  const sid = live?.session_id || last?.session_id
-  const [turns, setTurns] = useState<Turn[]>([])
-  useEffect(() => {
-    if (!sid) return
-    api.session(sid).then((d) => setTurns(d.turns || [])).catch(() => setTurns([]))
-  }, [sid])
-  if (!live && last) {
-    const model = primaryModel(last.models || turns.flatMap((t) => t.models || []))
-    const values = turns.length ? turns.map((t) => t.cost_usd || t.duration_ms || 0) : [last.cost_usd || 0.1]
-    return (
-      <section className="v4-card v4-now">
-        <div className="hd">
-          <span className="v4-st done"><i />Last session</span>
-          {model ? <ModelChip model={model} /> : null}
-          <span className="v4-when">{clock(last.start_ns)} → {clock(last.end_ns)}</span>
-        </div>
-        <Link href={`/session/${last.session_id}`} className="t">
-          {last.title || "Last session"}
-        </Link>
-        <div className="m">
-          <span className="v4-tk"><b>{last.turns}</b> turns</span>
-          {last.tokens ? <span className="v4-tk"><b>{sayTok(last.tokens)}</b> tok</span> : null}
-          <span className="v4-tk"><b>{usd(runCost(last))}</b></span>
-        </div>
-        <TraceLine values={values} width={700} height={112} sw={1.5} r={3.5} tail={0.3} />
-        <div className="ax">
-          <span>{clock(last.start_ns)}</span>
-          <span>{clock(last.end_ns)}</span>
-        </div>
-      </section>
-    )
-  }
-  if (!live) {
-    return (
-      <section className="v4-card v4-now">
-        <div className="hd">
-          <span className="v4-st done"><i />Idle</span>
-        </div>
-        <div className="t">{historyOnly ? "History only." : "Nothing running."}</div>
-      </section>
-    )
-  }
-  const model = primaryModel(session?.models || turns.flatMap((t) => t.models || []))
-  const cost = runCost(session, live)
-  const values = turns.length ? turns.map((t) => t.cost_usd || t.duration_ms || 0) : [cost || 0.1]
-  return (
-    <section className="v4-card v4-now">
-      <div className="hd">
-        <StateChip running />
-        {model ? <ModelChip model={model} /> : null}
-        <span className="v4-when">{clock(live.start_ns)} → {clock(live.last_ns)}</span>
-      </div>
-      <Link href={`/trace/${live.trace_id}`} className="t">
-        {live.title || live.doing || "Live run"}
-      </Link>
-      <div className="m">
-        {session?.turns ? <span className="v4-tk"><b>{session.turns}</b> turns</span> : <span className="v4-tk"><b>{live.spans}</b> spans</span>}
-        {session?.tokens ? <span className="v4-tk"><b>{sayTok(session.tokens)}</b> tok</span> : null}
-        <span className="v4-tk"><b>{usd(cost)}</b></span>
-      </div>
-      <TraceLine values={values} width={700} height={112} live sw={1.5} r={3.5} tail={0.3} />
-      <div className="ax">
-        <span>{clock(live.start_ns)}</span>
-        <span>{clock(live.last_ns)}</span>
-      </div>
-    </section>
-  )
-}
-
-function SavableCard({
-  savings,
-  spend,
-}: {
-  savings?: Overview["savings"]
-  spend: number
-}) {
-  const shown = savings?.shown || []
-  const fold = savings?.folded || 0
-  const total = savings?.total_monthly || 0
-  const lean = total < 1
-  return (
-    <section className="v4-card v4-sv">
-      <div className="v4-lbl">Savable / mo</div>
-      <div className="v4-big v4-money">
-        <Money value={total} />
-        {spend > 0 ? <span className="of">/ {usd(spend)}</span> : null}
-      </div>
-      <div className="v4-sbar">
-        {shown.map((f, i) => {
-          const m = typeof f.monthly_usd === "number" ? f.monthly_usd : monthlyUSD(f)
-          const w = spend > 0 ? (m / spend) * 100 : 0
-          return <i key={f.id} style={{ width: `${Math.max(w, 0.4)}%`, background: AMBER[i] || "var(--a4)" }} />
-        })}
-        {fold > 0 && spend > 0 ? (
-          <i style={{ width: `${Math.max(((savings?.folded_monthly || 0) / spend) * 100, 0.4)}%`, background: "var(--a4)" }} />
         ) : null}
-        <i style={{ flex: 1, background: "var(--bar-2)" }} />
       </div>
-      {lean && !shown.length ? (
-        <div className="v4-li">
-          <span className="nm v4-dim">{savings?.headline || "Your setup looks lean."}</span>
-        </div>
+      {RIBBON_ORDER.filter((k) => parts[k] / Math.max(partsTotal(parts), 1) > 0.08).length > 1 ? (
+        <Ribbon parts={parts} live tall />
       ) : null}
-      {shown.map((f, i) => {
-        const m = typeof f.monthly_usd === "number" ? f.monthly_usd : monthlyUSD(f)
-        return (
-          <Link key={f.id} href={`/findings?focus=${f.id}`} className="v4-li next-card">
-            <span className="v4-dot" style={{ background: AMBER[i] || "var(--a4)" }} />
-            <span className="nm">{shortTitle(f)}</span>
-            <span className="v">{cardMoney(m).replace("/month", "").replace("~", "") || usd(m)}</span>
-          </Link>
-        )
-      })}
-      {fold > 0 && (
-        <Link href="/findings" className="v4-li">
-          <span className="v4-dot" style={{ background: "var(--a4)" }} />
-          <span className="nm v4-dim">+{fold} more</span>
-          <span className="v v4-dim">{usd(savings?.folded_monthly || 0)}</span>
-        </Link>
-      )}
-    </section>
+    </Link>
   )
 }
 
-function DayChart({
-  days,
-  tab,
-  savings,
-  spend,
-}: {
-  days: DayPoint[]
-  tab: Tab
-  savings: number
-  spend: number
-}) {
-  const w = 700
-  const h = 290
-  const padL = 36
-  const padR = 8
-  const padB = 26
-  const padT = 16
-  const innerH = h - padB - padT
-  const n = Math.max(days.length, 1)
-  const plotW = w - padL - padR
-  const barW = Math.max(4, Math.min(12, (plotW / n) * 0.42))
-  const values = days.map((d) => (tab === "tokens" ? dayTokens(d) : d.cost_usd))
-  const max = Math.max(...values, 1e-6)
-  const ticks = niceAxis(max, tab === "tokens")
-  const maxTick = ticks[ticks.length - 1] || max
+function FirstRun({ status }: { status: Status | null }) {
+  const { openCommand } = useShell()
+  const [, nav] = useLocation()
+  if (!status) return <HomeSkeleton />
+  const h = status.history
+  const f = status.welcome_finding
+  if (!h?.found) {
+    return (
+      <>
+        <Toolbar title="Today">
+          <SearchField onClick={openCommand} />
+        </Toolbar>
+        <EmptyState line="Nothing to change yet in this history. That's rare." action="Turn on live tracing" href="/settings?tab=sources" />
+      </>
+    )
+  }
+  const monthly = f ? monthlyUSD(f) || f.impact_value : 0
   return (
-    <svg viewBox={`0 0 ${w} ${h}`}>
-      {ticks.map((t) => {
-        const y = padT + innerH - (t / maxTick) * innerH
-        return (
-          <g key={t}>
-            <line x1={padL} x2={w - padR} y1={y} y2={y} stroke="var(--grid)" />
-            <text className="v4-tick" x={padL - 8} y={y + 4} textAnchor="end">
-              {tab === "tokens" ? sayTok(t) : t >= 1 ? `$${Math.round(t)}` : `$${t.toFixed(0)}`}
-            </text>
-          </g>
-        )
-      })}
-      {days.map((d, i) => {
-        const x = padL + barSlot(plotW, n, i, barW, 0)
-        const total = values[i]
-        const bh = Math.min(innerH, (total / maxTick) * innerH)
-        if (tab === "savable") {
-          const share = spend > 0 ? savings / spend : 0
-          const sh = bh * share
-          return (
-            <g key={d.start_ns}>
-              <rect x={x} y={padT + innerH - bh} width={barW} height={Math.max(bh - sh, 0)} rx="1.5" fill="var(--bar)" />
-              <rect x={x} y={padT + innerH - sh} width={barW} height={sh} rx="1.5" fill="var(--amber)" />
-            </g>
-          )
-        }
-        const parts = d.by_model && d.by_model.length ? d.by_model : [{ model: "other", cost_usd: d.cost_usd }]
-        const sum = parts.reduce((a, p) => a + p.cost_usd, 0) || 1
-        let y = padT + innerH
-        return (
-          <g key={d.start_ns}>
-            {[...parts].reverse().map((p) => {
-              const ph = bh * (p.cost_usd / sum)
-              y -= ph
-              return (
-                <rect
-                  key={p.model}
-                  x={x}
-                  y={y}
-                  width={barW}
-                  height={Math.max(ph, 0)}
-                  rx="1.5"
-                  fill={modelFamily(p.model) === "opus" ? "var(--m-opus)" : modelFamily(p.model) === "sonnet" ? "var(--m-son)" : "var(--bar)"}
-                />
-              )
-            })}
-          </g>
-        )
-      })}
-      {labelDays(days, plotW).map((l) => (
-        <text key={l.i} className="v4-tick" x={padL + barSlot(plotW, n, l.i, barW, 0) + barW / 2} y={h - 8} textAnchor="middle">
-          {l.label}
-        </text>
-      ))}
-    </svg>
+    <>
+      <Toolbar title="Today">
+        <SearchField onClick={openCommand} />
+      </Toolbar>
+      <div className="body">
+        <div className="pad fr-wrap">
+          <div className="fr-found l2">
+            Aftertrace read <b className="n">{h.sessions}</b> Claude Code sessions from the last <b className="n">{h.days}</b> days on this Mac:{" "}
+            <b className="n">{usd(h.cost_usd)}</b> and <b className="n">{tok(h.tokens)}</b> tokens.
+          </div>
+          {f ? (
+            <div className="fr-card">
+              <div className="fr-t">{actionSentence(f)}</div>
+              <div className="fr-save">
+                <span className="big n amb">{usd(monthly)}</span>
+                <span className="l2">a month, estimated from your session files</span>
+              </div>
+              <div className="fr-meta l2">{[f.project, spanLabel(f.first_ns, f.last_ns)].filter(Boolean).join(" · ")}</div>
+              <div className="fact2">
+                <button
+                  type="button"
+                  className="btn pri"
+                  onClick={() => {
+                    localStorage.setItem("aftertrace.welcome", "done")
+                    nav(f.sessions[0] ? `/session/${f.sessions[0]}` : "/sessions")
+                  }}
+                >
+                  Show me the sessions
+                </button>
+                <Link href="/findings" className="btn" onClick={() => localStorage.setItem("aftertrace.welcome", "done")}>
+                  See all findings
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="fr-card">
+              <div className="fr-t">Nothing to change yet in {h.sessions} sessions. That's rare.</div>
+            </div>
+          )}
+          <div className="fr-live">
+            <Pulse size={16} weight="regular" />
+            <div>
+              <div>Turn on live tracing to see waits, retries and slow hooks as they happen.</div>
+              <div className="l2 small">
+                Adds 7 lines to <span className="mono">~/.claude/settings.json</span>. You review them first.
+              </div>
+            </div>
+            <Link href="/settings?tab=sources" className="btn">
+              Turn on
+            </Link>
+          </div>
+          <div className="label" style={{ marginTop: 24 }}>
+            Where this came from
+          </div>
+          <div className="props">
+            <div>
+              <span className="l2">Read from</span>
+              <span className="mono">{h.dir}</span>
+              <span className="l2 n">
+                {h.sessions} sessions · {h.days} days
+              </span>
+            </div>
+            <div>
+              <span className="l2">Kept in</span>
+              <span>One file on this Mac</span>
+              <span className="l2" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
-function WeekBars({ days, budget }: { days: DayPoint[]; budget: number | null }) {
-  const w = 340
-  const h = 96
-  const axisY = 70
-  const max = Math.max(...days.map((d) => d.cost_usd), budget ? budget / 7 : 0, 0.01)
-  const n = 7
-  const barW = 14
-  const days7 = padWeek(days)
-  const paceY = budget ? axisY - ((budget / 7) / max) * 52 : -1
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%" }}>
-      <line x1="8" x2={w - 8} y1={axisY} y2={axisY} stroke="var(--line)" />
-      {paceY > 0 && <line x1="8" x2={w - 8} y1={paceY} y2={paceY} stroke="var(--t2)" strokeDasharray="3 3" />}
-      {days7.map((d, i) => {
-        const x = barSlot(w, n, i, barW, 8)
-        const parts = d.by_model && d.by_model.length ? d.by_model : [{ model: "other", cost_usd: d.cost_usd }]
-        const tot = parts.reduce((a, p) => a + p.cost_usd, 0)
-        const bh = (tot / max) * 52
-        let y = axisY
-        return (
-          <g key={i}>
-            {[...parts].reverse().map((p) => {
-              const ph = tot > 0 ? bh * (p.cost_usd / tot) : 0
-              y -= ph
-              return (
-                <rect
-                  key={p.model}
-                  x={x}
-                  y={y}
-                  width={barW}
-                  height={Math.max(ph, 0)}
-                  rx="1.5"
-                  fill={modelFamily(p.model) === "opus" ? "var(--m-opus)" : modelFamily(p.model) === "sonnet" ? "var(--m-son)" : "var(--bar)"}
-                />
-              )
-            })}
-            <text className="v4-tick" x={x + barW / 2} y={axisY + 16} textAnchor="middle">
-              {["S", "M", "T", "W", "T", "F", "S"][new Date(d.start_ns / 1e6).getDay()] || ""}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-function sliceDays(days: DayPoint[], n: number): DayPoint[] {
-  if (!days.length) return []
-  return days.slice(-n)
-}
-
-function padWeek(days: DayPoint[]): DayPoint[] {
-  const last = days[days.length - 1]
-  if (!last) {
-    return Array.from({ length: 7 }, (_, i) => ({
-      day: "",
-      start_ns: Date.now() * 1e6 - (6 - i) * 86400e9,
-      cost_usd: 0,
-      turn_ms: 0,
-      wait_ms: 0,
-      turns: 0,
-    }))
+function projects(rows: Session[]): HistoryProject[] {
+  const m = new Map<string, HistoryProject>()
+  for (const s of rows) {
+    const name = s.repo || "unknown"
+    const p = m.get(name) || { name, sessions: 0, cost_usd: 0, tokens: 0 }
+    p.sessions++
+    p.cost_usd += s.cost_usd || 0
+    p.tokens += s.tokens || 0
+    m.set(name, p)
   }
-  const end = new Date(last.start_ns / 1e6)
-  const out: DayPoint[] = []
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(end)
-    d.setDate(end.getDate() - i)
-    d.setHours(0, 0, 0, 0)
-    const hit = days.find((x) => Math.abs(x.start_ns / 1e6 - d.getTime()) < 12 * 3600e3)
-    out.push(hit || { day: "", start_ns: d.getTime() * 1e6, cost_usd: 0, turn_ms: 0, wait_ms: 0, turns: 0 })
-  }
-  return out
+  return [...m.values()].sort((a, b) => b.cost_usd - a.cost_usd || a.name.localeCompare(b.name))
 }
 
-function modelsFromDays(days: DayPoint[], fallback: ModelSpend[]): ModelSpend[] {
-  const m = new Map<string, ModelSpend>()
-  for (const d of days) {
-    for (const p of d.by_model || []) {
-      const k = modelSlug(p.model)
-      const cur = m.get(k) || { model: p.model, cost_usd: 0, tokens: 0 }
-      cur.cost_usd += p.cost_usd
-      cur.tokens = (cur.tokens || 0) + (p.tokens || 0)
-      m.set(k, cur)
-    }
-  }
-  if (m.size) return [...m.values()].sort((a, b) => b.cost_usd - a.cost_usd)
-  return fallback.slice(0, 4)
+function weekRange(hi: number) {
+  const b = new Date((hi - 1) / 1e6)
+  const a = new Date(b)
+  a.setDate(b.getDate() - 6)
+  const same = a.getMonth() === b.getMonth()
+  const left = a.toLocaleDateString("en-GB", { day: "numeric", month: same ? undefined : "short" })
+  const right = b.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+  return `${left} – ${right}`
 }
 
-function dayTokens(d: DayPoint): number {
-  return (d.by_model || []).reduce((a, p) => a + (p.tokens || 0), 0)
+function dayName(ns: number) {
+  return new Date(ns / 1e6).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })
 }
 
+function shortDate(ns?: number) {
+  if (!ns) return ""
+  return new Date(ns / 1e6).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+}
 
+function spanLabel(first?: number, last?: number) {
+  if (!first) return ""
+  const a = new Date(first / 1e6)
+  const b = new Date((last || first) / 1e6)
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }
+  const as = a.toLocaleDateString("en-GB", opts)
+  const bs = b.toLocaleDateString("en-GB", opts)
+  return as === bs ? as : `${as} – ${bs}`
+}
+
+function findingTitle(f: Finding) {
+  return shortTitle(f)
+}
+
+function swatch(f: Finding) {
+  if (f.impact_unit.startsWith("USD")) return "money"
+  if (/wait/i.test(f.impact_unit) || f.rule_id.includes("permission")) return "t-wait"
+  if (/retry/i.test(f.rule_id) || /retry/i.test(f.impact_unit)) return "t-retry"
+  if (f.rule_id.includes("hook")) return "t-hook"
+  return "t-other"
+}
+
+function dayTip(p: ReturnType<typeof emptyParts>) {
+  return partsTotal(p)
+    ? ["think", "tool", "wait", "retry", "hook", "other"]
+        .map((k) => (p[k as keyof typeof p] ? `${k} ${dur(p[k as keyof typeof p])}` : ""))
+        .filter(Boolean)
+        .join(" · ")
+    : ""
+}

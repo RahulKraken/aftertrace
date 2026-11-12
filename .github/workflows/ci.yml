@@ -123,7 +123,7 @@ jobs:
           cat "$RUNNER_TEMP/serve.log"; exit 1
       - name: Install Chromium
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Smoke test against the real server
         working-directory: web
         run: npx playwright test -c playwright.live.config.ts
@@ -228,7 +228,7 @@ jobs:
         run: npm ci
       - name: Install Chromium
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Playwright
         working-directory: web
         run: npx playwright test

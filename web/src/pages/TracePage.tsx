@@ -30,6 +30,11 @@ export function TracePage() {
   const [err, setErr] = useState<string | null>(null)
   const [span, setSpan] = useState<string | null>(spanFromHash())
   const [view, setView] = useState<TraceView>(() => viewFromHash() ?? savedView())
+
+  useEffect(() => {
+    const hashed = viewFromHash()
+    if (hashed) setView(hashed)
+  }, [params.id])
   const skeleton = /(?:\?|&)skeleton=1/.test(window.location.hash) || window.location.search.includes("skeleton=1")
 
   useEffect(() => {

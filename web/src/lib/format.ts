@@ -22,19 +22,34 @@ export const CAT_LABEL: Record<keyof Breakdown, string> = {
 
 export function dur(ms: number | null | undefined): string {
   if (ms == null || Number.isNaN(ms)) return "—"
+  const neg = ms < 0 ? "-" : ""
   const abs = Math.abs(ms)
-  if (abs < 1000) return `${Math.round(ms)}ms`
-  if (abs < 60_000) return `${(ms / 1000).toFixed(abs < 10_000 ? 2 : 1)}s`
+  if (abs < 1000) return `${neg}${Math.round(abs)}ms`
+  if (abs < 60_000) {
+    const s = abs / 1000
+    if (s < 10) return `${neg}${s.toFixed(1)}s`
+    if (Math.abs(s - Math.round(s)) < 0.05) return `${neg}${Math.round(s)}s`
+    return `${neg}${s.toFixed(1)}s`
+  }
   const m = Math.floor(abs / 60_000)
   const s = Math.round((abs % 60_000) / 1000)
-  if (m < 60) return `${ms < 0 ? "-" : ""}${m}m ${s}s`
-  return `${ms < 0 ? "-" : ""}${Math.floor(m / 60)}h ${m % 60}m`
+  if (m < 60) return s === 0 ? `${neg}${m}m` : `${neg}${m}m ${s}s`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return rm === 0 ? `${neg}${h}h` : `${neg}${h}h ${rm}m`
 }
 
+// One money rule everywhere: 2 decimals, "<$0.01" for tiny amounts,
+// no cents at $100 and above. Never 3-decimal values.
 export function usd(v: number | null | undefined): string {
-  if (v == null) return "—"
-  if (Math.abs(v) >= 1) return `$${v.toFixed(2)}`
-  return `$${v.toFixed(3)}`
+  if (v == null || Number.isNaN(v)) return "—"
+  const neg = v < 0
+  const abs = Math.abs(v)
+  const sign = neg ? "-" : ""
+  if (abs === 0) return "$0.00"
+  if (abs < 0.01) return `${sign}<$0.01`
+  if (abs >= 100) return `${sign}$${Math.round(abs)}`
+  return `${sign}$${abs.toFixed(2)}`
 }
 
 // A running session's cost is the session total everywhere (Home, Sessions,
@@ -48,11 +63,18 @@ export function runCost(
   return 0
 }
 
+function compact(n: number, suffix: string): string {
+  const digits = n >= 100 ? 0 : n >= 10 ? 1 : 2
+  return `${n.toFixed(digits).replace(/\.?0+$/, "")}${suffix}`
+}
+
 export function tok(v: number | null | undefined): string {
   if (v == null) return "—"
-  if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(2)}M`
-  if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}k`
-  return String(Math.round(v))
+  const neg = v < 0 ? "-" : ""
+  const abs = Math.abs(v)
+  if (abs >= 1e6) return `${neg}${compact(abs / 1e6, "M")}`
+  if (abs >= 1e3) return `${neg}${compact(abs / 1e3, "k")}`
+  return `${neg}${Math.round(abs)}`
 }
 
 // Spoken forms for sentences and headlines. Tables keep dur / usd / tok.
@@ -87,21 +109,10 @@ export function sayDur(ms: number | null | undefined): string {
   return neg ? `-${s}` : s
 }
 
-export function sayUsd(v: number | null | undefined, whole = false): string {
+export function sayUsd(v: number | null | undefined, _whole = false): string {
   if (v == null || Number.isNaN(v)) return ""
-  const neg = v < 0
-  const abs = Math.abs(v)
-  let s: string
-  if (abs < 1) {
-    let cents = Math.round(abs * 100)
-    if (cents === 0 && abs > 0) cents = 1
-    s = `${cents}¢`
-  } else if (whole) {
-    s = `$${Math.round(abs)}`
-  } else {
-    s = `$${abs.toFixed(2)}`
-  }
-  return neg ? `-${s}` : s
+  const s = usd(v)
+  return s === "—" ? "" : s
 }
 
 export function clock(ns: number | null | undefined): string {
@@ -125,11 +136,7 @@ export function hm(ms: number): { h: number; m: number } {
 
 export function moneyParts(v: number | null | undefined): { whole: string; cents: string } | null {
   if (v == null || Number.isNaN(v)) return null
-  const neg = v < 0
-  const abs = Math.abs(v)
-  if (abs < 1) return { whole: `${neg ? "-" : ""}${Math.round(abs * 100)}¢`, cents: "" }
-  const [w, c] = abs.toFixed(2).split(".")
-  return { whole: `${neg ? "-" : ""}$${w}`, cents: `.${c}` }
+  return { whole: usd(v), cents: "" }
 }
 
 export function sayTok(v: number | null | undefined): string {
@@ -148,8 +155,23 @@ export function sayTok(v: number | null | undefined): string {
 }
 
 export function pct(v: number | null | undefined): string {
-  if (v == null) return "—"
-  return `${Math.round(v * 100)}%`
+  if (v == null || Number.isNaN(v)) return "—"
+  const n = v <= 1 ? v * 100 : v
+  if (n > 0 && n < 1) return "<1%"
+  return `${Math.round(n)}%`
+}
+
+// Headline durations: 49m, 2m. Tables and rows keep seconds via dur().
+export function durHead(ms: number | null | undefined): string {
+  if (ms == null || Number.isNaN(ms)) return "—"
+  const neg = ms < 0 ? "-" : ""
+  const abs = Math.abs(ms)
+  if (abs < 45_000) return dur(ms)
+  const m = Math.round(abs / 60_000)
+  if (m < 60) return `${neg}${m}m`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return rm ? `${neg}${h}h ${rm}m` : `${neg}${h}h`
 }
 
 export function when(ns: number | null | undefined): { date: string; time: string } {

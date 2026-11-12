@@ -12,13 +12,14 @@ const vite = await createServer({
   appType: "custom",
 })
 
-const { dur, tok, usd, sayDur, sayUsd, sayTok, moneyParts, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
+const { dur, durHead, tok, usd, sayDur, sayUsd, sayTok, moneyParts, pct, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { recapLead, recapShipped } = await vite.ssrLoadModule("/src/lib/recapStory.ts")
+const { spendLead } = await vite.ssrLoadModule("/src/lib/spendInsight.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
-const { projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
+const { mockOverview, projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
 
 let failed = 0
@@ -34,16 +35,24 @@ eq(sayDur(88_890), "1 min", "sayDur 89s")
 eq(sayDur(12_000), "12s", "sayDur 12s")
 eq(sayDur(3 * 3_600_000), "3h", "sayDur 3h")
 eq(sayDur(3 * 3_600_000 + 12 * 60_000), "3h 12 min", "sayDur 3h 12 min")
-eq(sayUsd(0.41), "41¢", "sayUsd 41¢")
-eq(sayUsd(0.41, true), "41¢", "sayUsd 41¢ whole")
-eq(sayUsd(12.4, true), "$12", "sayUsd $12")
-eq(sayUsd(38.4, true), "$38", "sayUsd $38")
+eq(sayUsd(0.41), "$0.41", "sayUsd 41 cents")
+eq(sayUsd(0.41, true), "$0.41", "sayUsd 41 cents whole")
+eq(sayUsd(12.4, true), "$12.40", "sayUsd $12.40 whole")
+eq(sayUsd(38.4, true), "$38.40", "sayUsd $38.40")
 eq(sayUsd(12.4), "$12.40", "sayUsd $12.40")
+eq(sayUsd(0.004), "<$0.01", "sayUsd tiny")
+eq(sayUsd(100), "$100", "sayUsd drops cents at 100")
+eq(sayUsd(0.968), "$0.97", "sayUsd two decimals")
 eq(sayTok(12_400_000), "12M", "sayTok 12M")
-eq(tok(12_400_000), "12.40M", "tok table still 12.40M")
+eq(tok(12_400_000), "12.4M", "tok table compact")
 eq(sayTok(1_400_000), "1.4M", "sayTok 1.4M")
-eq(usd(0.41), "$0.410", "usd table exact")
-eq(dur(49 * 60_000), "49m 0s", "dur table exact")
+eq(usd(0.41), "$0.41", "usd two decimals")
+eq(usd(0.968), "$0.97", "usd never three decimals")
+eq(dur(49 * 60_000), "49m", "dur omits 0s")
+eq(durHead(49 * 60_000 + 8000), "49m", "durHead drops seconds")
+eq(durHead(134_000), "2m", "durHead 2m")
+eq(pct(0.91), "91%", "pct fraction")
+eq(pct(0.003), "<1%", "pct under one")
 
 const opus = {
   id: 1,
@@ -62,8 +71,8 @@ const opus = {
   last_ns: 1 + 30 * 86400e9,
 }
 eq(actionSentence(opus), "Use Sonnet for quick replies in aftertrace.", "actionSentence opus")
-eq(moneyLabel(opus, ""), "Saves about $12 a month", "moneyLabel $12")
-eq(moneyLabel({ ...opus, impact_value: 0.41 }, ""), "Saves about 41¢ a month", "moneyLabel 41¢")
+eq(moneyLabel(opus, ""), "Saves about $12.40 a month", "moneyLabel $12.40")
+eq(moneyLabel({ ...opus, impact_value: 0.41 }, ""), "Saves about $0.41 a month", "moneyLabel $0.41")
 
 const month = 30 * 86400e9
 eq(monthlyUSD(opus), 12.4, "monthlyUSD full month")
@@ -71,9 +80,9 @@ eq(monthlyUSD({ ...opus, last_ns: 1 + month / 2 }), 12.4, "monthlyUSD does not i
 eq(monthlyUSD({ ...opus, impact_value: 0.016, last_ns: 1 + 86400e9 }) <= 0.016, true, "1-day span not inflated")
 eq(homeHeadline(0), "Your setup looks lean. Here's what we saw this month.", "headline zero")
 eq(homeHeadline(0.41), "Your setup looks lean. Here's what we saw this month.", "headline tiny")
-eq(homeHeadline(12.4), "About $12/month you could save", "headline $12")
-eq(cardMoney(12.4), "~$12/month", "cardMoney $12")
-eq(cardMoney(0.41), "~41¢/month", "cardMoney 41¢")
+eq(homeHeadline(12.4), "About $12.40/month you could save", "headline $12.40")
+eq(cardMoney(12.4), "~$12.40/month", "cardMoney $12.40")
+eq(cardMoney(0.41), "~$0.41/month", "cardMoney $0.41")
 
 const ranked = homeSavings([
   { ...opus, id: 1, rule_id: "long", impact_value: 2, first_ns: 1, last_ns: 1 + month, estimated: true },
@@ -181,7 +190,7 @@ eq(
     headline: "Skill pdf-report drove 30% of spend",
     detail: "16 requests, 1 activations, $6.48 per activation. Mostly claude-opus-5 at effort max.",
   }),
-  "Generate monthly PDF report on Opus",
+  "PDF report runs on Opus at max effort",
   "shortTitle skill pdf-report",
 )
 const mcpGet = {
@@ -239,7 +248,7 @@ eq(niceAxis(12e6, true).at(-1) >= 12e6, true, "niceAxis last tick covers 12M tok
 eq(modelSlug("claude-opus-5"), "opus", "modelSlug opus")
 eq(modelSlug("claude-sonnet-5-5"), "sonnet", "modelSlug sonnet")
 eq(moneyParts(186.4).whole, "$186", "moneyParts whole")
-eq(moneyParts(186.4).cents, ".40", "moneyParts cents")
+eq(moneyParts(186.4).cents, "", "moneyParts no raised cents")
 
 const now = 10 * 3600e9
 eq(usageWindow(now, []) == null, true, "usageWindow empty")
@@ -254,7 +263,7 @@ const recap = {
 }
 const lead = recapLead(recap)
 eq(lead.some((p) => p.kind === "primary" && p.text === "8h 41 min"), true, "recapLead primary time")
-eq(lead.some((p) => p.kind === "primary" && p.text === "$243.41"), true, "recapLead primary spend")
+eq(lead.some((p) => p.kind === "primary" && p.text === "$243"), true, "recapLead primary spend")
 eq(lead.some((p) => p.kind === "secondary" && p.text.includes("8 sessions")), true, "recapLead sessions secondary")
 eq(lead.every((p) => p.kind !== "prose" || !/\$/.test(p.text)), true, "recapLead prose has no dollars")
 const shipped = recapShipped(recap)
@@ -262,10 +271,16 @@ eq(shipped.some((p) => p.kind === "secondary" && p.text.includes("10,321")), tru
 eq(shipped.some((p) => p.kind === "secondary" && /49 commits/.test(p.text)), true, "recapShipped commits")
 eq(recapLead({ stats: {} }).some((p) => p.text === "Nothing ran this week."), true, "recapLead empty")
 const longLead = recapLead({ stats: { turn_ms: 23 * 3_600_000 + 59 * 60_000, sessions: 128, cost_usd: 12345.67 } })
-eq(longLead.some((p) => p.kind === "primary" && p.text === "$12345.67"), true, "recapLead long spend")
+eq(longLead.some((p) => p.kind === "primary" && p.text === "$12346"), true, "recapLead long spend")
 eq(longLead.some((p) => p.kind === "primary" && p.text === "23h 59 min"), true, "recapLead long duration")
 eq(recapLead({ stats: { turn_ms: 460980000, sessions: 128, cost_usd: 12345.67 } }).some((p) => p.kind === "primary" && p.text === "5d 8h"), true, "recapLead multi-day duration")
 eq(recapShipped({ stats: { lines_added: 1234567, commits: 2048 } }).some((p) => p.text.includes("1,234,567")), true, "recapShipped long lines")
+
+const ov = mockOverview()
+const weekSess = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.hi)
+eq(spendLead(weekSess, ov.week.cost_usd), "Two sessions made 71% of your spend.", "demo spend lead")
+eq(spendLead([{ cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }], 5), null, "equal five sessions fall back")
+eq(spendLead([{ cost_usd: 8 }, { cost_usd: 1 }], 9), "One session made 89% of your spend.", "one session dominates")
 
 if (failed) {
   console.error(`${failed} failed`)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowRight, Boxes } from "lucide-react"
+import { ArrowRight, Cube } from "@phosphor-icons/react"
 import { ModelName } from "../components/SpanIcon"
 import { Num } from "../components/Num"
 import { Link, useLocation } from "wouter"
@@ -43,12 +43,12 @@ export function AppsPage() {
       {!apps.length ? (
         <div className="first-run">
           <div className="fr-mark">
-            <Boxes size={18} />
+            <Cube size={18} weight="regular" />
           </div>
           <h1>No apps yet</h1>
           <p>Point any app that calls a model at Aftertrace. Calls, cost, latency and failures show up here per app and per operation.</p>
           <Link href="/connect" className="btn">
-            Connect an app <ArrowRight size={14} />
+            Connect an app <ArrowRight size={14} weight="regular" />
           </Link>
         </div>
       ) : (

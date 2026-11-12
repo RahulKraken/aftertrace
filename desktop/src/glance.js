@@ -8,15 +8,11 @@ function sayUsd(v) {
   if (v == null || Number.isNaN(v)) return ""
   const neg = v < 0
   const abs = Math.abs(v)
-  let s
-  if (abs < 1) {
-    let cents = Math.round(abs * 100)
-    if (cents === 0 && abs > 0) cents = 1
-    s = `${cents}¢`
-  } else {
-    s = `$${abs.toFixed(2)}`
-  }
-  return neg ? `-${s}` : s
+  const sign = neg ? "-" : ""
+  if (abs === 0) return "$0.00"
+  if (abs < 0.01) return `${sign}<$0.01`
+  if (abs >= 100) return `${sign}$${Math.round(abs)}`
+  return `${sign}$${abs.toFixed(2)}`
 }
 
 function clip(s, n = 36) {

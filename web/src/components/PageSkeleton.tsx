@@ -1,86 +1,57 @@
-/** First-paint placeholders. Never the word “Loading…”. */
-
 export function FindingsSkeleton() {
-  const rows = [72, 54, 88, 40, 63, 31, 77, 48]
   return (
-    <div className="v4 split findings v4-skel" aria-busy="true" aria-label="Loading findings">
-      <div className="col">
-        <div className="v4-ph">
-          <h1>Findings</h1>
-        </div>
-        <div className="v4-dh">Money</div>
-        {rows.map((w, i) => (
-          <div className="v4-fr" key={i}>
-            <i className="v4-mq" />
-            <span className="sk sk-line" style={{ width: 110 + (i % 4) * 22 }} />
-            <span className="sk sk-line" style={{ width: 44, justifySelf: "end" }} />
-            <span className="trk">
-              <i style={{ width: `${w}%` }} />
-            </span>
-            <span />
-          </div>
-        ))}
+    <>
+      <div className="tb">
+        <h1>Findings</h1>
       </div>
-      <aside className="v4-pane">
-        <div className="v4-lbl">This</div>
-        <div className="sk" style={{ height: 36, width: 128, marginTop: 10 }} />
-        <div className="v4-strip" aria-hidden="true">
-          <i style={{ height: 10 }} />
-          <i style={{ height: 16 }} />
-          <i style={{ height: 7 }} />
+      <div className="body fsplit skel-page" aria-busy="true" aria-label="Loading findings">
+        <div className="fcol">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div className="fr" key={i}>
+              <span className="skel sk-line" style={{ width: 12, height: 12, borderRadius: 2 }} />
+              <span className="skel sk-line" style={{ width: 140 + (i % 3) * 28 }} />
+            </div>
+          ))}
         </div>
-        <div className="sk sk-line" style={{ width: "70%", marginTop: 28 }} />
-        <div className="sk sk-line" style={{ width: "52%", marginTop: 10 }} />
-      </aside>
-    </div>
+        <div className="pad">
+          <div className="skel sk-line" style={{ width: 280, height: 22 }} />
+          <div className="skel" style={{ width: 120, height: 36, marginTop: 20 }} />
+        </div>
+      </div>
+    </>
   )
 }
 
 export function HomeSkeleton() {
   return (
-    <div className="v4 v4-skel" aria-busy="true" aria-label="Loading overview">
-      <div className="v4-ph">
-        <h1>Overview</h1>
+    <>
+      <div className="tb">
+        <h1>Today</h1>
       </div>
-      <section className="v4-card" style={{ padding: 20 }}>
-        <div className="sk sk-line" style={{ width: 88 }} />
-        <div className="sk" style={{ height: 36, width: 160, marginTop: 12 }} />
-        <div className="v4-strip" aria-hidden="true" style={{ marginTop: 20 }}>
-          {Array.from({ length: 12 }, (_, i) => (
-            <i key={i} style={{ height: 6 + ((i * 5) % 14) }} />
-          ))}
+      <div className="body today skel-page" aria-busy="true" aria-label="Loading today">
+        <div className="pad">
+          <div className="skel sk-line" style={{ width: 88 }} />
+          <div className="skel" style={{ height: 64, marginTop: 12 }} />
+          <div className="skel" style={{ height: 10, marginTop: 24 }} />
         </div>
-      </section>
-    </div>
+      </div>
+    </>
   )
 }
 
 export function SessionsSkeleton() {
-  const rows = [8, 7, 6, 8, 5, 7, 4, 6]
   return (
-    <div className="v4 split sessions v4-skel" aria-busy="true" aria-label="Loading sessions">
-      <div className="col">
-        <div className="v4-ph">
-          <h1>Sessions</h1>
-        </div>
-        {rows.map((n, i) => (
-          <div className="v4-rr" key={i}>
-            <i className="v4-mq" />
-            <span className="sk sk-line" style={{ width: 52 }} />
-            <span className="sk sk-line" style={{ width: 36 }} />
-            <span className="sk sk-line" style={{ width: 90 + n * 8 }} />
-            <span />
-            <span />
-            <span className="sk sk-line" style={{ width: 40 }} />
-            <span />
-          </div>
-        ))}
+    <>
+      <div className="tb">
+        <h1>Sessions</h1>
       </div>
-      <aside className="v4-pane">
-        <div className="sk sk-line" style={{ width: 160 }} />
-        <div className="sk sk-line" style={{ width: "64%", marginTop: 14 }} />
-        <div className="sk sk-line" style={{ width: "48%", marginTop: 10 }} />
-      </aside>
-    </div>
+      <div className="body split skel-page" aria-busy="true" aria-label="Loading sessions">
+        <div className="pad">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div className="skel sk-line" key={i} style={{ width: 220 + (i % 4) * 20, marginBottom: 14 }} />
+          ))}
+        </div>
+      </div>
+    </>
   )
 }
