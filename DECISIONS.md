@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: closed-DB 503, batched DuckDB jobs, reconnecting UI.
+
+**Choice.** One PR off main (0.5.8 identity), no merge/tag/release. (1) `Store.Reopen`/`Close` set `unavailable` before closing `*sql.DB`. `/api/*` except health/version return **503** `{error:"restarting",code:"restarting"}` instead of `sql: database is closed`. Health stays 200 with `ready:false, restarting:true`. (2) History import, compact, and `llm_facts` backfill run in bounded batches. DSN adds `preserve_insertion_order=false`; `sql.DB` is capped at 2 open / 1 idle conn. No-op history import no longer `DELETE`s and rebuilds every rollup table. Compact walks rowid windows of 100, CHECKPOINT+reopen every 800 rows. Serve still reopens after compact/rollups so jemalloc dirty pages return. UI treats 503/network/driver strings as transient: sidebar **Reconnecting…**, exponential backoff, last data stays; raw SQL never renders. (3) Update checks stay on launch, every hour, on wake/`unlock-screen`, when the network returns, and when the dashboard window opens. **Restart to update** still appears as soon as `update-downloaded` fires; ShipIt `autoRunAppAfterInstall` stays false (install on quit). Measured on this VM, 746 MB / 100k-span file, `Warm` (compact+rollups+reopen): RSS before open **17 MB**, peak **372 MB**, steady **108 MB**, no OOM (caps 450 / 200).
+
+**Why.** Rahul's v0.5.6 on a 689 MB / 102k-span file showed a full-page `sql: database is closed` while the sidecar recycled DuckDB after history/compact/rollups OOM'd at the 244 MiB cap. Process RSS was ~579 MB. ShipIt only fetched 0.5.7 two days after publish because 0.5.6 did not check periodically; `launchAfterInstallation:false` is the intended quit-to-install path.
+
+**How to reverse.** Restore unbounded compact/`rebuildAllLocked` on every import, drop the 503 gate and reconnecting banner, and remove `unlock-screen` / window-open checks.
+
 ## Nov 12 2026: ship 0.5.8.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.

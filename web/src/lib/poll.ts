@@ -1,5 +1,8 @@
+export const RETRY_EVENT = "aftertrace-retry"
+
 /** Single-flight poll. Never overlaps. Backs off while a request is in flight
- *  and uses a slower cadence when the document is hidden. */
+ *  and uses a slower cadence when the document is hidden. Failed fetches
+ *  retry with exponential backoff up to 15s. */
 export function startPoll(
   fn: () => Promise<void>,
   opts: { visibleMs: number; hiddenMs: number },
@@ -7,16 +10,24 @@ export function startPoll(
   let inflight = false
   let timer = 0
   let stopped = false
-  const delay = () =>
-    typeof document !== "undefined" && document.hidden ? opts.hiddenMs : opts.visibleMs
+  let backoff = 0
   const tick = async () => {
     if (stopped || inflight) return
     inflight = true
+    let failed = false
     try {
       await fn()
+      backoff = 0
+    } catch {
+      failed = true
+      backoff = backoff === 0 ? 800 : Math.min(backoff * 2, 15_000)
     } finally {
       inflight = false
-      if (!stopped) timer = window.setTimeout(tick, delay())
+      if (!stopped) {
+        const hidden = typeof document !== "undefined" && document.hidden
+        const wait = hidden ? opts.hiddenMs : failed ? backoff : opts.visibleMs
+        timer = window.setTimeout(tick, wait)
+      }
     }
   }
   tick()
@@ -25,14 +36,25 @@ export function startPoll(
     window.clearTimeout(timer)
     tick()
   }
+  const onRetry = () => {
+    if (stopped || inflight) return
+    window.clearTimeout(timer)
+    tick()
+  }
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", onVis)
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener(RETRY_EVENT, onRetry)
   }
   return () => {
     stopped = true
     window.clearTimeout(timer)
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", onVis)
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener(RETRY_EVENT, onRetry)
     }
   }
 }

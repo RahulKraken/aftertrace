@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { CaretRight } from "@phosphor-icons/react"
 import { Link, useLocation, useParams } from "wouter"
-import { api } from "../lib/api"
+import { api, isTransientError } from "../lib/api"
 import { startPoll } from "../lib/poll"
 import { dur, modelName, usd, when } from "../lib/format"
 import type { SessionDetail } from "../lib/types"
@@ -18,7 +18,9 @@ export function SessionPage() {
 
   useEffect(() => {
     if (!params.id) return
-    api.session(params.id).then(setD).catch((e: Error) => setErr(e.message))
+    api.session(params.id).then((x) => { setD(x); setErr(null) }).catch((e: Error) => {
+      if (!isTransientError(e)) setErr("This session is not in the store.")
+    })
   }, [params.id])
 
   const running = Boolean(d?.turns.some((t) => t.running))

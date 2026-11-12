@@ -63,7 +63,7 @@ func Import(st *store.Store, dir string) (Result, error) {
 		}
 		bySession[sid] = append(bySession[sid], f)
 	}
-	live, err := st.LiveSessions(sessionIDs)
+	live, err := liveSessionsBatched(st, sessionIDs)
 	if err != nil {
 		return res, err
 	}
@@ -136,8 +136,32 @@ func importSessions(st *store.Store, bySession map[string][]File, live map[strin
 		res.Sessions++
 		res.Turns += out.Turns
 		res.Requests += out.Requests
+		if res.Sessions%8 == 0 {
+			if _, err := st.DB.Exec(`CHECKPOINT`); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+func liveSessionsBatched(st *store.Store, ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	const n = 200
+	for i := 0; i < len(ids); i += n {
+		j := i + n
+		if j > len(ids) {
+			j = len(ids)
+		}
+		part, err := st.LiveSessions(ids[i:j])
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range part {
+			out[k] = v
+		}
+	}
+	return out, nil
 }
 
 func unchanged(group []File, known map[string]fileRow) bool {

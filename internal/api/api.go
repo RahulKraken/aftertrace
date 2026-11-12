@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -39,7 +40,6 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 		cachedFindings.mu.Lock()
 		cachedFindings.st = st
 		cachedFindings.mu.Unlock()
-		_ = st.EnsureRollups()
 		st.OnChange(func() {
 			s.cache.invalidate()
 			cachedFindings.mu.Lock()
@@ -71,7 +71,7 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	mux.HandleFunc("POST /api/sql", s.postSQL)
 	mux.HandleFunc("POST /api/ask", s.postAsk)
 	mux.HandleFunc("GET /", s.static)
-	return withHeaders(mux)
+	return s.gate(withHeaders(mux))
 }
 
 func withHeaders(next http.Handler) http.Handler {
@@ -81,12 +81,30 @@ func withHeaders(next http.Handler) http.Handler {
 	})
 }
 
+func (s *Server) gate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/version" {
+			if s.Store != nil && s.Store.Unavailable() {
+				s.unavailable(w)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 	ready, busy := true, false
 	if s.cache != nil {
 		ready, busy = s.cache.Ready(), s.cache.Busy()
 	}
-	s.json(w, map[string]any{"ok": true, "ready": ready, "busy": busy}, 200)
+	restarting := s.Store != nil && s.Store.Unavailable()
+	s.json(w, map[string]any{
+		"ok":         true,
+		"ready":      ready && !restarting,
+		"busy":       busy || restarting,
+		"restarting": restarting,
+	}, 200)
 }
 
 func (s *Server) getVersion(w http.ResponseWriter, r *http.Request) {
@@ -108,10 +126,23 @@ func (s *Server) json(w http.ResponseWriter, v any, code int) {
 }
 
 func (s *Server) err(w http.ResponseWriter, err error, code int) {
+	if store.Closed(err) || errors.Is(err, store.ErrUnavailable) {
+		s.unavailable(w)
+		return
+	}
 	s.json(w, map[string]string{"error": err.Error()}, code)
 }
 
-func (s *Server) db() *sql.DB { return s.Store.DB }
+func (s *Server) unavailable(w http.ResponseWriter) {
+	s.json(w, map[string]string{"error": "restarting", "code": "restarting"}, http.StatusServiceUnavailable)
+}
+
+func (s *Server) db() *sql.DB {
+	if s.Store == nil {
+		return nil
+	}
+	return s.Store.DB
+}
 
 func (s *Server) getSessions(w http.ResponseWriter, r *http.Request) {
 	out, err := s.cache.get("sessions", func() (any, error) { return sessions(s.db()) })

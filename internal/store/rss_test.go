@@ -71,29 +71,38 @@ func seedLargeDB(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	const batch = 50_000
-	for i := 0; i < 40; i++ {
+	// Rahul's file is ~689 MB / ~102k spans with leftover --store-content (~6.5 KB/span).
+	// repeat('p', N) and short unique strings compress; a 7 KB unique blob does not.
+	// Fat leftover content on the first 52k rows, tiny attrs after, so 100k spans land near 700 MB.
+	const batch = 400
+	var hi int
+	for i := 0; i < 260; i++ {
 		lo := i*batch + 1
-		hi := (i + 1) * batch
+		hi = (i + 1) * batch
 		_, err := st.DB.Exec(fmt.Sprintf(`
 			INSERT INTO spans
 			SELECT
-				lpad(gs::VARCHAR, 16, '0'),
-				lpad(gs::VARCHAR, 16, '0'),
-				NULL,
-				'claude_code.llm_request',
-				1700000000000000000 + gs,
-				1700000000001000000 + gs,
+				'tr-' || gs,
+				'sp-' || gs,
+				CASE WHEN gs %% 40 = 1 THEN NULL ELSE 'sp-' || (((gs-1) // 40) * 40 + 1) END,
+				CASE WHEN gs %% 40 = 1 THEN 'claude_code.interaction'
+				     WHEN gs %% 8 = 0 THEN 'claude_code.llm_request'
+				     ELSE 'claude_code.tool' END,
+				1700000000000000000 + gs * 1000,
+				1700000000001000000 + gs * 1000,
 				1.0, false, NULL,
-				's' || (gs // 20)::VARCHAR,
-				json_object('model','claude-opus-4-5','pad',
-					md5(gs::VARCHAR) || md5((gs+1)::VARCHAR) || md5((gs+2)::VARCHAR) ||
-					md5((gs+3)::VARCHAR) || md5((gs+4)::VARCHAR) || md5((gs+5)::VARCHAR) ||
-					md5((gs+6)::VARCHAR) || md5((gs+7)::VARCHAR) || md5((gs+8)::VARCHAR) ||
-					md5((gs+9)::VARCHAR) || md5((gs+10)::VARCHAR) || md5((gs+11)::VARCHAR) ||
-					md5((gs+12)::VARCHAR) || md5((gs+13)::VARCHAR) || md5((gs+14)::VARCHAR) ||
-					md5((gs+15)::VARCHAR)),
-				json_object('service.name','claude-code')
+				'sess-' || (gs // 80),
+				json_object(
+					'prompt', CASE WHEN gs <= 52000
+						THEN array_to_string(list_transform(range(0, 220), i -> md5((gs * 256 + i)::VARCHAR)), '')
+						ELSE md5(gs::VARCHAR) END,
+					'model', 'claude-opus-4-5',
+					'request_id', 'req-' || gs,
+					'input_tokens', 120,
+					'output_tokens', 40,
+					'cost_usd', 0.01
+				),
+				json_object('service.name','claude-code','aftertrace.source','history')
 			FROM generate_series(%d, %d) AS t(gs)
 		`, lo, hi))
 		if err != nil {
@@ -107,12 +116,12 @@ func seedLargeDB(t *testing.T, path string) {
 			t.Fatal(err)
 		}
 		t.Logf("seeded %d spans, file %d MB", hi, fi.Size()/1024/1024)
-		if fi.Size() >= 500*1024*1024 {
+		if fi.Size() >= 680*1024*1024 && hi >= 100_000 {
 			return
 		}
 	}
 	fi, _ := os.Stat(path)
-	t.Fatalf("file only %d MB after seed; want >= 500 MB", fi.Size()/1024/1024)
+	t.Fatalf("file only %d MB / %d spans after seed; want >= 680 MB and 100k spans", fi.Size()/1024/1024, hi)
 }
 
 func TestPeakRSSOnSeededDB(t *testing.T) {
@@ -143,17 +152,17 @@ func TestPeakRSSOnSeededDB(t *testing.T) {
 	}
 	cmd := exec.Command(exe, "-test.run=^TestPeakRSSOnSeededDB$", "-test.count=1", "-test.v")
 	cmd.Env = append(os.Environ(), "AFTERTRACE_RSS_SEED=1", "AFTERTRACE_RSS_DB="+path)
-	out, err := cmd.CombinedOutput()
-	t.Logf("seed child:\n%s", out)
-	if err != nil {
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		t.Fatalf("seed child: %v", err)
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Size() < 500*1024*1024 {
-		t.Fatalf("seeded db is %d MB, want >= 500 MB", fi.Size()/1024/1024)
+	if fi.Size() < 680*1024*1024 {
+		t.Fatalf("seeded db is %d MB, want >= 680 MB", fi.Size()/1024/1024)
 	}
 
 	runtime.GC()
@@ -189,6 +198,10 @@ func TestPeakRSSOnSeededDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
+	if err := st.Warm(true); err != nil {
+		close(stop)
+		t.Fatal(err)
+	}
 	if _, err := st.DB.Exec(`SELECT count(*) FROM llm`); err != nil {
 		close(stop)
 		t.Fatal(err)
@@ -197,17 +210,14 @@ func TestPeakRSSOnSeededDB(t *testing.T) {
 		close(stop)
 		t.Fatal(err)
 	}
-	if _, err := st.Counts(); err != nil {
+	c, err := st.Counts()
+	if err != nil {
 		close(stop)
 		t.Fatal(err)
 	}
-	if err := st.Reopen(); err != nil {
+	if c.Spans < 100_000 {
 		close(stop)
-		t.Fatal(err)
-	}
-	if _, err := st.Counts(); err != nil {
-		close(stop)
-		t.Fatal(err)
+		t.Fatalf("spans=%d, want >= 100000", c.Spans)
 	}
 	close(stop)
 	time.Sleep(500 * time.Millisecond)
@@ -221,12 +231,12 @@ func TestPeakRSSOnSeededDB(t *testing.T) {
 	t.Logf("file %d MB; RSS before open %d MB, peak %d MB, steady %d MB (anon %d file %d)",
 		fi.Size()/1024/1024, before/1024/1024, peak/1024/1024, steady/1024/1024, anon/1024/1024, fileRSS/1024/1024)
 
-	const peakCap = 600 * 1024 * 1024
-	const steadyCap = 300 * 1024 * 1024
+	const peakCap = 450 * 1024 * 1024
+	const steadyCap = 200 * 1024 * 1024
 	if peak > peakCap {
-		t.Fatalf("engine-start peak RSS %d MB exceeds %d MB on a %d MB DB", peak/1024/1024, peakCap/1024/1024, fi.Size()/1024/1024)
+		t.Fatalf("engine-start peak RSS %d MB exceeds %d MB on a %d MB / %d-span DB", peak/1024/1024, peakCap/1024/1024, fi.Size()/1024/1024, c.Spans)
 	}
 	if steady > steadyCap {
-		t.Fatalf("steady RSS %d MB exceeds %d MB on a %d MB DB", steady/1024/1024, steadyCap/1024/1024, fi.Size()/1024/1024)
+		t.Fatalf("steady RSS %d MB exceeds %d MB on a %d MB / %d-span DB", steady/1024/1024, steadyCap/1024/1024, fi.Size()/1024/1024, c.Spans)
 	}
 }

@@ -18,6 +18,7 @@ const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/char
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
 const { recapLead, recapShipped } = await vite.ssrLoadModule("/src/lib/recapStory.ts")
 const { spendLead } = await vite.ssrLoadModule("/src/lib/spendInsight.ts")
+const { publicErrorMessage, isTransientError } = await vite.ssrLoadModule("/src/lib/api.ts")
 const { sessions } = await vite.ssrLoadModule("/src/mock/load.ts")
 const { mockOverview, projectsInWindow } = await vite.ssrLoadModule("/src/mock/overview.ts")
 await vite.close()
@@ -281,6 +282,11 @@ const weekSess = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.h
 eq(spendLead(weekSess, ov.week.cost_usd), "Two sessions made 71% of your spend.", "demo spend lead")
 eq(spendLead([{ cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }], 5), null, "equal five sessions fall back")
 eq(spendLead([{ cost_usd: 8 }, { cost_usd: 1 }], 9), "One session made 89% of your spend.", "one session dominates")
+
+eq(isTransientError({ status: 503, message: "restarting", transient: true }), true, "503 is transient")
+eq(isTransientError({ status: 0, message: "restarting", transient: true }), true, "network is transient")
+eq(publicErrorMessage(Object.assign(new Error("sql: database is closed"), { status: 503, transient: true })), "restarting", "closed db is not shown")
+eq(publicErrorMessage(Object.assign(new Error("Out of Memory Error: failed to allocate"), { status: 400 })), "restarting", "driver OOM is not shown")
 
 if (failed) {
   console.error(`${failed} failed`)

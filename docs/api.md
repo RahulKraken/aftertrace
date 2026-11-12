@@ -11,7 +11,7 @@ Ask (`POST /api/ask`) is off unless the server was started with `--ask` and `ANT
 | Method | Path | Returns |
 | - | - | - |
 | GET | `/api/status` | Server info, capture settings, counts for the sidebar |
-| GET | `/api/health` | `{ok: true}` — liveness only; the desktop sidecar polls this |
+| GET | `/api/health` | `{ok, ready, busy, restarting}` — liveness only, no SQL. `restarting:true` while DuckDB is closed |
 | GET | `/api/version` | `{version, pid, bin, service}` — identity of the process on 7311 |
 | GET | `/api/recap?week=N` | The Nth week back: summary, previous week, top tools/models/apps, priciest and longest turns, busiest day in lanes, peak parallel turns |
 | GET | `/api/overview` | Home: this week vs last, daily series, live lanes, sources, top finding, recent sessions |
@@ -32,7 +32,7 @@ Ask (`POST /api/ask`) is off unless the server was started with `--ask` and `ANT
 | GET | `/api/ask/suggestions` | Whether Ask is on, which model, sample questions, the schema |
 | POST | `/api/ask` | Answer a question: `{answer, enabled, sql, result, evidence, steps, model}` |
 
-Errors are `{ "error": "..." }` with HTTP 400.
+Errors are `{ "error": "..." }` with HTTP 400. While DuckDB is closed, `/api/*` except `/api/health` and `/api/version` return **503** `{error:"restarting",code:"restarting"}`.
 
 ## Sessions
 
@@ -185,7 +185,7 @@ Response: `{sql, params, table: [{groups, value, n}], series: [{groups, points: 
 
 The query cannot touch anything outside the tables and views:
 
-- The DuckDB instance is opened with `enable_external_access=false`, `lock_configuration=true`, `memory_limit=256MB`, `threads=2`, and `allocator_flush_threshold=16MB`. `read_text`, `read_csv`, `FROM 'file'`, `glob`, `COPY`, `ATTACH`, `INSTALL`, and `LOAD` fail, and no `SET` can turn access back on or raise those caps. After history import, `serve` reopens the file so allocator dirty pages are not stuck in RSS.
+- The DuckDB instance is opened with `enable_external_access=false`, `lock_configuration=true`, `memory_limit=256MB`, `threads=2`, `allocator_flush_threshold=16MB`, and `preserve_insertion_order=false`. `read_text`, `read_csv`, `FROM 'file'`, `glob`, `COPY`, `ATTACH`, `INSTALL`, and `LOAD` fail, and no `SET` can turn access back on or raise those caps. After history import, `serve` reopens the file so allocator dirty pages are not stuck in RSS. While that reopen (or a crash restart) has the handle closed, `/api/*` except `/api/health` and `/api/version` return **503** `{error:"restarting",code:"restarting"}`. Health stays 200 with `ready:false` and `restarting:true`.
 - A regex refuses anything that does not start with `SELECT` or `WITH`, or has a second statement.
 - DuckDB prepares the statement first; anything but a `SELECT` (for example `WITH ... DELETE`) is refused.
 - It runs in a transaction that is always rolled back.
@@ -226,7 +226,7 @@ The query cannot touch anything outside the tables and views:
 
 ## Status
 
-`GET /api/health` is `{ok: true}` and does no SQL. `GET /api/version` is `{version, pid, bin, service}` so a desktop app can tell a leftover LaunchAgent from its own sidecar. `GET /api/status` is for the UI (every 5 seconds); findings stay cached ~10s.
+`GET /api/health` is `{ok, ready, busy, restarting}` and does no SQL. `restarting` is true while DuckDB is closed for reopen. `GET /api/version` is `{version, pid, bin, service}` so a desktop app can tell a leftover LaunchAgent from its own sidecar. `GET /api/status` is for the UI (every 5 seconds); findings stay cached ~10s.
 
 ```json
 {

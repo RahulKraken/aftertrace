@@ -3,7 +3,7 @@ import { ArrowRight, Cube } from "@phosphor-icons/react"
 import { ModelName } from "../components/SpanIcon"
 import { Num } from "../components/Num"
 import { Link, useLocation } from "wouter"
-import { api } from "../lib/api"
+import { api, isTransientError } from "../lib/api"
 import { startPoll } from "../lib/poll"
 import { ago, dur, int, pct, usd } from "../lib/format"
 import type { AppSummary } from "../lib/types"
@@ -21,8 +21,14 @@ export function AppsPage() {
     const load = () =>
       api
         .apps()
-        .then((a) => alive && setApps(a))
-        .catch((e: Error) => alive && setErr(e.message))
+        .then((a) => {
+          if (!alive) return
+          setApps(a)
+          setErr(null)
+        })
+        .catch((e: Error) => {
+          if (alive && !apps && !isTransientError(e)) setErr("Aftertrace can't reach its engine.")
+        })
     const stop = startPoll(async () => { if (alive) await load() }, { visibleMs: 15000, hiddenMs: 60000 })
     return () => {
       alive = false

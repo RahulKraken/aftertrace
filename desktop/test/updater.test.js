@@ -410,6 +410,42 @@ test("resume after offline error inspects again", async () => {
   assert.equal(auto.checks, 2)
 })
 
+test("unlock-screen after sleep inspects again", async () => {
+  const auto = mockAuto({ version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] })
+  let n = 0
+  auto.checkForUpdates = async () => {
+    auto.checks += 1
+    n += 1
+    if (n === 1) throw new Error("ENOTFOUND github.com")
+    return { updateInfo: { version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] } }
+  }
+  const pm = new EventEmitter()
+  const timeouts = []
+  const seen = []
+  const updater = createUpdater({
+    autoUpdater: auto,
+    getVersion: () => "0.5.6",
+    dialog: dialog(),
+    persist: { load: () => ({}), save: () => {} },
+    notify: () => {},
+    setTimeout: (fn, ms) => {
+      timeouts.push({ fn, ms })
+      return { unref() {} }
+    },
+    setInterval: () => ({ unref() {} }),
+    powerMonitor: pm,
+  })
+  updater.subscribe((st) => seen.push(st.status))
+  updater.startBackgroundChecks()
+  await timeouts[0].fn()
+  assert.equal(updater.getState().status, "error")
+  pm.emit("unlock-screen")
+  await new Promise((r) => setTimeout(r, 30))
+  assert.equal(updater.getState().status, "ready")
+  assert.ok(seen.includes("ready"))
+  assert.equal(auto.installs.length, 0)
+})
+
 test("coming back online starts a check", async () => {
   const auto = mockAuto({ version: "0.5.7", files: [{ url: "Aftertrace-mac-arm64.zip" }] })
   let online = false

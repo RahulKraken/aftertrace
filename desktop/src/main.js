@@ -139,6 +139,7 @@ async function openWindow(hash) {
   } else {
     await loadUi(win, hash)
   }
+  updater.check({ interactive: false }).catch(() => {})
   return win
 }
 

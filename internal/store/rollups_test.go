@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -135,5 +136,38 @@ func TestCompactContentStripsPromptPayload(t *testing.T) {
 	_ = st.DB.QueryRow(`SELECT json_extract_string(attrs, '$."model"') FROM spans`).Scan(&model)
 	if model != "opus" {
 		t.Fatalf("non-content attr lost: %q", model)
+	}
+}
+
+func TestCompactContentBatchesManyPromptRows(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "c2.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var spans []Span
+	for i := 0; i < compactBatch+40; i++ {
+		spans = append(spans, Span{
+			TraceID: fmt.Sprintf("t%d", i), SpanID: fmt.Sprintf("s%d", i), Name: "claude_code.tool",
+			StartNS: int64(i), EndNS: int64(i) + 1, DurationMS: 1,
+			Attrs: map[string]any{"prompt": "SECRET", "model": "opus"},
+		})
+	}
+	if err := st.Insert(spans, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	n, err := st.CompactContent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatal("expected compact to rewrite tables")
+	}
+	var left int
+	if err := st.DB.QueryRow(`SELECT count(*) FROM spans WHERE json_extract(attrs, '$."prompt"') IS NOT NULL`).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != 0 {
+		t.Fatalf("prompt still stored on %d rows", left)
 	}
 }

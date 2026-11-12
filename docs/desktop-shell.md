@@ -6,7 +6,7 @@ Published **v0.5.7** stays on GitHub Releases until this tree is tagged. This tr
 
 ## 1. Updater
 
-electron-updater 6.8.12 against GitHub Releases (`latest-mac.yml` arm64 zip only). Check on launch, every hour, on wake from sleep, and when the network comes back. Silent auto-download; **no Download/Later prompt**. **Check for Updates…** (Aftertrace menu, under About; Settings row; tray) only inspects and downloads. **No auto-restart.** When the zip is ready: a quiet **Restart to update** in the sidebar footer next to Receiving, the same item in the tray, and one macOS notification (`Aftertrace vX is ready`) per version — click restarts if ready, otherwise opens the app. Restart sets `autoRunAppAfterInstall` and then `quitAndInstall`. MacUpdater ignores `isForceRunAfter` and only relaunches when that flag is true — leaving it false (0.5.4/0.5.5) made ShipIt replace the bundle with no new process. Quit after a download may install on the way out (`autoInstallOnAppQuit`) but does not relaunch.
+electron-updater 6.8.12 against GitHub Releases (`latest-mac.yml` arm64 zip only). Check on launch, every hour, on wake from sleep, on unlock-screen, when the network comes back, and when the dashboard window opens. Silent auto-download; **no Download/Later prompt**. **Check for Updates…** (Aftertrace menu, under About; Settings row; tray) only inspects and downloads. **No auto-restart.** When the zip is ready: a quiet **Restart to update** in the sidebar footer next to Receiving, the same item in the tray, and one macOS notification (`Aftertrace vX is ready`) per version — click restarts if ready, otherwise opens the app. Restart sets `autoRunAppAfterInstall` and then `quitAndInstall`. MacUpdater ignores `isForceRunAfter` and only relaunches when that flag is true — leaving it false (0.5.4/0.5.5) made ShipIt replace the bundle with no new process. Quit after a download may install on the way out (`autoInstallOnAppQuit`) but does not relaunch. While the sidecar recycles DuckDB the dashboard keeps the last snapshot and shows **Reconnecting…** instead of driver errors.
 
 Visible states: checking, downloading, ready, error / retry, up to date. Offline and cancelled downloads stay in error; the app keeps running.
 
@@ -22,7 +22,7 @@ Privacy: the check contacts GitHub Releases. No usage telemetry. Logs strip `ghp
 
 | What | Kind |
 | - | - |
-| `desktop/test/updater.test.js` — 0.5.0 sees 0.5.4, downloads with no prompt, notifies once per version, Restart calls `quitAndInstall`, overlapping checks share one download, launch/hourly/resume/online-return, offline/cancel retry | **Unit / mock** |
+| `desktop/test/updater.test.js` — 0.5.0 sees 0.5.4, downloads with no prompt, notifies once per version, Restart calls `quitAndInstall`, overlapping checks share one download, launch/hourly/resume/unlock-screen/online-return, offline/cancel retry | **Unit / mock** |
 | `desktop/test/quit.test.js` — sidecar stop then install | **Unit / mock** |
 | Playwright popover/recap PNGs | **Chromium layout**, not the native Mac menu extra |
 | Packed `Aftertrace.app` Info.plist + `latest-mac.yml` + zip sha512 vs published v0.5.3 zip (`CFBundleShortVersionString` `0.5.0`) on `macos-15` (`artifact-feed-smoke.sh`) | **Real files** on the GitHub-hosted Mac runner. Isolated `$HOME` is not enough: `AFTERTRACE_HOME` + `AFTERTRACE_USER_DATA_DIR` too. No tag/Release. |
