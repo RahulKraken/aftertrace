@@ -47,6 +47,7 @@ import llmJson from "./fixtures/tables/llm.json"
 import toolsJson from "./fixtures/tables/tools.json"
 import qSpansJson from "./fixtures/tables/q_spans.json"
 import spansJson from "./fixtures/tables/spans.json"
+import { WIDE_TURN_ID, wideTurn } from "./wideTurn"
 
 // Synthetic first prompts, so the demo reads like real use.
 const TITLES = [
@@ -150,6 +151,7 @@ function followUpPrompt(title: string | null | undefined, i: number) {
 }
 
 export function getTrace(id: string): Trace | undefined {
+  if (id === WIDE_TURN_ID) return wideTurn()
   return traceFiles[`./fixtures/traces/${id}.json`]
 }
 

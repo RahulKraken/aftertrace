@@ -23,7 +23,8 @@ const PAGES = [
   { hash: "/sessions", name: "sessions-electron", ready: `${PAINTED} && document.querySelectorAll('.sess td.c-title .title').length > 1 && [...document.querySelectorAll('.sess td.c-title .title')].every((el) => el.clientHeight > 8 && (el.textContent || '').trim().length > 8)` },
   { hash: "/findings", name: "findings-electron", ready: `${PAINTED} && !!document.querySelector('.fr.sel')` },
   { hash: "/spend", name: "spend-electron", ready: `${PAINTED} && (document.querySelector('.insight')?.textContent||'').length > 20 && /\\$/.test(document.querySelector('.hero .big')?.textContent||'')` },
-  { hash: "/trace/509cb3acac23db7c6e9b7d180a474268?long=1", name: "turn-electron", ready: `${PAINTED} && !!document.querySelector('.st-steps')` },
+  { hash: "/trace/wide-turn?view=story", name: "turn-electron", ready: `${PAINTED} && !!document.querySelector('.st-steps')` },
+  { hash: "/trace/wide-turn?view=timeline", name: "turn-timeline-electron", ready: `${PAINTED} && !!document.querySelector('.wf-body') && !!document.querySelector('.row [data-bar]')` },
 ]
 
 function sleep(ms) {

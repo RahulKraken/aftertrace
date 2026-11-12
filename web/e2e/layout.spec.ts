@@ -43,6 +43,28 @@ test.describe("shared app layout", () => {
     })
   }
 
+  test("sidebar count badges stay inside the sidebar from 960 to 1440", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("aftertrace-theme", "light")
+      if (document.documentElement) document.documentElement.dataset.theme = "light"
+    })
+    for (const width of [960, 1024, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto("/#/")
+      await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+      const side = page.locator(".side")
+      const box = await side.boundingBox()
+      expect(box?.width || 0, `sidebar width at ${width}`).toBeGreaterThanOrEqual(200)
+      const marks = page.locator(".side .nav .ct, .side .nav .live")
+      const n = await marks.count()
+      for (let i = 0; i < n; i++) {
+        const b = await marks.nth(i).boundingBox()
+        if (!b || !box) continue
+        expect(b.x + b.width, `nav badge clipped at ${width}`).toBeLessThanOrEqual(box.x + box.width + 1)
+      }
+    }
+  })
+
   test("Today week stats stay on one line from 960 to 1440", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("aftertrace-theme", "light")

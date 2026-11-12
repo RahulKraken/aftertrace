@@ -53,7 +53,7 @@ export function turnStory(t: Trace): string {
   if (model / tot >= 0.6) {
     return `Most of this turn was the model thinking (${pct(model / tot)}).`
   }
-  return `Turn ${t.turn_index} of ${t.turn_count} · ${sayDur(tot)} of wall clock.`
+  return `Turn ${t.turn_index} of ${t.turn_count}`
 }
 
 const WEEK_NS = 7 * 24 * 3600 * 1e9

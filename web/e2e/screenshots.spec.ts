@@ -26,6 +26,7 @@ mkdirSync(outDir, { recursive: true })
 mkdirSync(docsDir, { recursive: true })
 
 const HERO_TRACE = "509cb3acac23db7c6e9b7d180a474268"
+const WIDE_TURN = "wide-turn"
 
 const READY_UPDATE = {
   status: "ready",
@@ -234,7 +235,7 @@ test("story step opens the inspector, and Timeline keeps the choice", async ({ p
 test("waterfall default: bars own the page", async ({ page }) => {
   await page.goto(`/#/trace/${HERO_TRACE}?view=timeline`)
   await waitFonts(page)
-  await expect(page.getByRole("heading", { name: /approving tool calls/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /^Turn \d+ of \d+$/ })).toBeVisible()
   await expect(page.locator(".pane")).toHaveCount(0)
   await expect(page.locator(".minimap")).toHaveCount(0)
   await expect(page.locator(".chips")).toHaveCount(0)
@@ -288,6 +289,26 @@ test("waterfall numbers sit beside their bars", async ({ page }) => {
   await page.waitForTimeout(600)
   await shot(page, "waterfall-open", "light")
   await shot(page, "waterfall-open", "dark")
+})
+
+test("wide turn Timeline and Story at 1024 and 1440", async ({ page }) => {
+  for (const width of [1024, 1440] as const) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 720 })
+    await page.goto(`/#/trace/${WIDE_TURN}?view=timeline`)
+    await waitFonts(page)
+    await page.locator(".seg-view").getByRole("tab", { name: "Timeline" }).click()
+    await expect(page.locator(".wf-body")).toBeVisible()
+    await expect(page.locator(".story-line")).toHaveText("Turn 1 of 293")
+    await expect(page.locator(".row [data-bar]").first()).toBeVisible()
+    await shot(page, `turn-wide-timeline-${width}`, "light")
+    await shot(page, `turn-wide-timeline-${width}`, "dark")
+
+    await page.locator(".seg-view").getByRole("tab", { name: "Story" }).click()
+    await waitFonts(page)
+    await expect(page.locator(".st-steps")).toBeVisible()
+    await shot(page, `turn-wide-story-${width}`, "light")
+    await shot(page, `turn-wide-story-${width}`, "dark")
+  }
 })
 
 test("waterfall selected: pane takes the budget", async ({ page }) => {

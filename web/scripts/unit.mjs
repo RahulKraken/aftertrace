@@ -13,6 +13,9 @@ const vite = await createServer({
 })
 
 const { dur, durHead, tok, usd, sayDur, sayUsd, sayTok, moneyParts, pct, runCost } = await vite.ssrLoadModule("/src/lib/format.ts")
+const { barBox, placeBarLabel, spanExtent, MIN_BAR_PX } = await vite.ssrLoadModule("/src/lib/barLayout.ts")
+const { turnStory } = await vite.ssrLoadModule("/src/lib/story.ts")
+const { wideTurn } = await vite.ssrLoadModule("/src/mock/wideTurn.ts")
 const { actionSentence, moneyLabel, monthlyUSD, homeSavings, homeHeadline, cardMoney, shortTitle } = await vite.ssrLoadModule("/src/lib/welcome.ts")
 const { barSlot, labelDays, niceAxis } = await vite.ssrLoadModule("/src/lib/chart.ts")
 const { usageWindow, modelSlug } = await vite.ssrLoadModule("/src/lib/model.ts")
@@ -279,6 +282,53 @@ eq(recapShipped({ stats: { lines_added: 1234567, commits: 2048 } }).some((p) => 
 const ov = mockOverview()
 const weekSess = sessions.filter((s) => s.start_ns >= ov.lo && s.start_ns < ov.hi)
 eq(spendLead(weekSess, ov.week.cost_usd), "Two sessions made 71% of your spend.", "demo spend lead")
+
+const tinyBar = barBox(99.9, 0.001, 600)
+eq(tinyBar.widthPx >= MIN_BAR_PX, true, "barBox min width")
+eq(tinyBar.leftPx + tinyBar.widthPx <= 600 + 1e-6, true, "barBox stays in track")
+const after = placeBarLabel({ barLeft: 10, barWidth: 40, trackW: 400, labelW: 50 })
+eq(after.mode, "after", "label after when there is room")
+const inside = placeBarLabel({ barLeft: 10, barWidth: 380, trackW: 400, labelW: 50 })
+eq(inside.mode, "inside", "label inside a wide bar at the edge")
+eq(inside.left + 50 <= 400 + 1e-6, true, "inside label does not pass the edge")
+const before = placeBarLabel({ barLeft: 360, barWidth: 20, trackW: 400, labelW: 50 })
+eq(before.mode, "before", "label before a short bar at the edge")
+eq(before.left + 50 <= 400 + 1e-6, true, "before label does not pass the edge")
+const ext = spanExtent({
+  start_ns: 10,
+  end_ns: 20,
+  kids: [{ start_ns: 8, end_ns: 40, kids: [{ start_ns: 12, end_ns: 50 }] }],
+})
+eq(ext.start_ns, 8, "spanExtent includes earlier child")
+eq(ext.end_ns, 50, "spanExtent includes later grandchild")
+
+const quietTurn = turnStory({
+  turn_index: 1,
+  turn_count: 293,
+  spans: [{ name: "claude_code.interaction", duration_ms: 83_000, attrs: {} }],
+  breakdown: { model: 10, tool: 10, permission_wait: 0, retry: 0, hook: 0, other: 0 },
+})
+eq(quietTurn, "Turn 1 of 293", "turnStory fallback has no duration")
+eq(quietTurn.includes("wall clock"), false, "turnStory fallback has no wall clock")
+
+const wide = wideTurn()
+eq(wide.turn_count, 293, "wideTurn 293 turns")
+eq(wide.spans[0].duration_ms > 60_000, true, "wideTurn longer than a minute")
+eq(
+  wide.events.some((e) => String(e.attrs.response || "").length > 100),
+  true,
+  "wideTurn has 100+ character titles",
+)
+eq(
+  wide.spans.some((s) => s.duration_ms > 0 && s.duration_ms < 10) && wide.spans.some((s) => s.duration_ms > 20_000),
+  true,
+  "wideTurn mixes millisecond and long spans",
+)
+eq(
+  wide.spans.some((s) => s.kids?.length > 0) || wide.spans.filter((s) => s.parent_span_id && s.parent_span_id !== wide.spans[0].span_id).length > 2,
+  true,
+  "wideTurn has nested spans",
+)
 eq(spendLead([{ cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }, { cost_usd: 1 }], 5), null, "equal five sessions fall back")
 eq(spendLead([{ cost_usd: 8 }, { cost_usd: 1 }], 9), "One session made 89% of your spend.", "one session dominates")
 

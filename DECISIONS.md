@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: timeline names, bars and cursor on one column.
+
+**Choice.** Timeline span names live in a fixed `--labw` (240px) column that ellipsizes, with the full text on `title` and in the inspector. Duration · cost labels stay in the time track and flip inside or left of the bar when they would clip. Every timed span gets a ≥2px bar; the parent row uses the descendant extent. The cursor chip is only the offset from turn start (`dur()`). The timeline title is `Turn N of M`; duration stays in the Duration tile. Disclosure carets are chevrons, not child-count badges. The sidebar column cannot shrink below `--sidebar`; count badges are `flex: none` so 1024/1280 never clip them.
+
+**Why.** Rahul's real turn (Turn 1 of 293) had long names painting over bar labels, clipped `24.3s`, invisible short/parent bars, a `21.2s · 01:11:00` cursor, a title that disagreed with the Duration tile, a stray `3` in the tree, and a clipped sidebar.
+
+**How to reverse.** Restore `Waterfall.tsx` / `instrument.css` / `--sidebar: 220px` from the parent commit. Drop `web/src/lib/barLayout.ts` and `web/src/mock/wideTurn.ts`.
+
 ## Nov 12 2026: ship 0.5.8.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.
