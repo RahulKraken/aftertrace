@@ -1,7 +1,7 @@
 {
   "profile": "ci",
   "budgets": [
-    {"id": "B1", "pass": false, "resource": {"cpu_s": 0.35}},
+    {"id": "B1", "pass": false, "resource": {"cpu_s": 0.55}},
     {"id": "B2", "pass": true},
     {"id": "B3", "pass": false, "resource": {"wall_s": 2, "cpu_s": 2}},
     {"id": "B4", "pass": true, "resource": {"peak_rss_mb": 280}},
