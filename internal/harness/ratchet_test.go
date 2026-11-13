@@ -39,6 +39,24 @@ func TestRatchetGreenToRed(t *testing.T) {
 	}
 }
 
+func TestRatchetSkipsOtherOSResource(t *testing.T) {
+	base := &ratchetFile{GOOS: "darwin", Budgets: []ratchetBudget{
+		{ID: "B4", Pass: false, Resource: map[string]float64{"peak_rss_mb": 358}},
+	}}
+	rep := &Report{GOOS: "linux", Budgets: []Budget{
+		{ID: "B4", Pass: false, Measured: map[string]any{"peak_rss_mb": 536.0}},
+	}}
+	errs := checkRatchet(rep, base)
+	if len(errs) != 0 {
+		t.Fatalf("linux vs darwin resource should skip, got %v", errs)
+	}
+	rep.GOOS = "darwin"
+	errs = checkRatchet(rep, base)
+	if len(errs) != 1 || !strings.Contains(errs[0], "B4 peak_rss_mb") {
+		t.Fatalf("same OS should compare RSS, got %v", errs)
+	}
+}
+
 func TestRatchetInvalidNotSkipped(t *testing.T) {
 	base := &ratchetFile{Budgets: []ratchetBudget{{ID: "B6", Pass: false}}}
 	rep := &Report{Budgets: []Budget{

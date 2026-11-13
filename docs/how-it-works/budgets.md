@@ -16,7 +16,7 @@ aftertrace dev gen-history --size 2GiB --sessions 3000 --seed 42 --dir /tmp/proj
 AFTERTRACE_HARNESS=1 AFTERTRACE_HARNESS_PROFILE=full go test -count=1 -timeout 8h ./internal/harness -run TestScaleBudgets -v
 
 # Nightly-shaped run (512 MiB, 800 sessions, 10-minute idle, 10 crash trials).
-AFTERTRACE_HARNESS=1 AFTERTRACE_HARNESS_PROFILE=nightly go test -count=1 -timeout 3h ./internal/harness -run TestScaleBudgets -v
+AFTERTRACE_HARNESS=1 AFTERTRACE_HARNESS_PROFILE=nightly go test -count=1 -timeout 5h ./internal/harness -run TestScaleBudgets -v
 
 # PR CI-shaped run (32 MiB, 80 sessions, 20 s idle, 10 crash trials). Not representative.
 AFTERTRACE_HARNESS=1 AFTERTRACE_HARNESS_PROFILE=ci go test -count=1 -timeout 20m ./internal/harness -run TestScaleBudgets -v
@@ -43,9 +43,9 @@ Profiles:
 
 | Profile | JSONL size | Sessions | Idle | Isolation | Crash trials | Where |
 |---|---|---|---|---|---|---|
-| `ci` | 32 MiB | 80 | 20 s × 3 scenarios | 8 s / endpoint | 10 (SIGKILL at 5–90% of golden **import wall time**) | PR `scale` job on macos-latest, ~15 min |
-| `nightly` | 512 MiB | 800 | 10 min × 3 | 2 min / endpoint | 10 | `nightly.yml` daily (`workflow_dispatch` profile=nightly) |
-| `full` | 2 GiB | 3000 | 10 min × 3 | 2 min / endpoint | 10 | local / weekly Sunday job / `workflow_dispatch` profile=full |
+| `ci` | 32 MiB | 80 | 20 s × 3 scenarios | 8 s / endpoint | 10 (SIGKILL after 5–90% of golden **session count**) | PR `scale` job on macos-latest, ~15 min |
+| `nightly` | 512 MiB | 800 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | `nightly.yml` daily; push `.github/harness-dispatch` |
+| `full` | 2 GiB | 3000 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | local / weekly Sunday / push `.github/harness-dispatch` with `[harness-full]` |
 
 CI `workflow_dispatch` runs only the scale job and accepts `profile`, `corpus`, `sessions`, `idle`, and `crash_trials`. Empty inputs keep the profile defaults. PR CI keeps the small corpus so the job stays around 15 minutes.
 
@@ -57,11 +57,11 @@ Idle cadences are the real client timers (`internal/harness/cadence.go`). `TestC
 | `window_open_idle` | status; home overview+sessions; tray | 15 s; 30 s; 45 s (`IDLE_MS`) | report |
 | `live` | status (every page); `/api/session/{id}`; popover | 15 s; 5 s; 12 s (`OPEN_MS`) | report. Does **not** poll home at the same time. |
 
-Per-endpoint isolation CPU is a separate ~2-minute window (8 s in CI) that hits one route every 1 s and records the engine process's CPU change (`getrusage` / `ps` / `/proc/<pid>/stat`). A **no-traffic** window of the same length runs first. Drill-down is a CPU profile taken during a dedicated window-closed interval (`go tool pprof -top -tags`); labels are route templates, not raw paths. The findings-refresh goroutine is labelled `findings-refresh`. Not `RUSAGE_THREAD`.
+Per-endpoint isolation CPU is a separate ~2-minute window (8 s in CI) that hits one route every 1 s and records the engine process's CPU change (`getrusage` / `ps` / `/proc/<pid>/stat`). A **no-traffic** window of the same length runs first. Drill-down is a CPU profile taken during a dedicated window-closed interval of **at least 120 s** on nightly/full (so a tray glance at `HIDDEN_MS=60s` is in the sample; CI stays 8 s). `go tool pprof -top -tags`; labels are route templates (`r.Pattern`), not raw paths. The findings-refresh goroutine is labelled `findings-refresh`. Not `RUSAGE_THREAD`.
 
 B1 is **Invalid** (not a miss) when the closed window's wall time is outside `[0.85, 1.25]×idle` or supervisor health hits are outside ±20% of idle seconds. B6 is **Invalid** when `AFTERTRACE_REOPEN` does not fire in-window (Reopen waits on the import write lock); transport error strings are recorded. Invalid results fail the ratchet and are never skipped.
 
-`powermetrics` starts in the background for the WINDOW CLOSED idle window when `AFTERTRACE_POWERMETRICS=1` (nightly/weekly). Stop is bounded: SIGINT, then SIGKILL the process group after 5 s. Nightly 43421664859 logged `window_closed` at 13:03:56Z then uploaded nothing until the 360-minute job cancelled at 18:01:29Z — `stopPM()` was blocked in `cmd.Wait` because `sudo powermetrics` ignored Interrupt. Electron main-process CPU still needs a packaged desktop or a self-hosted Mac with sudo.
+`powermetrics` starts in the background for the WINDOW CLOSED idle window when `AFTERTRACE_POWERMETRICS=1` (nightly/weekly). It is launched with a fixed sample count (`-n`, window seconds + 15) so it exits on its own. Stop uses `sudo kill -INT` then `sudo kill -9` on **powermetrics' own PID**, not sudo's: the harness is a normal user, so a process-group SIGINT/SIGKILL only kills sudo and leaves the root child running (nightly 43478795531). Output is `run-<ts>/powermetrics.txt`, copied to `AFTERTRACE_HARNESS_OUT/powermetrics.txt` for the artifact glob. Electron main-process CPU still needs a packaged desktop or a self-hosted Mac with sudo.
 
 Per-phase bounds (fail with a phase name, do not burn the job timeout):
 
@@ -70,16 +70,18 @@ Per-phase bounds (fail with a phase name, do not burn the job timeout):
 | gen-history | wall of the generator (seconds) |
 | first import / B8 restart | `ImportWait` (45 min nightly, 2 h full, 20 min CI) |
 | B3 `--exit-after-warm` | min(10 min, `ImportWait`) |
-| B8 kill wait | `importDur × pct/100` (heartbeat every 30 s) |
+| B8 kill wait | `ImportWait`, until N ingested sessions (heartbeat every 30 s) |
 | window-closed / open-idle / live | `Idle` (10 min nightly) |
-| powermetrics stop | 5 s then SIGKILL |
+| powermetrics stop | `sudo kill -INT` on child PID, 5 s, then `sudo kill -9`; `-n` samples as backstop |
 | isolation per endpoint | `Isolation` (2 min nightly) |
-| pprof | profile seconds + 15 s HTTP |
+| pprof | 120 s nightly/full (8 s CI) + 30 s HTTP |
 | B6 load window | `Load` (60 s) + 30 s Reopen wait |
 
 ## Ratchet
 
-`internal/harness/testdata/baseline-<profile>.json` (`ci`, `nightly`, `full`) stores pass/fail plus resource numbers (`cpu_s`, `peak_rss_mb`, `hits`, `wall_s`). CI fails if a previously green budget turns red, a red budget flips green without a baseline update, a stored resource regresses by more than about 10% (including 0→positive), or any result is **Invalid**. Invalid is never skipped. Already-red correctness budgets stay red until their owner PR. `AFTERTRACE_HARNESS_RATCHET=0` skips the check.
+`internal/harness/testdata/baseline-<profile>.json` (`ci`, `nightly`, `full`) stores pass/fail plus resource numbers (`cpu_s`, `peak_rss_mb`, `hits`, `wall_s`) and a `goos`. Resource comparisons are skipped when the run's GOOS does not match the baseline (a Linux 2 GiB RSS must not fail the macOS 512 MiB memory ratchet). CI fails if a previously green budget turns red, a red budget flips green without a baseline update, a stored resource regresses by more than about 10% (including 0→positive), or any result is **Invalid**. Invalid is never skipped. Already-red correctness budgets stay red until their owner PR. `AFTERTRACE_HARNESS_RATCHET=0` skips the check.
+
+The nightly ratchet is the green 512 MiB darwin run 43478795531 (B1 14.46 CPU-s, B4 358 MB), not the 2 GiB copy.
 
 | Budget | Owner PR | Gate |
 |---|---|---|
@@ -104,9 +106,35 @@ Correctness budgets B6–B9 become PR gates in those owner PRs. Resource budgets
 | B6 | Reads under load | 60 s, 8 concurrent readers hit every GET endpoint at 4 Hz while OTLP replays 50 batches/s and a backfill runs. A Reopen is triggered in-window (`AFTERTRACE_REOPEN`). Every response 200; no 5xx, no `database is closed`, no 503. If Reopen never fires (blocked behind the import lock), the row is **Invalid**, not a miss. |
 | B7a | Late-arriving cost | Single copy: traces first, then `api_request` cost. Rollups equal the INPUT oracle, including trace/session/day cost. Owner: PR 6. |
 | B7b | Counts with duplicates | Replay each batch 3 times, shuffled. Rollups equal an INPUT oracle (unique keys and cost of the generated batches, not a recount of the DB under test). Compare spans, events, meta, llm/trace/session/day/model cost (float tolerance 1e-6). Owner: PR 6. |
-| B8 | Resume after crash | 10 × SIGKILL at 5–90% of the **golden import wall time**, then restart. Size and session count are recorded at kill (DuckDB file size jumps at checkpoint, so wall time is the trigger). Full counts, cost sums, and per-session key hash match a clean import; no `history_files` row marked `imported` without span rows. Fingerprint is `OpenReadOnly`. |
+| B8 | Resume after crash | 10 × SIGKILL after N ingested sessions (5–90% of the golden distinct session count), then restart. Trials killed after ingest finished (session count ≥ golden) are **Invalid** and excluded. Report **matched/valid**. Full counts, cost sums, and per-session key hash match a clean import; no `history_files` row marked `imported` without span rows. Fingerprint is `OpenReadOnly`. |
 | B9 | OTLP never lost silently | With store failure injected, exporters get HTTP 503 **and** gRPC UNAVAILABLE. After recovery the batch's **events** are present exactly once (spans already dedupe on their primary key). The exactly-once check is trivially true today; PR 7 owns a failure-after-commit-plus-retry test. |
 | B10 | API latency | Existing `internal/perf` budget: p95 < 100 ms target, < 300 ms hard. Kept as-is in the Ubuntu Go job; the harness also reports p95 on its corpus. |
+
+## Baselines from main — 512 MiB nightly (darwin, run 43478795531)
+
+Green [nightly 43478795531](https://github.com/RahulKraken/aftertrace/actions/runs/43478795531) on **darwin/arm64**, macos-latest, head `4fe2fd4`. Profile `nightly`: 512 MiB JSONL (792 245 283 bytes on disk), 800 sessions, seed 42, 10-minute idle. First import **5 m 57.887 s**, peak RSS **358.0 MB**, 0 spill, **153 200** spans. Do **not** use hung run 43421664859 (B4 359.7 / B8 8 of 10 / B3 511 ms).
+
+B8 on that run used wall-time % of golden import, which includes post-ingest rollup. Trials 0–5 were mid-import (62–628 sessions). Trials 6–9 were killed after **800/800** sessions were already in, so they resumed nothing. Round 4 reports B8 as **matched/valid**; those four trials are Invalid and excluded. Real mid-import result on main: **0/6**.
+
+| ID | Measured | Corpus / window | Valid? | vs target |
+|---|---|---|---|---|
+| B1 | **14.460 CPU-s** in 600.0 s WINDOW CLOSED (quota 3.000). 601 supervisor health, 10 tray health+glance. Electron main: **TODO**. | 512 MiB JSONL, 10 min closed | Valid | **miss** |
+| B2 | size and mtime unchanged. | 512 MiB, 10 min closed | Valid | pass |
+| B3 | **450 ms** wall, **0.547 CPU-s**, writes=true. Owner PR 3. | 512 MiB copy, `--exit-after-warm` | Valid | **miss** (writes) |
+| B4 | Peak RSS **358.0 MB**. | 512 MiB JSONL, 153 200 spans | Valid | **miss** |
+| B5 | **0** spill hits. | 512 MiB, 5 m 58 s import | Valid | pass |
+| B6 | 200=406, err=29, `reopened=true` (`/api/field-values` deadlines). | 512 MiB + OTLP + forced Reopen | Valid | **miss** |
+| B7a | copies=1: trace/session/day cost **0 vs 0.20**. Owner PR 6. | 20 OTLP batches × 1 | Valid | **miss** |
+| B7b | events **60 vs 20**. Owner PR 6. | 20 OTLP batches × 3 | Valid | **miss** |
+| B8 | **0/6** matched/valid; **4 invalid** (trials 6–9 killed after ingest, 800/800 sessions). Trials 0–5 mid-import (62–628 sessions) did not match. | 512 MiB, 10 SIGKILL | 6 valid / 4 invalid | **miss** |
+| B9 | HTTP **400** AND gRPC **Unknown**; events=**1**. Owner PR 7. | empty store + sentinel | Valid | **miss** |
+| B10 | p95 under 300 ms. | 512 MiB after idle | Valid | pass |
+
+Isolation / 2 min: none **0.200**, health 0.070, glance 6.850, status 11.020, overview 7.130, sessions 0.210. Closed-window pprof on that run was **50 ms / 30 s** (cache hot, after isolation). Round 4 captures **120 s** during window-closed traffic so a tray glance is in the sample.
+
+Open-idle **24.300 CPU-s** / 10 min. Live **33.110 CPU-s** / 10 min.
+
+Nightly ratchet (`baseline-nightly.json`, `goos: darwin`) is these numbers: B1 14.46, B4 358, B3 0.45 / 0.547. Linux runs skip the darwin resource keys.
 
 ## Baselines from main — round 3 (this PR)
 
@@ -126,7 +154,7 @@ B3 in a clean dir is **not** a 10-minute re-import. Timestamped `b3-serve-202611
 | B6 | Not overlapped with the 2 GiB first import this round. Round-2 overlap: Reopen did not fire (`reopened=false`) → **Invalid**. After WaitWarm, 32 MiB/CI: `reopened=true` with `/api/cost` or `/api/field-values` deadlines. | 2 GiB overlap Invalid; 32 MiB Valid miss | | |
 | B7a | copies=1, traces then logs: spans/events match (40/20). **trace/session/day cost 0 vs 0.20**. llm_facts 0.20. Owner PR 6 (`refreshTraces` never reapplies later `api_request` cost). | 20 OTLP batches × 1, empty store | Valid | **miss** |
 | B7b | 20 batches × 3: events **60** vs unique **20**, `meta.spans` **120** vs **40**, plus the same cost=0. | 20 OTLP batches × 3, empty store | Valid | **miss** |
-| B8 | **1/10** matched (trial 6 at 61% / 2021 sessions). 9/10 left imported-without-rows (1–2 files, 163–235 spans short). Trials 0–1 killed at 188 and 499 sessions (not leftover DBs). SIGKILL at 5–90% of the 24 m 57 s import. | 2 GiB, 10 SIGKILL trials | Valid | **miss** |
+| B8 | **1/10** matched/valid (trial 6 at 61% / 2021 sessions). 9/10 left imported-without-rows (1–2 files, 163–235 spans short). Trials 0–1 killed at 188 and 499 sessions (not leftover DBs). All 10 were mid-import (sessions < 3000); 0 invalid. Wall-time % on this corpus happened to still be ingesting. | 2 GiB, 10 SIGKILL trials | 10 valid / 0 invalid | **miss** |
 | B9 | HTTP **400** AND gRPC **Unknown**; events=**1** (trivial exactly-once). PR 7 owns failure-after-commit-plus-retry. | empty store + sentinel | Valid | **miss** |
 | B10 | 32 MiB p95 under 300 ms. Not re-measured after the 2 GiB idle (ONLY=B1–B5,B8). | 32 MiB | Valid | pass on 32 MiB |
 

@@ -3,10 +3,12 @@
 package harness
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -46,12 +48,56 @@ func TestStopProcessGroupDoesNotBlock(t *testing.T) {
 	}
 }
 
-func TestCrashKillPct(t *testing.T) {
-	if g := crashKillPct(0, 10); g != 5 {
+func TestStopSudoChildKillsRootProcess(t *testing.T) {
+	if os.Getenv("HARNESS_SUDO_IGNORE_SIGNALS") == "1" {
+		signal.Ignore(syscall.SIGINT, syscall.SIGTERM)
+		time.Sleep(60 * time.Second)
+		return
+	}
+	if err := exec.Command("sudo", "-n", "true").Run(); err != nil {
+		t.Skip("passwordless sudo not available")
+	}
+	cmd := exec.Command("sudo", "-n", "env", "HARNESS_SUDO_IGNORE_SIGNALS=1", os.Args[0], "-test.run=^TestStopSudoChildKillsRootProcess$")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	sudoPID := cmd.Process.Pid
+	child := waitNamedChild(sudoPID, filepath.Base(os.Args[0]), 3*time.Second)
+	if child <= 0 {
+		_ = exec.Command("sudo", "-n", "kill", "-9", "-"+strconv.Itoa(sudoPID)).Run()
+		waitProc(cmd.Process, 2*time.Second)
+		t.Fatal("no root child of sudo")
+	}
+	t.Logf("sudo pid %d root child %d", sudoPID, child)
+	t0 := time.Now()
+	killed := stopRootPID(child, 200*time.Millisecond)
+	elapsed := time.Since(t0)
+	if elapsed > 3*time.Second {
+		t.Fatalf("stopRootPID blocked %s", elapsed)
+	}
+	if pidAlive(child) {
+		_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(child)).Run()
+		t.Fatalf("root child %d still alive after sudo kill (killed=%v)", child, killed)
+	}
+	if cmd.Process != nil && pidAlive(cmd.Process.Pid) {
+		_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(cmd.Process.Pid)).Run()
+	}
+	waitProc(cmd.Process, 2*time.Second)
+}
+
+func TestCrashKillSessions(t *testing.T) {
+	if g := crashKillSessions(0, 10, 800); g != 40 {
 		t.Fatalf("first %d", g)
 	}
-	if g := crashKillPct(9, 10); g != 90 {
+	if g := crashKillSessions(9, 10, 800); g != 720 {
 		t.Fatalf("last %d", g)
+	}
+	for i := 0; i < 10; i++ {
+		n := crashKillSessions(i, 10, 800)
+		if n < 1 || n >= 800 {
+			t.Fatalf("trial %d sessions %d not mid-import", i, n)
+		}
 	}
 }
 
@@ -131,6 +177,9 @@ func TestScaleBudgets(t *testing.T) {
 	}
 	writeReport(work)
 	writeReport(reportDir)
+	for _, name := range []string{"powermetrics.txt", "pprof-closed.pb.gz"} {
+		copyIfExists(filepath.Join(work, name), filepath.Join(reportDir, name))
+	}
 	if pth := os.Getenv("AFTERTRACE_HARNESS_JSON"); pth != "" {
 		if err := rep.Write(pth); err != nil {
 			t.Fatal(err)
@@ -168,4 +217,18 @@ func TestScaleBudgets(t *testing.T) {
 	if errs := checkRatchet(rep, base); len(errs) > 0 {
 		t.Errorf("ratchet: %v", errs)
 	}
+}
+
+func copyIfExists(src, dst string) {
+	in, err := os.Open(src)
+	if err != nil {
+		return
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return
+	}
+	defer out.Close()
+	_, _ = io.Copy(out, in)
 }

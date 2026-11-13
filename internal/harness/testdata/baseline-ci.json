@@ -1,5 +1,6 @@
 {
   "profile": "ci",
+  "goos": "darwin",
   "budgets": [
     {"id": "B1", "pass": false, "resource": {"cpu_s": 0.55}},
     {"id": "B2", "pass": true},

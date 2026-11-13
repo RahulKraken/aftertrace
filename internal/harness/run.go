@@ -193,7 +193,7 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 					none := measureNoTraffic(t, idleProc, p)
 					rep.Isolation = append(rep.Isolation, none)
 					rep.Isolation = append(rep.Isolation, measureIsolation(t, idleProc, p)...)
-					rep.Pprof = captureClosedPprof(t, idleProc, work, p.Isolation())
+					rep.Pprof = captureClosedPprof(t, idleProc, work, p)
 					end()
 				}
 				if wantBudget("B10") {
@@ -367,7 +367,7 @@ func measureRestart(t *testing.T, bin, work, hist, golden string, p Profile) (Bu
 
 func measureIdleClosed(t *testing.T, proc *Proc, p Profile, work string) (Budget, Budget, ScenarioCPU) {
 	db, wal := snapFile(proc.DB), snapFile(proc.DB+".wal")
-	stopPM := startPowermetrics(t, filepath.Join(work, "powermetrics.txt"))
+	stopPM := startPowermetrics(t, filepath.Join(work, "powermetrics.txt"), p.Idle)
 	sc := measureIdleScenario(t, proc, p, ScenarioClosed)
 	stopPM()
 	db2, wal2 := snapFile(proc.DB), snapFile(proc.DB+".wal")

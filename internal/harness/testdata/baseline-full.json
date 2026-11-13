@@ -1,5 +1,6 @@
 {
   "profile": "full",
+  "goos": "linux",
   "budgets": [
     {"id": "B1", "pass": false, "resource": {"cpu_s": 60}},
     {"id": "B2", "pass": true},

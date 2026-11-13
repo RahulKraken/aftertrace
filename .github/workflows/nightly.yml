@@ -2,16 +2,20 @@ name: Nightly scale
 
 # 10-minute idle energy run. Weekly job is the full 2 GiB corpus.
 # Report-only: a budget miss does not fail the job.
-# Job timeout stays 360 min. Run 43393421141 / 43421664859 burned hours in
-# stopPowermetrics Wait() after window_closed — sudo powermetrics ignored SIGINT.
-# Harness now SIGKILLs that process group after 5s.
+# Job timeout stays 360 min. go test -timeout is 5h so a hang dumps stacks
+# before the 6h job cap.
+#
+# Do not push this file to retrigger: that cancelled Desktop macOS packaging.
+# Trigger idle by pushing .github/harness-dispatch (any commit message).
+# Trigger weekly 2 GiB by pushing that file with [harness-full] in the
+# commit message. workflow_dispatch is 403 for the cloud agent.
 on:
   schedule:
     - cron: "27 7 * * *"
     - cron: "15 8 * * 0"
   push:
     paths:
-      - ".github/workflows/nightly.yml"
+      - ".github/harness-dispatch"
   workflow_dispatch:
     inputs:
       profile:
@@ -25,7 +29,7 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
+    if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[harness-full]') || github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
     runs-on: macos-latest
     timeout-minutes: 360
     env:
@@ -45,9 +49,11 @@ jobs:
           AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
-          go test -count=1 -timeout 6h ./internal/harness -run TestScaleBudgets -v
+          go test -count=1 -timeout 5h ./internal/harness -run TestScaleBudgets -v
           echo "----- budget summary -----"
           cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
+          echo "----- powermetrics files -----"
+          ls -la "$AFTERTRACE_HARNESS_OUT"/powermetrics.txt "$AFTERTRACE_HARNESS_OUT"/run-*/powermetrics.txt 2>/dev/null || true
       - name: Upload budget report
         if: always()
         uses: actions/upload-artifact@v7
@@ -57,12 +63,15 @@ jobs:
             ${{ runner.temp }}/harness/budgets.json
             ${{ runner.temp }}/harness/budgets.md
             ${{ runner.temp }}/harness/powermetrics.txt
+            ${{ runner.temp }}/harness/pprof-closed.pb.gz
+            ${{ runner.temp }}/harness/run-*/powermetrics.txt
+            ${{ runner.temp }}/harness/run-*/pprof-closed.pb.gz
           if-no-files-found: ignore
           retention-days: 14
 
   full:
     name: Weekly 2 GiB
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full' || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full' || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0' || github.event_name == 'push' && contains(github.event.head_commit.message, '[harness-full]') }}
     runs-on: macos-latest
     timeout-minutes: 480
     env:
@@ -82,9 +91,11 @@ jobs:
           AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
-          go test -count=1 -timeout 8h ./internal/harness -run TestScaleBudgets -v
+          go test -count=1 -timeout 7h ./internal/harness -run TestScaleBudgets -v
           echo "----- budget summary -----"
           cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
+          echo "----- powermetrics files -----"
+          ls -la "$AFTERTRACE_HARNESS_OUT"/powermetrics.txt "$AFTERTRACE_HARNESS_OUT"/run-*/powermetrics.txt 2>/dev/null || true
       - name: Upload budget report
         if: always()
         uses: actions/upload-artifact@v7
@@ -94,7 +105,8 @@ jobs:
             ${{ runner.temp }}/harness/budgets.json
             ${{ runner.temp }}/harness/budgets.md
             ${{ runner.temp }}/harness/powermetrics.txt
+            ${{ runner.temp }}/harness/pprof-closed.pb.gz
+            ${{ runner.temp }}/harness/run-*/powermetrics.txt
+            ${{ runner.temp }}/harness/run-*/pprof-closed.pb.gz
           if-no-files-found: ignore
           retention-days: 30
-
-# retrigger idle job after powermetrics SIGKILL (do not raise timeout-minutes)

@@ -110,3 +110,17 @@ func (p Profile) Isolation() time.Duration {
 	}
 	return 8 * time.Second
 }
+
+// PprofSeconds is the closed-window CPU profile length. Nightly/full capture
+// at least 120 s so a tray glance (HIDDEN_MS=60s) is in the sample. Labels are
+// route templates (r.Pattern), not raw paths.
+func (p Profile) PprofSeconds() int {
+	if p.Idle >= 10*time.Minute {
+		return 120
+	}
+	sec := int(p.Isolation().Seconds())
+	if sec < 5 {
+		return 5
+	}
+	return sec
+}

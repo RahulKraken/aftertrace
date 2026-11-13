@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type ratchetFile struct {
 	Profile string          `json:"profile"`
+	GOOS    string          `json:"goos,omitempty"`
 	Budgets []ratchetBudget `json:"budgets"`
 }
 
@@ -73,6 +75,9 @@ func checkRatchet(rep *Report, base *ratchetFile) []string {
 		}
 		if !want.Pass && got.Pass {
 			errs = append(errs, fmt.Sprintf("%s turned green (was red)", want.ID))
+		}
+		if base.GOOS != "" && rep.GOOS != "" && !strings.EqualFold(base.GOOS, rep.GOOS) {
+			continue
 		}
 		for k, prev := range want.Resource {
 			cur, ok := resourceNumber(got.Measured, k)

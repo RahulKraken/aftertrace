@@ -117,12 +117,18 @@ func TestProfiles(t *testing.T) {
 	if nightly.ShortIdle() {
 		t.Fatal("nightly idle should be 10 minutes")
 	}
+	if nightly.PprofSeconds() < 120 {
+		t.Fatalf("nightly pprof %d want >=120", nightly.PprofSeconds())
+	}
 	full := profileNamed("full")
 	if full.Size != 2<<30 || full.Sessions != 3000 || full.Idle != 10*time.Minute {
 		t.Fatalf("full: %+v", full)
 	}
 	if full.SmallCorpus() || full.ShortIdle() {
 		t.Fatal("full should be representative")
+	}
+	if full.PprofSeconds() < 120 {
+		t.Fatalf("full pprof %d want >=120", full.PprofSeconds())
 	}
 }
 

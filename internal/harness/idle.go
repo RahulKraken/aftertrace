@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -163,15 +164,9 @@ func measureNoTraffic(t *testing.T, proc *Proc, p Profile) EndpointCPU {
 	return row
 }
 
-func captureClosedPprof(t *testing.T, proc *Proc, work string, d time.Duration) *PprofSummary {
+func captureClosedPprof(t *testing.T, proc *Proc, work string, p Profile) *PprofSummary {
 	t.Helper()
-	sec := int(d.Seconds())
-	if sec < 5 {
-		sec = 5
-	}
-	if sec > 30 {
-		sec = 30
-	}
+	sec := p.PprofSeconds()
 	out := filepath.Join(work, "pprof-closed.pb.gz")
 	stop := make(chan struct{})
 	tr := startScenario(proc, ScenarioClosed, stop)
@@ -191,7 +186,7 @@ func capturePprofCPU(t *testing.T, proc *Proc, seconds int, outPath string) *Ppr
 		return nil
 	}
 	url := fmt.Sprintf("http://%s/debug/pprof/profile?seconds=%d", proc.UI, seconds)
-	client := &http.Client{Timeout: time.Duration(seconds+15) * time.Second}
+	client := &http.Client{Timeout: time.Duration(seconds+30) * time.Second}
 	res, err := client.Get(url)
 	if err != nil {
 		t.Logf("pprof profile: %v", err)
@@ -228,12 +223,13 @@ func pprofText(profile, flag string) string {
 	return s
 }
 
-// powermetricsStopWait is how long stopPowermetrics waits after SIGINT
-// before SIGKILL. Nightly 43393421141 sat in cmd.Wait for 120+ minutes
-// after window_closed because sudo powermetrics ignored Interrupt.
+// powermetricsStopWait is how long we wait after sudo kill -INT on the
+// powermetrics child before sudo kill -9. SIGINT/SIGKILL of sudo's process
+// group (the harness user) does not kill a root child: nightly 43478795531
+// killed sudo and left powermetrics running.
 const powermetricsStopWait = 5 * time.Second
 
-func startPowermetrics(t *testing.T, out string) func() {
+func startPowermetrics(t *testing.T, out string, window time.Duration) func() {
 	t.Helper()
 	if os.Getenv("AFTERTRACE_POWERMETRICS") != "1" {
 		return func() {}
@@ -247,7 +243,16 @@ func startPowermetrics(t *testing.T, out string) func() {
 		t.Logf("powermetrics out: %v", err)
 		return func() {}
 	}
-	cmd := exec.Command("sudo", "-n", "powermetrics", "--samplers", "cpu_power,tasks", "-i", "1000", "-f", "text", "--show-process-coalition")
+	samples := int(window/time.Second) + 15
+	if samples < 5 {
+		samples = 5
+	}
+	cmd := exec.Command("sudo", "-n", "powermetrics",
+		"--samplers", "cpu_power,tasks",
+		"-i", "1000",
+		"-n", strconv.Itoa(samples),
+		"-f", "text",
+		"--show-process-coalition")
 	cmd.Stdout = f
 	cmd.Stderr = f
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -256,18 +261,37 @@ func startPowermetrics(t *testing.T, out string) func() {
 		t.Logf("powermetrics: %v", err)
 		return func() {}
 	}
-	t.Logf("powermetrics pid %d during idle", cmd.Process.Pid)
+	sudoPID := cmd.Process.Pid
+	child := waitNamedChild(sudoPID, "powermetrics", 3*time.Second)
+	t.Logf("powermetrics sudo pid %d child pid %d samples %d during idle", sudoPID, child, samples)
 	return func() {
-		t.Log("stopping powermetrics")
-		if stopProcessGroup(cmd.Process, powermetricsStopWait) {
-			t.Log("powermetrics did not exit after SIGINT; sent SIGKILL to process group")
+		t.Logf("stopping powermetrics child pid %d (sudo %d)", child, sudoPID)
+		pids := []int{}
+		if child > 0 {
+			pids = append(pids, child)
+		} else {
+			pids = append(pids, pgrepName("powermetrics")...)
 		}
+		killed := false
+		for _, pid := range pids {
+			if stopRootPID(pid, powermetricsStopWait) {
+				killed = true
+			}
+		}
+		if killed {
+			t.Log("powermetrics did not exit after SIGINT; sudo kill -9 on child pid")
+		}
+		if cmd.Process != nil && pidAlive(cmd.Process.Pid) {
+			_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(cmd.Process.Pid)).Run()
+		}
+		waitProc(cmd.Process, 2*time.Second)
 		f.Close()
 	}
 }
 
 // stopProcessGroup sends SIGINT, waits graceful, then SIGKILL's the
 // process group. Returns true if it had to SIGKILL or abandon Wait.
+// This cannot stop a root child of sudo; use stopRootPID for that.
 func stopProcessGroup(p *os.Process, graceful time.Duration) (killed bool) {
 	if p == nil {
 		return false
@@ -291,5 +315,115 @@ func stopProcessGroup(p *os.Process, graceful time.Duration) (killed bool) {
 		case <-time.After(2 * time.Second):
 		}
 		return true
+	}
+}
+
+func pidAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
+}
+
+func pgrepChildren(parent int) []int {
+	if parent <= 0 {
+		return nil
+	}
+	out, err := exec.Command("pgrep", "-P", strconv.Itoa(parent)).Output()
+	if err != nil {
+		return nil
+	}
+	return parsePIDs(string(out))
+}
+
+func pgrepName(name string) []int {
+	out, err := exec.Command("pgrep", "-x", name).Output()
+	if err != nil {
+		return nil
+	}
+	return parsePIDs(string(out))
+}
+
+func parsePIDs(s string) []int {
+	var pids []int
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		pid, err := strconv.Atoi(line)
+		if err == nil && pid > 1 {
+			pids = append(pids, pid)
+		}
+	}
+	return pids
+}
+
+func procName(pid int) string {
+	out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func waitNamedChild(parent int, name string, d time.Duration) int {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		children := pgrepChildren(parent)
+		for _, pid := range children {
+			n := strings.ToLower(procName(pid))
+			if strings.Contains(n, strings.ToLower(name)) {
+				return pid
+			}
+		}
+		if len(children) == 1 {
+			return children[0]
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if pids := pgrepName(name); len(pids) > 0 {
+		return pids[0]
+	}
+	return 0
+}
+
+// stopRootPID sends SIGINT then SIGKILL as root via sudo kill, targeting
+// pid itself (the root child), not sudo. Returns true if SIGKILL ran.
+func stopRootPID(pid int, graceful time.Duration) (killed bool) {
+	if pid <= 0 {
+		return false
+	}
+	_ = exec.Command("sudo", "-n", "kill", "-INT", strconv.Itoa(pid)).Run()
+	deadline := time.Now().Add(graceful)
+	for time.Now().Before(deadline) {
+		if !pidAlive(pid) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(pid)).Run()
+	for i := 0; i < 40; i++ {
+		if !pidAlive(pid) {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return true
+}
+
+func waitProc(p *os.Process, d time.Duration) {
+	if p == nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = p.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(d):
 	}
 }

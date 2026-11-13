@@ -1,10 +1,11 @@
 {
   "profile": "nightly",
+  "goos": "darwin",
   "budgets": [
-    {"id": "B1", "pass": false, "resource": {"cpu_s": 60}},
+    {"id": "B1", "pass": false, "resource": {"cpu_s": 14.46}},
     {"id": "B2", "pass": true},
-    {"id": "B3", "pass": false, "resource": {"wall_s": 2, "cpu_s": 3}},
-    {"id": "B4", "pass": false, "resource": {"peak_rss_mb": 590}},
+    {"id": "B3", "pass": false, "resource": {"wall_s": 0.45, "cpu_s": 0.547}},
+    {"id": "B4", "pass": false, "resource": {"peak_rss_mb": 358}},
     {"id": "B5", "pass": true, "resource": {"hits": 0}},
     {"id": "B6", "pass": false},
     {"id": "B7a", "pass": false},
