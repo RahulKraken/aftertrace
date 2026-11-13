@@ -95,3 +95,5 @@ jobs:
           retention-days: 30
 
 # retrigger idle job
+
+# retrigger after B6 Invalid fix
