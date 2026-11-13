@@ -93,3 +93,5 @@ jobs:
             ${{ runner.temp }}/harness/powermetrics.txt
           if-no-files-found: ignore
           retention-days: 30
+
+# retrigger idle job
