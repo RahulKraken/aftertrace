@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: "27 7 * * *"
     - cron: "15 8 * * 0"
+  push:
+    paths:
+      - ".github/workflows/nightly.yml"
   workflow_dispatch:
     inputs:
       profile:
@@ -19,7 +22,7 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
     runs-on: macos-latest
     timeout-minutes: 180
     env:
