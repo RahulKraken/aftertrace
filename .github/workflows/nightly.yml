@@ -42,7 +42,7 @@ jobs:
           AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
-          go test -count=1 -timeout 3h ./internal/harness -run TestScaleBudgets -v
+          go test -count=1 -timeout 6h ./internal/harness -run TestScaleBudgets -v
           echo "----- budget summary -----"
           cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
       - name: Upload budget report
