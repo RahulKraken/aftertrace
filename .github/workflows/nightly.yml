@@ -24,7 +24,7 @@ jobs:
     name: 10-minute idle
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
     runs-on: macos-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     env:
       CGO_ENABLED: "1"
       AFTERTRACE_HARNESS: "1"
