@@ -228,6 +228,11 @@ func pprofText(profile, flag string) string {
 	return s
 }
 
+// powermetricsStopWait is how long stopPowermetrics waits after SIGINT
+// before SIGKILL. Nightly 43393421141 sat in cmd.Wait for 120+ minutes
+// after window_closed because sudo powermetrics ignored Interrupt.
+const powermetricsStopWait = 5 * time.Second
+
 func startPowermetrics(t *testing.T, out string) func() {
 	t.Helper()
 	if os.Getenv("AFTERTRACE_POWERMETRICS") != "1" {
@@ -245,6 +250,7 @@ func startPowermetrics(t *testing.T, out string) func() {
 	cmd := exec.Command("sudo", "-n", "powermetrics", "--samplers", "cpu_power,tasks", "-i", "1000", "-f", "text", "--show-process-coalition")
 	cmd.Stdout = f
 	cmd.Stderr = f
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		f.Close()
 		t.Logf("powermetrics: %v", err)
@@ -252,8 +258,38 @@ func startPowermetrics(t *testing.T, out string) func() {
 	}
 	t.Logf("powermetrics pid %d during idle", cmd.Process.Pid)
 	return func() {
-		_ = cmd.Process.Signal(os.Interrupt)
-		_, _ = cmd.Process.Wait()
+		t.Log("stopping powermetrics")
+		if stopProcessGroup(cmd.Process, powermetricsStopWait) {
+			t.Log("powermetrics did not exit after SIGINT; sent SIGKILL to process group")
+		}
 		f.Close()
+	}
+}
+
+// stopProcessGroup sends SIGINT, waits graceful, then SIGKILL's the
+// process group. Returns true if it had to SIGKILL or abandon Wait.
+func stopProcessGroup(p *os.Process, graceful time.Duration) (killed bool) {
+	if p == nil {
+		return false
+	}
+	pgid := p.Pid
+	_ = syscall.Kill(-pgid, syscall.SIGINT)
+	_ = p.Signal(os.Interrupt)
+	done := make(chan struct{})
+	go func() {
+		_, _ = p.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return false
+	case <-time.After(graceful):
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		_ = p.Kill()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+		}
+		return true
 	}
 }

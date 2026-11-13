@@ -61,7 +61,21 @@ Per-endpoint isolation CPU is a separate ~2-minute window (8 s in CI) that hits 
 
 B1 is **Invalid** (not a miss) when the closed window's wall time is outside `[0.85, 1.25]×idle` or supervisor health hits are outside ±20% of idle seconds. B6 is **Invalid** when `AFTERTRACE_REOPEN` does not fire in-window (Reopen waits on the import write lock); transport error strings are recorded. Invalid results fail the ratchet and are never skipped.
 
-`powermetrics` starts in the background for the WINDOW CLOSED idle window when `AFTERTRACE_POWERMETRICS=1` (nightly/weekly). Electron main-process CPU still needs a packaged desktop or a self-hosted Mac with sudo.
+`powermetrics` starts in the background for the WINDOW CLOSED idle window when `AFTERTRACE_POWERMETRICS=1` (nightly/weekly). Stop is bounded: SIGINT, then SIGKILL the process group after 5 s. Nightly 43421664859 logged `window_closed` at 13:03:56Z then uploaded nothing until the 360-minute job cancelled at 18:01:29Z — `stopPM()` was blocked in `cmd.Wait` because `sudo powermetrics` ignored Interrupt. Electron main-process CPU still needs a packaged desktop or a self-hosted Mac with sudo.
+
+Per-phase bounds (fail with a phase name, do not burn the job timeout):
+
+| Phase | Bound |
+|---|---|
+| gen-history | wall of the generator (seconds) |
+| first import / B8 restart | `ImportWait` (45 min nightly, 2 h full, 20 min CI) |
+| B3 `--exit-after-warm` | min(10 min, `ImportWait`) |
+| B8 kill wait | `importDur × pct/100` (heartbeat every 30 s) |
+| window-closed / open-idle / live | `Idle` (10 min nightly) |
+| powermetrics stop | 5 s then SIGKILL |
+| isolation per endpoint | `Isolation` (2 min nightly) |
+| pprof | profile seconds + 15 s HTTP |
+| B6 load window | `Load` (60 s) + 30 s Reopen wait |
 
 ## Ratchet
 

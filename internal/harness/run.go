@@ -72,14 +72,17 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 	var importDur time.Duration
 	importOK := false
 	if needHist {
+		end := logPhase(t, "gen-history")
 		t.Logf("generating history %s", p.CorpusNote())
 		gr, err := GenerateHistory(histDir, GenOpts{Size: p.Size, Sessions: p.Sessions, Seed: p.Seed})
 		if err != nil {
 			return rep, fmt.Errorf("gen-history: %w", err)
 		}
 		t.Logf("generated %d bytes in %s", gr.Bytes, histDir)
+		end()
 
 		if wantAny("B3", "B4", "B5", "B8", "B1", "B2", "B6", "B10") {
+			end = logPhase(t, "first-import")
 			removeDB(goldenDB)
 			b4, b5, fp, dur, err := measureBackfill(t, bin, work, histDir, goldenDB, p)
 			goldenFP, importDur = fp, dur
@@ -94,12 +97,15 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 				t.Logf("first import did not finish: %v (B4/B5 recorded; skip B8/B3 that need a golden DB)", err)
 				rep.Notes = append(rep.Notes, "first import did not finish: "+err.Error())
 			}
+			end()
 		}
 	}
 
 	if wantBudget("B3") {
 		if importOK {
+			end := logPhase(t, "B3-restart")
 			b3, err := measureRestart(t, bin, work, histDir, goldenDB, p)
+			end()
 			if err != nil {
 				rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes", Measured: err.Error(), Pass: false, Representative: !p.SmallCorpus()})
 			} else {
@@ -112,7 +118,9 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 
 	if wantBudget("B8") {
 		if importOK {
+			end := logPhase(t, "B8-crash-trials")
 			b8, err := measureCrash(t, bin, work, histDir, goldenDB, goldenFP, snapFile(goldenDB).Size, importDur, p)
+			end()
 			if err != nil {
 				rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts, cost, session hash match clean import; no imported-without-rows", Measured: err.Error(), Pass: false, Notes: "harness error", Representative: !p.SmallCorpus()})
 			} else {
@@ -163,7 +171,9 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 			} else {
 				time.Sleep(settleAfterWarm)
 				if wantBudget("B1") || wantBudget("B2") {
+					end := logPhase(t, "B1-window-closed")
 					b1, b2, sc := measureIdleClosed(t, idleProc, p, work)
+					end()
 					if wantBudget("B1") {
 						rep.add(b1)
 					}
@@ -174,13 +184,17 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 				}
 				if wantBudget("B1") {
 					for _, name := range []string{ScenarioOpenIdle, ScenarioLive} {
+						end := logPhase(t, name)
 						sc := measureIdleScenario(t, idleProc, p, name)
+						end()
 						rep.Scenarios = append(rep.Scenarios, sc)
 					}
+					end := logPhase(t, "isolation+pprof")
 					none := measureNoTraffic(t, idleProc, p)
 					rep.Isolation = append(rep.Isolation, none)
 					rep.Isolation = append(rep.Isolation, measureIsolation(t, idleProc, p)...)
 					rep.Pprof = captureClosedPprof(t, idleProc, work, p.Isolation())
+					end()
 				}
 				if wantBudget("B10") {
 					rep.add(measureLatency(t, idleProc, p))
@@ -191,19 +205,36 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 	}
 
 	if wantBudget("B6") {
+		end := logPhase(t, "B6-load")
 		rep.add(measureLoad(t, bin, work, histDir, p))
+		end()
 	}
 	if wantBudget("B7a") {
+		end := logPhase(t, "B7a-late-cost")
 		rep.add(measureLateCost(t, bin, work, p))
+		end()
 	}
 	if wantBudget("B7b") {
+		end := logPhase(t, "B7b-duplicates")
 		rep.add(measureDupReplay(t, bin, work, p))
+		end()
 	}
 	if wantBudget("B9") {
+		end := logPhase(t, "B9-fail-store")
 		rep.add(measureFailStore(t, bin, work, p))
+		end()
 	}
 
 	return rep, nil
+}
+
+func logPhase(t *testing.T, name string) func() {
+	t.Helper()
+	t0 := time.Now()
+	t.Logf("phase %s start", name)
+	return func() {
+		t.Logf("phase %s done in %s", name, time.Since(t0).Truncate(time.Millisecond))
+	}
 }
 
 func measureBackfill(t *testing.T, bin, work, hist, db string, p Profile) (Budget, Budget, tableFP, time.Duration, error) {

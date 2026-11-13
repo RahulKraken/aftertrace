@@ -194,7 +194,10 @@ func (p *Proc) Stop() error {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		_ = p.Kill()
-		<-done
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+		}
 	}
 	if p.log != nil {
 		p.log.Close()
@@ -210,7 +213,15 @@ func (p *Proc) Kill() error {
 	pid := p.Cmd.Process.Pid
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
 	_ = p.Cmd.Process.Kill()
-	_, _ = p.Cmd.Process.Wait()
+	done := make(chan struct{})
+	go func() {
+		_, _ = p.Cmd.Process.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+	}
 	if p.log != nil {
 		p.log.Close()
 		p.log = nil

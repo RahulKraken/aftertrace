@@ -27,17 +27,24 @@ func dbSize(path string) int64 {
 	return fi.Size()
 }
 
-func waitUntilImportPct(db string, importDur time.Duration, pct int, proc *Proc) (size int64, err error) {
+func waitUntilImportPct(t *testing.T, db string, importDur time.Duration, pct int, proc *Proc) (size int64, err error) {
+	t.Helper()
 	d := importDur * time.Duration(pct) / 100
 	if d < 2*time.Second {
 		d = 2 * time.Second
 	}
 	deadline := time.Now().Add(d)
+	nextLog := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if proc != nil && proc.Cmd.ProcessState != nil && proc.Cmd.ProcessState.Exited() {
 			return dbSize(db), fmt.Errorf("serve exited: %s", proc.tailLog())
 		}
 		size = dbSize(db)
+		if time.Now().After(nextLog) {
+			left := time.Until(deadline).Truncate(time.Second)
+			t.Logf("B8 wait %s left size=%d", left, size)
+			nextLog = time.Now().Add(30 * time.Second)
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	return dbSize(db), nil
@@ -85,7 +92,8 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 			return Budget{}, err
 		}
 		pct := crashKillPct(i, p.CrashTrials)
-		size, waitErr := waitUntilImportPct(db, importDur, pct, proc)
+		t.Logf("B8 trial %d start kill@%d%% of golden import %s", i, pct, importDur.Truncate(time.Second))
+		size, waitErr := waitUntilImportPct(t, db, importDur, pct, proc)
 		_ = proc.Kill()
 		time.Sleep(200 * time.Millisecond)
 		sessAt := 0

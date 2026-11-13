@@ -4,7 +4,10 @@ package harness
 
 import (
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -16,6 +19,30 @@ func TestClosedWindowValid(t *testing.T) {
 	}
 	if _, ok := closedWindowValid(ScenarioCPU{WallSeconds: 44.7, Hits: map[string]int64{"supervisor_health": 2}}, idle); ok {
 		t.Fatal("44.7s / 2 hits must be invalid")
+	}
+}
+
+func TestStopProcessGroupDoesNotBlock(t *testing.T) {
+	if os.Getenv("HARNESS_IGNORE_SIGNALS") == "1" {
+		signal.Ignore(syscall.SIGINT, syscall.SIGTERM)
+		time.Sleep(60 * time.Second)
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestStopProcessGroupDoesNotBlock$")
+	cmd.Env = append(os.Environ(), "HARNESS_IGNORE_SIGNALS=1")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	t0 := time.Now()
+	killed := stopProcessGroup(cmd.Process, 200*time.Millisecond)
+	elapsed := time.Since(t0)
+	if elapsed > 3*time.Second {
+		t.Fatalf("stopProcessGroup blocked %s", elapsed)
+	}
+	if !killed {
+		t.Fatal("wanted SIGKILL after ignored SIGINT")
 	}
 }
 

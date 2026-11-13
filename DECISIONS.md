@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 13 2026: nightly 6h was powermetrics Wait, not a slow engine.
+
+**Choice.** Do not raise the 360-minute job timeout. `startPowermetrics`'s stop func sent SIGINT and then `Wait()` with no deadline. `sudo -n powermetrics` on GitHub-hosted macos-latest ignored Interrupt, so after `window_closed` the harness blocked until `go test` / the job died. Stop now SIGKILLs the process group after 5 s. Each harness phase logs start/done. Keep `timeout-minutes: 360`.
+
+**Why.** Run 43421664859 (job timeout 360 min, cancelled at 18:01:29Z): gen 2 s, first import 5 m 44 s (B4 359.7 MB), B3 511 ms, B8 10 trials 12:13–12:53 (~40 min), powermetrics pid 82902 at 12:53:56, `window_closed` 13:03:56, then no further harness lines until the job cancelled 5 h later. Never logged `B1 closed cpu=` (that line is after `stopPM()`). Sister 43393421141 had the Wait stack: `os.(*Process).Wait` in `startPowermetrics.func5` for 120 minutes. Engine was idle. Phase math for 512 MiB is ~2 h, not 6 h.
+
+**How to reverse.** Revert the stop-timeout; the hang returns on nightly.
+
 ## Nov 13 2026: round-3 harness — valid nightly, clean run dirs, split B7.
 
 **Choice.** Keep the PR report-only and unmerged. Move `${{ runner.temp }}` out of job-level `env` in `nightly.yml` (actionlint rejects it; that is why the workflow failed in 0s). Run `actionlint` on every workflow in CI. Each harness run gets a fresh `run-<timestamp>` subdir; `copyDB` deletes dest+`.wal` and streams with `io.Copy`. Split B7 into B7a (copies=1, traces then late `api_request` cost) and B7b (duplicates). B7a owner is PR 6: `refreshTraces` never reapplies later cost, same rollup/cost path as B7b. Live cadence is status 15s + `/api/session/{id}` 5s + popover 12s, never home and session together. B1 Invalid if wall or health-hit count is off. No-traffic isolation window plus a window-closed CPU profile with route-template labels. B6 Invalid (not miss) when Reopen is stuck behind the import lock; record transport errors. B3 timeout keeps wall, CPU, and a timestamped serve.log tail. B8 docs match wall-time kill percentages. B9 notes that exactly-once is trivial and PR 7 owns failure-after-commit-plus-retry. `AFTERTRACE_REOPEN` / `AFTERTRACE_PPROF` (and the recycle log) compile only with `-tags harness`; pprof requires localhost Host and empty-or-localhost Origin. Ratchet files for ci/nightly/full store resource numbers, flag red→green, and never skip Invalid.
