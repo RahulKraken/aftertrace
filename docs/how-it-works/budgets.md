@@ -98,23 +98,38 @@ Correctness budgets B6–B9 become PR gates in those owner PRs. Resource budgets
 
 Clean `run-<timestamp>` directory. `copyDB` streams and drops a stale `.wal`. B7 is split into B7a (copies=1, late cost) and B7b (duplicates). Numbers below are filled after the clean-dir 2 GiB rerun and the B7a/B7b control on main.
 
-Measured on **linux/amd64** against the shipped engine (`memory_limit=256MB` = 244 MiB, unchanged). Clean dir `run-20261113T034939Z`. JSONL **3.06 GiB** (3 288 020 107 bytes). Golden DuckDB **207 MiB** (216 805 376 bytes), **574 212** spans. First import **24 m 57 s** wall, **2004 CPU-s**.
+Measured on **linux/amd64** against the shipped engine (`memory_limit=256MB` = 244 MiB, unchanged). Clean dir `run-20261113T034939Z`. JSONL **3.06 GiB** (3 288 020 107 bytes). Golden DuckDB **207 MiB** (216 805 376 bytes), **574 212** spans, **194 604** events. First import **24 m 57 s** wall, **2004 CPU-s**.
 
-B3 in a clean dir is **not** a 10-minute re-import. Timestamped `b3-serve-20261113T041831Z.log` shows recycle + `duplicate key` on `llm_facts` and exit at 574 212 spans. The round-2 “still importing after 10 min” was leftover DBs in a reused OUT dir. Reviewer’s 0.3 s no-op at 512 MiB matches this order of magnitude.
+B3 in a clean dir is **not** a 10-minute re-import. Timestamped `b3-serve-20261113T041831Z.log` shows recycle + `duplicate key` on `llm_facts` and exit at 574 212 spans in **1.447 s**. The round-2 “still importing after 10 min” was leftover DBs in a reused OUT dir. Reviewer’s 0.3 s no-op at 512 MiB matches this order of magnitude.
 
 | ID | Measured | Corpus / window | Valid? | vs target |
 |---|---|---|---|---|
-| B1 | 10 min WINDOW CLOSED + no-traffic + pprof (running after B8 on this VM; 32 MiB closed was **0.260 CPU-s / 20 s**, 20 health hits, wall 20.000 s — Valid. Isolation none **0.000 CPU-s / 8 s**. CI 8 s pprof: 0 samples.) | 2 GiB, 10 min closed | | |
-| B2 | 32 MiB closed: disk unchanged. 2 GiB closed pending B8. | | | |
-| B3 | **1.447 s** wall, **2.157 CPU-s**, writes=true (size 216 805 376 unchanged; recycle logged; hash/mtime change). Log tail: recycle, duplicate `llm_facts` key, `574212 spans`. | 2 GiB copy, `--exit-after-warm` | Valid | **miss** (CPU > 1 s, writes) |
+| B1 | **60.26 CPU-s** in 600.001 s WINDOW CLOSED (quota 3.000). 600 supervisor health hits, 10 tray health+glance. Electron main: **TODO**. | 2 GiB JSONL, 10 min closed | Valid | **miss** |
+| B2 | DB **207 MiB**, size and mtime unchanged. No WAL. | 2 GiB, 10 min closed | Valid | pass |
+| B3 | **1.447 s** wall, **2.157 CPU-s**, writes=true (size 216 805 376 unchanged; hash/mtime change; recycle logged twice). | 2 GiB copy, `--exit-after-warm` | Valid | **miss** (CPU > 1 s, writes) |
 | B4 | Peak RSS **536.0 MB**. Start-to-warm **1497 s** wall, **2004 CPU-s**. | 2 GiB JSONL, 574 212 spans | Valid | **miss** |
 | B5 | **0** spill hits, sampled every 500 ms for the whole import. | 2 GiB, 24 m 57 s import | Valid | pass |
-| B6 | Not re-run at 2 GiB this round (Reopen still waits on the import lock → **Invalid**, not a miss). 32 MiB: `reopened=true`, 4× `/api/cost` deadline exceeded. | | Invalid at 2 GiB | |
+| B6 | Not overlapped with the 2 GiB first import this round. Round-2 overlap: Reopen did not fire (`reopened=false`) → **Invalid**. After WaitWarm, 32 MiB/CI: `reopened=true` with `/api/cost` or `/api/field-values` deadlines. | 2 GiB overlap Invalid; 32 MiB Valid miss | | |
 | B7a | copies=1, traces then logs: spans/events match (40/20). **trace/session/day cost 0 vs 0.20**. llm_facts 0.20. Owner PR 6 (`refreshTraces` never reapplies later `api_request` cost). | 20 OTLP batches × 1, empty store | Valid | **miss** |
 | B7b | 20 batches × 3: events **60** vs unique **20**, `meta.spans` **120** vs **40**, plus the same cost=0. | 20 OTLP batches × 3, empty store | Valid | **miss** |
-| B8 | Clean-dir trials in progress (trial 0 started after B3). 32 MiB clean: 2/10 match, trials 0–1 had 5 and 10 sessions (not leftover DBs). | 2 GiB, 10 SIGKILL at 5–90% of import wall | | |
+| B8 | **1/10** matched (trial 6 at 61% / 2021 sessions). 9/10 left imported-without-rows (1–2 files, 163–235 spans short). Trials 0–1 killed at 188 and 499 sessions (not leftover DBs). SIGKILL at 5–90% of the 24 m 57 s import. | 2 GiB, 10 SIGKILL trials | Valid | **miss** |
 | B9 | HTTP **400** AND gRPC **Unknown**; events=**1** (trivial exactly-once). PR 7 owns failure-after-commit-plus-retry. | empty store + sentinel | Valid | **miss** |
-| B10 | 32 MiB p95 pass. 2 GiB after idle pending. | | Valid | pass on 32 MiB |
+| B10 | 32 MiB p95 under 300 ms. Not re-measured after the 2 GiB idle (ONLY=B1–B5,B8). | 32 MiB | Valid | pass on 32 MiB |
+
+Per-endpoint isolation CPU (engine process, 2 min, one route every 1 s) plus a no-traffic window:
+
+| Endpoint | Path | CPU-s / 2 min |
+|---|---|---|
+| none | (no traffic) | **0.000** |
+| health | `/api/health` | **0.020** |
+| glance | `/api/glance` | **26.27** |
+| status | `/api/status` | **35.37** |
+| overview | `/api/overview` | **25.32** |
+| sessions | `/api/sessions` | **0.100** |
+
+No-traffic is 0, so the 60.26 CPU-s closed window is not a hidden DuckDB worker. Health and sessions are cheap. Glance/status/overview pay for the 30 s findings cache. A 30 s window-closed CPU profile taken *after* isolation (cache hot, no glance in-window) recorded **0 samples**. A 30 s profile while hitting `/api/glance` on the same 2 GiB DB: **9.06 s** of samples (30% of wall); labels **91.9% `findings-refresh`**, 8.1% `/`; top `runtime.cgocall` 64%, `database/sql.(*DB).QueryContext` 56% cum, `api.buildGlance` 4.6% cum.
+
+Open-idle **94.79 CPU-s** / 10 min (home 20, status 40, tray 14). Live **115.98 CPU-s** / 10 min (status 40, popover 50). Live did not hit `/api/session/{id}` on this corpus: `/api/sessions` is the full 3000-row list and can miss the 15 s HTTP timeout; sid is now resolved from glance/overview first.
 
 ## Baselines from main — round 2 (dirty OUT dir; superseded)
 

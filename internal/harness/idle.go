@@ -3,7 +3,6 @@
 package harness
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,20 +41,18 @@ func resolveCadence(proc *Proc, polls []Poll) []Poll {
 	}
 	sid := ""
 	if proc != nil {
-		_, body, _, err := proc.GET("/api/sessions")
-		if err == nil {
-			var sess []struct {
-				ID string `json:"session_id"`
+		// /api/sessions is a full list and can exceed the HTTP timeout on a
+		// 2 GiB corpus. Glance and overview both embed a session_id.
+		for _, path := range []string{"/api/glance", "/api/overview", "/api/sessions"} {
+			_, body, _, err := proc.GET(path)
+			if err != nil {
+				continue
 			}
-			if json.Unmarshal(body, &sess) == nil && len(sess) > 0 {
-				sid = sess[0].ID
-			}
-			if sid == "" {
-				if i := strings.Index(string(body), `"session_id":"`); i >= 0 {
-					rest := string(body[i+len(`"session_id":"`):])
-					if j := strings.Index(rest, `"`); j > 0 {
-						sid = rest[:j]
-					}
+			if i := strings.Index(string(body), `"session_id":"`); i >= 0 {
+				rest := string(body[i+len(`"session_id":"`):])
+				if j := strings.Index(rest, `"`); j > 0 {
+					sid = rest[:j]
+					break
 				}
 			}
 		}
