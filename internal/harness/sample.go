@@ -3,7 +3,10 @@
 package harness
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -22,10 +25,11 @@ type Sample struct {
 }
 
 type FileSnap struct {
-	Path   string
-	Size   int64
-	Mtime  time.Time
-	Exists bool
+	Path   string    `json:"path"`
+	Size   int64     `json:"size"`
+	Mtime  time.Time `json:"mtime"`
+	Hash   string    `json:"hash,omitempty"`
+	Exists bool      `json:"exists"`
 }
 
 func CPUFromState(st *os.ProcessState) float64 {
@@ -148,6 +152,46 @@ func snapFile(path string) FileSnap {
 		return FileSnap{Path: path}
 	}
 	return FileSnap{Path: path, Size: fi.Size(), Mtime: fi.ModTime(), Exists: true}
+}
+
+func snapHashed(path string) FileSnap {
+	s := snapFile(path)
+	if s.Exists {
+		s.Hash = fileSHA256(path)
+	}
+	return s
+}
+
+func fileSHA256(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func filesChanged(before, after []FileSnap) bool {
+	if len(before) != len(after) {
+		return true
+	}
+	for i := range before {
+		if before[i].Size != after[i].Size || before[i].Hash != after[i].Hash || !mtimeEq(before[i], after[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func mtimeEq(a, b FileSnap) bool {
+	if !a.Exists && !b.Exists {
+		return true
+	}
+	return a.Exists == b.Exists && a.Mtime.Equal(b.Mtime)
 }
 
 func dbFiles(path string) []string {

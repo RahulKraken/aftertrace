@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
 	"io/fs"
 	"net/http"
+	"net/http/pprof"
 	"os"
+	runtimepprof "runtime/pprof"
 	"strings"
 	"time"
 
@@ -71,7 +74,11 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	mux.HandleFunc("POST /api/sql", s.postSQL)
 	mux.HandleFunc("POST /api/ask", s.postAsk)
 	mux.HandleFunc("GET /", s.static)
-	return withHeaders(mux)
+	h := withHeaders(mux)
+	if os.Getenv("AFTERTRACE_PPROF") != "" {
+		h = withPprof(withRouteLabels(h))
+	}
+	return h
 }
 
 func withHeaders(next http.Handler) http.Handler {
@@ -79,6 +86,34 @@ func withHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func withRouteLabels(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		label := r.Pattern
+		if label == "" {
+			label = r.URL.Path
+		}
+		runtimepprof.Do(r.Context(), runtimepprof.Labels("route", label), func(ctx context.Context) {
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+}
+
+func withPprof(next http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	mux.Handle("/", next)
+	return mux
 }
 
 func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {

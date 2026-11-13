@@ -3,81 +3,58 @@
 package harness
 
 import (
+	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
+	"testing"
 	"time"
 )
 
-// Desktop idle with the window hidden (desktop/src/tray.js, engine.js):
-// sidecar GET /api/health every 1s, tray glance every 45s (IDLE_MS; hidden
-// is 60s), findings cache refresh every 30s. A 20s window never reaches
-// glance or findings, which is why B1/B2 require 10 minutes.
-const (
-	desktopHealthEvery   = time.Second
-	desktopGlanceEvery   = 45 * time.Second
-	desktopFindingsEvery = 30 * time.Second
-)
-
 type idleTraffic struct {
-	health, glance, findings atomic.Int64
+	hits sync.Map // name -> *atomic.Int64
 }
 
-func startDesktopIdle(proc *Proc, stop <-chan struct{}) *idleTraffic {
+func (tr *idleTraffic) add(name string, n int64) {
+	v, _ := tr.hits.LoadOrStore(name, &atomic.Int64{})
+	v.(*atomic.Int64).Add(n)
+}
+
+func (tr *idleTraffic) snapshot() map[string]int64 {
+	out := map[string]int64{}
+	tr.hits.Range(func(k, v any) bool {
+		out[k.(string)] = v.(*atomic.Int64).Load()
+		return true
+	})
+	return out
+}
+
+func startScenario(proc *Proc, scenario string, stop <-chan struct{}) *idleTraffic {
 	tr := &idleTraffic{}
-	go func() {
-		tk := time.NewTicker(desktopHealthEvery)
-		defer tk.Stop()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-tk.C:
-				_, _, _, _ = proc.GET("/api/health")
-				tr.health.Add(1)
+	for _, p := range Cadences[scenario] {
+		p := p
+		go func() {
+			hit := func() {
+				for _, path := range p.Paths {
+					_, _, _, _ = proc.GET(path)
+				}
+				tr.add(p.Name, 1)
 			}
-		}
-	}()
-	go func() {
-		hit := func() {
-			_, _, _, _ = proc.GET("/api/health")
-			_, _, _, _ = proc.GET("/api/glance")
-			tr.glance.Add(1)
-		}
-		hit()
-		tk := time.NewTicker(desktopGlanceEvery)
-		defer tk.Stop()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-tk.C:
-				hit()
+			hit()
+			tk := time.NewTicker(p.Every)
+			defer tk.Stop()
+			for {
+				select {
+				case <-stop:
+					return
+				case <-tk.C:
+					hit()
+				}
 			}
-		}
-	}()
-	go func() {
-		var inflight atomic.Bool
-		hit := func() {
-			if !inflight.CompareAndSwap(false, true) {
-				return
-			}
-			_, _, _, _ = proc.GET("/api/findings")
-			tr.findings.Add(1)
-			inflight.Store(false)
-		}
-		hit()
-		tk := time.NewTicker(desktopFindingsEvery)
-		defer tk.Stop()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-tk.C:
-				hit()
-			}
-		}
-	}()
+		}()
+	}
 	return tr
 }
 
@@ -101,6 +78,55 @@ func (p *Proc) WaitWarm(d time.Duration) error {
 
 type errWarmTimeout struct{ d time.Duration }
 
-func (e errWarmTimeout) Error() string {
-	return "warm: timeout after " + e.d.String()
+func (e errWarmTimeout) Error() string { return "warm: timeout after " + e.d.String() }
+
+func measureCPUWindow(t *testing.T, proc *Proc, d time.Duration, drive func(stop <-chan struct{})) (cpu float64, wall time.Duration, err error) {
+	t.Helper()
+	cpu0, err := CPUSeconds(proc.PID())
+	if err != nil {
+		return -1, 0, err
+	}
+	stop := make(chan struct{})
+	if drive != nil {
+		go drive(stop)
+	}
+	t0 := time.Now()
+	time.Sleep(d)
+	close(stop)
+	wall = time.Since(t0)
+	cpu1, err := CPUSeconds(proc.PID())
+	if err != nil {
+		return -1, wall, err
+	}
+	return cpu1 - cpu0, wall, nil
+}
+
+func startPowermetrics(t *testing.T, out string) func() {
+	t.Helper()
+	if os.Getenv("AFTERTRACE_POWERMETRICS") != "1" {
+		return func() {}
+	}
+	if err := exec.Command("sudo", "-n", "true").Run(); err != nil {
+		t.Log("TODO: powermetrics needs passwordless sudo or a self-hosted Mac runner.")
+		return func() {}
+	}
+	f, err := os.Create(out)
+	if err != nil {
+		t.Logf("powermetrics out: %v", err)
+		return func() {}
+	}
+	cmd := exec.Command("sudo", "-n", "powermetrics", "--samplers", "cpu_power,tasks", "-i", "1000", "-f", "text", "--show-process-coalition")
+	cmd.Stdout = f
+	cmd.Stderr = f
+	if err := cmd.Start(); err != nil {
+		f.Close()
+		t.Logf("powermetrics: %v", err)
+		return func() {}
+	}
+	t.Logf("powermetrics pid %d during idle", cmd.Process.Pid)
+	return func() {
+		_ = cmd.Process.Signal(os.Interrupt)
+		_, _ = cmd.Process.Wait()
+		f.Close()
+	}
 }

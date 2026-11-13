@@ -1,0 +1,15 @@
+{
+  "profile": "ci",
+  "budgets": [
+    {"id": "B1", "pass": false},
+    {"id": "B2", "pass": true},
+    {"id": "B3", "pass": false},
+    {"id": "B4", "pass": true},
+    {"id": "B5", "pass": true},
+    {"id": "B6", "pass": false},
+    {"id": "B7", "pass": false},
+    {"id": "B8", "pass": false},
+    {"id": "B9", "pass": false},
+    {"id": "B10", "pass": true}
+  ]
+}

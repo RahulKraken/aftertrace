@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 12 2026: round-2 harness catches the bugs on main.
+
+**Choice.** Keep the PR report-only and unmerged. Replace the fake findings-timer idle with the three real client cadences (window closed / open idle / live), checked against tray.js, engine.js, and web `startPoll` sources. B1 is window closed only. B7 expected values come from unique input keys, not a recount of the DB under test. B3 fingerprints files (and a harness-only recycle log) via `OpenReadOnly`. B8 kills after N sessions and compares counts, cost, and a session-key hash. B9 requires HTTP 503 **and** gRPC UNAVAILABLE, exactly-once on events. Warm-wait failure invalidates B1. `powermetrics` runs during the closed idle window. Isolation CPU is process `CPUSeconds` over ~2 min per endpoint; `AFTERTRACE_PPROF` is env-gated with `pprof.Do` labels. `AFTERTRACE_FAIL_STORE` is read once at Open. Cadence table lives in the harness; production poll sources are unchanged. Ratchet JSON fails CI on green→red or >10% resource regression. Weekly Sunday job is the 2 GiB full run.
+
+**Why.** Round 1 came out green on several budgets that exist to catch bugs already on main (duplicate events, rollup rebuild / Open recycle, silent OTLP loss, crash holes, idle CPU from the wrong client).
+
+**How to reverse.** Revert this follow-up. Idle goes back to the findings timer; oracle recounts the DB; B3 uses `store.Open` row counts.
+
 ## Nov 12 2026: measure the field corpus, do not raise the DuckDB cap.
 
 **Choice.** Keep `memory_limit=256MB` (244 MiB) in the shipped DSN. The 32 MiB / 20 s PR job stays so CI stays around 15 minutes; those passes are labelled **not representative**. Nightly uses at least 512 MiB and a full 10-minute idle. CI `workflow_dispatch` can run a larger corpus without the other jobs. B1/B2 drive a test-only tray stand-in (health every 1 s, glance every 45 s, findings every 30 s) because the desktop is not present. B4 records first-import wall and CPU; B8 SIGKILL waits scale with golden import duration (capped at 5 minutes). `gen-history` still honours `--size` as JSONL bytes, but each session also gets 48–79 assistant usage turns so the stored DB is not a 27 MB file of stripped padding. Small-corpus B4/B5 passes do not speak to a 735 MB field DB or 7.9 GB of `~/.claude/projects`. The scale and nightly jobs run on `macos-latest` because GitHub rejected `macos-14` (`macos-14-arm64-us-default` is not supported).

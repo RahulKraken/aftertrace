@@ -206,7 +206,7 @@ jobs:
           BASE: origin/${{ github.base_ref }}
         run: |
           git fetch --no-tags origin "${{ github.base_ref }}"
-          if git diff --name-only "$BASE"...HEAD | grep -Eq '^(internal/(store|history|otlp|api|harness)/|cmd/|\.github/workflows/(ci|nightly)\.yml)'; then
+          if git diff --name-only "$BASE"...HEAD | grep -Eq '^(internal/(store|history|otlp|api|harness)/|cmd/|desktop/|web/|\.github/workflows/(ci|nightly)\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "Engine or harness paths changed; running the scale job."
           else
@@ -234,7 +234,7 @@ jobs:
           AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
-          timeout=14m
+          timeout=16m
           if [ "${{ github.event_name }}" = workflow_dispatch ]; then
             timeout=3h
           fi

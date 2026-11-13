@@ -11,16 +11,18 @@ import (
 )
 
 type Report struct {
-	Profile     string   `json:"profile"`
-	Corpus      string   `json:"corpus"`
-	CorpusBytes int64    `json:"corpus_bytes"`
-	GitSHA      string   `json:"git_sha,omitempty"`
-	GOOS        string   `json:"goos"`
-	GOARCH      string   `json:"goarch"`
-	Started     string   `json:"started"`
-	ElapsedMS   int64    `json:"elapsed_ms"`
-	Budgets     []Budget `json:"budgets"`
-	Notes       []string `json:"notes,omitempty"`
+	Profile     string        `json:"profile"`
+	Corpus      string        `json:"corpus"`
+	CorpusBytes int64         `json:"corpus_bytes"`
+	GitSHA      string        `json:"git_sha,omitempty"`
+	GOOS        string        `json:"goos"`
+	GOARCH      string        `json:"goarch"`
+	Started     string        `json:"started"`
+	ElapsedMS   int64         `json:"elapsed_ms"`
+	Budgets     []Budget      `json:"budgets"`
+	Scenarios   []ScenarioCPU `json:"scenarios,omitempty"`
+	Isolation   []EndpointCPU `json:"isolation,omitempty"`
+	Notes       []string      `json:"notes,omitempty"`
 }
 
 type Budget struct {
@@ -29,10 +31,28 @@ type Budget struct {
 	Target         string `json:"target"`
 	Measured       any    `json:"measured"`
 	Pass           bool   `json:"pass"`
+	Invalid        bool   `json:"invalid,omitempty"`
 	ReportOnly     bool   `json:"report_only"`
 	Corpus         string `json:"corpus"`
 	Notes          string `json:"notes,omitempty"`
 	Representative bool   `json:"representative"`
+}
+
+type ScenarioCPU struct {
+	Name        string           `json:"name"`
+	CPUSeconds  float64          `json:"cpu_s"`
+	WallSeconds float64          `json:"wall_s"`
+	Quota       float64          `json:"quota_cpu_s"`
+	Hits        map[string]int64 `json:"hits"`
+	Window      string           `json:"window"`
+}
+
+type EndpointCPU struct {
+	Name        string  `json:"name"`
+	Path        string  `json:"path"`
+	CPUSeconds  float64 `json:"cpu_s"`
+	WallSeconds float64 `json:"wall_s"`
+	Window      string  `json:"window"`
 }
 
 func newReport(p Profile) *Report {
@@ -72,10 +92,12 @@ func (r *Report) Markdown() string {
 	fmt.Fprintf(&b, "| ID | Budget | Target | Measured | vs target |\n|---|---|---|---|---|\n")
 	for _, x := range r.Budgets {
 		vs := "miss"
-		if x.Pass {
+		if x.Invalid {
+			vs = "invalid"
+		} else if x.Pass {
 			vs = "pass"
 		}
-		if !x.Representative {
+		if !x.Representative && !x.Invalid {
 			if x.Pass {
 				vs = "pass, not representative"
 			} else {
@@ -85,6 +107,20 @@ func (r *Report) Markdown() string {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", x.ID, x.Name, x.Target, stringify(x.Measured), vs)
 		if x.Notes != "" {
 			fmt.Fprintf(&b, "|  |  |  |  | _%s_ |\n", strings.ReplaceAll(x.Notes, "|", "/"))
+		}
+	}
+	if len(r.Scenarios) > 0 {
+		fmt.Fprintf(&b, "\n### Client scenarios (same idle window)\n\n")
+		fmt.Fprintf(&b, "| Scenario | CPU-s | Quota | Hits | Window |\n|---|---|---|---|---|\n")
+		for _, s := range r.Scenarios {
+			fmt.Fprintf(&b, "| %s | %.3f | %.3f | %s | %s |\n", s.Name, s.CPUSeconds, s.Quota, stringify(s.Hits), s.Window)
+		}
+	}
+	if len(r.Isolation) > 0 {
+		fmt.Fprintf(&b, "\n### Per-endpoint isolation CPU (engine process)\n\n")
+		fmt.Fprintf(&b, "| Endpoint | Path | CPU-s | Window |\n|---|---|---|---|\n")
+		for _, e := range r.Isolation {
+			fmt.Fprintf(&b, "| %s | %s | %.3f | %s |\n", e.Name, e.Path, e.CPUSeconds, e.Window)
 		}
 	}
 	if len(r.Notes) > 0 {

@@ -101,3 +101,12 @@ func (p Profile) ImportWait() time.Duration {
 	}
 	return 20 * time.Minute
 }
+
+// Isolation is the per-endpoint CPU window. Nightly/full use ~2 minutes so
+// DuckDB worker threads and a findings refresh show up. CI stays short.
+func (p Profile) Isolation() time.Duration {
+	if p.Idle >= 10*time.Minute {
+		return 2 * time.Minute
+	}
+	return 8 * time.Second
+}

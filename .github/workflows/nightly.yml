@@ -1,10 +1,17 @@
 name: Nightly scale
 
-# 10-minute idle energy run. Report-only: a budget miss does not fail the job.
+# 10-minute idle energy run. Weekly job is the full 2 GiB corpus.
+# Report-only: a budget miss does not fail the job.
 on:
   schedule:
     - cron: "27 7 * * *"
+    - cron: "15 8 * * 0"
   workflow_dispatch:
+    inputs:
+      profile:
+        description: "ci, nightly, or full"
+        required: false
+        default: nightly
 
 permissions:
   contents: read
@@ -12,12 +19,16 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
+    if: >
+      github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full'
+      || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *'
     runs-on: macos-latest
     timeout-minutes: 180
     env:
       CGO_ENABLED: "1"
       AFTERTRACE_HARNESS: "1"
       AFTERTRACE_HARNESS_PROFILE: "nightly"
+      AFTERTRACE_POWERMETRICS: "1"
       AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
       AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
     steps:
@@ -32,20 +43,6 @@ jobs:
           go test -count=1 -timeout 3h ./internal/harness -run TestScaleBudgets -v
           echo "----- budget summary -----"
           cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
-      - name: powermetrics
-        if: always()
-        run: |
-          # GitHub-hosted macos sometimes has passwordless sudo; a
-          # self-hosted runner with sudo is the reliable path. If this
-          # cannot run, leave the TODO in the log and in docs/how-it-works/budgets.md.
-          if sudo -n true 2>/dev/null; then
-            sudo powermetrics --samplers cpu_power,tasks -i 1000 -n 30 -f text \
-              --show-process-coalition > "$RUNNER_TEMP/harness/powermetrics.txt" || \
-              echo "TODO: powermetrics failed; needs a self-hosted runner with sudo."
-            tail -n 80 "$RUNNER_TEMP/harness/powermetrics.txt" || true
-          else
-            echo "TODO: powermetrics needs passwordless sudo or a self-hosted Mac runner."
-          fi
       - name: Upload budget report
         if: always()
         uses: actions/upload-artifact@v7
@@ -57,3 +54,41 @@ jobs:
             ${{ runner.temp }}/harness/powermetrics.txt
           if-no-files-found: ignore
           retention-days: 14
+
+  full:
+    name: Weekly 2 GiB
+    if: >
+      github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full'
+      || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0'
+    runs-on: macos-latest
+    timeout-minutes: 480
+    env:
+      CGO_ENABLED: "1"
+      AFTERTRACE_HARNESS: "1"
+      AFTERTRACE_HARNESS_PROFILE: "full"
+      AFTERTRACE_POWERMETRICS: "1"
+      AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
+      AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Scale harness (2 GiB corpus, 10-minute idle)
+        run: |
+          mkdir -p "$AFTERTRACE_HARNESS_OUT"
+          go test -count=1 -timeout 8h ./internal/harness -run TestScaleBudgets -v
+          echo "----- budget summary -----"
+          cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || true
+      - name: Upload budget report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekly-full-budget-report
+          path: |
+            ${{ runner.temp }}/harness/budgets.json
+            ${{ runner.temp }}/harness/budgets.md
+            ${{ runner.temp }}/harness/powermetrics.txt
+          if-no-files-found: ignore
+          retention-days: 30

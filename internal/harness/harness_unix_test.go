@@ -3,38 +3,18 @@
 package harness
 
 import (
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestDesktopIdleCadence(t *testing.T) {
-	if desktopHealthEvery != time.Second {
-		t.Fatalf("health %s", desktopHealthEvery)
+func TestCrashKillPct(t *testing.T) {
+	if g := crashKillPct(0, 10); g != 5 {
+		t.Fatalf("first %d", g)
 	}
-	if desktopGlanceEvery != 45*time.Second {
-		t.Fatalf("glance %s want 45s (tray IDLE_MS)", desktopGlanceEvery)
-	}
-	if desktopFindingsEvery != 30*time.Second {
-		t.Fatalf("findings %s want 30s", desktopFindingsEvery)
-	}
-}
-
-func TestCrashKillAfter(t *testing.T) {
-	rng := rand.New(rand.NewPCG(1, 2))
-	d := crashKillAfter(rng, 2*time.Second, false)
-	if d < 50*time.Millisecond || d > 1600*time.Millisecond {
-		t.Fatalf("short import kill %s", d)
-	}
-	d = crashKillAfter(rng, 90*time.Second, true)
-	if d < 50*time.Millisecond || d > 1600*time.Millisecond {
-		t.Fatalf("small-corpus kill %s", d)
-	}
-	d = crashKillAfter(rng, 20*time.Minute, false)
-	if d < 2*time.Second || d > 5*time.Minute {
-		t.Fatalf("long import kill %s", d)
+	if g := crashKillPct(9, 10); g != 90 {
+		t.Fatalf("last %d", g)
 	}
 }
 
@@ -77,10 +57,32 @@ func TestScaleBudgets(t *testing.T) {
 	t.Logf("wrote %s and %s (elapsed %s)", jsonPath, mdPath, time.Duration(rep.ElapsedMS)*time.Millisecond)
 	// Report-only: do not t.Fatal on a budget miss.
 	for _, b := range rep.Budgets {
+		if b.Invalid {
+			t.Logf("%s INVALID: %s", b.ID, b.Notes)
+			continue
+		}
 		if b.Pass {
 			t.Logf("%s PASS", b.ID)
 			continue
 		}
 		t.Logf("%s known miss (report-only): %s measured=%s", b.ID, b.Target, stringify(b.Measured))
+	}
+	if os.Getenv("AFTERTRACE_HARNESS_RATCHET") == "0" {
+		return
+	}
+	rpath := defaultRatchetPath(p.Name)
+	if rpath == "" {
+		return
+	}
+	base, err := loadRatchet(rpath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Logf("no ratchet file %s", rpath)
+			return
+		}
+		t.Fatalf("ratchet: %v", err)
+	}
+	if errs := checkRatchet(rep, base); len(errs) > 0 {
+		t.Errorf("ratchet: %v", errs)
 	}
 }

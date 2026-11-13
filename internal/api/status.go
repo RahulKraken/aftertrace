@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -78,17 +80,19 @@ func startFindingsRefresh(db *sql.DB) *findingsInflight {
 	inf := &findingsInflight{}
 	inf.wg.Add(1)
 	go func() {
-		out := rules.RunAll(db)
-		if out == nil {
-			out = []rules.Finding{}
-		}
-		applySessionFindingCounts(out)
-		inf.out = out
-		c := cachedFindings
-		c.mu.Lock()
-		c.out, c.db, c.at, c.loaded, c.inf = out, db, time.Now(), true, nil
-		c.mu.Unlock()
-		inf.wg.Done()
+		pprof.Do(context.Background(), pprof.Labels("route", "findings-refresh"), func(ctx context.Context) {
+			out := rules.RunAll(db)
+			if out == nil {
+				out = []rules.Finding{}
+			}
+			applySessionFindingCounts(out)
+			inf.out = out
+			c := cachedFindings
+			c.mu.Lock()
+			c.out, c.db, c.at, c.loaded, c.inf = out, db, time.Now(), true, nil
+			c.mu.Unlock()
+			inf.wg.Done()
+		})
 	}()
 	return inf
 }

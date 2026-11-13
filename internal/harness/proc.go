@@ -44,6 +44,7 @@ type StartOpts struct {
 	ExitAfterWarm bool
 	ExtraEnv      []string
 	FailStore     string // path for AFTERTRACE_FAIL_STORE
+	Reopen        string // path for AFTERTRACE_REOPEN
 }
 
 func Start(opts StartOpts) (*Proc, error) {
@@ -99,6 +100,9 @@ func Start(opts StartOpts) (*Proc, error) {
 	env := append(os.Environ(), opts.ExtraEnv...)
 	if opts.FailStore != "" {
 		env = append(env, "AFTERTRACE_FAIL_STORE="+opts.FailStore)
+	}
+	if opts.Reopen != "" {
+		env = append(env, "AFTERTRACE_REOPEN="+opts.Reopen)
 	}
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
@@ -245,6 +249,35 @@ func (p *Proc) SQL(q string) ([]byte, error) {
 		return b, fmt.Errorf("sql %d: %s", res.StatusCode, trim(b, 300))
 	}
 	return b, nil
+}
+
+func (p *Proc) sessionCount() (int, error) {
+	b, err := p.SQL(`SELECT count(DISTINCT session_id) FROM spans`)
+	if err != nil {
+		return 0, err
+	}
+	var out struct {
+		Rows [][]any `json:"rows"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return 0, err
+	}
+	if len(out.Rows) == 0 || len(out.Rows[0]) == 0 {
+		return 0, fmt.Errorf("empty session count")
+	}
+	switch v := out.Rows[0][0].(type) {
+	case float64:
+		return int(v), nil
+	case json.Number:
+		n, err := v.Int64()
+		return int(n), err
+	case string:
+		var n int
+		_, err := fmt.Sscanf(v, "%d", &n)
+		return n, err
+	default:
+		return 0, fmt.Errorf("session count %T %v", v, v)
+	}
 }
 
 func (p *Proc) JSON(path string, v any) error {

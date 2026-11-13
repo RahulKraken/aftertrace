@@ -163,6 +163,11 @@ func cmdServe(args []string) int {
 		HistoryDir: histDir,
 	}))
 	srv := &http.Server{Handler: api.New(st, web.FS, opts...), ReadHeaderTimeout: 10 * time.Second}
+	stopWatch := make(chan struct{})
+	defer close(stopWatch)
+	if p := strings.TrimSpace(os.Getenv("AFTERTRACE_REOPEN")); p != "" {
+		go watchHarnessReopen(st, p, stopWatch)
+	}
 	go func() {
 		if err := srv.Serve(apiLn); err != nil && err != http.ErrServerClosed {
 			log.Printf("api: %v", err)
@@ -329,4 +334,28 @@ func cmdDemo(args []string) int {
 	}
 	log.Printf("run: aftertrace serve --db %s", st.Path)
 	return 0
+}
+
+// AFTERTRACE_REOPEN is a harness-only sentinel. When that path appears, serve
+// calls Store.Reopen once and removes the file so B6 can force a recycle
+// inside the load window.
+func watchHarnessReopen(st *store.Store, path string, stop <-chan struct{}) {
+	tk := time.NewTicker(50 * time.Millisecond)
+	defer tk.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-tk.C:
+			if _, err := os.Stat(path); err != nil {
+				continue
+			}
+			if err := st.Reopen(); err != nil {
+				log.Printf("reopen: %v", err)
+			} else {
+				log.Printf("reopen: harness trigger")
+			}
+			_ = os.Remove(path)
+		}
+	}
 }
