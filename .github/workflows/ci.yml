@@ -199,7 +199,8 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
-          actionlint -color
+          # Workflow expressions only. Shell scripts are covered by the Shellcheck job.
+          actionlint -color -shellcheck=
 
   scale:
     name: Scale harness

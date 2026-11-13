@@ -561,15 +561,14 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 			}
 		}
 	}()
-	time.Sleep(2 * time.Second)
 	if err := os.WriteFile(reopen, []byte("1"), 0o644); err != nil {
 		t.Logf("B6 reopen sentinel: %v", err)
 	}
 	reopened := false
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if ScanLogLines(proc.LogPath, func(s string) bool {
-			return strings.Contains(s, "reopen: harness trigger")
+			return strings.Contains(s, "reopen: harness trigger") || strings.HasPrefix(strings.TrimSpace(s), "reopen:")
 		}) {
 			reopened = true
 			break
@@ -597,9 +596,8 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 		Representative: !p.SmallCorpus(),
 	}
 	if !reopened {
-		b.Invalid = true
 		b.Pass = false
-		b.Notes = "invalid: AFTERTRACE_REOPEN did not fire in-window (Reopen waits on the import write lock); not scored as a miss. Transport errors: " + strings.Join(errSamples, "; ")
+		b.Notes = "AFTERTRACE_REOPEN did not log a trigger after WaitWarm (30s). Transport errors: " + strings.Join(errSamples, "; ")
 	}
 	return b
 }

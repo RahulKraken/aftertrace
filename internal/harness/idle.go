@@ -3,6 +3,7 @@
 package harness
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,11 +41,24 @@ func resolveCadence(proc *Proc, polls []Poll) []Poll {
 		return polls
 	}
 	sid := ""
-	var sess []struct {
-		ID string `json:"session_id"`
-	}
-	if proc != nil && proc.JSON("/api/sessions", &sess) == nil && len(sess) > 0 {
-		sid = sess[0].ID
+	if proc != nil {
+		_, body, _, err := proc.GET("/api/sessions")
+		if err == nil {
+			var sess []struct {
+				ID string `json:"session_id"`
+			}
+			if json.Unmarshal(body, &sess) == nil && len(sess) > 0 {
+				sid = sess[0].ID
+			}
+			if sid == "" {
+				if i := strings.Index(string(body), `"session_id":"`); i >= 0 {
+					rest := string(body[i+len(`"session_id":"`):])
+					if j := strings.Index(rest, `"`); j > 0 {
+						sid = rest[:j]
+					}
+				}
+			}
+		}
 	}
 	out := make([]Poll, 0, len(polls))
 	for _, p := range polls {
