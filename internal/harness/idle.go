@@ -3,8 +3,12 @@
 package harness
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,10 +35,44 @@ func (tr *idleTraffic) snapshot() map[string]int64 {
 	return out
 }
 
+func resolveCadence(proc *Proc, polls []Poll) []Poll {
+	if len(polls) == 0 {
+		return polls
+	}
+	sid := ""
+	var sess []struct {
+		ID string `json:"session_id"`
+	}
+	if proc != nil && proc.JSON("/api/sessions", &sess) == nil && len(sess) > 0 {
+		sid = sess[0].ID
+	}
+	out := make([]Poll, 0, len(polls))
+	for _, p := range polls {
+		paths := make([]string, 0, len(p.Paths))
+		for _, path := range p.Paths {
+			if strings.Contains(path, "{id}") {
+				if sid == "" {
+					continue
+				}
+				path = strings.ReplaceAll(path, "{id}", sid)
+			}
+			paths = append(paths, path)
+		}
+		q := p
+		q.Paths = paths
+		out = append(out, q)
+	}
+	return out
+}
+
 func startScenario(proc *Proc, scenario string, stop <-chan struct{}) *idleTraffic {
 	tr := &idleTraffic{}
-	for _, p := range Cadences[scenario] {
+	polls := resolveCadence(proc, Cadences[scenario])
+	for _, p := range polls {
 		p := p
+		if p.Every <= 0 || len(p.Paths) == 0 {
+			continue
+		}
 		go func() {
 			hit := func() {
 				for _, path := range p.Paths {
@@ -99,6 +137,84 @@ func measureCPUWindow(t *testing.T, proc *Proc, d time.Duration, drive func(stop
 		return -1, wall, err
 	}
 	return cpu1 - cpu0, wall, nil
+}
+
+func measureNoTraffic(t *testing.T, proc *Proc, p Profile) EndpointCPU {
+	d := p.Isolation()
+	cpu, wall, err := measureCPUWindow(t, proc, d, nil)
+	if err != nil {
+		t.Logf("isolation none: %v", err)
+		cpu = -1
+	}
+	row := EndpointCPU{Name: "none", Path: "(no traffic)", CPUSeconds: cpu, WallSeconds: wall.Seconds(), Window: d.String()}
+	t.Logf("isolation none cpu=%.3fs / %s", cpu, d)
+	time.Sleep(time.Second)
+	return row
+}
+
+func captureClosedPprof(t *testing.T, proc *Proc, work string, d time.Duration) *PprofSummary {
+	t.Helper()
+	sec := int(d.Seconds())
+	if sec < 5 {
+		sec = 5
+	}
+	if sec > 30 {
+		sec = 30
+	}
+	out := filepath.Join(work, "pprof-closed.pb.gz")
+	stop := make(chan struct{})
+	tr := startScenario(proc, ScenarioClosed, stop)
+	sum := capturePprofCPU(t, proc, sec, out)
+	close(stop)
+	if sum != nil {
+		sum.Hits = tr.snapshot()
+		sum.Seconds = sec
+		t.Logf("pprof closed %ds top=\n%s\ntags=\n%s", sec, sum.Top, sum.Tags)
+	}
+	return sum
+}
+
+func capturePprofCPU(t *testing.T, proc *Proc, seconds int, outPath string) *PprofSummary {
+	t.Helper()
+	if proc == nil || proc.UI == "" {
+		return nil
+	}
+	url := fmt.Sprintf("http://%s/debug/pprof/profile?seconds=%d", proc.UI, seconds)
+	client := &http.Client{Timeout: time.Duration(seconds+15) * time.Second}
+	res, err := client.Get(url)
+	if err != nil {
+		t.Logf("pprof profile: %v", err)
+		return &PprofSummary{Seconds: seconds, Top: err.Error()}
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Logf("pprof read: %v", err)
+		return &PprofSummary{Seconds: seconds, Top: err.Error()}
+	}
+	if res.StatusCode != 200 {
+		t.Logf("pprof status %d: %s", res.StatusCode, trim(body, 200))
+		return &PprofSummary{Seconds: seconds, Top: fmt.Sprintf("status %d", res.StatusCode)}
+	}
+	if err := os.WriteFile(outPath, body, 0o644); err != nil {
+		t.Logf("pprof write: %v", err)
+	}
+	top := pprofText(outPath, "-top")
+	tags := pprofText(outPath, "-tags")
+	return &PprofSummary{Seconds: seconds, File: outPath, Top: top, Tags: tags}
+}
+
+func pprofText(profile, flag string) string {
+	cmd := exec.Command("go", "tool", "pprof", flag, "-nodecount=20", profile)
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		return strings.TrimSpace(string(b)) + " " + err.Error()
+	}
+	s := strings.TrimSpace(string(b))
+	if len(s) > 4000 {
+		s = s[:4000] + "…"
+	}
+	return s
 }
 
 func startPowermetrics(t *testing.T, out string) func() {

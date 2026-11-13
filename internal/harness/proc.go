@@ -168,6 +168,10 @@ func (p *Proc) WaitExit(d time.Duration) error {
 		return err
 	case <-time.After(d):
 		_ = p.Kill()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+		}
 		return fmt.Errorf("serve did not exit within %s", d)
 	}
 }
@@ -312,7 +316,7 @@ func BuildBin(outDir string) (string, error) {
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
-	cmd := exec.Command("go", "build", "-o", bin, "./cmd/aftertrace")
+	cmd := exec.Command("go", "build", "-tags", "harness", "-o", bin, "./cmd/aftertrace")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
 	b, err := cmd.CombinedOutput()

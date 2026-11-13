@@ -187,6 +187,20 @@ jobs:
         working-directory: site
         run: npm test
 
+  actionlint:
+    if: github.event_name != 'workflow_dispatch'
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          actionlint -color
+
   scale:
     name: Scale harness
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'

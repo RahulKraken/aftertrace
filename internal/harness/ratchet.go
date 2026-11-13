@@ -38,9 +38,10 @@ func defaultRatchetPath(profile string) string {
 	return filepath.Join(root, "internal/harness/testdata", "baseline-"+profile+".json")
 }
 
-// checkRatchet fails when a previously green budget turns red, or a stored
-// resource number regresses by more than ~10%. Report-only misses that are
-// already red in the baseline stay red.
+// checkRatchet fails when a previously green budget turns red, a red budget
+// flips green without a baseline update, a stored resource number regresses
+// by more than ~10% (including 0→positive), or a result is Invalid.
+// Invalid is never skipped. Report-only misses that are already red stay red.
 func checkRatchet(rep *Report, base *ratchetFile) []string {
 	if rep == nil || base == nil {
 		return nil
@@ -50,17 +51,38 @@ func checkRatchet(rep *Report, base *ratchetFile) []string {
 		byID[b.ID] = b
 	}
 	var errs []string
+	for _, got := range rep.Budgets {
+		if got.Invalid {
+			note := got.Notes
+			if note == "" {
+				note = stringify(got.Measured)
+			}
+			errs = append(errs, fmt.Sprintf("%s invalid (not skipped): %s", got.ID, note))
+		}
+	}
 	for _, want := range base.Budgets {
 		got, ok := byID[want.ID]
 		if !ok {
 			continue
 		}
-		if want.Pass && !got.Pass && !got.Invalid {
+		if got.Invalid {
+			continue
+		}
+		if want.Pass && !got.Pass {
 			errs = append(errs, fmt.Sprintf("%s turned red (was green)", want.ID))
+		}
+		if !want.Pass && got.Pass {
+			errs = append(errs, fmt.Sprintf("%s turned green (was red)", want.ID))
 		}
 		for k, prev := range want.Resource {
 			cur, ok := resourceNumber(got.Measured, k)
-			if !ok || prev <= 0 {
+			if !ok {
+				continue
+			}
+			if prev <= 0 {
+				if cur > 1e-9 {
+					errs = append(errs, fmt.Sprintf("%s %s 0 → %.4g (0→positive)", want.ID, k, cur))
+				}
 				continue
 			}
 			if cur > prev*1.10+1e-9 {

@@ -188,9 +188,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) recycleLocked() error {
-	if os.Getenv("AFTERTRACE_HARNESS") != "" {
-		fmt.Fprintf(os.Stderr, "harness: store recycle path=%s\n", s.Path)
-	}
+	logHarnessRecycle(s.Path)
 	if s.DB != nil {
 		_ = s.DB.Close()
 		s.DB = nil

@@ -7,6 +7,7 @@ const (
 	ScenarioClosed   = "window_closed"
 	ScenarioOpenIdle = "window_open_idle"
 	ScenarioLive     = "live"
+	ScenarioNone     = "none"
 )
 
 // Poll is one client timer: GET these paths, in order, on this cadence.
@@ -30,9 +31,12 @@ var Cadences = map[string][]Poll{
 		{Name: "home", Every: 30 * time.Second, Paths: []string{"/api/overview", "/api/sessions"}},
 		{Name: "tray_idle", Every: 45 * time.Second, Paths: []string{"/api/health", "/api/glance"}},
 	},
+	// Live is the session page: Shell still polls status every 15s, the
+	// session body polls /api/session/{id} every 5s, tray popover 12s.
+	// Home is not polled at the same time (the real UI shows one page).
 	ScenarioLive: {
-		{Name: "home", Every: 4 * time.Second, Paths: []string{"/api/overview", "/api/sessions"}},
-		{Name: "session", Every: 5 * time.Second, Paths: []string{"/api/sessions"}},
+		{Name: "status", Every: 15 * time.Second, Paths: []string{"/api/status"}},
+		{Name: "session", Every: 5 * time.Second, Paths: []string{"/api/session/{id}"}},
 		{Name: "popover", Every: 12 * time.Second, Paths: []string{"/api/health", "/api/glance"}},
 	},
 }

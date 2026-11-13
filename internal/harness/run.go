@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -64,93 +65,143 @@ func Run(t *testing.T, p Profile, bin, work string) (*Report, error) {
 		rep.Notes = append(rep.Notes, "Idle window shorter than 10 minutes: B1/B2 cannot catch the 60s hidden-tray glance.")
 	}
 
+	needHist := wantAny("B1", "B2", "B3", "B4", "B5", "B6", "B8", "B10")
 	histDir := filepath.Join(work, "projects")
-	t.Logf("generating history %s", p.CorpusNote())
-	gr, err := GenerateHistory(histDir, GenOpts{Size: p.Size, Sessions: p.Sessions, Seed: p.Seed})
-	if err != nil {
-		return rep, fmt.Errorf("gen-history: %w", err)
-	}
-	t.Logf("generated %d bytes in %s", gr.Bytes, histDir)
-
 	goldenDB := filepath.Join(work, "golden.duckdb")
-	b4, b5, goldenFP, importDur, err := measureBackfill(t, bin, work, histDir, goldenDB, p)
-	rep.add(b4)
-	rep.add(b5)
-	importOK := err == nil
-	if err != nil {
-		t.Logf("first import did not finish: %v (B4/B5 recorded; skip B8/B3 that need a golden DB)", err)
-		rep.Notes = append(rep.Notes, "first import did not finish: "+err.Error())
-	}
-
-	if importOK {
-		b8, err := measureCrash(t, bin, work, histDir, goldenDB, goldenFP, snapFile(goldenDB).Size, importDur, p)
+	var goldenFP tableFP
+	var importDur time.Duration
+	importOK := false
+	if needHist {
+		t.Logf("generating history %s", p.CorpusNote())
+		gr, err := GenerateHistory(histDir, GenOpts{Size: p.Size, Sessions: p.Sessions, Seed: p.Seed})
 		if err != nil {
-			rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts, cost, session hash match clean import; no imported-without-rows", Measured: err.Error(), Pass: false, Notes: "harness error", Representative: !p.SmallCorpus()})
-		} else {
-			rep.add(b8)
+			return rep, fmt.Errorf("gen-history: %w", err)
 		}
+		t.Logf("generated %d bytes in %s", gr.Bytes, histDir)
 
-		b3, err := measureRestart(t, bin, work, histDir, goldenDB, p)
-		if err != nil {
-			rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes", Measured: err.Error(), Pass: false, Representative: !p.SmallCorpus()})
-		} else {
-			rep.add(b3)
-		}
-	} else {
-		rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts, cost, session hash match clean import; no imported-without-rows", Measured: "skipped: no golden import", Pass: false, Notes: "first import did not finish", Representative: !p.SmallCorpus()})
-		rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes", Measured: "skipped: no golden import", Pass: false, Representative: !p.SmallCorpus()})
-	}
-
-	if _, err := os.Stat(goldenDB); err != nil {
-		t.Logf("no golden DB (%v); skipping B1/B2/B10", err)
-		rep.add(Budget{ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min window-closed; Electron main ≤2 CPU-s", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
-		rep.add(Budget{ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
-		rep.add(Budget{ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard", Measured: "skipped: no golden import", Pass: false})
-	} else {
-		idleProc, err := Start(StartOpts{
-			Bin: bin, Dir: filepath.Join(work, "idle"), HistoryDir: histDir,
-			DB:       copyDB(t, goldenDB, filepath.Join(work, "idle.duckdb")),
-			ExtraEnv: []string{"AFTERTRACE_PPROF=1"},
-		})
-		if err != nil {
-			return rep, err
-		}
-		if err := idleProc.WaitReady(3 * time.Minute); err != nil {
-			_ = idleProc.Kill()
-			return rep, err
-		}
-		if err := idleProc.WaitWarm(p.ImportWait()); err != nil {
-			note := "invalid: not warm (" + err.Error() + "); import CPU would be counted as idle"
-			t.Log(note)
-			rep.add(Budget{ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min window-closed; Electron main ≤2 CPU-s", Measured: err.Error(), Pass: false, Invalid: true, Notes: note, Representative: !p.ShortIdle()})
-			rep.add(Budget{ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged", Measured: err.Error(), Pass: false, Invalid: true, Notes: note, Representative: !p.ShortIdle()})
-			rep.add(Budget{ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard", Measured: "skipped: not warm", Pass: false, Invalid: true})
-		} else {
-			time.Sleep(settleAfterWarm)
-			b1, b2, sc := measureIdleClosed(t, idleProc, p, work)
-			rep.add(b1)
-			rep.add(b2)
-			rep.Scenarios = append(rep.Scenarios, sc)
-
-			for _, name := range []string{ScenarioOpenIdle, ScenarioLive} {
-				sc := measureIdleScenario(t, idleProc, p, name)
-				rep.Scenarios = append(rep.Scenarios, sc)
+		if wantAny("B3", "B4", "B5", "B8", "B1", "B2", "B6", "B10") {
+			removeDB(goldenDB)
+			b4, b5, fp, dur, err := measureBackfill(t, bin, work, histDir, goldenDB, p)
+			goldenFP, importDur = fp, dur
+			if wantBudget("B4") {
+				rep.add(b4)
 			}
-			rep.Isolation = measureIsolation(t, idleProc, p)
-			b10 := measureLatency(t, idleProc, p)
-			rep.add(b10)
+			if wantBudget("B5") {
+				rep.add(b5)
+			}
+			importOK = err == nil
+			if err != nil {
+				t.Logf("first import did not finish: %v (B4/B5 recorded; skip B8/B3 that need a golden DB)", err)
+				rep.Notes = append(rep.Notes, "first import did not finish: "+err.Error())
+			}
 		}
-		_ = idleProc.Stop()
 	}
 
-	b6 := measureLoad(t, bin, work, histDir, p)
-	rep.add(b6)
+	if wantBudget("B3") {
+		if importOK {
+			b3, err := measureRestart(t, bin, work, histDir, goldenDB, p)
+			if err != nil {
+				rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes", Measured: err.Error(), Pass: false, Representative: !p.SmallCorpus()})
+			} else {
+				rep.add(b3)
+			}
+		} else {
+			rep.add(Budget{ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes", Measured: "skipped: no golden import", Pass: false, Representative: !p.SmallCorpus()})
+		}
+	}
 
-	b7 := measureDupReplay(t, bin, work, p)
-	rep.add(b7)
+	if wantBudget("B8") {
+		if importOK {
+			b8, err := measureCrash(t, bin, work, histDir, goldenDB, goldenFP, snapFile(goldenDB).Size, importDur, p)
+			if err != nil {
+				rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts, cost, session hash match clean import; no imported-without-rows", Measured: err.Error(), Pass: false, Notes: "harness error", Representative: !p.SmallCorpus()})
+			} else {
+				rep.add(b8)
+			}
+		} else {
+			rep.add(Budget{ID: "B8", Name: "Resume after SIGKILL", Target: "counts, cost, session hash match clean import; no imported-without-rows", Measured: "skipped: no golden import", Pass: false, Notes: "first import did not finish", Representative: !p.SmallCorpus()})
+		}
+	}
 
-	b9 := measureFailStore(t, bin, work, p)
-	rep.add(b9)
+	if wantAny("B1", "B2", "B10") {
+		if _, err := os.Stat(goldenDB); err != nil {
+			t.Logf("no golden DB (%v); skipping B1/B2/B10", err)
+			if wantBudget("B1") {
+				rep.add(Budget{ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min window-closed; Electron main ≤2 CPU-s", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
+			}
+			if wantBudget("B2") {
+				rep.add(Budget{ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged", Measured: "skipped: no golden import", Pass: false, Representative: !p.ShortIdle()})
+			}
+			if wantBudget("B10") {
+				rep.add(Budget{ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard", Measured: "skipped: no golden import", Pass: false})
+			}
+		} else {
+			idleProc, err := Start(StartOpts{
+				Bin: bin, Dir: filepath.Join(work, "idle"), HistoryDir: histDir,
+				DB:       copyDB(t, goldenDB, filepath.Join(work, "idle.duckdb")),
+				ExtraEnv: []string{"AFTERTRACE_PPROF=1"},
+			})
+			if err != nil {
+				return rep, err
+			}
+			if err := idleProc.WaitReady(3 * time.Minute); err != nil {
+				_ = idleProc.Kill()
+				return rep, err
+			}
+			if err := idleProc.WaitWarm(p.ImportWait()); err != nil {
+				note := "invalid: not warm (" + err.Error() + "); import CPU would be counted as idle"
+				t.Log(note)
+				if wantBudget("B1") {
+					rep.add(Budget{ID: "B1", Name: "Idle engine CPU", Target: "≤3 CPU-s in 10 min window-closed; Electron main ≤2 CPU-s", Measured: err.Error(), Pass: false, Invalid: true, Notes: note, Representative: !p.ShortIdle()})
+				}
+				if wantBudget("B2") {
+					rep.add(Budget{ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged", Measured: err.Error(), Pass: false, Invalid: true, Notes: note, Representative: !p.ShortIdle()})
+				}
+				if wantBudget("B10") {
+					rep.add(Budget{ID: "B10", Name: "API latency", Target: "p95 <100ms target, <300ms hard", Measured: "skipped: not warm", Pass: false, Invalid: true})
+				}
+			} else {
+				time.Sleep(settleAfterWarm)
+				if wantBudget("B1") || wantBudget("B2") {
+					b1, b2, sc := measureIdleClosed(t, idleProc, p, work)
+					if wantBudget("B1") {
+						rep.add(b1)
+					}
+					if wantBudget("B2") {
+						rep.add(b2)
+					}
+					rep.Scenarios = append(rep.Scenarios, sc)
+				}
+				if wantBudget("B1") {
+					for _, name := range []string{ScenarioOpenIdle, ScenarioLive} {
+						sc := measureIdleScenario(t, idleProc, p, name)
+						rep.Scenarios = append(rep.Scenarios, sc)
+					}
+					none := measureNoTraffic(t, idleProc, p)
+					rep.Isolation = append(rep.Isolation, none)
+					rep.Isolation = append(rep.Isolation, measureIsolation(t, idleProc, p)...)
+					rep.Pprof = captureClosedPprof(t, idleProc, work, p.Isolation())
+				}
+				if wantBudget("B10") {
+					rep.add(measureLatency(t, idleProc, p))
+				}
+			}
+			_ = idleProc.Stop()
+		}
+	}
+
+	if wantBudget("B6") {
+		rep.add(measureLoad(t, bin, work, histDir, p))
+	}
+	if wantBudget("B7a") {
+		rep.add(measureLateCost(t, bin, work, p))
+	}
+	if wantBudget("B7b") {
+		rep.add(measureDupReplay(t, bin, work, p))
+	}
+	if wantBudget("B9") {
+		rep.add(measureFailStore(t, bin, work, p))
+	}
 
 	return rep, nil
 }
@@ -237,17 +288,37 @@ func measureRestart(t *testing.T, bin, work, hist, golden string, p Profile) (Bu
 	if err != nil {
 		return Budget{}, err
 	}
-	err = proc.WaitExit(p.ImportWait())
+	b3Wait := 10 * time.Minute
+	if p.ImportWait() < b3Wait {
+		b3Wait = p.ImportWait()
+	}
+	err = proc.WaitExit(b3Wait)
 	wall := time.Since(t0)
 	cpu := CPUFromState(proc.Cmd.ProcessState)
-	if err != nil {
-		return Budget{}, err
-	}
 	after := []FileSnap{snapHashed(db), snapHashed(db + ".wal")}
 	recycleLogged := ScanLogLines(proc.LogPath, func(s string) bool {
 		return strings.Contains(s, "harness: store recycle")
 	})
 	writes := filesChanged(before, after) || recycleLogged
+	tail := proc.tailLog()
+	tsLog := filepath.Join(work, fmt.Sprintf("b3-serve-%s.log", time.Now().UTC().Format("20060102T150405Z")))
+	if b, readErr := os.ReadFile(proc.LogPath); readErr == nil {
+		_ = os.WriteFile(tsLog, b, 0o644)
+	}
+	if err != nil {
+		t.Logf("B3 did not exit wall=%s cpu=%.3fs writes=%v: %v", wall.Truncate(time.Millisecond), cpu, writes, err)
+		return Budget{
+			ID: "B3", Name: "No-op restart", Target: "≤2s wall, ≤1 CPU-s, zero file-level writes (DB/WAL size, mtime, hash)",
+			Measured: map[string]any{
+				"wall_s": wall.Seconds(), "cpu_s": cpu, "writes": writes,
+				"timeout": true, "error": err.Error(), "log_tail": tail, "serve_log": tsLog,
+				"before": before, "after": after, "corpus": p.CorpusNote(),
+			},
+			Pass:           false,
+			Notes:          "serve --exit-after-warm did not finish; wall, CPU and log tail kept. Check whether import was still running.",
+			Representative: !p.SmallCorpus(),
+		}, nil
+	}
 	pass := wall <= 2*time.Second && cpu <= 1 && !writes
 	t.Logf("B3 wall=%s cpu=%.3fs writes=%v db %d→%d wal exists=%v→%v", wall.Truncate(time.Millisecond), cpu, writes, before[0].Size, after[0].Size, before[1].Exists, after[1].Exists)
 	return Budget{
@@ -255,6 +326,7 @@ func measureRestart(t *testing.T, bin, work, hist, golden string, p Profile) (Bu
 		Measured: map[string]any{
 			"wall_s": wall.Seconds(), "cpu_s": cpu, "writes": writes,
 			"before": before, "after": after, "corpus": p.CorpusNote(),
+			"log_tail": tail, "serve_log": tsLog,
 		},
 		Pass:           pass,
 		Notes:          "serve --exit-after-warm on a copy of the golden DB; Open is writing (schema/recycle/Reopen). Fingerprint is read-only.",
@@ -280,6 +352,12 @@ func measureIdleClosed(t *testing.T, proc *Proc, p Profile, work string) (Budget
 		Notes:          "WINDOW CLOSED: supervisor health 1s, tray health+glance 60s. Settle " + settleAfterWarm.String() + " after warm. Electron main TODO. Sampled every 1s.",
 		Corpus:         p.CorpusNote(),
 		Representative: !p.ShortIdle(),
+	}
+	if why, ok := closedWindowValid(sc, p.Idle); !ok {
+		b1.Invalid = true
+		b1.Pass = false
+		b1.Notes += "; invalid: " + why
+		t.Logf("B1 INVALID: %s", why)
 	}
 	b2 := Budget{
 		ID: "B2", Name: "Idle disk writes", Target: "DB and WAL size and mtime unchanged",
@@ -388,8 +466,10 @@ func measureLatency(t *testing.T, proc *Proc, p Profile) Budget {
 
 func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 	dir := filepath.Join(work, "load")
+	db := filepath.Join(work, "load.duckdb")
+	removeDB(db)
 	reopen := filepath.Join(dir, "reopen.flag")
-	proc, err := Start(StartOpts{Bin: bin, Dir: dir, HistoryDir: hist, DB: filepath.Join(work, "load.duckdb"), Reopen: reopen})
+	proc, err := Start(StartOpts{Bin: bin, Dir: dir, HistoryDir: hist, DB: db, Reopen: reopen})
 	if err != nil {
 		return Budget{ID: "B6", Name: "Reads under load", Target: "all 200; no 5xx, no database is closed, no 503; Reopen in window", Measured: err.Error(), Pass: false}
 	}
@@ -399,18 +479,18 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 	}
 	eps := append([]string{}, getEndpoints...)
 	var extra []string
-	var sess struct {
-		Sessions []struct {
-			ID string `json:"session_id"`
-		} `json:"sessions"`
+	var sess []struct {
+		ID string `json:"session_id"`
 	}
 	_ = proc.JSON("/api/sessions", &sess)
-	if len(sess.Sessions) > 0 {
-		extra = append(extra, "/api/session/"+sess.Sessions[0].ID)
+	if len(sess) > 0 {
+		extra = append(extra, "/api/session/"+sess[0].ID)
 	}
 	eps = append(eps, extra...)
 
 	var n200, n5xx, n503, nClosed, nOther, nErr atomic.Int64
+	var errMu sync.Mutex
+	var errSamples []string
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	t0 := time.Now()
@@ -429,6 +509,11 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 						st, body, _, err := proc.GET(ep)
 						if err != nil {
 							nErr.Add(1)
+							errMu.Lock()
+							if len(errSamples) < 8 {
+								errSamples = append(errSamples, err.Error())
+							}
+							errMu.Unlock()
 							continue
 						}
 						switch {
@@ -488,49 +573,91 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 	close(stop)
 	wg.Wait()
 	ok := n5xx.Load() == 0 && n503.Load() == 0 && nClosed.Load() == 0 && nErr.Load() == 0 && nOther.Load() == 0 && reopened
-	t.Logf("B6 200=%d 5xx=%d 503=%d closed=%d other=%d err=%d reopened=%v", n200.Load(), n5xx.Load(), n503.Load(), nClosed.Load(), nOther.Load(), nErr.Load(), reopened)
-	return Budget{
+	t.Logf("B6 200=%d 5xx=%d 503=%d closed=%d other=%d err=%d reopened=%v transport=%v", n200.Load(), n5xx.Load(), n503.Load(), nClosed.Load(), nOther.Load(), nErr.Load(), reopened, errSamples)
+	b := Budget{
 		ID: "B6", Name: "Reads under load", Target: "all 200; no 5xx, no database is closed, no 503; Reopen in window",
 		Measured: map[string]any{
 			"n200": n200.Load(), "n5xx": n5xx.Load(), "n503": n503.Load(),
 			"database_is_closed": nClosed.Load(), "other": nOther.Load(), "err": nErr.Load(),
 			"reopened": reopened, "seconds": p.Load.Seconds(), "readers": 8, "otlp_batches_per_s": p.OTLPRate,
+			"transport_errors": errSamples,
 		},
 		Pass:           ok,
 		Notes:          "8 readers × every GET at 4 Hz while OTLP replays and history backfill runs; AFTERTRACE_REOPEN sentinel forces a recycle in-window",
 		Representative: !p.SmallCorpus(),
 	}
+	if !reopened {
+		b.Invalid = true
+		b.Pass = false
+		b.Notes = "invalid: AFTERTRACE_REOPEN did not fire in-window (Reopen waits on the import write lock); not scored as a miss. Transport errors: " + strings.Join(errSamples, "; ")
+	}
+	return b
 }
 
-func measureDupReplay(t *testing.T, bin, work string, p Profile) Budget {
-	db := filepath.Join(work, "dup.duckdb")
-	proc, err := Start(StartOpts{Bin: bin, Dir: filepath.Join(work, "dup"), DB: db, NoHistory: true})
+func measureLateCost(t *testing.T, bin, work string, p Profile) Budget {
+	db := filepath.Join(work, "late.duckdb")
+	removeDB(db)
+	proc, err := Start(StartOpts{Bin: bin, Dir: filepath.Join(work, "late"), DB: db, NoHistory: true})
 	if err != nil {
-		return Budget{ID: "B7", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+		return Budget{ID: "B7a", Name: "Late-arriving cost (copies=1)", Target: "rollups = INPUT oracle including trace/session/day cost", Measured: err.Error(), Pass: false}
 	}
 	if err := proc.WaitReady(time.Minute); err != nil {
 		_ = proc.Kill()
-		return Budget{ID: "B7", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+		return Budget{ID: "B7a", Name: "Late-arriving cost (copies=1)", Target: "rollups = INPUT oracle including trace/session/day cost", Measured: err.Error(), Pass: false}
 	}
-	acc := replayShuffled(proc, p.OTLPBatches, p.OTLPCopies, p.Seed, p.OTLPRate)
+	acc := replayLateCost(proc, p.OTLPBatches, p.OTLPRate)
 	_ = proc.Stop()
 	st, err := store.OpenReadOnly(db)
 	if err != nil {
-		return Budget{ID: "B7", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+		return Budget{ID: "B7a", Name: "Late-arriving cost (copies=1)", Target: "rollups = INPUT oracle including trace/session/day cost", Measured: err.Error(), Pass: false}
 	}
 	defer st.Close()
 	want := InputOTLP(p.OTLPBatches)
 	got, err := ReadRollups(st.DB)
 	if err != nil {
-		return Budget{ID: "B7", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+		return Budget{ID: "B7a", Name: "Late-arriving cost (copies=1)", Target: "rollups = INPUT oracle including trace/session/day cost", Measured: err.Error(), Pass: false}
 	}
 	diffs := CompareFacts(got, want)
-	t.Logf("B7 diffs=%d http_ok=%d events got=%d want=%d", len(diffs), acc.OK, got.Events, want.Events)
+	t.Logf("B7a diffs=%d http_ok=%d trace_cost got=%g want=%g", len(diffs), acc.OK, got.TraceCost, want.TraceCost)
 	return Budget{
-		ID: "B7", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6",
+		ID: "B7a", Name: "Late-arriving cost (copies=1)", Target: "rollups = INPUT oracle including trace/session/day cost",
 		Measured:       map[string]any{"diffs": diffs, "input": want, "rollups": got, "replay": acc},
 		Pass:           len(diffs) == 0,
-		Notes:          fmt.Sprintf("each of %d batches replayed %d times, shuffled; expected values from unique input keys, not a recount of the DB under test", p.OTLPBatches, p.OTLPCopies),
+		Notes:          fmt.Sprintf("single copy of %d batches: traces first, then api_request cost. refreshTraces builds trace_roots when spans arrive and never reapplies later cost. Owner: PR 6 (same rollup/cost path as B7b).", p.OTLPBatches),
+		Representative: true,
+	}
+}
+
+func measureDupReplay(t *testing.T, bin, work string, p Profile) Budget {
+	db := filepath.Join(work, "dup.duckdb")
+	removeDB(db)
+	proc, err := Start(StartOpts{Bin: bin, Dir: filepath.Join(work, "dup"), DB: db, NoHistory: true})
+	if err != nil {
+		return Budget{ID: "B7b", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+	}
+	if err := proc.WaitReady(time.Minute); err != nil {
+		_ = proc.Kill()
+		return Budget{ID: "B7b", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+	}
+	acc := replayShuffled(proc, p.OTLPBatches, p.OTLPCopies, p.Seed, p.OTLPRate)
+	_ = proc.Stop()
+	st, err := store.OpenReadOnly(db)
+	if err != nil {
+		return Budget{ID: "B7b", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+	}
+	defer st.Close()
+	want := InputOTLP(p.OTLPBatches)
+	got, err := ReadRollups(st.DB)
+	if err != nil {
+		return Budget{ID: "B7b", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6", Measured: err.Error(), Pass: false}
+	}
+	diffs := CompareFacts(got, want)
+	t.Logf("B7b diffs=%d http_ok=%d events got=%d want=%d", len(diffs), acc.OK, got.Events, want.Events)
+	return Budget{
+		ID: "B7b", Name: "Counts with duplicates", Target: "rollups = INPUT oracle; cost within 1e-6",
+		Measured:       map[string]any{"diffs": diffs, "input": want, "rollups": got, "replay": acc},
+		Pass:           len(diffs) == 0,
+		Notes:          fmt.Sprintf("each of %d batches replayed %d times, shuffled; expected values from unique input keys, not a recount of the DB under test. Owner: PR 6.", p.OTLPBatches, p.OTLPCopies),
 		Representative: true,
 	}
 }
@@ -579,7 +706,7 @@ func measureFailStore(t *testing.T, bin, work string, p Profile) Budget {
 			"after_http": okHTTP, "event_rows": nevents,
 		},
 		Pass:           exporterOK && once && okHTTP.OK > 0,
-		Notes:          "AFTERTRACE_FAIL_STORE sentinel; exactly-once is on events (spans already PK-dedupe). Current engine may return 400/Unknown instead of 503/UNAVAILABLE.",
+		Notes:          "AFTERTRACE_FAIL_STORE sentinel; exactly-once is on events (spans already PK-dedupe) and is trivially true today because the fail path writes nothing. PR 7 owns a real failure-after-commit-plus-retry test. Current engine may return 400/Unknown instead of 503/UNAVAILABLE.",
 		Representative: true,
 	}
 }
@@ -665,20 +792,88 @@ func fpEqual(a, b tableFP) bool {
 	return near(a.LLMCost, b.LLMCost) && near(a.TraceCost, b.TraceCost) && near(a.SessionCost, b.SessionCost) && near(a.DayCost, b.DayCost) && near(a.ModelCost, b.ModelCost)
 }
 
-func copyDB(t *testing.T, src, dst string) string {
-	t.Helper()
-	for _, suf := range []string{"", ".wal"} {
-		b, err := os.ReadFile(src + suf)
-		if err != nil {
-			if suf == ".wal" {
-				continue
-			}
-			t.Fatalf("copy db: %v", err)
-		}
-		if err := os.WriteFile(dst+suf, b, 0o644); err != nil {
-			t.Fatalf("copy db: %v", err)
+func wantBudget(id string) bool {
+	raw := strings.TrimSpace(os.Getenv("AFTERTRACE_HARNESS_ONLY"))
+	if raw == "" {
+		return true
+	}
+	for _, p := range strings.Split(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(p), id) {
+			return true
 		}
 	}
+	return false
+}
+
+func wantAny(ids ...string) bool {
+	if strings.TrimSpace(os.Getenv("AFTERTRACE_HARNESS_ONLY")) == "" {
+		return true
+	}
+	for _, id := range ids {
+		if wantBudget(id) {
+			return true
+		}
+	}
+	return false
+}
+
+func closedWindowValid(sc ScenarioCPU, idle time.Duration) (string, bool) {
+	wall := time.Duration(sc.WallSeconds * float64(time.Second))
+	lo := time.Duration(float64(idle) * 0.85)
+	hi := time.Duration(float64(idle) * 1.25)
+	if wall < lo || wall > hi {
+		return fmt.Sprintf("window wall %s not in [0.85,1.25]×%s", wall.Truncate(time.Millisecond), idle), false
+	}
+	wantHits := int64(idle / time.Second)
+	if wantHits < 1 {
+		wantHits = 1
+	}
+	health := sc.Hits["supervisor_health"]
+	hLo, hHi := wantHits*80/100, wantHits*120/100
+	if hLo < 1 {
+		hLo = 1
+	}
+	if health < hLo || health > hHi {
+		return fmt.Sprintf("health hits %d want ~%d ±20%%", health, wantHits), false
+	}
+	return "", true
+}
+
+func removeDB(path string) {
+	_ = os.Remove(path)
+	_ = os.Remove(path + ".wal")
+}
+
+func copyDB(t *testing.T, src, dst string) string {
+	t.Helper()
+	removeDB(dst)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatalf("copy db mkdir: %v", err)
+	}
+	copyOne := func(from, to string, required bool) {
+		in, err := os.Open(from)
+		if err != nil {
+			if !required && os.IsNotExist(err) {
+				return
+			}
+			t.Fatalf("copy db open %s: %v", from, err)
+		}
+		defer in.Close()
+		out, err := os.Create(to)
+		if err != nil {
+			t.Fatalf("copy db create %s: %v", to, err)
+		}
+		defer func() {
+			if err := out.Close(); err != nil {
+				t.Fatalf("copy db close %s: %v", to, err)
+			}
+		}()
+		if _, err := io.Copy(out, in); err != nil {
+			t.Fatalf("copy db stream %s: %v", to, err)
+		}
+	}
+	copyOne(src, dst, true)
+	copyOne(src+".wal", dst+".wal", false)
 	return dst
 }
 

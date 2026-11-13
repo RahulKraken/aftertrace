@@ -54,8 +54,16 @@ func TestCadencesMatchSources(t *testing.T) {
 	if got := Cadences[ScenarioOpenIdle]; len(got) != 3 || got[0].Every != 15*time.Second || got[1].Every != 30*time.Second || got[2].Every != 45*time.Second {
 		t.Fatalf("window_open_idle: %+v", got)
 	}
-	if got := Cadences[ScenarioLive]; len(got) != 3 || got[0].Every != 4*time.Second || got[1].Every != 5*time.Second || got[2].Every != 12*time.Second {
+	if got := Cadences[ScenarioLive]; len(got) != 3 || got[0].Every != 15*time.Second || got[1].Every != 5*time.Second || got[2].Every != 12*time.Second {
 		t.Fatalf("live: %+v", got)
+	}
+	if Cadences[ScenarioLive][1].Paths[0] != "/api/session/{id}" {
+		t.Fatalf("live session path %v", Cadences[ScenarioLive][1].Paths)
+	}
+	for _, p := range Cadences[ScenarioLive] {
+		if p.Name == "home" {
+			t.Fatal("live must not poll home at the same time as session")
+		}
 	}
 	for _, p := range closed {
 		for _, path := range p.Paths {

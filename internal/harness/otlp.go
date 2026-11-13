@@ -119,7 +119,7 @@ func postOTLP(url string, msg proto.Message) (int, []byte, error) {
 	return res.StatusCode, b, nil
 }
 
-func sendHTTP(p *Proc, b Batch) OTLPResult {
+func sendTraces(p *Proc, b Batch) OTLPResult {
 	var r OTLPResult
 	st, body, err := postOTLP("http://"+p.HTTPOTLP+"/v1/traces", b.Trace)
 	r.LastStatus = st
@@ -129,7 +129,12 @@ func sendHTTP(p *Proc, b Batch) OTLPResult {
 		return r
 	}
 	noteHTTP(&r, st, body)
-	st, body, err = postOTLP("http://"+p.HTTPOTLP+"/v1/logs", b.Logs)
+	return r
+}
+
+func sendLogs(p *Proc, b Batch) OTLPResult {
+	var r OTLPResult
+	st, body, err := postOTLP("http://"+p.HTTPOTLP+"/v1/logs", b.Logs)
 	r.LastStatus = st
 	r.LastBody = trim(body, 200)
 	if err != nil {
@@ -138,6 +143,32 @@ func sendHTTP(p *Proc, b Batch) OTLPResult {
 	}
 	noteHTTP(&r, st, body)
 	return r
+}
+
+func sendHTTP(p *Proc, b Batch) OTLPResult {
+	r := sendTraces(p, b)
+	if r.Failed > 0 {
+		return r
+	}
+	lg := sendLogs(p, b)
+	r.OK += lg.OK
+	r.Status503 += lg.Status503
+	r.Status400 += lg.Status400
+	r.StatusOther += lg.StatusOther
+	r.Failed += lg.Failed
+	r.LastStatus = lg.LastStatus
+	r.LastBody = lg.LastBody
+	return r
+}
+
+func addOTLP(acc *OTLPResult, r OTLPResult) {
+	acc.OK += r.OK
+	acc.Status503 += r.Status503
+	acc.Status400 += r.Status400
+	acc.StatusOther += r.StatusOther
+	acc.Failed += r.Failed
+	acc.LastStatus = r.LastStatus
+	acc.LastBody = r.LastBody
 }
 
 func noteHTTP(r *OTLPResult, st int, body []byte) {
@@ -201,14 +232,37 @@ func replayShuffled(p *Proc, n int, copies int, seed int64, rate int) OTLPResult
 		if i > 0 {
 			<-t.C
 		}
-		r := sendHTTP(p, b)
-		acc.OK += r.OK
-		acc.Status503 += r.Status503
-		acc.Status400 += r.Status400
-		acc.StatusOther += r.StatusOther
-		acc.Failed += r.Failed
-		acc.LastStatus = r.LastStatus
-		acc.LastBody = r.LastBody
+		addOTLP(&acc, sendHTTP(p, b))
 	}
+	return acc
+}
+
+func replayLateCost(p *Proc, n int, rate int) OTLPResult {
+	now := uint64(time.Now().UnixNano())
+	batches := make([]Batch, n)
+	for i := 0; i < n; i++ {
+		batches[i] = makeBatch(i, now+uint64(i)*1e6)
+	}
+	var acc OTLPResult
+	interval := time.Second / time.Duration(rate)
+	if rate <= 0 {
+		interval = time.Millisecond
+	}
+	tk := time.NewTicker(interval)
+	defer tk.Stop()
+	for i, b := range batches {
+		if i > 0 {
+			<-tk.C
+		}
+		addOTLP(&acc, sendTraces(p, b))
+	}
+	time.Sleep(500 * time.Millisecond)
+	for i, b := range batches {
+		if i > 0 {
+			<-tk.C
+		}
+		addOTLP(&acc, sendLogs(p, b))
+	}
+	time.Sleep(500 * time.Millisecond)
 	return acc
 }

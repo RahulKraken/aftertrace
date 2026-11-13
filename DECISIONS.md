@@ -2,6 +2,14 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 13 2026: round-3 harness — valid nightly, clean run dirs, split B7.
+
+**Choice.** Keep the PR report-only and unmerged. Move `${{ runner.temp }}` out of job-level `env` in `nightly.yml` (actionlint rejects it; that is why the workflow failed in 0s). Run `actionlint` on every workflow in CI. Each harness run gets a fresh `run-<timestamp>` subdir; `copyDB` deletes dest+`.wal` and streams with `io.Copy`. Split B7 into B7a (copies=1, traces then late `api_request` cost) and B7b (duplicates). B7a owner is PR 6: `refreshTraces` never reapplies later cost, same rollup/cost path as B7b. Live cadence is status 15s + `/api/session/{id}` 5s + popover 12s, never home and session together. B1 Invalid if wall or health-hit count is off. No-traffic isolation window plus a window-closed CPU profile with route-template labels. B6 Invalid (not miss) when Reopen is stuck behind the import lock; record transport errors. B3 timeout keeps wall, CPU, and a timestamped serve.log tail. B8 docs match wall-time kill percentages. B9 notes that exactly-once is trivial and PR 7 owns failure-after-commit-plus-retry. `AFTERTRACE_REOPEN` / `AFTERTRACE_PPROF` (and the recycle log) compile only with `-tags harness`; pprof requires localhost Host and empty-or-localhost Origin. Ratchet files for ci/nightly/full store resource numbers, flag red→green, and never skip Invalid.
+
+**Why.** Round 2's nightly YAML never parsed. Leftover DBs made B8/B3/B4 untrustworthy. B7 mixed late-cost=0 with duplicate events.
+
+**How to reverse.** Revert this follow-up.
+
 ## Nov 12 2026: round-2 harness catches the bugs on main.
 
 **Choice.** Keep the PR report-only and unmerged. Replace the fake findings-timer idle with the three real client cadences (window closed / open idle / live), checked against tray.js, engine.js, and web `startPoll` sources. B1 is window closed only. B7 expected values come from unique input keys, not a recount of the DB under test. B3 fingerprints files (and a harness-only recycle log) via `OpenReadOnly`. B8 kills after N sessions and compares counts, cost, and a session-key hash. B9 requires HTTP 503 **and** gRPC UNAVAILABLE, exactly-once on events. Warm-wait failure invalidates B1. `powermetrics` runs during the closed idle window. Isolation CPU is process `CPUSeconds` over ~2 min per endpoint; `AFTERTRACE_PPROF` is env-gated with `pprof.Do` labels. `AFTERTRACE_FAIL_STORE` is read once at Open. Cadence table lives in the harness; production poll sources are unchanged. Ratchet JSON fails CI on green→red or >10% resource regression. Weekly Sunday job is the 2 GiB full run.

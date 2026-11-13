@@ -19,18 +19,14 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
-    if: >
-      github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full'
-      || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *'
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
     runs-on: macos-latest
     timeout-minutes: 180
     env:
       CGO_ENABLED: "1"
       AFTERTRACE_HARNESS: "1"
-      AFTERTRACE_HARNESS_PROFILE: "nightly"
+      AFTERTRACE_HARNESS_PROFILE: nightly
       AFTERTRACE_POWERMETRICS: "1"
-      AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
-      AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -38,6 +34,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Scale harness (512MiB corpus, 10-minute idle)
+        env:
+          AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
+          AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
           go test -count=1 -timeout 3h ./internal/harness -run TestScaleBudgets -v
@@ -57,18 +56,14 @@ jobs:
 
   full:
     name: Weekly 2 GiB
-    if: >
-      github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full'
-      || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0'
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full' || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0' }}
     runs-on: macos-latest
     timeout-minutes: 480
     env:
       CGO_ENABLED: "1"
       AFTERTRACE_HARNESS: "1"
-      AFTERTRACE_HARNESS_PROFILE: "full"
+      AFTERTRACE_HARNESS_PROFILE: full
       AFTERTRACE_POWERMETRICS: "1"
-      AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
-      AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -76,6 +71,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Scale harness (2 GiB corpus, 10-minute idle)
+        env:
+          AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
+          AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
         run: |
           mkdir -p "$AFTERTRACE_HARNESS_OUT"
           go test -count=1 -timeout 8h ./internal/harness -run TestScaleBudgets -v

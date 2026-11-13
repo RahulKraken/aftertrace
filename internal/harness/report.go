@@ -22,7 +22,16 @@ type Report struct {
 	Budgets     []Budget      `json:"budgets"`
 	Scenarios   []ScenarioCPU `json:"scenarios,omitempty"`
 	Isolation   []EndpointCPU `json:"isolation,omitempty"`
+	Pprof       *PprofSummary `json:"pprof,omitempty"`
 	Notes       []string      `json:"notes,omitempty"`
+}
+
+type PprofSummary struct {
+	Seconds int              `json:"seconds"`
+	File    string           `json:"file,omitempty"`
+	Top     string           `json:"top,omitempty"`
+	Tags    string           `json:"tags,omitempty"`
+	Hits    map[string]int64 `json:"hits,omitempty"`
 }
 
 type Budget struct {
@@ -122,6 +131,10 @@ func (r *Report) Markdown() string {
 		for _, e := range r.Isolation {
 			fmt.Fprintf(&b, "| %s | %s | %.3f | %s |\n", e.Name, e.Path, e.CPUSeconds, e.Window)
 		}
+	}
+	if r.Pprof != nil {
+		fmt.Fprintf(&b, "\n### Window-closed CPU profile (%ds)\n\n", r.Pprof.Seconds)
+		fmt.Fprintf(&b, "Labels (route templates):\n\n```\n%s\n```\n\nTop functions:\n\n```\n%s\n```\n", r.Pprof.Tags, r.Pprof.Top)
 	}
 	if len(r.Notes) > 0 {
 		fmt.Fprintf(&b, "\n")
