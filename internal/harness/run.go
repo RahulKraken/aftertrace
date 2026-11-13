@@ -477,6 +477,16 @@ func measureLoad(t *testing.T, bin, work, hist string, p Profile) Budget {
 	if err := proc.WaitReady(2 * time.Minute); err != nil {
 		return Budget{ID: "B6", Name: "Reads under load", Target: "all 200; no 5xx, no database is closed, no 503; Reopen in window", Measured: err.Error(), Pass: false}
 	}
+	if err := proc.WaitWarm(p.ImportWait()); err != nil {
+		return Budget{
+			ID: "B6", Name: "Reads under load", Target: "all 200; no 5xx, no database is closed, no 503; Reopen in window",
+			Measured:       err.Error(),
+			Pass:           false,
+			Invalid:        true,
+			Notes:          "invalid: import still running; Reopen would wait on the write lock. " + err.Error(),
+			Representative: !p.SmallCorpus(),
+		}
+	}
 	eps := append([]string{}, getEndpoints...)
 	var extra []string
 	var sess []struct {
