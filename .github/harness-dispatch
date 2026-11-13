@@ -2,4 +2,4 @@
 # Put [harness-full] in the commit message to run the weekly 2 GiB job instead.
 # workflow_dispatch is 403 for the cloud agent; do not push nightly.yml itself
 # (that used to cancel Desktop macOS packaging).
-nightly
+full
