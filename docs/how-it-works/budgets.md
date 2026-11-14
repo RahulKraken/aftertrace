@@ -34,7 +34,7 @@ Compiled only with `go build -tags harness` (the harness `BuildBin` path). A pro
 |---|---|
 | `AFTERTRACE_HARNESS=1` | Enables `TestScaleBudgets` (skip otherwise). Does not change the shipped DSN. |
 | `AFTERTRACE_REOPEN` | Sentinel path. When the file appears, serve calls `Store.Reopen` once and removes it. B6. |
-| `AFTERTRACE_PPROF=1` | Serves `/debug/pprof/` with `pprof.Do` **route-template** labels (`r.Pattern`, e.g. `GET /api/session/{id}`). Origin must be empty (local curl) or a localhost hostname; Host must be 127.0.0.1 / localhost / ::1. |
+| `AFTERTRACE_PPROF=1` | Serves `/debug/pprof/` with `pprof.Do` **route-template** labels from the API mux (`mux.Handler`, e.g. `GET /api/session/{id}`), not the pprof wrapper's `/` catch-all. Origin must be empty (local curl) or a localhost hostname; Host must be 127.0.0.1 / localhost / ::1. |
 | `AFTERTRACE_FAIL_STORE` | Sentinel path captured at `store.Open`. Insert fails while the file exists. Always compiled (audit tests use it); not a pprof/reopen hook. |
 | `AFTERTRACE_HARNESS_ONLY` | Comma-separated budget ids (`B3,B4,B5,B8`) to run a subset. |
 | `AFTERTRACE_HARNESS_RATCHET=0` | Skip the baseline check. |
@@ -57,7 +57,7 @@ Idle cadences are the real client timers (`internal/harness/cadence.go`). `TestC
 | `window_open_idle` | status; home overview+sessions; tray | 15 s; 30 s; 45 s (`IDLE_MS`) | report |
 | `live` | status (every page); `/api/session/{id}`; popover | 15 s; 5 s; 12 s (`OPEN_MS`) | report. Does **not** poll home at the same time. |
 
-Per-endpoint isolation CPU is a separate ~2-minute window (8 s in CI) that hits one route every 1 s and records the engine process's CPU change (`getrusage` / `ps` / `/proc/<pid>/stat`). A **no-traffic** window of the same length runs first. Drill-down is a CPU profile taken during a dedicated window-closed interval of **at least 120 s** on nightly/full (so a tray glance at `HIDDEN_MS=60s` is in the sample; CI stays 8 s). `go tool pprof -top -tags`; labels are route templates (`r.Pattern`), not raw paths. The findings-refresh goroutine is labelled `findings-refresh`. Not `RUSAGE_THREAD`.
+Per-endpoint isolation CPU is a separate ~2-minute window (8 s in CI) that hits one route every 1 s and records the engine process's CPU change (`getrusage` / `ps` / `/proc/<pid>/stat`). A **no-traffic** window of the same length runs first. Drill-down is a CPU profile taken during a dedicated window-closed interval of **at least 120 s** on nightly/full (so a tray glance at `HIDDEN_MS=60s` is in the sample; CI stays 8 s). `go tool pprof -top -tags`; labels are API mux route templates (`mux.Handler`, e.g. `GET /api/glance`), not the pprof wrapper's `/` catch-all. The findings-refresh goroutine is labelled `findings-refresh`. Not `RUSAGE_THREAD`.
 
 B1 is **Invalid** (not a miss) when the closed window's wall time is outside `[0.85, 1.25]×idle` or supervisor health hits are outside ±20% of idle seconds. B6 is **Invalid** when `AFTERTRACE_REOPEN` does not fire in-window (Reopen waits on the import write lock); transport error strings are recorded. Invalid results fail the ratchet and are never skipped.
 
@@ -146,8 +146,8 @@ Green [weekly 43510741168](https://github.com/RahulKraken/aftertrace/actions/run
 | B4 | Peak RSS **486.4 MB**. | 2 GiB JSONL, 574 212 spans | Valid | **miss** |
 | B5 | **0** spill hits. | 2 GiB, 22 m 32 s import | Valid | pass |
 | B6 | n200=513, err=57, `reopened=true`. | 2 GiB + OTLP + forced Reopen | Valid | **miss** |
-| B7a | copies=1: cost 0 vs 0.20. Owner PR 6. | 40 OTLP batches × 1 | Valid | **miss** |
-| B7b | duplicate events. Owner PR 6. | 40 OTLP batches × 3 | Valid | **miss** |
+| B7a | copies=1: cost 0 vs **0.40**. Owner PR 6. | 40 OTLP batches × 1 | Valid | **miss** |
+| B7b | events **120 vs 40**. Owner PR 6. | 40 OTLP batches × 3 | Valid | **miss** |
 | B8 | **1/10** matched/valid; **0 invalid**. Kills at 150–2700 of 3000 sessions. Trial 9 (2700) matched. | 2 GiB, 10 SIGKILL after N sessions | 10 valid / 0 invalid | **miss** |
 | B9 | HTTP **400** AND gRPC **Unknown**. Owner PR 7. | empty store + sentinel | Valid | **miss** |
 | B10 | p95 under 300 ms. | 2 GiB after idle | Valid | pass |
