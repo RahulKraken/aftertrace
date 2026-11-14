@@ -13,23 +13,34 @@ import (
 	"strings"
 )
 
-func maybePprof(next http.Handler) http.Handler {
+func maybePprof(next http.Handler, apiMux *http.ServeMux) http.Handler {
 	if os.Getenv("AFTERTRACE_PPROF") == "" {
 		return next
 	}
-	return withPprof(withRouteLabels(next))
+	return withPprof(withRouteLabels(next, apiMux))
 }
 
-func withRouteLabels(next http.Handler) http.Handler {
+// withRouteLabels asks the API mux for the route pattern. The pprof wrapper's
+// "/" catch-all would otherwise set r.Pattern to "/" for every request.
+func withRouteLabels(next http.Handler, apiMux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		label := r.Pattern
-		if label == "" {
-			label = r.Method + " " + r.URL.Path
-		}
+		label := routePattern(apiMux, r)
 		runtimepprof.Do(r.Context(), runtimepprof.Labels("route", label), func(ctx context.Context) {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
+}
+
+func routePattern(mux *http.ServeMux, r *http.Request) string {
+	if mux != nil {
+		if _, pattern := mux.Handler(r); pattern != "" {
+			return pattern
+		}
+	}
+	if r.Pattern != "" && r.Pattern != "/" {
+		return r.Pattern
+	}
+	return r.Method + " " + r.URL.Path
 }
 
 func withPprof(next http.Handler) http.Handler {

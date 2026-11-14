@@ -71,19 +71,18 @@ func TestStopSudoChildKillsRootProcess(t *testing.T) {
 	}
 	t.Logf("sudo pid %d root child %d", sudoPID, child)
 	t0 := time.Now()
-	killed := stopRootPID(child, 200*time.Millisecond)
+	killed := stopRootChild(t, cmd.Process, child)
 	elapsed := time.Since(t0)
-	if elapsed > 3*time.Second {
-		t.Fatalf("stopRootPID blocked %s", elapsed)
+	if elapsed > 10*time.Second {
+		t.Fatalf("stopRootChild blocked %s", elapsed)
+	}
+	if !killed {
+		t.Fatal("wanted SIGKILL path: root child ignores SIGINT")
 	}
 	if pidAlive(child) {
 		_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(child)).Run()
-		t.Fatalf("root child %d still alive after sudo kill (killed=%v)", child, killed)
+		t.Fatalf("root child %d still alive after sudo kill", child)
 	}
-	if cmd.Process != nil && pidAlive(cmd.Process.Pid) {
-		_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(cmd.Process.Pid)).Run()
-	}
-	waitProc(cmd.Process, 2*time.Second)
 }
 
 func TestCrashKillSessions(t *testing.T) {

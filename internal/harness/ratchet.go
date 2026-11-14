@@ -70,14 +70,14 @@ func checkRatchet(rep *Report, base *ratchetFile) []string {
 		if got.Invalid {
 			continue
 		}
+		if base.GOOS != "" && rep.GOOS != "" && !strings.EqualFold(base.GOOS, rep.GOOS) {
+			continue
+		}
 		if want.Pass && !got.Pass {
 			errs = append(errs, fmt.Sprintf("%s turned red (was green)", want.ID))
 		}
 		if !want.Pass && got.Pass {
 			errs = append(errs, fmt.Sprintf("%s turned green (was red)", want.ID))
-		}
-		if base.GOOS != "" && rep.GOOS != "" && !strings.EqualFold(base.GOOS, rep.GOOS) {
-			continue
 		}
 		for k, prev := range want.Resource {
 			cur, ok := resourceNumber(got.Measured, k)

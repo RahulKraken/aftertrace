@@ -4,4 +4,4 @@ package api
 
 import "net/http"
 
-func maybePprof(next http.Handler) http.Handler { return next }
+func maybePprof(next http.Handler, _ *http.ServeMux) http.Handler { return next }

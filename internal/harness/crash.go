@@ -4,6 +4,7 @@ package harness
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/RahulKraken/aftertrace/internal/store"
 )
+
+var errKillWaitTimeout = errors.New("kill wait timed out")
 
 // crashKillSessions returns how many distinct ingested sessions to wait for
 // before SIGKILL. Spread 5–90% of the golden session count, never the full
@@ -62,7 +65,7 @@ func waitUntilSessions(t *testing.T, want int, deadline time.Time, proc *Proc) (
 			}
 		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
-			return got, fmt.Errorf("timeout waiting for %d sessions (last %d)", want, got)
+			return got, fmt.Errorf("%w: waiting for %d sessions (last %d)", errKillWaitTimeout, want, got)
 		}
 		if time.Now().After(nextLog) {
 			left := time.Duration(0)
@@ -172,6 +175,15 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 		if waitErr != nil {
 			t.Logf("B8 trial %d wait sessions: %v (killing at %d sessions, %d bytes)", i, waitErr, sessAt, size)
 		}
+		if errors.Is(waitErr, errKillWaitTimeout) {
+			invalid++
+			trials = append(trials, trial{
+				I: i, WantSessions: want, SizeAtKill: size, SessionsAtKill: sessAt,
+				Invalid: true, Error: waitErr.Error(),
+			})
+			t.Logf("B8 trial %d INVALID: kill wait timed out at %d/%d sessions", i, sessAt, want)
+			continue
+		}
 		if sessAt >= goldenSessions {
 			invalid++
 			trials = append(trials, trial{
@@ -209,23 +221,31 @@ func measureCrash(t *testing.T, bin, work, hist, golden string, goldenFP tableFP
 		})
 		t.Logf("B8 trial %d kill@%d sessions size=%d sessions=%d spans=%d events=%d imported_without_rows=%d match=%v", i, want, size, sessAt, fp.Spans, fp.Events, fp.ImportedWithoutRows, match)
 	}
-	pass := valid > 0 && matched == valid
+	need := 8
+	if p.CrashTrials < need {
+		need = p.CrashTrials
+	}
+	pass := valid >= need && matched == valid && need > 0
 	b := Budget{
-		ID: "B8", Name: "Resume after SIGKILL", Target: "matched/valid mid-import SIGKILL trials; no imported-without-rows",
+		ID: "B8", Name: "Resume after SIGKILL", Target: "≥8 valid mid-import SIGKILL trials, all matched; no imported-without-rows",
 		Measured: map[string]any{
-			"matched": matched, "valid": valid, "invalid": invalid,
+			"matched": matched, "valid": valid, "invalid": invalid, "need_valid": need,
 			"trials": trials, "golden": goldenFP, "golden_bytes": goldenSize,
 			"golden_sessions": goldenSessions,
 		},
 		Pass:           pass,
-		Notes:          fmt.Sprintf("%d/%d matched/valid; %d invalid (killed after ingest); SIGKILL after N ingested sessions (5–90%% of %d)", matched, valid, invalid, goldenSessions),
+		Notes:          fmt.Sprintf("%d/%d matched/valid; %d invalid; need ≥%d valid; SIGKILL after N ingested sessions (5–90%% of %d)", matched, valid, invalid, need, goldenSessions),
 		Corpus:         p.CorpusNote(),
 		Representative: !p.SmallCorpus(),
 	}
-	if valid == 0 {
-		b.Invalid = true
+	if valid < need {
 		b.Pass = false
-		b.Notes += "; no valid mid-import trials"
+		if valid == 0 {
+			b.Invalid = true
+			b.Notes += "; no valid mid-import trials"
+		} else {
+			b.Notes += fmt.Sprintf("; fewer than %d valid trials", need)
+		}
 	}
 	return b, nil
 }

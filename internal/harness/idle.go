@@ -265,28 +265,33 @@ func startPowermetrics(t *testing.T, out string, window time.Duration) func() {
 	child := waitNamedChild(sudoPID, "powermetrics", 3*time.Second)
 	t.Logf("powermetrics sudo pid %d child pid %d samples %d during idle", sudoPID, child, samples)
 	return func() {
-		t.Logf("stopping powermetrics child pid %d (sudo %d)", child, sudoPID)
-		pids := []int{}
-		if child > 0 {
-			pids = append(pids, child)
-		} else {
-			pids = append(pids, pgrepName("powermetrics")...)
-		}
-		killed := false
-		for _, pid := range pids {
-			if stopRootPID(pid, powermetricsStopWait) {
-				killed = true
-			}
-		}
+		killed := stopRootChild(t, cmd.Process, child)
 		if killed {
 			t.Log("powermetrics did not exit after SIGINT; sudo kill -9 on child pid")
 		}
-		if cmd.Process != nil && pidAlive(cmd.Process.Pid) {
-			_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(cmd.Process.Pid)).Run()
-		}
-		waitProc(cmd.Process, 2*time.Second)
 		f.Close()
 	}
+}
+
+// stopRootChild sends sudo kill -INT then sudo kill -9 to child, then waits
+// for sudo. It never pgrep -x's a process name across the machine.
+func stopRootChild(t *testing.T, sudo *os.Process, child int) (killed bool) {
+	t.Helper()
+	sudoPID := 0
+	if sudo != nil {
+		sudoPID = sudo.Pid
+	}
+	t.Logf("stopping root child pid %d (sudo %d)", child, sudoPID)
+	if child > 0 {
+		killed = stopRootPID(child, powermetricsStopWait)
+	} else {
+		t.Log("no root child pid; not sending a system-wide kill")
+	}
+	if sudo != nil && pidAlive(sudo.Pid) {
+		_ = exec.Command("sudo", "-n", "kill", "-9", strconv.Itoa(sudo.Pid)).Run()
+	}
+	waitProc(sudo, 2*time.Second)
+	return killed
 }
 
 // stopProcessGroup sends SIGINT, waits graceful, then SIGKILL's the
@@ -337,14 +342,6 @@ func pgrepChildren(parent int) []int {
 	return parsePIDs(string(out))
 }
 
-func pgrepName(name string) []int {
-	out, err := exec.Command("pgrep", "-x", name).Output()
-	if err != nil {
-		return nil
-	}
-	return parsePIDs(string(out))
-}
-
 func parsePIDs(s string) []int {
 	var pids []int
 	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
@@ -382,9 +379,6 @@ func waitNamedChild(parent int, name string, d time.Duration) int {
 			return children[0]
 		}
 		time.Sleep(50 * time.Millisecond)
-	}
-	if pids := pgrepName(name); len(pids) > 0 {
-		return pids[0]
 	}
 	return 0
 }

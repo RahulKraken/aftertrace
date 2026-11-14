@@ -113,7 +113,8 @@ func (p Profile) Isolation() time.Duration {
 
 // PprofSeconds is the closed-window CPU profile length. Nightly/full capture
 // at least 120 s so a tray glance (HIDDEN_MS=60s) is in the sample. Labels are
-// route templates (r.Pattern), not raw paths.
+// API mux route templates from mux.Handler (e.g. GET /api/session/{id}), not
+// the pprof wrapper's "/" catch-all.
 func (p Profile) PprofSeconds() int {
 	if p.Idle >= 10*time.Minute {
 		return 120
