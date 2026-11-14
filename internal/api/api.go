@@ -71,7 +71,7 @@ func New(st *store.Store, web fs.FS, opts ...Option) http.Handler {
 	mux.HandleFunc("POST /api/sql", s.postSQL)
 	mux.HandleFunc("POST /api/ask", s.postAsk)
 	mux.HandleFunc("GET /", s.static)
-	return withHeaders(mux)
+	return maybePprof(withHeaders(mux))
 }
 
 func withHeaders(next http.Handler) http.Handler {

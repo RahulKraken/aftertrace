@@ -37,6 +37,9 @@ type Store struct {
 	// writes many sessions; rebuilding rollups once at the end is the same
 	// result without repeating day/model scans on every file.
 	deferRollups int
+	// failStore is AFTERTRACE_FAIL_STORE at Open. Insert stats that path
+	// only when it is non-empty. Unset in production.
+	failStore string
 }
 
 type Span struct {
@@ -113,7 +116,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{DB: db, Path: path}
+	s := &Store{DB: db, Path: path, failStore: strings.TrimSpace(os.Getenv("AFTERTRACE_FAIL_STORE"))}
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
@@ -137,6 +140,20 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// OpenReadOnly opens an existing DuckDB file without CREATE/migrate/recycle.
+// The harness uses it so B3/B7/B8 fingerprinting cannot itself write.
+func OpenReadOnly(path string) (*Store, error) {
+	db, err := sql.Open("duckdb", path+"?access_mode=READ_ONLY")
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return &Store{DB: db, Path: path, failStore: strings.TrimSpace(os.Getenv("AFTERTRACE_FAIL_STORE"))}, nil
 }
 
 // migrateDayStats adds week-summary columns to stores created before they
@@ -171,6 +188,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) recycleLocked() error {
+	logHarnessRecycle(s.Path)
 	if s.DB != nil {
 		_ = s.DB.Close()
 		s.DB = nil
@@ -213,6 +231,9 @@ func (s *Store) fireChange() {
 }
 
 func (s *Store) Insert(spans []Span, sevs []SpanEvent, evs []Event, pts []MetricPoint) error {
+	if err := s.injectedStoreFailure(); err != nil {
+		return err
+	}
 	s.wmu.Lock()
 	if live := liveSessionIDs(spans, evs, pts); len(live) > 0 {
 		if err := s.dropHistoryLocked(live); err != nil {
@@ -477,6 +498,19 @@ func (s *Store) LiveSessions(ids []string) (map[string]bool, error) {
 		out[id] = true
 	}
 	return out, rows.Err()
+}
+
+// injectedStoreFailure is a harness-only tripwire. AFTERTRACE_FAIL_STORE is a
+// path captured at Open; when that file exists, Insert returns an error and
+// writes nothing. Unset in production. Used by internal/harness budget B9.
+func (s *Store) injectedStoreFailure() error {
+	if s == nil || s.failStore == "" {
+		return nil
+	}
+	if _, err := os.Stat(s.failStore); err == nil {
+		return fmt.Errorf("injected store failure")
+	}
+	return nil
 }
 
 func placeholders(n int) string {

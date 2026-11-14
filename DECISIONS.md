@@ -2,6 +2,54 @@
 
 Short records of choices that are easy to reverse and easy to forget. Newest first.
 
+## Nov 13 2026: round-4 harness — root powermetrics PID, B8 valid mid-import, 512 MiB ratchet.
+
+**Choice.** Keep the PR report-only and unmerged. `powermetrics` runs with `-n` samples sized to the idle window and is stopped with `sudo kill` / `sudo kill -9` on **its own PID**, not sudo's. A unix test starts a root child via `sudo` that ignores SIGINT and asserts it is gone after Stop. Artifact upload globs `run-*/powermetrics.txt` and copies the file to `AFTERTRACE_HARNESS_OUT`. B8 kills after N ingested sessions (5–90% of golden distinct sessions); trials already at the golden session count are Invalid and excluded; the row is matched/valid. Nightly ratchet is the green 512 MiB darwin run 43478795531 (B1 14.46, B4 358), with a `goos` field so Linux does not fail the macOS memory baseline. Closed-window pprof is 120 s on nightly/full. `go test -timeout` is 5 h (nightly) / 7 h (weekly) so a hang dumps stacks before the job cap. `nightly.yml` has **no push trigger** — only `schedule` (and `workflow_dispatch` if a human can use it). Merging onto main must not start a harness run. B3 writes/CPU miss stays with PR 3.
+
+**Why.** Round 3 SIGKILL'd sudo's process group; the reviewer reproduced a root child that ignores SIGINT and outlives Stop. The green nightly uploaded 2 files and no energy data because powermetrics sat in `run-<ts>/`. B8 wall-time % includes post-ingest rollup, so trials 6–9 on 43478795531 were killed after 800/800 sessions (real mid-import 0/6). The nightly ratchet still had the 2 GiB numbers (B1 60 vs 14.46, B4 590 vs 358).
+
+**How to reverse.** Revert this follow-up.
+
+## Nov 13 2026: nightly 6h was powermetrics Wait, not a slow engine.
+
+**Choice.** Do not raise the 360-minute job timeout. `startPowermetrics`'s stop func sent SIGINT and then `Wait()` with no deadline. `sudo -n powermetrics` on GitHub-hosted macos-latest ignored Interrupt, so after `window_closed` the harness blocked until `go test` / the job died. Stop now SIGKILLs the process group after 5 s. Each harness phase logs start/done. Keep `timeout-minutes: 360`.
+
+**Why.** Run 43421664859 (job timeout 360 min, cancelled at 18:01:29Z): gen 2 s, first import 5 m 44 s (B4 359.7 MB), B3 511 ms, B8 10 trials 12:13–12:53 (~40 min), powermetrics pid 82902 at 12:53:56, `window_closed` 13:03:56, then no further harness lines until the job cancelled 5 h later. Never logged `B1 closed cpu=` (that line is after `stopPM()`). Sister 43393421141 had the Wait stack: `os.(*Process).Wait` in `startPowermetrics.func5` for 120 minutes. Engine was idle. Phase math for 512 MiB is ~2 h, not 6 h.
+
+**How to reverse.** Revert the stop-timeout; the hang returns on nightly.
+
+## Nov 13 2026: round-3 harness — valid nightly, clean run dirs, split B7.
+
+**Choice.** Keep the PR report-only and unmerged. Move `${{ runner.temp }}` out of job-level `env` in `nightly.yml` (actionlint rejects it; that is why the workflow failed in 0s). Run `actionlint` on every workflow in CI. Each harness run gets a fresh `run-<timestamp>` subdir; `copyDB` deletes dest+`.wal` and streams with `io.Copy`. Split B7 into B7a (copies=1, traces then late `api_request` cost) and B7b (duplicates). B7a owner is PR 6: `refreshTraces` never reapplies later cost, same rollup/cost path as B7b. Live cadence is status 15s + `/api/session/{id}` 5s + popover 12s, never home and session together. B1 Invalid if wall or health-hit count is off. No-traffic isolation window plus a window-closed CPU profile with route-template labels. B6 Invalid (not miss) when Reopen is stuck behind the import lock; record transport errors. B3 timeout keeps wall, CPU, and a timestamped serve.log tail. B8 docs match wall-time kill percentages. B9 notes that exactly-once is trivial and PR 7 owns failure-after-commit-plus-retry. `AFTERTRACE_REOPEN` / `AFTERTRACE_PPROF` (and the recycle log) compile only with `-tags harness`; pprof requires localhost Host and empty-or-localhost Origin. Ratchet files for ci/nightly/full store resource numbers, flag red→green, and never skip Invalid.
+
+**Why.** Round 2's nightly YAML never parsed. Leftover DBs made B8/B3/B4 untrustworthy. B7 mixed late-cost=0 with duplicate events.
+
+**How to reverse.** Revert this follow-up.
+
+## Nov 12 2026: round-2 harness catches the bugs on main.
+
+**Choice.** Keep the PR report-only and unmerged. Replace the fake findings-timer idle with the three real client cadences (window closed / open idle / live), checked against tray.js, engine.js, and web `startPoll` sources. B1 is window closed only. B7 expected values come from unique input keys, not a recount of the DB under test. B3 fingerprints files (and a harness-only recycle log) via `OpenReadOnly`. B8 kills after N sessions and compares counts, cost, and a session-key hash. B9 requires HTTP 503 **and** gRPC UNAVAILABLE, exactly-once on events. Warm-wait failure invalidates B1. `powermetrics` runs during the closed idle window. Isolation CPU is process `CPUSeconds` over ~2 min per endpoint; `AFTERTRACE_PPROF` is env-gated with `pprof.Do` labels. `AFTERTRACE_FAIL_STORE` is read once at Open. Cadence table lives in the harness; production poll sources are unchanged. Ratchet JSON fails CI on green→red or >10% resource regression. Weekly Sunday job is the 2 GiB full run.
+
+**Why.** Round 1 came out green on several budgets that exist to catch bugs already on main (duplicate events, rollup rebuild / Open recycle, silent OTLP loss, crash holes, idle CPU from the wrong client).
+
+**How to reverse.** Revert this follow-up. Idle goes back to the findings timer; oracle recounts the DB; B3 uses `store.Open` row counts.
+
+## Nov 12 2026: measure the field corpus, do not raise the DuckDB cap.
+
+**Choice.** Keep `memory_limit=256MB` (244 MiB) in the shipped DSN. The 32 MiB / 20 s PR job stays so CI stays around 15 minutes; those passes are labelled **not representative**. Nightly uses at least 512 MiB and a full 10-minute idle. CI `workflow_dispatch` can run a larger corpus without the other jobs. B1/B2 drive a test-only tray stand-in (health every 1 s, glance every 45 s, findings every 30 s) because the desktop is not present. B4 records first-import wall and CPU; B8 SIGKILL waits scale with golden import duration (capped at 5 minutes). `gen-history` still honours `--size` as JSONL bytes, but each session also gets 48–79 assistant usage turns so the stored DB is not a 27 MB file of stripped padding. Small-corpus B4/B5 passes do not speak to a 735 MB field DB or 7.9 GB of `~/.claude/projects`. The scale and nightly jobs run on `macos-latest` because GitHub rejected `macos-14` (`macos-14-arm64-us-default` is not supported).
+
+**Why.** Rahul's Mac OOMs at the 244 MiB DuckDB cap. A 32 MiB corpus never reaches that cap, so a green B4/B5 there proves nothing about the field bug.
+
+**How to reverse.** Revert this follow-up. Nightly goes back to 32 MiB; drop `workflow_dispatch` inputs and the tray stand-in.
+
+## Nov 12 2026: report-only scale and energy harness.
+
+**Choice.** One PR, no merge/tag/release. PRs #59, #60 and #61 stay untouched. Engine behaviour on the default `serve` path is unchanged. Add a hidden `aftertrace dev gen-history` command, a `serve --exit-after-warm` test flag, `internal/harness` driving a real `serve` for budgets B1–B9, report-only `internal/store/audit_test.go` table tests for the three known store bugs, a `macos-14` `scale` job (~15 min, 32 MiB corpus) that publishes a JSON artifact and prints markdown (no PR comments), `nightly.yml` with a 10-minute idle, `docs/how-it-works/budgets.md`, and this entry. Budget misses and audit bugs log `known bug` / skip; they do not fail CI. `AFTERTRACE_FAIL_STORE` is a sentinel path Insert checks only when set. Electron main CPU and `powermetrics` are TODOs on GitHub-hosted runners. Each later fix PR flips its own assertion to `t.Fatal`.
+
+**Why.** Need a baseline and a machine-readable report before turning idle CPU, spill, duplicate counts, crash-resume and OTLP retries into hard gates. 2 GiB does not fit a 15-minute `macos-14` job, so CI uses 32 MiB / 80 sessions / seed 42 and says so.
+
+**How to reverse.** Revert the PR. Drop `internal/harness`, `cmd/aftertrace/dev.go`, `--exit-after-warm`, `AFTERTRACE_FAIL_STORE`, the `scale` job, `nightly.yml`, and `docs/how-it-works/budgets.md`.
+
 ## Nov 12 2026: ship 0.5.8.
 
 **Choice.** Desktop package, plist, update-feed, and CHANGELOG `## v0.5.8` are 0.5.8. CI fixture is 0.5.9 so macos-15 still has a newer local feed. Tag `v0.5.8` after this bump PR is green and squash-merged. Apple silicon only. Keep earlier tags. Native-instrument redesign from #57 is in this release.

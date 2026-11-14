@@ -4,6 +4,28 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Harness profile (ci, nightly, full)"
+        required: false
+        default: "nightly"
+      corpus:
+        description: "Corpus size (e.g. 32MiB, 512MiB, 2GiB). Empty uses the profile default."
+        required: false
+        default: ""
+      sessions:
+        description: "Session count. Empty uses the profile default."
+        required: false
+        default: ""
+      idle:
+        description: "Idle window (Go duration). Empty uses the profile default."
+        required: false
+        default: ""
+      crash_trials:
+        description: "SIGKILL trials. Empty uses the profile default."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -14,6 +36,7 @@ concurrency:
 
 jobs:
   go:
+    if: github.event_name != 'workflow_dispatch'
     name: Go (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -76,6 +99,7 @@ jobs:
         run: cat ~/.aftertrace/serve.log || true
 
   web:
+    if: github.event_name != 'workflow_dispatch'
     name: Web UI + embedded binary
     runs-on: ubuntu-latest
     env:
@@ -132,6 +156,7 @@ jobs:
         run: cat "$RUNNER_TEMP/serve.log"
 
   shellcheck:
+    if: github.event_name != 'workflow_dispatch'
     name: Shellcheck
     runs-on: ubuntu-latest
     steps:
@@ -162,7 +187,88 @@ jobs:
         working-directory: site
         run: npm test
 
+  actionlint:
+    if: github.event_name != 'workflow_dispatch'
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          # Workflow expressions only. Shell scripts are covered by the Shellcheck job.
+          actionlint -color -shellcheck=
+
+  scale:
+    name: Scale harness
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    # PR go test is still 14m. Dispatch and a slow macos queue need headroom.
+    timeout-minutes: 180
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Paths
+        id: paths
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          if git diff --name-only "$BASE"...HEAD | grep -Eq '^(internal/(store|history|otlp|api|harness)/|cmd/|desktop/|web/|\.github/workflows/(ci|nightly)\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Engine or harness paths changed; running the scale job."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No engine/harness paths; skipping the scale harness."
+          fi
+      - uses: actions/setup-go@v7
+        if: github.event_name == 'workflow_dispatch' || steps.paths.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Audit reproductions (report-only)
+        if: github.event_name == 'workflow_dispatch' || steps.paths.outputs.run == 'true'
+        run: go test -count=1 -timeout 5m ./internal/store -run 'TestAudit|TestInjectedStoreFailure' -v
+      - name: Scale + energy harness (report-only)
+        if: github.event_name == 'workflow_dispatch' || steps.paths.outputs.run == 'true'
+        env:
+          AFTERTRACE_HARNESS: "1"
+          AFTERTRACE_HARNESS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile || 'ci' }}
+          AFTERTRACE_HARNESS_SIZE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.corpus || '' }}
+          AFTERTRACE_HARNESS_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || '' }}
+          AFTERTRACE_HARNESS_IDLE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.idle || '' }}
+          AFTERTRACE_HARNESS_CRASH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.crash_trials || '' }}
+          AFTERTRACE_HARNESS_OUT: ${{ runner.temp }}/harness
+          AFTERTRACE_HARNESS_JSON: ${{ runner.temp }}/harness/budgets.json
+        run: |
+          mkdir -p "$AFTERTRACE_HARNESS_OUT"
+          timeout=16m
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            timeout=3h
+          fi
+          go test -count=1 -timeout "$timeout" ./internal/harness -run TestScaleBudgets -v
+          echo "----- budget summary -----"
+          cat "$AFTERTRACE_HARNESS_OUT/budgets.md" || cat "$AFTERTRACE_HARNESS_JSON"
+      - name: Upload budget report
+        if: (github.event_name == 'workflow_dispatch' || steps.paths.outputs.run == 'true') && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scale-budget-report
+          path: |
+            ${{ runner.temp }}/harness/budgets.json
+            ${{ runner.temp }}/harness/budgets.md
+          if-no-files-found: ignore
+          retention-days: 14
+
   install:
+    if: github.event_name != 'workflow_dispatch'
     name: Installer (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -214,6 +320,7 @@ jobs:
         run: cat ~/.aftertrace/serve.log || true
 
   e2e:
+    if: github.event_name != 'workflow_dispatch'
     name: Playwright e2e (mock UI)
     runs-on: ubuntu-latest
     steps:

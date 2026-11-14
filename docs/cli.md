@@ -44,6 +44,8 @@ Usage of serve:
     	keep prompt/response/tool content attributes
   -ui-port int
     	UI and JSON API port (default 7311)
+  -exit-after-warm
+    	exit after history import, compact, rollups and reopen (test flag)
 ```
 
 ```bash
@@ -299,3 +301,15 @@ Uninstalled. The database and /Users/you/.aftertrace/serve.log are left as they 
 On Linux: `systemctl --user disable --now aftertrace.service`, remove the unit, `systemctl --user daemon-reload`.
 
 There is no `init` or `purge` command.
+
+## Hidden test commands
+
+`aftertrace serve --exit-after-warm` is a harness flag: it runs the usual start path, then exits once history import, compact, rollups and reopen have finished. Default `serve` is unchanged.
+
+`aftertrace dev` is not listed in the top-level usage. The scale harness uses it to build a deterministic Claude Code `~/.claude/projects` tree:
+
+```
+aftertrace dev gen-history --size 2GiB --sessions 3000 --seed 42 --dir DIR
+```
+
+See [Scale and energy budgets](how-it-works/budgets.md).
