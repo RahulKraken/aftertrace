@@ -81,7 +81,7 @@ Per-phase bounds (fail with a phase name, do not burn the job timeout):
 
 `internal/harness/testdata/baseline-<profile>.json` (`ci`, `nightly`, `full`) stores pass/fail plus resource numbers (`cpu_s`, `peak_rss_mb`, `hits`, `wall_s`) and a `goos`. Resource comparisons are skipped when the run's GOOS does not match the baseline (a Linux 2 GiB RSS must not fail the macOS 512 MiB memory ratchet). CI fails if a previously green budget turns red, a red budget flips green without a baseline update, a stored resource regresses by more than about 10% (including 0→positive), or any result is **Invalid**. Invalid is never skipped. Already-red correctness budgets stay red until their owner PR. `AFTERTRACE_HARNESS_RATCHET=0` skips the check.
 
-The nightly ratchet is the green 512 MiB darwin run 43478795531 (B1 14.46 CPU-s, B4 358 MB), not the 2 GiB copy.
+The nightly ratchet is the green 512 MiB darwin run 43478795531 (B1 14.46 CPU-s, B4 358 MB), not the 2 GiB copy. The full ratchet is weekly darwin run 43510741168 (B1 67.79, B4 486.4).
 
 | Budget | Owner PR | Gate |
 |---|---|---|
@@ -110,31 +110,51 @@ Correctness budgets B6–B9 become PR gates in those owner PRs. Resource budgets
 | B9 | OTLP never lost silently | With store failure injected, exporters get HTTP 503 **and** gRPC UNAVAILABLE. After recovery the batch's **events** are present exactly once (spans already dedupe on their primary key). The exactly-once check is trivially true today; PR 7 owns a failure-after-commit-plus-retry test. |
 | B10 | API latency | Existing `internal/perf` budget: p95 < 100 ms target, < 300 ms hard. Kept as-is in the Ubuntu Go job; the harness also reports p95 on its corpus. |
 
-## Baselines from main — 512 MiB nightly (darwin, run 43478795531)
+## Baselines from main — round 4 512 MiB nightly (darwin, run 43510617620)
 
-Green [nightly 43478795531](https://github.com/RahulKraken/aftertrace/actions/runs/43478795531) on **darwin/arm64**, macos-latest, head `4fe2fd4`. Profile `nightly`: 512 MiB JSONL (792 245 283 bytes on disk), 800 sessions, seed 42, 10-minute idle. First import **5 m 57.887 s**, peak RSS **358.0 MB**, 0 spill, **153 200** spans. Do **not** use hung run 43421664859 (B4 359.7 / B8 8 of 10 / B3 511 ms).
+Green [nightly 43510617620](https://github.com/RahulKraken/aftertrace/actions/runs/43510617620) on **darwin/arm64**, macos-latest, head `db64fd3`. Profile `nightly`: 512 MiB, 800 sessions, seed 42, 10-minute idle. `TestScaleBudgets` **PASS** in 6154.42 s. Artifact `nightly-budget-report` has **6 files**, including `powermetrics.txt` (3.3 MB) at the OUT root and under `run-20261113T212624Z/`. `powermetrics` sudo pid 80411 / child pid 80413, `-n` 615; stop used `sudo kill` on the child and `B1 closed` logged 0.17 s later.
 
-B8 on that run used wall-time % of golden import, which includes post-ingest rollup. Trials 0–5 were mid-import (62–628 sessions). Trials 6–9 were killed after **800/800** sessions were already in, so they resumed nothing. Round 4 reports B8 as **matched/valid**; those four trials are Invalid and excluded. Real mid-import result on main: **0/6**.
+Do **not** use hung run 43421664859 (B4 359.7 / B8 8 of 10 / B3 511 ms). The ratchet file is still green run [43478795531](https://github.com/RahulKraken/aftertrace/actions/runs/43478795531) (B1 14.46, B4 358.0, B3 450 ms / 0.547 CPU-s). That run's B8 wall-time 4/10 is **0/6** matched/valid once trials 6–9 (800/800 after ingest) are Invalid.
 
 | ID | Measured | Corpus / window | Valid? | vs target |
 |---|---|---|---|---|
-| B1 | **14.460 CPU-s** in 600.0 s WINDOW CLOSED (quota 3.000). 601 supervisor health, 10 tray health+glance. Electron main: **TODO**. | 512 MiB JSONL, 10 min closed | Valid | **miss** |
+| B1 | **14.350 CPU-s** in 600.009 s WINDOW CLOSED (quota 3.000). 601 supervisor health, 10 tray health+glance. Electron main: **TODO**. | 512 MiB JSONL, 10 min closed | Valid | **miss** |
 | B2 | size and mtime unchanged. | 512 MiB, 10 min closed | Valid | pass |
-| B3 | **450 ms** wall, **0.547 CPU-s**, writes=true. Owner PR 3. | 512 MiB copy, `--exit-after-warm` | Valid | **miss** (writes) |
-| B4 | Peak RSS **358.0 MB**. | 512 MiB JSONL, 153 200 spans | Valid | **miss** |
-| B5 | **0** spill hits. | 512 MiB, 5 m 58 s import | Valid | pass |
-| B6 | 200=406, err=29, `reopened=true` (`/api/field-values` deadlines). | 512 MiB + OTLP + forced Reopen | Valid | **miss** |
+| B3 | **298 ms** wall, **0.391 CPU-s**, writes=true. Owner PR 3. | 512 MiB copy, `--exit-after-warm` | Valid | **miss** (writes) |
+| B4 | Peak RSS **354.3 MB**. | 512 MiB JSONL, 153 200 spans | Valid | **miss** |
+| B5 | **0** spill hits. | 512 MiB, 3 m 19 s import | Valid | pass |
+| B6 | n200=531, err=38, `reopened=true` (`/api/field-values` deadlines). | 512 MiB + OTLP + forced Reopen | Valid | **miss** |
 | B7a | copies=1: trace/session/day cost **0 vs 0.20**. Owner PR 6. | 20 OTLP batches × 1 | Valid | **miss** |
 | B7b | events **60 vs 20**. Owner PR 6. | 20 OTLP batches × 3 | Valid | **miss** |
-| B8 | **0/6** matched/valid; **4 invalid** (trials 6–9 killed after ingest, 800/800 sessions). Trials 0–5 mid-import (62–628 sessions) did not match. | 512 MiB, 10 SIGKILL | 6 valid / 4 invalid | **miss** |
+| B8 | **2/10** matched/valid; **0 invalid**. Kills at 40–720 of 800 sessions. Trials 5 and 8 matched. | 512 MiB, 10 SIGKILL after N sessions | 10 valid / 0 invalid | **miss** |
 | B9 | HTTP **400** AND gRPC **Unknown**; events=**1**. Owner PR 7. | empty store + sentinel | Valid | **miss** |
 | B10 | p95 under 300 ms. | 512 MiB after idle | Valid | pass |
 
-Isolation / 2 min: none **0.200**, health 0.070, glance 6.850, status 11.020, overview 7.130, sessions 0.210. Closed-window pprof on that run was **50 ms / 30 s** (cache hot, after isolation). Round 4 captures **120 s** during window-closed traffic so a tray glance is in the sample.
+Isolation / 2 min: none **2.130**, health 0.060, glance 7.210, status 8.460, overview 5.990, sessions 0.170. Closed-window pprof **120 s**, labels **96.92% `findings-refresh`**. Open-idle **25.750 CPU-s** / 10 min. Live **32.130 CPU-s** / 10 min.
 
-Open-idle **24.300 CPU-s** / 10 min. Live **33.110 CPU-s** / 10 min.
+Nightly ratchet (`baseline-nightly.json`, `goos: darwin`) is 43478795531: B1 14.46, B4 358, B3 0.45 / 0.547. Linux runs skip the darwin resource keys.
 
-Nightly ratchet (`baseline-nightly.json`, `goos: darwin`) is these numbers: B1 14.46, B4 358, B3 0.45 / 0.547. Linux runs skip the darwin resource keys.
+## Baselines from main — round 4 weekly 2 GiB (darwin, run 43510741168)
+
+Green [weekly 43510741168](https://github.com/RahulKraken/aftertrace/actions/runs/43510741168) on **darwin/arm64**, macos-latest, head `99d0e8a`. Profile `full`: 2 GiB, 3000 sessions, seed 42, 10-minute idle. Elapsed **5 h 4 m** (18223 s). Artifact `weekly-full-budget-report` has **6 files**, including `powermetrics.txt` (3.4 MB). Golden DuckDB **574 212** spans, **194 604** events (same as the linux 2 GiB corpus). First import **22 m 32 s**, peak RSS **486.4 MB**, 0 spill.
+
+| ID | Measured | Corpus / window | Valid? | vs target |
+|---|---|---|---|---|
+| B1 | **67.79 CPU-s** in 600.004 s WINDOW CLOSED (quota 3.000). 601 supervisor health, 10 tray. | 2 GiB JSONL, 10 min closed | Valid | **miss** |
+| B2 | size and mtime unchanged. | 2 GiB, 10 min closed | Valid | pass |
+| B3 | **1.602 s** wall, **2.668 CPU-s**, writes=true. Owner PR 3. | 2 GiB copy, `--exit-after-warm` | Valid | **miss** |
+| B4 | Peak RSS **486.4 MB**. | 2 GiB JSONL, 574 212 spans | Valid | **miss** |
+| B5 | **0** spill hits. | 2 GiB, 22 m 32 s import | Valid | pass |
+| B6 | n200=513, err=57, `reopened=true`. | 2 GiB + OTLP + forced Reopen | Valid | **miss** |
+| B7a | copies=1: cost 0 vs 0.20. Owner PR 6. | 40 OTLP batches × 1 | Valid | **miss** |
+| B7b | duplicate events. Owner PR 6. | 40 OTLP batches × 3 | Valid | **miss** |
+| B8 | **1/10** matched/valid; **0 invalid**. Kills at 150–2700 of 3000 sessions. Trial 9 (2700) matched. | 2 GiB, 10 SIGKILL after N sessions | 10 valid / 0 invalid | **miss** |
+| B9 | HTTP **400** AND gRPC **Unknown**. Owner PR 7. | empty store + sentinel | Valid | **miss** |
+| B10 | p95 under 300 ms. | 2 GiB after idle | Valid | pass |
+
+Isolation / 2 min: none **1.15**, health 0.07, glance 29.72, status 39.46, overview 26.85, sessions 0.17. Closed-window pprof **120 s**, labels **97.85% `findings-refresh`**. Open-idle **110.54 CPU-s**. Live **150.12 CPU-s**.
+
+Full ratchet (`baseline-full.json`) is this darwin run so a 4× RSS/CPU jump fails CI. Linux resource keys are skipped when `goos` does not match.
 
 ## Baselines from main — round 3 (this PR)
 
