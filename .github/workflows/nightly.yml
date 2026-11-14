@@ -5,17 +5,12 @@ name: Nightly scale
 # Job timeout stays 360 min. go test -timeout is 5h so a hang dumps stacks
 # before the 6h job cap.
 #
-# Do not push this file to retrigger: that cancelled Desktop macOS packaging.
-# Trigger idle by pushing .github/harness-dispatch (any commit message).
-# Trigger weekly 2 GiB by pushing that file with [harness-full] in the
-# commit message. workflow_dispatch is 403 for the cloud agent.
+# Schedule only (plus workflow_dispatch if a human can use it). There is no
+# push trigger: merging this workflow onto main must not start a harness run.
 on:
   schedule:
     - cron: "27 7 * * *"
     - cron: "15 8 * * 0"
-  push:
-    paths:
-      - ".github/harness-dispatch"
   workflow_dispatch:
     inputs:
       profile:
@@ -29,7 +24,7 @@ permissions:
 jobs:
   idle:
     name: 10-minute idle
-    if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[harness-full]') || github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile != 'full' || github.event_name == 'schedule' && github.event.schedule == '27 7 * * *' }}
     runs-on: macos-latest
     timeout-minutes: 360
     env:
@@ -71,7 +66,7 @@ jobs:
 
   full:
     name: Weekly 2 GiB
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full' || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0' || github.event_name == 'push' && contains(github.event.head_commit.message, '[harness-full]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'full' || github.event_name == 'schedule' && github.event.schedule == '15 8 * * 0' }}
     runs-on: macos-latest
     timeout-minutes: 480
     env:

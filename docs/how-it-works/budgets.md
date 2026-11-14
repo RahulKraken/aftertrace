@@ -44,8 +44,8 @@ Profiles:
 | Profile | JSONL size | Sessions | Idle | Isolation | Crash trials | Where |
 |---|---|---|---|---|---|---|
 | `ci` | 32 MiB | 80 | 20 s × 3 scenarios | 8 s / endpoint | 10 (SIGKILL after 5–90% of golden **session count**) | PR `scale` job on macos-latest, ~15 min |
-| `nightly` | 512 MiB | 800 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | `nightly.yml` daily; push `.github/harness-dispatch` |
-| `full` | 2 GiB | 3000 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | local / weekly Sunday / push `.github/harness-dispatch` with `[harness-full]` |
+| `nightly` | 512 MiB | 800 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | `nightly.yml` daily schedule |
+| `full` | 2 GiB | 3000 | 10 min × 3 | 2 min / endpoint; pprof 120 s | 10 | local / weekly Sunday schedule |
 
 CI `workflow_dispatch` runs only the scale job and accepts `profile`, `corpus`, `sessions`, `idle`, and `crash_trials`. Empty inputs keep the profile defaults. PR CI keeps the small corpus so the job stays around 15 minutes.
 
